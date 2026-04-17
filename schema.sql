@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS phone_numbers (
   spam_score          INTEGER DEFAULT 100,
   health_status       TEXT DEFAULT 'healthy',
   is_active           BOOLEAN DEFAULT TRUE,
+  vapi_phone_number_id TEXT,
   last_used           TIMESTAMPTZ,
   cooldown_until      TIMESTAMPTZ,
   last_reset_date     DATE DEFAULT CURRENT_DATE,
