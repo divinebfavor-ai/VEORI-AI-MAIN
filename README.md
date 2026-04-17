@@ -33,7 +33,7 @@ npm run dev
 ```
 
 Set these in Railway dashboard:
-- `SUPABASE_URL` = https://mmlfmknklsxzasaybbrp.supabase.co
+- `SUPABASE_URL` = https://xqllxyoeftkbufoungcz.supabase.co
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `JWT_SECRET`
 - `ANTHROPIC_API_KEY`

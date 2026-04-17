@@ -2,7 +2,7 @@
 // dotenv is loaded ONCE in index.js — never here
 const { createClient } = require('@supabase/supabase-js');
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mmlfmknklsxzasaybbrp.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xqllxyoeftkbufoungcz.supabase.co';
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_SERVICE_KEY ||
