@@ -1,5 +1,4 @@
 // ─── Contract Generation & Delivery Service ───────────────────────────────────
-if (process.env.NODE_ENV !== 'production') require('dotenv').config();
 
 /**
  * Generate a Purchase & Sale Agreement or Assignment Agreement

@@ -1,5 +1,4 @@
 // ─── AI Service — Claude Haiku 4.5 ────────────────────────────────────────────
-if (process.env.NODE_ENV !== 'production') require('dotenv').config();
 const Anthropic = require('@anthropic-ai/sdk');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

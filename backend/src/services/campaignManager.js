@@ -1,5 +1,4 @@
 // ─── Campaign Manager — Concurrent Dialer Engine ──────────────────────────────
-if (process.env.NODE_ENV !== 'production') require('dotenv').config();
 const supabase = require('../config/supabase');
 const vapiService = require('./vapiService');
 const phoneRotation = require('./phoneRotation');

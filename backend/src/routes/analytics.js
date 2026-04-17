@@ -1,4 +1,3 @@
-if (process.env.NODE_ENV !== 'production') require('dotenv').config();
 const express  = require('express');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');

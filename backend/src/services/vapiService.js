@@ -1,4 +1,3 @@
-if (process.env.NODE_ENV !== 'production') require('dotenv').config();
 const axios = require('axios');
 
 const VAPI_API_KEY = process.env.VAPI_API_KEY;

@@ -1,26 +1,27 @@
-// ─── Load env FIRST before any other requires ─────────────────────────────────
+// ─── Load env FIRST — before any other require ────────────────────────────────
+// Railway injects env vars automatically. dotenv is only for local dev.
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 
 const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
+const cors    = require('cors');
+const helmet  = require('helmet');
+const morgan  = require('morgan');
 const rateLimit = require('express-rate-limit');
 
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
-// ─── Route imports ─────────────────────────────────────────────────────────────
-const authRouter       = require('./routes/auth');
-const leadsRouter      = require('./routes/leads');
-const callsRouter      = require('./routes/calls');
-const campaignsRouter  = require('./routes/campaigns');
-const phonesRouter     = require('./routes/phones');
-const dealsRouter      = require('./routes/deals');
-const buyersRouter     = require('./routes/buyers');
-const analyticsRouter  = require('./routes/analytics');
-const vapiRouter       = require('./routes/vapi');
+// ─── Route imports ────────────────────────────────────────────────────────────
+const authRouter      = require('./routes/auth');
+const leadsRouter     = require('./routes/leads');
+const callsRouter     = require('./routes/calls');
+const campaignsRouter = require('./routes/campaigns');
+const phonesRouter    = require('./routes/phones');
+const dealsRouter     = require('./routes/deals');
+const buyersRouter    = require('./routes/buyers');
+const analyticsRouter = require('./routes/analytics');
+const vapiRouter      = require('./routes/vapi');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -38,7 +39,9 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) return cb(null, true);
+      // Allow no-origin requests (Postman, Railway health checks, curl)
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return cb(null, true);
       cb(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
@@ -46,19 +49,28 @@ app.use(
 );
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
-if (process.env.NODE_ENV !== 'test') {
-  app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-}
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, legacyHeaders: false }));
-app.use('/api/vapi/', rateLimit({ windowMs: 60 * 1000, max: 300 }));
 
-// ─── Health ───────────────────────────────────────────────────────────────────
+// ─── Health check (no auth, no rate limit) ────────────────────────────────────
 app.get('/health', (_req, res) =>
-  res.json({ success: true, service: 'VEORI AI', version: '1.0.0', env: process.env.NODE_ENV, uptime: process.uptime() })
+  res.json({
+    success: true,
+    service: 'VEORI AI',
+    version: '1.0.0',
+    env: process.env.NODE_ENV || 'development',
+    uptime: process.uptime(),
+    supabase: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    vapi: !!process.env.VAPI_API_KEY,
+    ai: !!process.env.ANTHROPIC_API_KEY,
+  })
 );
-app.get('/', (_req, res) => res.json({ success: true, message: 'VEORI AI API 🚀 — Built to Achieve.' }));
+
+app.get('/', (_req, res) =>
+  res.json({ success: true, message: 'VEORI AI API 🚀 — Built to Achieve.' })
+);
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth',      authRouter);
@@ -76,16 +88,18 @@ app.use(notFound);
 app.use(errorHandler);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`
 ╔══════════════════════════════════════════╗
 ║         VEORI AI Backend v1.0            ║
 ║   Autonomous Real Estate Acquisitions    ║
 ║         Built to Achieve. 🚀            ║
 ╚══════════════════════════════════════════╝
-  Port  : ${PORT}
-  Env   : ${process.env.NODE_ENV || 'development'}
-  DB    : ${process.env.SUPABASE_URL || 'https://mmlfmknklsxzasaybbrp.supabase.co'}
+  Port      : ${PORT}
+  Env       : ${process.env.NODE_ENV || 'development'}
+  Supabase  : ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Connected' : '⚠️  Key missing'}
+  Vapi      : ${process.env.VAPI_API_KEY ? '✅ Connected' : '⚠️  Key missing'}
+  Anthropic : ${process.env.ANTHROPIC_API_KEY ? '✅ Connected' : '⚠️  Key missing'}
   `);
 });
 

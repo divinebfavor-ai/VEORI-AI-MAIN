@@ -1,5 +1,4 @@
 // ─── Phone Number Rotation & Health Service ───────────────────────────────────
-if (process.env.NODE_ENV !== 'production') require('dotenv').config();
 const supabase = require('../config/supabase');
 
 const COOLDOWN_SECONDS = 90;        // 90s between calls on same number

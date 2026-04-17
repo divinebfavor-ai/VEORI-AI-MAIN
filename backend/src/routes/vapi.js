@@ -1,5 +1,4 @@
 // Vapi Webhook Handler + AI Assistant endpoint
-if (process.env.NODE_ENV !== 'production') require('dotenv').config();
 const express  = require('express');
 const supabase = require('../config/supabase');
 const aiService = require('../services/aiService');
