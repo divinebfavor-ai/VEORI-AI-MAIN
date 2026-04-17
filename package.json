@@ -1,14 +1,30 @@
 {
-  "name": "veori-ai",
+  "name": "veori-ai-backend",
   "version": "1.0.0",
-  "description": "VEORI AI — Autonomous Real Estate Acquisitions Platform",
+  "description": "VEORI AI — Autonomous Real Estate Acquisitions Platform Backend",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node backend/src/index.js",
-    "install-backend": "cd backend && npm install",
-    "build": "cd backend && npm install"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "axios": "^1.6.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=18.0.0"
   }
 }
