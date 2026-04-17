@@ -187,15 +187,17 @@ router.post('/assistant', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/vapi/aria — Free public Aria chatbot
-router.post('/aria', optionalAuth, async (req, res, next) => {
+// POST /api/vapi/aria  OR  /api/aria/chat — Free public Aria chatbot
+async function ariaHandler(req, res, next) {
   try {
-    const { message, conversation_history = [], session_id } = req.body;
+    const { message, history, conversation_history } = req.body;
+    const convHistory = history || conversation_history || [];
     if (!message) return res.status(400).json({ success: false, error: 'message required' });
-
-    const reply = await aiService.ariaChatbot(message, conversation_history);
+    const reply = await aiService.ariaChatbot(message, convHistory);
     res.json({ success: true, reply });
   } catch (err) { next(err); }
-});
+}
+router.post('/aria', optionalAuth, ariaHandler);
+router.post('/chat', optionalAuth, ariaHandler); // /api/aria/chat alias
 
 module.exports = router;

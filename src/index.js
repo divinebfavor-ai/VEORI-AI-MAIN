@@ -82,6 +82,8 @@ app.use('/api/deals',     dealsRouter);
 app.use('/api/buyers',    buyersRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/vapi',      vapiRouter);
+// Aria public chatbot — alias so frontend can call /api/aria/chat
+app.use('/api/aria',      vapiRouter);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);
