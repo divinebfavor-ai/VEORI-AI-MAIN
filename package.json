@@ -1,0 +1,14 @@
+{
+  "name": "veori-ai",
+  "version": "1.0.0",
+  "description": "VEORI AI — Autonomous Real Estate Acquisitions Platform",
+  "scripts": {
+    "start": "node backend/src/index.js",
+    "install-backend": "cd backend && npm install",
+    "build": "cd backend && npm install"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}
