@@ -10,7 +10,7 @@ async function generate(deal, type = 'psa') {
 
 async function send(deal, type, { phone, email, vapiPhoneNumberId } = {}) {
   const { content } = await generate(deal, type);
-  const signingUrl = `https://sign.veori.ai/${deal.id}/${type}`;
+  const signingUrl = `https://sign.veori.net/${deal.id}/${type}`;
 
   console.log(`[Contract] ${type.toUpperCase()} → ${phone || email} | ${signingUrl}`);
 
