@@ -135,13 +135,46 @@ function buyerAlert({ buyerName, address, city, state, beds, baths, sqft, arv, a
   };
 }
 
+function offerExpired({ firstName, address, operatorName }) {
+  return {
+    subject: `Our offer on ${address} has expired`,
+    body: `Hi ${firstName},\n\nJust a quick note — our cash offer for your property at ${address} has expired.\n\nIf your situation changes or you'd like to revisit a sale, please don't hesitate to reach out. We can often put together a new offer quickly.\n\nWishing you all the best.\n\nBest regards,\n${operatorName || 'Alex'}`,
+  };
+}
+
+function contractSentReminder({ firstName, address, signingLink, operatorName }) {
+  return {
+    subject: `Reminder — purchase agreement awaiting signature — ${address}`,
+    body: `Hi ${firstName},\n\nThis is a friendly reminder that your purchase agreement for ${address} is still awaiting your signature.\n\n${signingLink ? `Sign here: ${signingLink}\n\n` : ''}If you have any questions or concerns, I am happy to walk through the contract with you. Please feel free to call or reply to this email.\n\nBest regards,\n${operatorName || 'Alex'}`,
+  };
+}
+
+function marketUpdate({ firstName, address, operatorName }) {
+  return {
+    subject: `Market update — properties like yours are in demand`,
+    body: `Hi ${firstName},\n\nI wanted to reach out with a quick market update for your area.\n\nProperties similar to yours at ${address} are seeing strong cash buyer interest right now. If you've been on the fence about selling, this could be a great time to get a fair offer and close on your timeline.\n\nNo pressure — just thought you'd appreciate the update. Happy to chat if you're curious.\n\nBest regards,\n${operatorName || 'Alex'}`,
+  };
+}
+
+function thankYou({ firstName, address, assignmentFee, operatorName }) {
+  const fmt = (n) => n ? '$' + Number(n).toLocaleString() : 'an amount';
+  return {
+    subject: `Thank you — ${address} is closed!`,
+    body: `Hi ${firstName},\n\nCongratulations — the sale of ${address} is now closed! It was a pleasure working with you.\n\nYour proceeds of ${fmt(assignmentFee)} have been disbursed per the closing instructions.\n\nIf you ever have another property you'd like to sell quickly, or if you know someone in a similar situation, please think of us.\n\nThank you again for trusting us with this transaction.\n\nBest regards,\n${operatorName || 'Alex'}`,
+  };
+}
+
 module.exports = {
   sendEmail,
   templates: {
     noAnswerFollowUp,
     callbackConfirmation,
     offerFollowUp,
+    offerExpired,
     contractSent,
+    contractSentReminder,
+    marketUpdate,
+    thankYou,
     titleCompanyNotification,
     buyerAlert,
   },
