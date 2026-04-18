@@ -55,8 +55,8 @@ export default function Dashboard() {
     analytics.getDashboard().then(r => {
       const d = r.data?.data || r.data || {}
       setStats(d.stats || {})
-      setRecentCalls(d.recent_calls || [])
-      setPipeline(d.pipeline || [])
+      setRecentCalls(d.recent_calls || d.recent_activity || [])
+      setPipeline(d.pipeline || Object.entries(d.pipeline_funnel || {}).map(([status, count]) => ({ status, count })))
       setLoading(false)
     }).catch(() => {
       setStats({ calls_today: 0, hot_leads: 0, active_deals: 0, revenue_closed: 0 })

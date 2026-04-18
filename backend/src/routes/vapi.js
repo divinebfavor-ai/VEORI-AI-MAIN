@@ -2,6 +2,7 @@
 const express  = require('express');
 const supabase = require('../config/supabase');
 const aiService = require('../services/aiService');
+const vapiService = require('../services/vapiService');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { enrollLeadInSequence } = require('../services/sequenceEngine');
 
@@ -16,6 +17,10 @@ router.post('/webhook', async (req, res) => {
     console.log(`[Vapi Webhook] Event: ${type}`, call?.id);
 
     switch (type) {
+      // Inbound call — Vapi asks what assistant to use
+      case 'assistant-request':
+        return res.json(await handleAssistantRequest(event));
+
       case 'call-started':
         await handleCallStarted(call);
         break;
@@ -212,6 +217,56 @@ function mapOutcomeToStatus(outcome) {
     appointment: 'appointment_set', offer_made: 'offer_made', verbal_yes: 'under_contract',
   };
   return map[outcome] || 'contacted';
+}
+
+// ─── Inbound call handler ─────────────────────────────────────────────────────
+// When a seller calls in, Vapi sends an assistant-request event.
+// We look up the caller, log the inbound call, and return the assistant config.
+async function handleAssistantRequest(event) {
+  const { call } = event;
+  const callerPhone = call?.customer?.number;
+
+  // Default to first active user (single-tenant) or look up by phone number
+  let operator = {};
+  try {
+    // Try to match inbound Vapi number → user
+    if (call?.phoneNumber?.id) {
+      const { data: phone } = await supabase.from('phone_numbers')
+        .select('user_id, users(ai_caller_name, ai_voice_id, ai_personality_tone, company_name, id)')
+        .eq('vapi_phone_id', call.phoneNumber.id)
+        .single();
+      if (phone?.users) operator = phone.users;
+    }
+
+    // Look up existing lead by phone number
+    let existingLead = null;
+    if (callerPhone && operator.id) {
+      const { data: lead } = await supabase.from('leads')
+        .select('id, first_name, last_name, property_address, motivation_score')
+        .eq('phone', callerPhone).eq('user_id', operator.id).single();
+      existingLead = lead;
+    }
+
+    // Create inbound call record
+    if (operator.id) {
+      const { data: callRec } = await supabase.from('calls').insert({
+        user_id: operator.id,
+        lead_id: existingLead?.id || null,
+        status: 'ringing',
+        direction: 'inbound',
+        started_at: new Date().toISOString(),
+      }).select().single();
+
+      // Tag Vapi call with our DB id via metadata
+      console.log(`[Vapi Inbound] ${callerPhone} → known lead: ${existingLead?.first_name || 'Unknown'}`);
+    }
+  } catch (e) {
+    console.error('[Vapi assistant-request error]', e.message);
+  }
+
+  // Return assistant config for this inbound call
+  const assistantConfig = await vapiService.buildInboundAssistantConfig({ callerPhone, operator });
+  return { assistant: assistantConfig };
 }
 
 // POST /api/vapi/assistant — Operator AI Assistant (authenticated)
