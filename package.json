@@ -1,11 +1,11 @@
 {
-  "name": "veori-ai-backend",
+  "name": "veori-ai",
   "version": "1.0.0",
-  "description": "VEORI AI — Autonomous Real Estate Acquisitions Platform Backend",
-  "main": "src/index.js",
+  "description": "VEORI AI — Autonomous Real Estate Acquisitions Platform",
+  "main": "backend/src/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "start": "cd backend && node src/index.js",
+    "dev": "cd backend && nodemon src/index.js",
     "build": "npm --prefix frontend install && npm --prefix frontend run build"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "nodemailer": "^6.10.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
