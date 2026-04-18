@@ -14,6 +14,10 @@ import Pipeline from './pages/Pipeline'
 import Buyers from './pages/Buyers'
 import Settings from './pages/Settings'
 import Analytics from './pages/Analytics'
+import Calculator from './pages/Calculator'
+import Compliance from './pages/Compliance'
+import Dialer from './pages/Dialer'
+import DealWorkspace from './pages/DealWorkspace'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -50,6 +54,10 @@ export default function App() {
         <Route path="/pipeline" element={<Pipeline />} />
         <Route path="/buyers" element={<Buyers />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/calculator" element={<Calculator />} />
+        <Route path="/compliance" element={<Compliance />} />
+        <Route path="/dialer" element={<Dialer />} />
+        <Route path="/deals/:id" element={<DealWorkspace />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 

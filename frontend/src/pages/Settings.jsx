@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle } from 'lucide-react'
+import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Badge from '../components/ui/Badge'
 import useAuthStore from '../store/authStore'
-import { phones } from '../services/api'
+import { phones, operator as operatorApi } from '../services/api'
 
 const TABS = [
   { id: 'profile',  label: 'Profile',       icon: User },
@@ -13,6 +13,8 @@ const TABS = [
   { id: 'api',      label: 'API Keys',      icon: Key },
   { id: 'alerts',   label: 'Alerts',        icon: Bell },
   { id: 'security', label: 'Security',      icon: Shield },
+  { id: 'persona',  label: 'AI Persona',    icon: Sparkles },
+  { id: 'banking',  label: 'Banking',       icon: CreditCard },
 ]
 
 function Section({ title, description, children }) {
@@ -28,14 +30,25 @@ function Section({ title, description, children }) {
 }
 
 export default function Settings() {
-  const [tab, setTab]         = useState('profile')
+  const [tab, setTab]             = useState('profile')
   const [phoneList, setPhoneList] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading]     = useState(false)
+  const [persona, setPersona]     = useState({})
+  const [bankAccounts, setBankAccounts] = useState([])
   const user = useAuthStore(s => s.user)
 
   useEffect(() => {
     if (tab === 'phones') {
       phones.getPhones().then(r => { const raw = r.data?.numbers ?? r.data?.data ?? r.data; setPhoneList(Array.isArray(raw) ? raw : []) }).catch(() => {})
+    }
+    if (tab === 'persona') {
+      operatorApi.getProfile().then(r => setPersona(r.data?.profile || {})).catch(() => {})
+    }
+    if (tab === 'banking') {
+      operatorApi.getBankAccounts().then(r => {
+        const raw = r.data?.accounts ?? r.data?.data ?? r.data
+        setBankAccounts(Array.isArray(raw) ? raw : [])
+      }).catch(() => {})
     }
   }, [tab])
 
@@ -188,6 +201,158 @@ export default function Settings() {
                 <Input label="Confirm New Password" type="password" placeholder="••••••••" />
                 <Button onClick={() => toast.success('Password updated')}>Update Password</Button>
               </div>
+            </Section>
+          )}
+
+          {tab === 'persona' && (
+            <>
+              <Section title="AI Caller Persona" description="Customize how your AI caller presents itself">
+                <div className="space-y-4">
+                  <Input
+                    label="AI Caller Name"
+                    defaultValue={persona.ai_caller_name || 'Alex'}
+                    placeholder="Alex"
+                    onChange={e => setPersona(p => ({ ...p, ai_caller_name: e.target.value }))}
+                  />
+                  <div>
+                    <label className="label-caps block mb-2">Personality Tone</label>
+                    <select
+                      value={persona.ai_personality_tone || 'Professional'}
+                      onChange={e => setPersona(p => ({ ...p, ai_personality_tone: e.target.value }))}
+                      className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary"
+                    >
+                      {['Professional', 'Friendly', 'Direct', 'Warm'].map(t => (
+                        <option key={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label-caps block mb-2">Custom Introduction Script (optional)</label>
+                    <textarea
+                      rows={4}
+                      value={persona.ai_intro_script || ''}
+                      placeholder="Hi is this [FirstName]? This is [AI Name] calling about your property at [Address]..."
+                      onChange={e => setPersona(p => ({ ...p, ai_intro_script: e.target.value }))}
+                      className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2.5 text-[14px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="label-caps block mb-2">Voicemail Script (optional)</label>
+                    <textarea
+                      rows={3}
+                      value={persona.ai_voicemail_script || ''}
+                      placeholder="Hi [FirstName], this is [AI Name]. I have been trying to reach you about your property at [Address]..."
+                      onChange={e => setPersona(p => ({ ...p, ai_voicemail_script: e.target.value }))}
+                      className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2.5 text-[14px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary resize-none"
+                    />
+                  </div>
+                  <Button
+                    onClick={() =>
+                      operatorApi.updateProfile(persona)
+                        .then(() => toast.success('Persona saved'))
+                        .catch(() => toast.error('Failed to save'))
+                    }
+                  >
+                    Save Persona
+                  </Button>
+                </div>
+              </Section>
+
+              <Section title="Contract Settings" description="Default values for all generated contracts">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <Input
+                      label="Earnest Money ($)"
+                      type="number"
+                      defaultValue={persona.earnest_money_default || 100}
+                      onChange={e => setPersona(p => ({ ...p, earnest_money_default: Number(e.target.value) }))}
+                    />
+                    <Input
+                      label="Closing Period (days)"
+                      type="number"
+                      defaultValue={persona.closing_period_default || 14}
+                      onChange={e => setPersona(p => ({ ...p, closing_period_default: Number(e.target.value) }))}
+                    />
+                    <Input
+                      label="Inspection Period (days)"
+                      type="number"
+                      defaultValue={persona.inspection_period_default || 10}
+                      onChange={e => setPersona(p => ({ ...p, inspection_period_default: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <Input
+                    label="Legal Name (for contracts)"
+                    defaultValue={persona.legal_name || persona.buyer_name_on_contract || ''}
+                    placeholder="Your full legal name"
+                    onChange={e => setPersona(p => ({ ...p, legal_name: e.target.value, buyer_name_on_contract: e.target.value }))}
+                  />
+                  <Input
+                    label="Entity Name (if LLC)"
+                    defaultValue={persona.entity_name || ''}
+                    placeholder="Smith Acquisitions LLC"
+                    onChange={e => setPersona(p => ({ ...p, entity_name: e.target.value }))}
+                  />
+                  <Button
+                    onClick={() =>
+                      operatorApi.updateProfile(persona)
+                        .then(() => toast.success('Contract settings saved'))
+                        .catch(() => toast.error('Failed to save'))
+                    }
+                  >
+                    Save Settings
+                  </Button>
+                </div>
+              </Section>
+            </>
+          )}
+
+          {tab === 'banking' && (
+            <Section title="Wire Transfer Details" description="Used for receiving assignment fee payments — shown in title company notifications">
+              <div className="bg-warning/5 border border-warning/20 rounded-[6px] px-4 py-3 mb-4">
+                <p className="text-[12px] text-text-secondary">
+                  Your banking information is encrypted and stored securely. It is only used to populate wire transfer
+                  instructions in title company communications. Never shared with sellers or buyers.
+                </p>
+              </div>
+              <div className="space-y-3 mb-4">
+                {bankAccounts.map(acct => (
+                  <div
+                    key={acct.id}
+                    className={`flex items-center justify-between p-4 rounded-lg border ${
+                      acct.is_default ? 'border-primary/30 bg-primary/5' : 'border-border-subtle bg-elevated'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[14px] font-medium text-text-primary">{acct.label}</p>
+                        {acct.is_default && <Badge variant="green">Default</Badge>}
+                      </div>
+                      <p className="text-[12px] text-text-muted mt-0.5">
+                        {acct.bank_name} · {acct.account_type} · ****{acct.account_last4}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        operatorApi.deleteBankAccount(acct.id)
+                          .then(() => setBankAccounts(prev => prev.filter(a => a.id !== acct.id)))
+                          .catch(() => toast.error('Failed'))
+                      }
+                      className="text-text-muted hover:text-danger transition-colors p-1"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                {bankAccounts.length === 0 && (
+                  <div className="text-center py-6 text-text-muted text-[13px]">No bank accounts added yet</div>
+                )}
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => toast.info('Enter bank details in the form below and click Add Account')}
+              >
+                <Plus size={14} /> Add Bank Account
+              </Button>
             </Section>
           )}
         </div>

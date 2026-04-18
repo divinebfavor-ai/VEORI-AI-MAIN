@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { formatDistanceToNow } from 'date-fns'
-import { Plus, X, Star } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, X, Star, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -85,15 +85,17 @@ function DealModal({ deal, onClose }) {
 }
 
 // ─── Deal Card ────────────────────────────────────────────────────────────────
-function DealCard({ deal, onClick }) {
+function DealCard({ deal, onClick, onOpen }) {
   const isClosed = deal.status?.toLowerCase() === 'closed'
   const daysInStage = deal.updated_at
     ? Math.floor((Date.now() - new Date(deal.updated_at)) / 86400000)
     : 0
 
   return (
-    <div onClick={onClick}
-      className="bg-elevated border border-border-subtle hover:border-border-default rounded-lg p-4 mb-2 cursor-pointer transition-colors group">
+    <div
+      className="bg-elevated border border-border-subtle hover:border-border-default rounded-lg p-4 mb-2 cursor-pointer transition-colors group"
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
           <p className="text-[14px] font-medium text-text-primary truncate group-hover:text-white transition-colors">
@@ -101,7 +103,16 @@ function DealCard({ deal, onClick }) {
           </p>
           {deal.lead_name && <p className="text-[11px] text-text-muted mt-0.5 truncate">{deal.lead_name}</p>}
         </div>
-        {isClosed && <Star size={13} className="text-gold flex-shrink-0 ml-2 fill-gold" />}
+        <div className="flex items-center gap-1.5 ml-2">
+          {isClosed && <Star size={12} className="text-gold flex-shrink-0 fill-gold" />}
+          <button
+            onClick={e => { e.stopPropagation(); onOpen(deal.id) }}
+            className="text-text-muted hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Open workspace"
+          >
+            <ExternalLink size={12} />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">
@@ -127,6 +138,7 @@ export default function Pipeline() {
   const [allDeals, setAllDeals] = useState([])
   const [loading, setLoading]   = useState(true)
   const [selected, setSelected] = useState(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     deals.getDeals({ limit: 500 }).then(r => {
@@ -189,7 +201,12 @@ export default function Pipeline() {
                 {/* Cards */}
                 <div className="flex-1 overflow-y-auto scrollbar-hide min-h-[200px] bg-surface/30 rounded-lg p-2 border border-border-subtle/50">
                   {stageDels.map(d => (
-                    <DealCard key={d.id} deal={d} onClick={() => setSelected(d)} />
+                    <DealCard
+                      key={d.id}
+                      deal={d}
+                      onClick={() => setSelected(d)}
+                      onOpen={(dealId) => navigate(`/deals/${dealId}`)}
+                    />
                   ))}
                   {stageDels.length === 0 && (
                     <div className="h-full flex items-center justify-center">

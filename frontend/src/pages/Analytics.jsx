@@ -45,7 +45,7 @@ export default function Analytics() {
 
   useEffect(() => {
     callsApi.getCallStats?.().then(r => {
-      setStats(r.data || null)
+      setStats(r.data?.stats || r.data?.data || r.data || null)
     }).catch(() => setStats(null)).finally(() => setLoading(false))
   }, [period])
 

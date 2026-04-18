@@ -61,6 +61,8 @@ export const calls = {
   getLiveCalls:   ()           => api.get('/api/calls/live'),
   getCallStats:   ()           => api.get('/api/calls/stats'),
   initiateCall:   (data)       => api.post('/api/calls/initiate', data),
+  updateCall:     (id, data)   => api.put(`/api/calls/${id}`, data),
+  endCall:        (id)         => api.post(`/api/calls/${id}/end`),
   callTakeover:   (callId)     => api.post(`/api/calls/${callId}/takeover`),
   returnToAI:     (callId)     => api.post(`/api/calls/${callId}/return-to-ai`),
 }
@@ -93,8 +95,8 @@ export const deals = {
   getDeal:           (id)           => api.get(`/api/deals/${id}`),
   createDeal:        (data)         => api.post('/api/deals', data),
   updateDeal:        (id, data)     => api.put(`/api/deals/${id}`, data),
-  generateContract:  (id, type)     => api.post(`/api/deals/${id}/contract/${type}`),
-  sendContract:      (id, type, data) => api.post(`/api/deals/${id}/contract/${type}/send`, data),
+  generateContract:  (id, type)     => api.post(`/api/deals/${id}/generate-contract`, { type }),
+  sendContract:      (id, type, data) => api.post(`/api/deals/${id}/send-contract`, { type, ...data }),
   startBuyerCampaign:(id)           => api.post(`/api/deals/${id}/buyer-campaign`),
 }
 
@@ -119,6 +121,38 @@ export const analytics = {
 export const ai = {
   sendAssistantMessage: (message, history) => api.post('/api/vapi/assistant', { message, history }),
   sendAriaMessage:      (message, history) => api.post('/api/aria/chat', { message, history }),
+}
+
+// ─── Operator profile ────────────────────────────────────────────────────────
+export const operator = {
+  getProfile:       ()         => api.get('/api/operator/profile'),
+  updateProfile:    (data)     => api.put('/api/operator/profile', data),
+  getBankAccounts:  ()         => api.get('/api/operator/bank-accounts'),
+  addBankAccount:   (data)     => api.post('/api/operator/bank-accounts', data),
+  deleteBankAccount:(id)       => api.delete(`/api/operator/bank-accounts/${id}`),
+}
+
+// ─── Title companies ─────────────────────────────────────────────────────────
+export const titleCompanies = {
+  getAll:  ()          => api.get('/api/title-companies'),
+  create:  (data)      => api.post('/api/title-companies', data),
+  update:  (id, data)  => api.put(`/api/title-companies/${id}`, data),
+  remove:  (id)        => api.delete(`/api/title-companies/${id}`),
+}
+
+// ─── Sequences ───────────────────────────────────────────────────────────────
+export const sequences = {
+  getAll:  ()                         => api.get('/api/sequences'),
+  enroll:  (lead_id, sequence_type)   => api.post('/api/sequences/enroll', { lead_id, sequence_type }),
+  cancel:  (id)                       => api.delete(`/api/sequences/${id}`),
+}
+
+// ─── Compliance ──────────────────────────────────────────────────────────────
+export const compliance = {
+  getStates:    ()       => api.get('/api/compliance/states'),
+  getState:     (code)   => api.get(`/api/compliance/state/${code}`),
+  getDisclosure:(code)   => api.get(`/api/compliance/disclosure/${code}`),
+  getTcpaLog:   (params) => api.get('/api/compliance/tcpa-log', { params }),
 }
 
 export default api
