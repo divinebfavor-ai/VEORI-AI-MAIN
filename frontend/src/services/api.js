@@ -51,6 +51,7 @@ export const leads = {
   updateLead:       (id, data)  => api.put(`/api/leads/${id}`, data),
   skipTrace:        (id)        => api.post(`/api/leads/${id}/skip-trace`),
   dropVoicemail:    (id, tmpl)  => api.post(`/api/leads/${id}/voicemail`, { template: tmpl }),
+  sendDirectMail:   (id, tmpl)  => api.post(`/api/leads/${id}/direct-mail`, { template: tmpl }),
   addToDnc:         (id, reason)=> api.post(`/api/leads/${id}/dnc`, { reason }),
   deleteLead:       (id)        => api.delete(`/api/leads/${id}`),
   getLeadResearch:  (id)        => api.get(`/api/leads/${id}/research`),

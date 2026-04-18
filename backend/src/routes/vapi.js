@@ -161,6 +161,21 @@ async function handleCallEnded(call, event) {
       .catch(e => console.error('[Vapi] Sequence enroll failed:', e.message));
   }
 
+  // Auto direct mail trigger: if 3+ no-answers, send postcard automatically
+  if (['not_home', 'voicemail'].includes(outcome) && callRec.lead_id && callRec.user_id) {
+    const { checkAutoMailTrigger, sendPostcard } = require('../services/directMailService');
+    checkAutoMailTrigger(callRec.lead_id, callRec.user_id).then(async (shouldMail) => {
+      if (!shouldMail) return;
+      const { data: lead } = await supabase.from('leads').select('*').eq('id', callRec.lead_id).single();
+      const { data: operator } = await supabase.from('users').select('ai_caller_name, company_name, business_phone, id').eq('id', callRec.user_id).single();
+      if (lead && !lead.direct_mail_sent) {
+        sendPostcard({ lead, operator: operator || {}, templateKey: 'no_answer' }).then(() => {
+          supabase.from('leads').update({ direct_mail_sent: true }).eq('id', callRec.lead_id).catch(() => {});
+        }).catch(e => console.error('[AutoMail] Failed:', e.message));
+      }
+    }).catch(() => {});
+  }
+
   // Update campaign stats after call ends
   if (callRec.campaign_id) {
     const statsUpdate = { leads_called: supabase.rpc ? undefined : undefined };

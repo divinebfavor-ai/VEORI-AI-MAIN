@@ -175,6 +175,20 @@ router.post('/:id/skip-trace', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/leads/:id/direct-mail — send a physical postcard
+router.post('/:id/direct-mail', async (req, res, next) => {
+  try {
+    const { sendPostcard } = require('../services/directMailService');
+    const { template = 'no_answer' } = req.body;
+    const { data: lead } = await supabase.from('leads').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+    if (!lead.property_address) return res.status(400).json({ success: false, error: 'Lead has no property address' });
+    const { data: operator } = await supabase.from('users').select('ai_caller_name, company_name, business_phone, id').eq('id', req.user.id).single();
+    const result = await sendPostcard({ lead, operator: operator || {}, templateKey: template });
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
 // POST /api/leads/:id/voicemail — drop a ringless voicemail
 router.post('/:id/voicemail', async (req, res, next) => {
   try {

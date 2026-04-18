@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, MapPin, Tag, FileText, ExternalLink, Mic, Zap } from 'lucide-react'
+import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, MapPin, Tag, FileText, ExternalLink, Mic, Zap, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -40,6 +40,7 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
   const [creatingDeal, setCreatingDeal] = useState(false)
   const [tracing, setTracing]           = useState(false)
   const [dropping, setDropping]         = useState(false)
+  const [mailing, setMailing]           = useState(false)
 
   useEffect(() => {
     if (tab === 'calls') {
@@ -94,6 +95,22 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
     } catch (err) {
       toast.error(err.response?.data?.error || 'Voicemail drop failed')
     } finally { setDropping(false) }
+  }
+
+  const sendMail = async () => {
+    if (!lead.property_address) { toast.error('No property address — cannot send mail'); return }
+    setMailing(true)
+    try {
+      const r = await leads.sendDirectMail(lead.id, 'no_answer')
+      const d = r.data?.data || r.data
+      if (d?.simulated) {
+        toast('Direct mail simulated — set LOB_API_KEY to send real postcards', { icon: '📬' })
+      } else {
+        toast.success(`Postcard sent! Est. delivery: ${d?.expected_delivery || 'in 3-5 days'}`)
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Direct mail failed')
+    } finally { setMailing(false) }
   }
 
   const createDeal = async () => {
@@ -180,6 +197,11 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
             </Button>
             <Button size="sm" variant="secondary" className="flex-1" loading={tracing} onClick={runSkipTrace}>
               <Zap size={12} /> Skip Trace
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" className="flex-1" loading={mailing} onClick={sendMail} disabled={!!lead.is_on_dnc || !lead.property_address}>
+              <Mail size={12} /> Send Postcard
             </Button>
           </div>
         </div>
