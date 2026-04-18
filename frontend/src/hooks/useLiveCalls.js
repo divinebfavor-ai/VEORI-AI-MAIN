@@ -12,7 +12,8 @@ export function useLiveCalls() {
       try {
         const res = await calls.getLiveCalls()
         if (mounted) {
-          setLiveCalls(res.data?.calls || res.data || [])
+          const raw = res.data?.calls ?? res.data?.data ?? res.data
+          setLiveCalls(Array.isArray(raw) ? raw : [])
           setIsLoading(false)
         }
       } catch {

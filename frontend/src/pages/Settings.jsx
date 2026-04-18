@@ -35,7 +35,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (tab === 'phones') {
-      phones.getPhones().then(r => setPhoneList(r.data?.numbers || r.data || [])).catch(() => {})
+      phones.getPhones().then(r => { const raw = r.data?.numbers ?? r.data?.data ?? r.data; setPhoneList(Array.isArray(raw) ? raw : []) }).catch(() => {})
     }
   }, [tab])
 

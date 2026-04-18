@@ -175,7 +175,7 @@ export default function Leads() {
 
   const load = async () => {
     setLoading(true)
-    try { const r = await leads.getLeads({ limit: 500 }); setAllLeads(r.data?.leads || r.data || []) }
+    try { const r = await leads.getLeads({ limit: 500 }); const raw = r.data?.leads ?? r.data?.data ?? r.data; setAllLeads(Array.isArray(raw) ? raw : []) }
     catch { setAllLeads([]) }
     finally { setLoading(false) }
   }

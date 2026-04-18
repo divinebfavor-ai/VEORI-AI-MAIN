@@ -196,7 +196,7 @@ export default function Campaigns() {
 
   const load = async () => {
     setLoading(true)
-    try { const r = await campaigns.getCampaigns(); setList(r.data?.campaigns || r.data || []) }
+    try { const r = await campaigns.getCampaigns(); const raw = r.data?.campaigns ?? r.data?.data ?? r.data; setList(Array.isArray(raw) ? raw : []) }
     catch { setList([]) }
     finally { setLoading(false) }
   }

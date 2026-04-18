@@ -130,7 +130,7 @@ export default function Pipeline() {
 
   useEffect(() => {
     deals.getDeals({ limit: 500 }).then(r => {
-      setAllDeals(r.data?.deals || r.data || [])
+      const raw = r.data?.deals ?? r.data?.data ?? r.data; setAllDeals(Array.isArray(raw) ? raw : [])
     }).catch(() => setAllDeals([])).finally(() => setLoading(false))
   }, [])
 
@@ -203,7 +203,7 @@ export default function Pipeline() {
         </div>
       )}
 
-      {selected && <DealModal deal={selected} onClose={() => { setSelected(null); deals.getDeals({limit:500}).then(r => setAllDeals(r.data?.deals||r.data||[])) }} />}
+      {selected && <DealModal deal={selected} onClose={() => { setSelected(null); deals.getDeals({limit:500}).then(r => { const raw = r.data?.deals ?? r.data?.data ?? r.data; setAllDeals(Array.isArray(raw) ? raw : []) }) }} />}
     </div>
   )
 }

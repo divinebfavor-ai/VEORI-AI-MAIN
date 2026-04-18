@@ -59,7 +59,7 @@ export default function Buyers() {
 
   const load = async () => {
     setLoading(true)
-    try { const r = await buyers.getBuyers(); setBuyerList(r.data?.buyers || r.data || []) }
+    try { const r = await buyers.getBuyers(); const raw = r.data?.buyers ?? r.data?.data ?? r.data; setBuyerList(Array.isArray(raw) ? raw : []) }
     catch { setBuyerList([]) }
     finally { setLoading(false) }
   }
