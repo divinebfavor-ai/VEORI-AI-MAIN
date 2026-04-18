@@ -164,6 +164,32 @@ router.post('/:id/dnc', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/leads/:id/skip-trace — run skip trace on a lead
+router.post('/:id/skip-trace', async (req, res, next) => {
+  try {
+    const { skipTraceLead } = require('../services/skipTraceService');
+    const { data: lead } = await supabase.from('leads').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+    const result = await skipTraceLead(lead);
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
+// POST /api/leads/:id/voicemail — drop a ringless voicemail
+router.post('/:id/voicemail', async (req, res, next) => {
+  try {
+    const { dropVoicemail } = require('../services/voicemailService');
+    const { template = 'first_contact' } = req.body;
+    const { data: lead } = await supabase.from('leads').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+    if (lead.is_on_dnc) return res.status(400).json({ success: false, error: 'Lead is on DNC list' });
+    if (!lead.phone) return res.status(400).json({ success: false, error: 'Lead has no phone number' });
+    const { data: operator } = await supabase.from('users').select('ai_caller_name, ai_voice_id, company_name, id').eq('id', req.user.id).single();
+    const result = await dropVoicemail({ lead, operator: operator || {}, templateKey: template });
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
 function parseNum(v) { const n = parseFloat(String(v || '').replace(/[^0-9.]/g, '')); return isNaN(n) ? null : n; }
 
 module.exports = router;

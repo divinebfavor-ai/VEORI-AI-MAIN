@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, MapPin, Tag, FileText, ExternalLink } from 'lucide-react'
+import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, MapPin, Tag, FileText, ExternalLink, Mic, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -36,8 +36,10 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
   const [callLog, setCallLog] = useState([])
   const [notes, setNotes]     = useState(lead.notes || '')
   const [saving, setSaving]   = useState(false)
-  const [dialing, setDialing] = useState(false)
+  const [dialing, setDialing]           = useState(false)
   const [creatingDeal, setCreatingDeal] = useState(false)
+  const [tracing, setTracing]           = useState(false)
+  const [dropping, setDropping]         = useState(false)
 
   useEffect(() => {
     if (tab === 'calls') {
@@ -64,6 +66,34 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
     } catch (err) {
       toast.error(err.response?.data?.error || 'Call failed')
     } finally { setDialing(false) }
+  }
+
+  const runSkipTrace = async () => {
+    setTracing(true)
+    try {
+      const r = await leads.skipTrace(lead.id)
+      const d = r.data?.data || r.data
+      const phonesFound = d?.phones?.length || 0
+      const emailsFound = d?.emails?.length || 0
+      if (d?.simulated) {
+        toast('Skip trace: set BATCH_SKIP_TRACE_API_KEY to enable', { icon: '⚠️' })
+      } else {
+        toast.success(`Found ${phonesFound} phone${phonesFound !== 1 ? 's' : ''}, ${emailsFound} email${emailsFound !== 1 ? 's' : ''}`)
+      }
+    } catch { toast.error('Skip trace failed') }
+    finally { setTracing(false) }
+  }
+
+  const dropVm = async () => {
+    if (lead.is_on_dnc) { toast.error('Lead is on DNC list'); return }
+    if (!lead.phone) { toast.error('No phone number on file — run skip trace first'); return }
+    setDropping(true)
+    try {
+      await leads.dropVoicemail(lead.id, 'first_contact')
+      toast.success('Voicemail drop initiated')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Voicemail drop failed')
+    } finally { setDropping(false) }
   }
 
   const createDeal = async () => {
@@ -123,25 +153,35 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
         )}
 
         {/* Action buttons */}
-        <div className="px-6 py-3 border-b border-border-subtle flex gap-2">
-          <Button
-            size="sm"
-            className="flex-1"
-            loading={dialing}
-            disabled={!!lead.is_on_dnc}
-            onClick={dialNow}
-          >
-            <Phone size={12} /> {lead.is_on_dnc ? 'DNC' : 'Dial Now'}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="flex-1"
-            loading={creatingDeal}
-            onClick={createDeal}
-          >
-            <FileText size={12} /> Create Deal
-          </Button>
+        <div className="px-6 py-3 border-b border-border-subtle space-y-2">
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="flex-1"
+              loading={dialing}
+              disabled={!!lead.is_on_dnc}
+              onClick={dialNow}
+            >
+              <Phone size={12} /> {lead.is_on_dnc ? 'DNC' : 'Dial Now'}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              loading={creatingDeal}
+              onClick={createDeal}
+            >
+              <FileText size={12} /> Create Deal
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" className="flex-1" loading={dropping} onClick={dropVm} disabled={!!lead.is_on_dnc}>
+              <Mic size={12} /> Drop VM
+            </Button>
+            <Button size="sm" variant="secondary" className="flex-1" loading={tracing} onClick={runSkipTrace}>
+              <Zap size={12} /> Skip Trace
+            </Button>
+          </div>
         </div>
 
         {/* Tabs */}
