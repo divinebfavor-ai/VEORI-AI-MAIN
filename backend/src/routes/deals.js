@@ -92,11 +92,10 @@ router.post('/:id/start-buyer-campaign', async (req, res, next) => {
       .or(`buy_box_states.cs.{"${deal.property_state}"},buy_box_states.eq.{}`)
       .lte('max_price', deal.buyer_price || deal.offer_price * 1.1);
 
-    const campaignId = uuidv4();
-    const { data: campaign } = await supabase.from('buyer_campaigns').insert([{
-      id: campaignId, user_id: req.user.id, deal_id: req.params.id, status: 'active',
-      buyers_called: 0, started_at: new Date().toISOString()
-    }]).select().single();
+    // Log in deals table that buyer search is active
+    await supabase.from('deals').update({ status: 'buyer search', updated_at: new Date().toISOString() })
+      .eq('id', req.params.id).eq('user_id', req.user.id);
+    const campaign = { id: req.params.id, status: 'active' };
 
     res.json({ success: true, data: { campaign, buyers_matched: buyers?.length || 0 } });
   } catch (err) { next(err); }

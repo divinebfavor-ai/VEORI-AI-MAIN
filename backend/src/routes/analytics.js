@@ -16,7 +16,8 @@ router.get('/dashboard', async (req, res, next) => {
       supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', uid),
       supabase.from('calls').select('id', { count: 'exact', head: true }).eq('user_id', uid).gte('created_at', today),
       supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', uid).gte('motivation_score', 70),
-      supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('user_id', uid).gte('scheduled_at', today),
+      // appointments table not yet created — use callback_requested calls as proxy
+      supabase.from('calls').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('outcome', 'appointment').gte('created_at', today),
       supabase.from('deals').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'under_contract'),
       supabase.from('deals').select('assignment_fee').eq('user_id', uid).eq('status', 'closed').gte('created_at', month + '-01'),
       supabase.from('calls').select('*, leads(first_name, last_name, property_address), phone_numbers(number)').eq('user_id', uid).in('status', ['in-progress', 'ringing']),

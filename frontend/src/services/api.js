@@ -59,12 +59,12 @@ export const calls = {
   getCalls:       (params)     => api.get('/api/calls', { params }),
   getCall:        (id)         => api.get(`/api/calls/${id}`),
   getLiveCalls:   ()           => api.get('/api/calls/live'),
-  getCallStats:   ()           => api.get('/api/calls/stats'),
+  getCallStats:   ()           => api.get('/api/analytics/calls'),
   initiateCall:   (data)       => api.post('/api/calls/initiate', data),
   updateCall:     (id, data)   => api.put(`/api/calls/${id}`, data),
   endCall:        (id)         => api.post(`/api/calls/${id}/end`),
-  callTakeover:   (callId)     => api.post(`/api/calls/${callId}/takeover`),
-  returnToAI:     (callId)     => api.post(`/api/calls/${callId}/return-to-ai`),
+  callTakeover:   (callId)     => api.post('/api/calls/takeover', { call_id: callId }),
+  returnToAI:     (callId)     => api.post('/api/calls/return-to-ai', { call_id: callId }),
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ export const deals = {
   updateDeal:        (id, data)     => api.put(`/api/deals/${id}`, data),
   generateContract:  (id, type)     => api.post(`/api/deals/${id}/generate-contract`, { type }),
   sendContract:      (id, type, data) => api.post(`/api/deals/${id}/send-contract`, { type, ...data }),
-  startBuyerCampaign:(id)           => api.post(`/api/deals/${id}/buyer-campaign`),
+  startBuyerCampaign:(id)           => api.post(`/api/deals/${id}/start-buyer-campaign`),
 }
 
 // ─── Buyers ──────────────────────────────────────────────────────────────────
