@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, MapPin, Tag } from 'lucide-react'
+import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, MapPin, Tag, FileText, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
-import { leads, calls as callsApi } from '../services/api'
+import { leads, calls as callsApi, deals as dealsApi } from '../services/api'
 
 // ─── Score helpers ────────────────────────────────────────────────────────────
 function scoreColor(s) {
@@ -30,15 +31,20 @@ const STATUS_OPTIONS = ['All','New','Contacted','Calling','Interested','Appointm
 const SCORE_OPTIONS  = [{ label:'All Scores', min:0, max:100 },{ label:'Hot (70+)', min:70, max:100 },{ label:'Warm (40–69)', min:40, max:69 },{ label:'Cold (<40)', min:0, max:39 }]
 
 // ─── Lead Drawer ─────────────────────────────────────────────────────────────
-function LeadDrawer({ lead, onClose }) {
-  const [tab, setTab]     = useState('overview')
+function LeadDrawer({ lead, onClose, onNavigate }) {
+  const [tab, setTab]         = useState('overview')
   const [callLog, setCallLog] = useState([])
-  const [notes, setNotes] = useState(lead.notes || '')
-  const [saving, setSaving] = useState(false)
+  const [notes, setNotes]     = useState(lead.notes || '')
+  const [saving, setSaving]   = useState(false)
+  const [dialing, setDialing] = useState(false)
+  const [creatingDeal, setCreatingDeal] = useState(false)
 
   useEffect(() => {
     if (tab === 'calls') {
-      callsApi.getCalls({ lead_id: lead.id }).then(r => setCallLog(r.data?.calls || [])).catch(() => {})
+      callsApi.getCalls({ lead_id: lead.id }).then(r => {
+        const raw = r.data?.data ?? r.data?.calls ?? r.data
+        setCallLog(Array.isArray(raw) ? raw : [])
+      }).catch(() => {})
     }
   }, [tab, lead.id])
 
@@ -47,6 +53,37 @@ function LeadDrawer({ lead, onClose }) {
     try { await leads.updateLead(lead.id, { notes }); toast.success('Notes saved') }
     catch { toast.error('Failed to save') }
     finally { setSaving(false) }
+  }
+
+  const dialNow = async () => {
+    if (lead.is_on_dnc) { toast.error('Lead is on DNC list'); return }
+    setDialing(true)
+    try {
+      await callsApi.initiateCall({ lead_id: lead.id })
+      toast.success('Call initiated — check Live Monitor')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Call failed')
+    } finally { setDialing(false) }
+  }
+
+  const createDeal = async () => {
+    setCreatingDeal(true)
+    try {
+      const r = await dealsApi.createDeal({
+        lead_id: lead.id,
+        property_address: lead.property_address,
+        property_city: lead.property_city,
+        property_state: lead.property_state,
+        property_zip: lead.property_zip,
+        arv: lead.estimated_arv || lead.estimated_value,
+        status: 'offer made',
+      })
+      const deal = r.data?.deal || r.data?.data || r.data
+      toast.success('Deal created')
+      onClose()
+      if (deal?.id && onNavigate) onNavigate(`/deals/${deal.id}`)
+    } catch { toast.error('Failed to create deal') }
+    finally { setCreatingDeal(false) }
   }
 
   const TABS = ['Overview','Calls','Notes']
@@ -84,6 +121,28 @@ function LeadDrawer({ lead, onClose }) {
             </div>
           </div>
         )}
+
+        {/* Action buttons */}
+        <div className="px-6 py-3 border-b border-border-subtle flex gap-2">
+          <Button
+            size="sm"
+            className="flex-1"
+            loading={dialing}
+            disabled={!!lead.is_on_dnc}
+            onClick={dialNow}
+          >
+            <Phone size={12} /> {lead.is_on_dnc ? 'DNC' : 'Dial Now'}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="flex-1"
+            loading={creatingDeal}
+            onClick={createDeal}
+          >
+            <FileText size={12} /> Create Deal
+          </Button>
+        </div>
 
         {/* Tabs */}
         <div className="flex border-b border-border-subtle px-6">
@@ -172,6 +231,7 @@ export default function Leads() {
   const [page, setPage]           = useState(1)
   const [importing, setImporting] = useState(false)
   const fileRef = useRef()
+  const navigate = useNavigate()
 
   const load = async () => {
     setLoading(true)
@@ -354,7 +414,7 @@ export default function Leads() {
         </div>
       )}
 
-      {selected && <LeadDrawer lead={selected} onClose={() => setSelected(null)} />}
+      {selected && <LeadDrawer lead={selected} onClose={() => setSelected(null)} onNavigate={(path) => { setSelected(null); navigate(path) }} />}
     </div>
   )
 }
