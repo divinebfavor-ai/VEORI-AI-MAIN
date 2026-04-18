@@ -4,38 +4,31 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 const api = axios.create({
   baseURL: BASE_URL,
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
 })
 
 // Request interceptor — attach token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('veori_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
+    if (token) config.headers.Authorization = `Bearer ${token}`
     return config
   },
   (error) => Promise.reject(error)
 )
 
 // Response interceptor — handle 401
-// Only force-logout when the backend explicitly says the token is invalid/expired.
-// Don't kick the user out just because a data endpoint returned 401.
-let isRedirecting = false
+// Instead of window.location (full page reload), we update the Zustand store
+// directly so React Router handles the redirect cleanly.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const status = error.response?.status
-    const msg    = error.response?.data?.error || error.response?.data?.message || ''
-    const isTokenError = /invalid token|token expired|jwt|unauthorized|not authenticated/i.test(msg)
-
-    if (status === 401 && isTokenError && !isRedirecting) {
-      isRedirecting = true
-      localStorage.removeItem('veori_token')
-      localStorage.removeItem('veori_user')
-      // Use replace so there's no back-button loop
-      window.location.replace('/login')
+    if (error.response?.status === 401) {
+      // Lazy-import to avoid circular deps at module load time
+      import('../store/authStore').then(({ default: useAuthStore }) => {
+        useAuthStore.getState().clearAuth()
+      })
     }
     return Promise.reject(error)
   }
@@ -43,93 +36,89 @@ api.interceptors.response.use(
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export const auth = {
-  login: (email, password) => api.post('/api/auth/login', { email, password }),
-  register: (data) => api.post('/api/auth/register', data),
-  getMe: () => api.get('/api/auth/me'),
-  logout: () => api.post('/api/auth/logout'),
+  login:    (email, password) => api.post('/api/auth/login', { email, password }),
+  register: (data)            => api.post('/api/auth/register', data),
+  getMe:    ()                => api.get('/api/auth/me'),
+  logout:   ()                => api.post('/api/auth/logout'),
 }
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
 export const leads = {
-  getLeads: (params) => api.get('/api/leads', { params }),
-  getLead: (id) => api.get(`/api/leads/${id}`),
-  createLead: (data) => api.post('/api/leads', data),
-  bulkImportLeads: (leadsData) => api.post('/api/leads/bulk', { leads: leadsData }),
-  updateLead: (id, data) => api.put(`/api/leads/${id}`, data),
-  deleteLead: (id) => api.delete(`/api/leads/${id}`),
-  getLeadResearch: (id) => api.get(`/api/leads/${id}/research`),
-  addToDNC: (id, reason) => api.post(`/api/leads/${id}/dnc`, { reason }),
+  getLeads:         (params) => api.get('/api/leads', { params }),
+  getLead:          (id)     => api.get(`/api/leads/${id}`),
+  createLead:       (data)   => api.post('/api/leads', data),
+  bulkImportLeads:  (leadsData) => api.post('/api/leads/bulk', { leads: leadsData }),
+  updateLead:       (id, data)  => api.put(`/api/leads/${id}`, data),
+  deleteLead:       (id)        => api.delete(`/api/leads/${id}`),
+  getLeadResearch:  (id)        => api.get(`/api/leads/${id}/research`),
+  addToDNC:         (id, reason) => api.post(`/api/leads/${id}/dnc`, { reason }),
 }
 
 // ─── Calls ────────────────────────────────────────────────────────────────────
 export const calls = {
-  getCalls: (params) => api.get('/api/calls', { params }),
-  getCall: (id) => api.get(`/api/calls/${id}`),
-  getLiveCalls: () => api.get('/api/calls/live'),
-  initiateCall: (data) => api.post('/api/calls/initiate', data),
-  campaignStart: (campaignId) => api.post(`/api/calls/campaign/${campaignId}/start`),
-  campaignPause: (campaignId) => api.post(`/api/calls/campaign/${campaignId}/pause`),
-  campaignStop: (campaignId) => api.post(`/api/calls/campaign/${campaignId}/stop`),
-  callTakeover: (callId) => api.post(`/api/calls/${callId}/takeover`),
-  returnToAI: (callId) => api.post(`/api/calls/${callId}/return-to-ai`),
+  getCalls:       (params)     => api.get('/api/calls', { params }),
+  getCall:        (id)         => api.get(`/api/calls/${id}`),
+  getLiveCalls:   ()           => api.get('/api/calls/live'),
+  getCallStats:   ()           => api.get('/api/calls/stats'),
+  initiateCall:   (data)       => api.post('/api/calls/initiate', data),
+  callTakeover:   (callId)     => api.post(`/api/calls/${callId}/takeover`),
+  returnToAI:     (callId)     => api.post(`/api/calls/${callId}/return-to-ai`),
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 export const campaigns = {
-  getCampaigns: () => api.get('/api/campaigns'),
-  getCampaign: (id) => api.get(`/api/campaigns/${id}`),
-  getCampaignStats: (id) => api.get(`/api/campaigns/${id}/stats`),
-  createCampaign: (data) => api.post('/api/campaigns', data),
-  updateCampaign: (id, data) => api.put(`/api/campaigns/${id}`, data),
-  startCampaign: (id) => api.post(`/api/campaigns/${id}/start`),
-  pauseCampaign: (id) => api.post(`/api/campaigns/${id}/pause`),
-  stopCampaign: (id) => api.post(`/api/campaigns/${id}/stop`),
+  getCampaigns:     ()         => api.get('/api/campaigns'),
+  getCampaign:      (id)       => api.get(`/api/campaigns/${id}`),
+  getCampaignStats: (id)       => api.get(`/api/campaigns/${id}/stats`),
+  createCampaign:   (data)     => api.post('/api/campaigns', data),
+  updateCampaign:   (id, data) => api.put(`/api/campaigns/${id}`, data),
+  startCampaign:    (id)       => api.post(`/api/campaigns/${id}/start`),
+  pauseCampaign:    (id)       => api.post(`/api/campaigns/${id}/pause`),
+  stopCampaign:     (id)       => api.post(`/api/campaigns/${id}/stop`),
 }
 
 // ─── Phones ──────────────────────────────────────────────────────────────────
 export const phones = {
-  getPhones: () => api.get('/api/phones'),
-  getPhoneHealth: () => api.get('/api/phones/health'),
-  addPhone: (data) => api.post('/api/phones', data),
-  updatePhone: (id, data) => api.put(`/api/phones/${id}`, data),
-  deletePhone: (id) => api.delete(`/api/phones/${id}`),
-  bulkAddPhones: (numbers) => api.post('/api/phones/bulk', { numbers }),
+  getPhones:     ()         => api.get('/api/phones'),
+  getPhoneHealth:()         => api.get('/api/phones/health'),
+  addPhone:      (data)     => api.post('/api/phones', data),
+  updatePhone:   (id, data) => api.put(`/api/phones/${id}`, data),
+  deletePhone:   (id)       => api.delete(`/api/phones/${id}`),
+  bulkAddPhones: (numbers)  => api.post('/api/phones/bulk', { numbers }),
 }
 
 // ─── Deals ───────────────────────────────────────────────────────────────────
 export const deals = {
-  getDeals: (params) => api.get('/api/deals', { params }),
-  getDeal: (id) => api.get(`/api/deals/${id}`),
-  createDeal: (data) => api.post('/api/deals', data),
-  updateDeal: (id, data) => api.put(`/api/deals/${id}`, data),
-  generateContract: (id, type) => api.post(`/api/deals/${id}/contract/${type}`),
-  sendContract: (id, type, data) => api.post(`/api/deals/${id}/contract/${type}/send`, data),
-  startBuyerCampaign: (id) => api.post(`/api/deals/${id}/buyer-campaign`),
+  getDeals:          (params)       => api.get('/api/deals', { params }),
+  getDeal:           (id)           => api.get(`/api/deals/${id}`),
+  createDeal:        (data)         => api.post('/api/deals', data),
+  updateDeal:        (id, data)     => api.put(`/api/deals/${id}`, data),
+  generateContract:  (id, type)     => api.post(`/api/deals/${id}/contract/${type}`),
+  sendContract:      (id, type, data) => api.post(`/api/deals/${id}/contract/${type}/send`, data),
+  startBuyerCampaign:(id)           => api.post(`/api/deals/${id}/buyer-campaign`),
 }
 
 // ─── Buyers ──────────────────────────────────────────────────────────────────
 export const buyers = {
-  getBuyers: (params) => api.get('/api/buyers', { params }),
-  getBuyer: (id) => api.get(`/api/buyers/${id}`),
-  createBuyer: (data) => api.post('/api/buyers', data),
-  bulkAddBuyers: (buyersData) => api.post('/api/buyers/bulk', { buyers: buyersData }),
-  updateBuyer: (id, data) => api.put(`/api/buyers/${id}`, data),
-  deleteBuyer: (id) => api.delete(`/api/buyers/${id}`),
+  getBuyers:    (params)    => api.get('/api/buyers', { params }),
+  getBuyer:     (id)        => api.get(`/api/buyers/${id}`),
+  createBuyer:  (data)      => api.post('/api/buyers', data),
+  bulkAddBuyers:(buyersData)=> api.post('/api/buyers/bulk', { buyers: buyersData }),
+  updateBuyer:  (id, data)  => api.put(`/api/buyers/${id}`, data),
+  deleteBuyer:  (id)        => api.delete(`/api/buyers/${id}`),
 }
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 export const analytics = {
-  getDashboard: () => api.get('/api/analytics/dashboard'),
-  getCallAnalytics: (days) => api.get('/api/analytics/calls', { params: { days } }),
-  getRevenue: () => api.get('/api/analytics/revenue'),
+  getDashboard:    () => api.get('/api/analytics/dashboard'),
+  getCallAnalytics:(days) => api.get('/api/analytics/calls', { params: { days } }),
+  getRevenue:      () => api.get('/api/analytics/revenue'),
 }
 
 // ─── AI ──────────────────────────────────────────────────────────────────────
 export const ai = {
-  sendAssistantMessage: (message, history) =>
-    api.post('/api/vapi/assistant', { message, history }),
-  sendAriaMessage: (message, history) =>
-    api.post('/api/aria/chat', { message, history }),
+  sendAssistantMessage: (message, history) => api.post('/api/vapi/assistant', { message, history }),
+  sendAriaMessage:      (message, history) => api.post('/api/aria/chat', { message, history }),
 }
 
 export default api
