@@ -71,8 +71,13 @@ router.post('/initiate', async (req, res, next) => {
       status: 'initiated', started_at: new Date().toISOString()
     }]).select().single();
 
-    // Initiate Vapi call
-    const vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId });
+    // Load operator profile for personalized AI
+    const { data: operatorProfile } = await supabase.from('users')
+      .select('ai_caller_name, ai_voice_id, ai_personality_tone, ai_intro_script, company_name, id')
+      .eq('id', req.user.id).single();
+
+    // Initiate Vapi call with operator persona
+    const vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId, operator: operatorProfile || {} });
 
     // Update call with Vapi ID
     await supabase.from('calls').update({ vapi_call_id: vapiCall.id, status: 'ringing' }).eq('id', callId);

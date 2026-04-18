@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, PlayCircle, Radio,
   Columns, Briefcase, BarChart2, Settings, LogOut,
-  Calculator, Shield, Phone,
+  Calculator, Shield, Phone, Building2,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -17,6 +17,7 @@ const NAV = [
   { label: 'Live Calls', icon: Radio,           to: '/monitor', live: true },
   { label: 'Pipeline',   icon: Columns,         to: '/pipeline' },
   { label: 'Buyers',     icon: Briefcase,       to: '/buyers' },
+  { label: 'Title Co.',  icon: Building2,       to: '/title-companies' },
   { label: 'Analytics',  icon: BarChart2,       to: '/analytics' },
   { label: 'Dialer',     icon: Phone,           to: '/dialer' },
   { label: 'Calculator', icon: Calculator,      to: '/calculator' },

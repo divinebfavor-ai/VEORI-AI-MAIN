@@ -18,6 +18,7 @@ import Calculator from './pages/Calculator'
 import Compliance from './pages/Compliance'
 import Dialer from './pages/Dialer'
 import DealWorkspace from './pages/DealWorkspace'
+import TitleCompanies from './pages/TitleCompanies'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/compliance" element={<Compliance />} />
         <Route path="/dialer" element={<Dialer />} />
         <Route path="/deals/:id" element={<DealWorkspace />} />
+        <Route path="/title-companies" element={<TitleCompanies />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 
