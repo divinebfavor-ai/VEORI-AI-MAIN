@@ -1,43 +1,110 @@
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-* { box-sizing: border-box; }
+/* ─── Global reset ───────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
 body {
-  background-color: #050A14;
-  color: #F8FAFC;
-  font-family: 'Inter', system-ui, sans-serif;
-  margin: 0;
-  -webkit-font-smoothing: antialiased;
+  background-color: #000000;
+  color: #FFFFFF;
+  font-family: 'Geist', 'Inter', system-ui, sans-serif;
+  line-height: 1.5;
 }
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0D1421; }
-::-webkit-scrollbar-thumb { background: #243550; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
 
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(59,130,246,0.4); }
-  50% { box-shadow: 0 0 20px rgba(59,130,246,0.8); }
-}
-@keyframes wave {
-  0%, 100% { transform: scaleY(0.3); }
-  50% { transform: scaleY(1); }
-}
-.animate-glow { animation: pulse-glow 2s ease-in-out infinite; }
-.waveform-bar { animation: wave 1s ease-in-out infinite; }
+/* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 4px; height: 4px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: #2E2E2E; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3E3E3E; }
 
-/* Scrollbar hide utility */
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
-/* Chat slide-in animation */
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slide-in-from-bottom-1 { from { transform: translateY(4px); } to { transform: translateY(0); } }
-@keyframes slide-in-from-bottom-2 { from { transform: translateY(8px); } to { transform: translateY(0); } }
+/* ─── Typography utilities ───────────────────────────────────────────────────── */
+.label-caps {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #555555;
+}
 
-.animate-in { animation-fill-mode: both; animation-duration: 200ms; }
-.fade-in { animation-name: fade-in; }
-.slide-in-from-bottom-1 { animation-name: slide-in-from-bottom-1; }
-.slide-in-from-bottom-2 { animation-name: slide-in-from-bottom-2; }
-.duration-200 { animation-duration: 200ms; }
-.duration-300 { animation-duration: 300ms; }
+/* ─── Green dot pulsing indicator ───────────────────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+.dot-live {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00C37A;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+.dot-amber {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FF9500;
+}
+.dot-red {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FF4444;
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────────── */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes slide-in-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.3); }
+  50%       { transform: scaleY(1);   }
+}
+
+.animate-slide-in-right { animation: slide-in-right 0.3s ease-out; }
+.animate-slide-in-up    { animation: slide-in-up 0.25s ease-out; }
+.animate-fade-in        { animation: fade-in 0.2s ease-out; }
+.waveform-bar           { animation: waveform 0.8s ease-in-out infinite; }
+
+/* ─── Card hover states ──────────────────────────────────────────────────────── */
+.card-hover {
+  transition: border-color 0.15s ease;
+}
+.card-hover:hover { border-color: #2E2E2E; }
+.card-active      { border-color: #00C37A !important; }
+
+/* ─── Score colors ───────────────────────────────────────────────────────────── */
+.score-hot    { color: #00C37A; }
+.score-warm   { color: #FF9500; }
+.score-cold   { color: #FF4444; }
+
+/* ─── Kanban drag ────────────────────────────────────────────────────────────── */
+.kanban-card-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}

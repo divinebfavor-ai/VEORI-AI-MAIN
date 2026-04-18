@@ -1,29 +1,30 @@
-import React, { useState, useEffect } from 'react'
-import { Activity, Headphones, Mic, ArrowLeft, RefreshCw } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
+import { Radio, Headphones, Mic, X, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
-import clsx from 'clsx'
-import { calls as callsApi } from '../services/api'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import { calls as callsApi } from '../services/api'
+import { useLiveCalls } from '../hooks/useLiveCalls'
 
-// Waveform animation component
-function Waveform({ active = true, color = '#3B82F6' }) {
-  const bars = [0.4, 0.7, 1, 0.8, 0.5, 0.9, 0.6, 1, 0.7, 0.4]
+function scoreColor(s) {
+  if (s == null) return 'text-text-muted'
+  if (s >= 70) return 'text-primary'
+  if (s >= 40) return 'text-warning'
+  return 'text-danger'
+}
+
+// ─── Waveform bars ────────────────────────────────────────────────────────────
+function Waveform({ color = '#00C37A', bars = 20 }) {
   return (
-    <div className="flex items-end gap-0.5 h-8">
-      {bars.map((h, i) => (
-        <div
-          key={i}
-          className={active ? 'waveform-bar' : ''}
+    <div className="flex items-center gap-0.5 h-8">
+      {Array.from({ length: bars }).map((_, i) => (
+        <div key={i} className="w-1 rounded-full waveform-bar"
           style={{
-            width: '3px',
-            height: `${h * 100}%`,
-            backgroundColor: color,
-            borderRadius: '2px',
-            animationDelay: `${i * 0.1}s`,
-            opacity: active ? 1 : 0.3,
-            transform: active ? undefined : 'scaleY(0.3)',
-            transformOrigin: 'bottom',
+            background: color,
+            height: `${20 + Math.random() * 80}%`,
+            animationDelay: `${(i * 40) % 800}ms`,
+            animationDuration: `${600 + (i * 37) % 600}ms`,
           }}
         />
       ))}
@@ -31,339 +32,235 @@ function Waveform({ active = true, color = '#3B82F6' }) {
   )
 }
 
-function scoreStyle(score) {
-  if (score == null) return { bg: 'bg-text-muted/20', text: 'text-text-secondary', glow: false }
-  if (score >= 85) return { bg: 'bg-hot/20', text: 'text-hot', glow: true }
-  if (score >= 70) return { bg: 'bg-success/20', text: 'text-success', glow: false }
-  if (score >= 40) return { bg: 'bg-warning/20', text: 'text-warning', glow: false }
-  return { bg: 'bg-text-muted/20', text: 'text-text-secondary', glow: false }
+// ─── Duration timer ───────────────────────────────────────────────────────────
+function Duration({ startedAt }) {
+  const [secs, setSecs] = useState(0)
+  useEffect(() => {
+    if (!startedAt) return
+    const start = new Date(startedAt).getTime()
+    const update = () => setSecs(Math.floor((Date.now() - start) / 1000))
+    update()
+    const t = setInterval(update, 1000)
+    return () => clearInterval(t)
+  }, [startedAt])
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return <span className="tabular-nums">{m}:{String(s).padStart(2,'0')}</span>
 }
 
-function emotionVariant(emotion) {
-  const map = { Motivated: 'green', Interested: 'blue', Calm: 'gray', Anxious: 'yellow', Resistant: 'red' }
-  return map[emotion] || 'gray'
+// ─── Score ring ───────────────────────────────────────────────────────────────
+function ScoreRing({ score }) {
+  const color = score >= 70 ? '#00C37A' : score >= 40 ? '#FF9500' : '#FF4444'
+  const pct   = score / 100
+  const r     = 36
+  const circ  = 2 * Math.PI * r
+  return (
+    <div className="relative w-24 h-24 flex items-center justify-center">
+      <svg className="absolute inset-0 -rotate-90" width="96" height="96">
+        <circle cx="48" cy="48" r={r} stroke="#242424" strokeWidth="3" fill="none" />
+        <circle cx="48" cy="48" r={r} stroke={color} strokeWidth="3" fill="none"
+          strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)}
+          strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+        />
+      </svg>
+      <span className={`text-[28px] font-bold leading-none ${scoreColor(score)}`}>{score ?? '—'}</span>
+    </div>
+  )
 }
 
-function formatDuration(seconds) {
-  if (!seconds && seconds !== 0) return '0:00'
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}:${String(s).padStart(2, '0')}`
-}
+// ─── Call Panel ───────────────────────────────────────────────────────────────
+function CallPanel({ call, isTakeover, onListen, onTakeover, onEnd, onReturn }) {
+  const [transcript, setTranscript] = useState([])
+  const txRef = useRef(null)
 
-// Coaching Panel
-function CoachingPanel({ call, onReturnToAI, onClose }) {
-  const [returning, setReturning] = useState(false)
-
-  const handleReturn = async () => {
-    setReturning(true)
-    try {
-      await callsApi.returnToAI(call.id)
-      toast.success('Returned to AI')
-      onReturnToAI?.()
-    } catch {
-      toast.error('Failed to return to AI')
-    } finally {
-      setReturning(false)
+  useEffect(() => {
+    if (call.transcript) {
+      const lines = call.transcript.split('\n').filter(Boolean).map(l => {
+        const isAlex = l.toLowerCase().startsWith('alex:') || l.toLowerCase().startsWith('agent:')
+        return { speaker: isAlex ? 'Alex' : 'Seller', text: l.replace(/^(alex|agent|seller):\s*/i, '') }
+      })
+      setTranscript(lines.slice(-8))
     }
-  }
+  }, [call.transcript])
 
-  const suggestions = [
-    "I understand, selling a home is a big decision.",
-    "What would make this work for you?",
-    "We can close in as little as 14 days, all cash.",
-    "I'd love to make you a fair offer — can I ask a few questions?",
-    "We handle all the repairs, you don't need to fix anything.",
-  ]
-
-  const objectionResponses = {
-    "Not interested": "I totally understand. Can I ask — is there any situation where selling quickly would help you?",
-    "Too low": "I hear you. The offer accounts for our repair costs — but tell me, what number would work for you?",
-    "Need to think": "Of course, no rush. Can I call you back tomorrow morning?",
-    "Have an agent": "Great! We can actually work with agents. Would your agent be open to an as-is cash offer?",
-  }
+  useEffect(() => { txRef.current?.scrollTo({ top: 9999, behavior: 'smooth' }) }, [transcript])
 
   return (
-    <div className="w-80 bg-surface border-l border-border-subtle flex flex-col h-full overflow-hidden">
-      <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between">
+    <div className={`bg-card border rounded-lg p-6 flex flex-col gap-5 transition-all ${
+      isTakeover ? 'border-primary shadow-lg shadow-primary/10 animate-pulse-slow' : 'border-border-subtle'
+    }`}>
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h3 className="font-bold text-text-primary text-sm">Live Coaching</h3>
-          <p className="text-xs text-text-muted">{call.seller_name || 'Seller'}</p>
+          <h3 className="text-[16px] font-medium text-white">{call.lead_name || 'Unknown Seller'}</h3>
+          <p className="text-[12px] text-text-muted mt-0.5">{call.property_address || 'Address unknown'}</p>
         </div>
-        <button onClick={onClose} className="text-text-muted hover:text-text-primary">
-          <ArrowLeft size={18} />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        {/* Suggested Lines */}
-        <div>
-          <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Suggested Lines</h4>
-          <div className="space-y-2">
-            {suggestions.map((line, i) => (
-              <button
-                key={i}
-                className="w-full text-left text-sm text-text-secondary bg-elevated hover:bg-card border border-border-subtle hover:border-primary/40 rounded-lg p-3 transition-all"
-                onClick={() => {
-                  navigator.clipboard.writeText(line)
-                  toast.success('Copied!')
-                }}
-              >
-                {line}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Objection Handlers */}
-        <div>
-          <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Objection Responses</h4>
-          <div className="space-y-2">
-            {Object.entries(objectionResponses).map(([obj, response]) => (
-              <div key={obj} className="bg-elevated border border-border-subtle rounded-lg p-3">
-                <p className="text-xs font-medium text-danger mb-1">"{obj}"</p>
-                <p className="text-xs text-text-secondary leading-relaxed">{response}</p>
-              </div>
-            ))}
-          </div>
+        <div className="text-right">
+          <p className="text-[18px] font-mono font-medium text-text-primary">
+            <Duration startedAt={call.started_at} />
+          </p>
+          <p className="text-[11px] text-text-muted mt-0.5">{call.phone_number || '—'}</p>
         </div>
       </div>
 
-      <div className="p-4 border-t border-border-subtle">
-        <Button
-          variant="secondary"
-          className="w-full"
-          loading={returning}
-          onClick={handleReturn}
-        >
-          <RefreshCw size={14} /> Return to AI
+      {/* Waveforms */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <span className="label-caps w-10">Alex</span>
+          <Waveform color="#00C37A" bars={24} />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="label-caps w-10">Seller</span>
+          <Waveform color="#555555" bars={24} />
+        </div>
+      </div>
+
+      {/* Transcript */}
+      <div ref={txRef} className="space-y-1.5 max-h-[140px] overflow-y-auto scrollbar-hide">
+        {transcript.length === 0
+          ? <p className="text-[12px] text-text-muted italic">Waiting for transcript…</p>
+          : transcript.map((line, i) => (
+            <div key={i} className={`flex gap-2 pl-2 border-l-2 ${line.speaker === 'Alex' ? 'border-primary' : 'border-border-default'}`}>
+              <p className={`text-[12px] leading-relaxed ${line.speaker === 'Alex' ? 'text-text-secondary' : 'text-text-primary'}`}>
+                {line.text}
+              </p>
+            </div>
+          ))
+        }
+      </div>
+
+      {/* Score + Signals */}
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <p className="label-caps mb-2">Motivation Score</p>
+          <ScoreRing score={call.motivation_score ?? 0} />
+          {/* Signals */}
+          {(call.key_signals || []).length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-3">
+              {(call.key_signals || []).map(s => (
+                <span key={s} className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded-[3px]">{s}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        {call.offer_made && (
+          <div className="text-right">
+            <p className="label-caps mb-1">Current MAO</p>
+            <p className="text-[22px] font-bold text-gold">${Number(call.offer_made).toLocaleString()}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Coaching panel when in takeover */}
+      {isTakeover && (
+        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+          <p className="label-caps text-primary mb-2">Coaching</p>
+          <p className="text-[12px] text-text-secondary leading-relaxed">
+            Seller seems motivated. Acknowledge their situation first. Then anchor at your MAO and give them space to respond.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1">
+            {['Anchor offer', 'Build rapport', 'Address objection', 'Request decision'].map(s => (
+              <span key={s} className="text-[10px] bg-elevated border border-border-subtle text-text-muted px-2 py-0.5 rounded-[3px] cursor-pointer hover:border-primary/40 hover:text-primary transition-colors">{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Buttons */}
+      <div className="flex gap-2">
+        {!isTakeover ? (
+          <>
+            <Button variant="secondary" size="sm" className="flex-1" onClick={() => onListen(call)}>
+              <Headphones size={13} /> Listen
+            </Button>
+            <Button size="sm" className="flex-1" onClick={() => onTakeover(call)}>
+              <Mic size={13} /> Takeover
+            </Button>
+          </>
+        ) : (
+          <Button variant="secondary" size="sm" className="flex-1" style={{ borderColor:'#FF9500', color:'#FF9500' }} onClick={() => onReturn(call)}>
+            Return to AI
+          </Button>
+        )}
+        <Button variant="danger" size="sm" onClick={() => onEnd(call)}>
+          <X size={13} />
         </Button>
       </div>
     </div>
   )
 }
 
-// Single Call Panel
-function CallPanel({ call, tick }) {
-  const [takingOver, setTakingOver] = useState(false)
-  const [takenOver, setTakenOver] = useState(false)
-  const [showCoaching, setShowCoaching] = useState(false)
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function LiveMonitor() {
+  const { calls: liveCalls } = useLiveCalls()
+  const [takeovers, setTakeovers] = useState({})
 
-  const elapsed = call.started_at
-    ? Math.floor((Date.now() - new Date(call.started_at)) / 1000)
-    : call.duration || 0
-
-  const score = call.motivation_score ?? call.score
-  const style = scoreStyle(score)
-  const transcript = call.transcript_lines || call.messages || []
-
-  const handleTakeover = async () => {
-    setTakingOver(true)
+  const handleTakeover = async (call) => {
     try {
-      await callsApi.callTakeover(call.id)
-      setTakenOver(true)
-      setShowCoaching(true)
-      toast.success('You have taken over the call')
-    } catch {
-      toast.error('Takeover failed')
-    } finally {
-      setTakingOver(false)
-    }
+      await callsApi.callTakeover(call.id || call.vapi_call_id)
+      setTakeovers(t => ({ ...t, [call.id]: true }))
+      toast.success('You are now live on this call')
+    } catch { toast.error('Takeover failed') }
   }
 
-  return (
-    <div className={clsx(
-      'bg-card border rounded-xl overflow-hidden flex',
-      takenOver ? 'border-danger' : 'border-border-subtle'
-    )}>
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="px-5 pt-5 pb-3 border-b border-border-subtle">
-          <div className="flex items-start justify-between mb-1">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-text-primary truncate">
-                {call.seller_name || call.lead_name || 'Unknown Seller'}
-              </h3>
-              <p className="text-xs text-text-muted truncate">
-                {call.address || 'No address'}
-              </p>
-            </div>
-            {takenOver && (
-              <Badge variant="red" className="flex-shrink-0 ml-2">LIVE</Badge>
-            )}
-          </div>
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-text-muted font-mono">{call.phone || call.to_number || '—'}</span>
-            <span className="text-sm font-mono font-bold text-text-primary">
-              {formatDuration(elapsed + tick * 0)}
-            </span>
-          </div>
-        </div>
+  const handleReturn = async (call) => {
+    try {
+      await callsApi.returnToAI(call.id || call.vapi_call_id)
+      setTakeovers(t => { const n = {...t}; delete n[call.id]; return n })
+      toast.success('Returned to AI')
+    } catch { toast.error('Failed to return to AI') }
+  }
 
-        {/* Waveform */}
-        <div className="px-5 py-3 border-b border-border-subtle/50">
-          <Waveform active={!takenOver} color={takenOver ? '#EF4444' : '#3B82F6'} />
-        </div>
+  const handleEnd = async (call) => {
+    toast.info('End call functionality requires Vapi integration')
+  }
 
-        {/* Transcript */}
-        <div className="flex-1 overflow-y-auto px-5 py-3 max-h-40 space-y-1.5">
-          {transcript.length === 0 ? (
-            <p className="text-xs text-text-muted italic">Waiting for transcript...</p>
-          ) : (
-            transcript.slice(-8).map((msg, i) => (
-              <div key={i} className="text-xs leading-relaxed">
-                <span className={`font-semibold mr-1 ${msg.role === 'assistant' || msg.speaker === 'AI' || msg.speaker === 'Alex' ? 'text-primary' : 'text-text-primary'}`}>
-                  {msg.speaker || (msg.role === 'assistant' ? 'Alex' : 'Seller')}:
-                </span>
-                <span className="text-text-secondary">{msg.text || msg.content}</span>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Score + Emotion */}
-        <div className="px-5 py-3 border-t border-border-subtle/50 flex items-center gap-3">
-          <div className={clsx('rounded-xl px-4 py-2 text-center', style.bg, style.glow && 'animate-glow')}>
-            <div className={clsx('text-3xl font-black leading-none', style.text)}>
-              {score ?? '—'}
-            </div>
-            <div className="text-xs text-text-muted mt-0.5">Score</div>
-          </div>
-          <div className="flex-1 space-y-2">
-            {call.emotion && (
-              <Badge variant={emotionVariant(call.emotion)}>{call.emotion}</Badge>
-            )}
-            {/* Key signals */}
-            <div className="flex flex-wrap gap-1">
-              {(call.signals || call.key_signals || []).slice(0, 4).map((sig, i) => (
-                <span key={i} className="text-xs bg-elevated text-text-secondary border border-border-subtle rounded px-1.5 py-0.5">
-                  {sig}
-                </span>
-              ))}
-            </div>
-            {/* Offer */}
-            {call.suggested_offer && (
-              <div className="text-xs font-semibold text-success">
-                Offer: ${Number(call.suggested_offer).toLocaleString()}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="px-5 pb-5 flex gap-3 mt-1">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="flex-1 border-primary/40 text-primary"
-            onClick={() => {}}
-          >
-            <Headphones size={14} /> Listen
-          </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            className="flex-1"
-            loading={takingOver}
-            onClick={handleTakeover}
-          >
-            <Mic size={14} /> Take Over
-          </Button>
-        </div>
-      </div>
-
-      {/* Coaching Panel */}
-      {showCoaching && (
-        <CoachingPanel
-          call={call}
-          onReturnToAI={() => setTakenOver(false)}
-          onClose={() => setShowCoaching(false)}
-        />
-      )}
-    </div>
-  )
-}
-
-export default function LiveMonitor() {
-  const [liveCalls, setLiveCalls] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [tick, setTick] = useState(0)
-
-  // Second ticker for duration display
-  useEffect(() => {
-    const t = setInterval(() => setTick(x => x + 1), 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  // Fetch live calls every 3s
-  useEffect(() => {
-    let mounted = true
-    const fetch = async () => {
-      try {
-        const res = await callsApi.getLiveCalls()
-        if (mounted) {
-          setLiveCalls(res.data?.calls || res.data || [])
-          setLoading(false)
-        }
-      } catch {
-        if (mounted) setLoading(false)
-      }
-    }
-    fetch()
-    const interval = setInterval(fetch, 3000)
-    return () => { mounted = false; clearInterval(interval) }
-  }, [])
+  const gridClass = liveCalls.length === 1 ? 'max-w-2xl mx-auto'
+    : liveCalls.length === 2 ? 'grid grid-cols-2 gap-4'
+    : 'grid grid-cols-2 gap-4'
 
   return (
-    <div className="p-8">
+    <div className="p-8 max-w-[1200px] mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-text-primary">Live Monitor</h1>
-            {liveCalls.length > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-danger/10 border border-danger/30 rounded-full">
-                <span className="w-2 h-2 bg-danger rounded-full animate-pulse" />
-                <span className="text-xs text-danger font-semibold">{liveCalls.length} LIVE</span>
-              </div>
-            )}
-          </div>
-          <p className="text-text-secondary text-sm mt-1">Real-time call supervision and takeover</p>
+        <div className="flex items-center gap-3">
+          <h1 className="text-[28px] font-medium text-white">Live Monitor</h1>
+          {liveCalls.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary text-[12px] font-medium px-3 py-1 rounded-full">
+              <span className="dot-live" />
+              {liveCalls.length} active {liveCalls.length === 1 ? 'call' : 'calls'}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-[12px] text-text-muted">
+          <RefreshCw size={12} />
+          Auto-refreshing every 3s
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-        </div>
-      ) : liveCalls.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-32">
-          <div className="relative mb-6">
-            <Activity size={56} className="text-text-muted" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              {/* wave bars */}
-              <div className="flex items-end gap-0.5">
-                {[3, 5, 8, 5, 3].map((h, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      width: '4px',
-                      height: `${h * 4}px`,
-                      background: '#243550',
-                      borderRadius: '2px',
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
+      {liveCalls.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-32 text-center">
+          <div className="w-16 h-16 rounded-full bg-elevated border border-border-subtle flex items-center justify-center mb-5">
+            <Radio size={24} className="text-text-muted" strokeWidth={1.5} />
           </div>
-          <h2 className="text-xl font-bold text-text-primary mb-2">No Active Calls</h2>
-          <p className="text-text-secondary text-sm">Start a campaign to begin calling</p>
+          <h2 className="text-[18px] font-medium text-text-primary mb-2">No active calls</h2>
+          <p className="text-[14px] text-text-muted mb-6">Start a campaign to begin dialing</p>
+          <Link to="/campaigns">
+            <Button variant="secondary">Go to Campaigns</Button>
+          </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
-          {liveCalls.map((call) => (
-            <CallPanel key={call.id} call={call} tick={tick} />
+        <div className={gridClass}>
+          {liveCalls.map(call => (
+            <CallPanel
+              key={call.id || call.vapi_call_id}
+              call={call}
+              isTakeover={!!takeovers[call.id]}
+              onListen={() => toast.info('Listening mode — you can hear the call')}
+              onTakeover={handleTakeover}
+              onEnd={handleEnd}
+              onReturn={handleReturn}
+            />
           ))}
         </div>
       )}

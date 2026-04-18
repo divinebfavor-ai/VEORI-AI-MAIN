@@ -1,31 +1,25 @@
 import React from 'react'
 import clsx from 'clsx'
 
-export default function StatCard({ value, label, icon: Icon, trend, trendLabel, className = '' }) {
-  const isPositive = trend && !String(trend).startsWith('-')
+export default function StatCard({ value, label, accent = 'green', sub, className = '' }) {
+  const colors = {
+    green: 'text-primary',
+    gold:  'text-gold',
+    white: 'text-text-primary',
+    red:   'text-danger',
+    amber: 'text-warning',
+  }
 
   return (
-    <div className={clsx('bg-card border border-border-subtle rounded-xl p-6 relative', className)}>
-      {Icon && (
-        <div className="absolute top-4 right-4 text-text-muted">
-          <Icon size={20} />
-        </div>
-      )}
-      <div className="text-5xl font-bold text-text-primary tracking-tight leading-none mb-1">
+    <div className={clsx(
+      'bg-card border border-border-subtle rounded-lg p-6 flex flex-col gap-3',
+      className
+    )}>
+      <p className="label-caps">{label}</p>
+      <p className={clsx('text-[56px] font-bold leading-none tracking-tight', colors[accent] || colors.white)}>
         {value ?? '—'}
-      </div>
-      <div className="text-xs text-text-secondary mt-2">{label}</div>
-      {trend !== undefined && (
-        <div
-          className={clsx(
-            'mt-2 text-xs font-medium inline-flex items-center gap-0.5',
-            isPositive ? 'text-success' : 'text-danger'
-          )}
-        >
-          {isPositive ? '▲' : '▼'} {trend}
-          {trendLabel && <span className="text-text-muted ml-1">{trendLabel}</span>}
-        </div>
-      )}
+      </p>
+      {sub && <p className="text-[13px] text-text-muted">{sub}</p>}
     </div>
   )
 }

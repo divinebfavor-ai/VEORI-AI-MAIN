@@ -1,36 +1,31 @@
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard,
-  Users,
-  Radio,
-  Activity,
-  GitMerge,
-  UserCheck,
-  Settings,
-  LogOut,
+  LayoutDashboard, Users, PlayCircle, Radio,
+  Columns, Briefcase, BarChart2, Settings, LogOut,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
 import useAuthStore from '../../store/authStore'
 import { auth } from '../../services/api'
 
-const navItems = [
-  { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
-  { label: 'Leads', icon: Users, to: '/leads' },
-  { label: 'Campaigns', icon: Radio, to: '/campaigns' },
-  { label: 'Live Monitor', icon: Activity, to: '/monitor', live: true },
-  { label: 'Pipeline', icon: GitMerge, to: '/pipeline' },
-  { label: 'Buyers', icon: UserCheck, to: '/buyers' },
-  { label: 'Settings', icon: Settings, to: '/settings' },
+const NAV = [
+  { label: 'Dashboard',  icon: LayoutDashboard, to: '/dashboard' },
+  { label: 'Leads',      icon: Users,           to: '/leads' },
+  { label: 'Campaigns',  icon: PlayCircle,      to: '/campaigns' },
+  { label: 'Live Calls', icon: Radio,           to: '/monitor', live: true },
+  { label: 'Pipeline',   icon: Columns,         to: '/pipeline' },
+  { label: 'Buyers',     icon: Briefcase,       to: '/buyers' },
+  { label: 'Analytics',  icon: BarChart2,       to: '/analytics' },
+  { label: 'Settings',   icon: Settings,        to: '/settings' },
 ]
 
 export default function Sidebar() {
   const { calls: liveCalls } = useLiveCalls()
-  const hasActiveCalls = liveCalls.length > 0
-  const user = useAuthStore((s) => s.user)
+  const hasLive   = liveCalls.length > 0
+  const user      = useAuthStore((s) => s.user)
   const clearAuth = useAuthStore((s) => s.clearAuth)
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
 
   const handleLogout = async () => {
     try { await auth.logout() } catch {}
@@ -38,63 +33,65 @@ export default function Sidebar() {
     navigate('/login')
   }
 
+  const initials = user?.full_name
+    ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'OP'
+
   return (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="px-6 py-6 border-b border-border-subtle">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-black text-lg leading-none">V</span>
-          </div>
-          <div>
-            <div className="text-text-primary font-bold text-base leading-tight">VEORI AI</div>
-            <div className="text-text-muted text-xs">Built to Achieve</div>
-          </div>
-        </div>
+      {/* ── Wordmark ──────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2.5 px-6 h-[60px] border-b border-border-subtle flex-shrink-0">
+        <span className="text-[20px] font-medium text-white tracking-tight">Veori</span>
+        <span className="dot-live" title="System live" />
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        <div className="space-y-0.5">
-          {navItems.map(({ label, icon: Icon, to, live }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group relative',
-                  isActive
-                    ? 'bg-elevated text-primary border-l-[3px] border-primary pl-[9px]'
-                    : 'text-text-secondary hover:bg-card hover:text-text-primary'
-                )
-              }
-            >
-              <Icon size={18} className="flex-shrink-0" />
-              <span className="flex-1">{label}</span>
-              {live && hasActiveCalls && (
-                <span className="w-2 h-2 bg-danger rounded-full animate-pulse flex-shrink-0" />
-              )}
-            </NavLink>
-          ))}
-        </div>
+      {/* ── Nav ────────────────────────────────────────────────────────── */}
+      <nav className="flex-1 py-2 overflow-y-auto scrollbar-hide">
+        {NAV.map(({ label, icon: Icon, to, live }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) => clsx(
+              'flex items-center gap-3 px-4 h-[48px] text-[14px] transition-colors duration-100 relative',
+              'border-l-2',
+              isActive
+                ? 'text-white bg-card border-primary'
+                : 'text-text-muted hover:text-text-secondary hover:bg-surface border-transparent'
+            )}
+          >
+            <Icon size={15} className="flex-shrink-0" strokeWidth={1.5} />
+            <span className="flex-1">{label}</span>
+            {live && hasLive && (
+              <span className="flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-medium px-1.5 py-0.5 rounded-[3px]">
+                <span className="dot-live" style={{ width: 5, height: 5 }} />
+                {liveCalls.length}
+              </span>
+            )}
+          </NavLink>
+        ))}
       </nav>
 
-      {/* User / Logout */}
-      <div className="px-3 py-4 border-t border-border-subtle">
-        {user && (
-          <div className="px-3 py-2 mb-1">
-            <div className="text-sm font-medium text-text-primary truncate">
-              {user.full_name || user.email}
-            </div>
-            <div className="text-xs text-text-muted truncate">{user.email}</div>
+      {/* ── User footer ────────────────────────────────────────────────── */}
+      <div className="border-t border-border-subtle p-4 flex-shrink-0">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-text-secondary text-[11px] font-semibold flex-shrink-0">
+            {initials}
           </div>
-        )}
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-medium text-text-primary truncate">
+              {user?.full_name || 'Operator'}
+            </p>
+            <p className="text-[11px] text-text-muted truncate capitalize">
+              {user?.plan || 'hustle'} plan
+            </p>
+          </div>
+        </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-text-secondary hover:bg-card hover:text-danger transition-all duration-150 w-full"
+          className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-text-muted hover:text-text-secondary hover:bg-elevated rounded-[6px] transition-colors"
         >
-          <LogOut size={18} />
-          Sign Out
+          <LogOut size={13} strokeWidth={1.5} />
+          Sign out
         </button>
       </div>
     </div>

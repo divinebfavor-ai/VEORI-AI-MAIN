@@ -13,6 +13,7 @@ import LiveMonitor from './pages/LiveMonitor'
 import Pipeline from './pages/Pipeline'
 import Buyers from './pages/Buyers'
 import Settings from './pages/Settings'
+import Analytics from './pages/Analytics'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/monitor" element={<LiveMonitor />} />
         <Route path="/pipeline" element={<Pipeline />} />
         <Route path="/buyers" element={<Buyers />} />
+        <Route path="/analytics" element={<Analytics />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 

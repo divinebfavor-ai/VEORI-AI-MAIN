@@ -12,6 +12,7 @@
     "axios": "^1.6.0",
     "clsx": "^2.1.0",
     "date-fns": "^3.2.0",
+    "geist": "^1.7.0",
     "lucide-react": "^0.312.0",
     "papaparse": "^5.4.1",
     "react": "^18.2.0",

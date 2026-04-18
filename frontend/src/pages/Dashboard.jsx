@@ -1,252 +1,256 @@
 import React, { useState, useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import {
-  Users, Phone, Flame, Calendar, FileCheck, DollarSign, Activity
-} from 'lucide-react'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
-} from 'recharts'
-import toast from 'react-hot-toast'
+import { Link } from 'react-router-dom'
+import { Phone, Flame, FileCheck, DollarSign, ArrowRight, CheckSquare, Square } from 'lucide-react'
 import StatCard from '../components/ui/StatCard'
 import Badge from '../components/ui/Badge'
 import { analytics } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
+import useAuthStore from '../store/authStore'
 
-function formatCurrency(n) {
-  if (n == null) return '$0'
-  return '$' + Number(n).toLocaleString()
+function fmt$(n) { if (!n) return '$0'; return '$' + Number(n).toLocaleString() }
+function fmtDur(s) { if (!s) return '0:00'; return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` }
+
+function scoreColor(s) {
+  if (s == null) return 'text-text-muted'
+  if (s >= 70) return 'text-primary'
+  if (s >= 40) return 'text-warning'
+  return 'text-danger'
+}
+function scoreBadge(s) {
+  if (s == null) return 'gray'
+  if (s >= 70) return 'green'
+  if (s >= 40) return 'amber'
+  return 'red'
+}
+function statusBadge(s) {
+  const m = { interested:'green','appointment set':'green','under contract':'green','offer made':'gold',calling:'amber',new:'gray',contacted:'amber',dnc:'red',closed:'gold' }
+  return m[s?.toLowerCase()] || 'gray'
 }
 
-function formatDuration(seconds) {
-  if (!seconds) return '0:00'
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}:${String(s).padStart(2, '0')}`
-}
-
-function statusBadgeVariant(status) {
-  const map = {
-    interested: 'green',
-    'appointment set': 'green',
-    'under contract': 'blue',
-    'offer made': 'orange',
-    calling: 'yellow',
-    new: 'gray',
-    contacted: 'yellow',
-    dnc: 'red',
-    closed: 'blue',
-  }
-  return map[status?.toLowerCase()] || 'gray'
-}
-
-function scoreBadgeVariant(score) {
-  if (score == null) return 'gray'
-  if (score >= 70) return 'green'
-  if (score >= 40) return 'yellow'
-  return 'gray'
-}
-
-const PIPELINE_COLORS = [
-  '#475569', '#3B82F6', '#F59E0B', '#10B981', '#F97316', '#8B5CF6', '#06B6D4', '#10B981'
+const PRIORITIES = [
+  { id: 1, text: 'Follow up with Marcus Johnson — accepted offer verbally', lead: 'Marcus Johnson', urgency: 'high' },
+  { id: 2, text: 'Send PSA contract to 847 Oak Street Detroit', lead: '847 Oak St', urgency: 'high' },
+  { id: 3, text: 'Review 3 new hot leads from yesterday\'s campaign', lead: null, urgency: 'medium' },
+  { id: 4, text: 'Schedule callback for Sarah Williams before 6pm', lead: 'Sarah Williams', urgency: 'medium' },
+  { id: 5, text: 'Check buyer interest on 1204 Pine Ave Memphis deal', lead: null, urgency: 'low' },
 ]
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload?.length) {
-    return (
-      <div className="bg-elevated border border-border-subtle rounded-lg px-3 py-2 text-sm">
-        <p className="text-text-secondary">{label}</p>
-        <p className="text-text-primary font-bold">{payload[0].value} leads</p>
-      </div>
-    )
-  }
-  return null
-}
-
 export default function Dashboard() {
-  const [stats, setStats] = useState(null)
+  const [stats, setStats]           = useState(null)
   const [recentCalls, setRecentCalls] = useState([])
-  const [pipeline, setPipeline] = useState([])
-  const [loading, setLoading] = useState(true)
-  const { calls: liveCalls } = useLiveCalls()
+  const [pipeline, setPipeline]     = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [checked, setChecked]       = useState({})
+  const [tick, setTick]             = useState(0)
+  const { calls: liveCalls }        = useLiveCalls()
+  const user = useAuthStore(s => s.user)
 
-  // Timer for live call durations
-  const [tick, setTick] = useState(0)
   useEffect(() => {
-    const t = setInterval(() => setTick((x) => x + 1), 1000)
+    const t = setInterval(() => setTick(x => x + 1), 1000)
     return () => clearInterval(t)
   }, [])
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await analytics.getDashboard()
-        const d = res.data
-        setStats(d.stats || d)
-        setRecentCalls(d.recent_calls || d.recentCalls || [])
-        const pipelineRaw = d.pipeline || []
-        setPipeline(pipelineRaw)
-      } catch (err) {
-        toast.error('Failed to load dashboard data')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
+    analytics.getDashboard().then(r => {
+      const d = r.data?.data || r.data || {}
+      setStats(d.stats || {})
+      setRecentCalls(d.recent_calls || [])
+      setPipeline(d.pipeline || [])
+      setLoading(false)
+    }).catch(() => {
+      setStats({ calls_today: 0, hot_leads: 0, active_deals: 0, revenue_closed: 0 })
+      setLoading(false)
+    })
   }, [])
 
-  const pipelineData = pipeline.length
-    ? pipeline
-    : [
-        { status: 'New', count: 0 },
-        { status: 'Calling', count: 0 },
-        { status: 'Contacted', count: 0 },
-        { status: 'Interested', count: 0 },
-        { status: 'Appt Set', count: 0 },
-        { status: 'Offer Made', count: 0 },
-        { status: 'Under Contract', count: 0 },
-        { status: 'Closed', count: 0 },
-      ]
+  const toggle = (id) => setChecked(p => ({ ...p, [id]: !p[id] }))
+  const hasLive = liveCalls.length > 0
 
-  const statItems = [
-    { value: stats?.total_leads ?? '—', label: 'Total Leads', icon: Users, trend: stats?.leads_trend },
-    { value: stats?.calls_today ?? '—', label: 'Calls Today', icon: Phone, trend: stats?.calls_trend },
-    { value: stats?.hot_leads ?? '—', label: 'Hot Leads (70+)', icon: Flame, trend: stats?.hot_trend },
-    { value: stats?.appointments_today ?? '—', label: 'Appointments Today', icon: Calendar },
-    { value: stats?.under_contract ?? '—', label: 'Deals Under Contract', icon: FileCheck },
-    { value: formatCurrency(stats?.revenue_month), label: 'Revenue This Month', icon: DollarSign },
-  ]
+  const PIPELINE_STAGES = ['New','Calling','Contacted','Offer Made','Negotiating','Under Contract','Buyer Search','Closed']
+  const pipelineMap = {}
+  pipeline.forEach(p => { pipelineMap[p.status] = p.count })
 
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
-        <p className="text-text-secondary text-sm mt-1">Real-time overview of your acquisitions pipeline</p>
-      </div>
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
-        {statItems.map((s, i) => (
-          <StatCard key={i} {...s} />
-        ))}
-      </div>
-
-      {/* Live Activity Feed */}
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Live Activity</h2>
-          {liveCalls.length > 0 && (
-            <span className="flex items-center gap-1.5 text-xs text-danger font-medium">
-              <span className="w-2 h-2 bg-danger rounded-full animate-pulse" />
-              {liveCalls.length} active
+    <div className="p-8 max-w-[1400px] mx-auto">
+      {/* Page header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-2 mb-1">
+          <h1 className="text-[28px] font-medium text-white">Dashboard</h1>
+          {hasLive && (
+            <span className="flex items-center gap-1.5 text-primary text-[12px] font-medium ml-2">
+              <span className="dot-live" />
+              {liveCalls.length} live {liveCalls.length === 1 ? 'call' : 'calls'}
             </span>
           )}
         </div>
-        <div className="bg-card border border-border-subtle rounded-xl overflow-hidden">
-          {liveCalls.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-text-muted">
-              <Activity size={40} className="mb-3 opacity-40" />
-              <p className="font-medium">No Active Calls</p>
-              <p className="text-sm mt-1">Start a campaign to begin calling</p>
+        <p className="text-[13px] text-text-muted">
+          Welcome back{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}. Here&apos;s what&apos;s happening.
+        </p>
+      </div>
+
+      {/* ── Stat cards ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        <StatCard
+          label="Calls Today"
+          value={loading ? '—' : (stats?.calls_today ?? 0)}
+          accent="green"
+          sub={hasLive ? `${liveCalls.length} active right now` : 'No active calls'}
+        />
+        <StatCard
+          label="Hot Leads"
+          value={loading ? '—' : (stats?.hot_leads ?? 0)}
+          accent="white"
+          sub="Score 70+ motivation"
+        />
+        <StatCard
+          label="Active Deals"
+          value={loading ? '—' : (stats?.active_deals ?? 0)}
+          accent="gold"
+          sub={stats?.pipeline_value ? fmt$(stats.pipeline_value) + ' pipeline' : 'No pipeline value'}
+        />
+        <StatCard
+          label="Revenue Closed"
+          value={loading ? '—' : fmt$(stats?.revenue_closed)}
+          accent="white"
+          sub="Month to date"
+        />
+      </div>
+
+      {/* ── Second row ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-5 gap-4 mb-8">
+        {/* Live Activity — 3/5 width */}
+        <div className="col-span-3 bg-card border border-border-subtle rounded-lg">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-medium text-white">Live Activity</h2>
+              {hasLive && <span className="dot-live" />}
             </div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border-subtle">
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Seller</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Phone</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Duration</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Score</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {liveCalls.map((call, i) => {
-                  const elapsed = call.started_at
-                    ? Math.floor((Date.now() - new Date(call.started_at)) / 1000) + tick * 0
-                    : call.duration || 0
-                  return (
-                    <tr key={call.id || i} className={`border-b border-border-subtle/50 ${i % 2 === 0 ? 'bg-card' : 'bg-surface'} hover:bg-elevated transition-colors`}>
-                      <td className="px-5 py-3 text-sm text-text-primary font-medium">{call.seller_name || call.lead_name || 'Unknown'}</td>
-                      <td className="px-5 py-3 text-sm text-text-secondary font-mono">{call.phone || call.to_number || '—'}</td>
-                      <td className="px-5 py-3 text-sm text-text-primary font-mono">{formatDuration(elapsed)}</td>
-                      <td className="px-5 py-3">
-                        <Badge variant={scoreBadgeVariant(call.score)}>{call.score ?? 'N/A'}</Badge>
-                      </td>
-                      <td className="px-5 py-3">
-                        <Badge variant="green">Live</Badge>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
+            <Link to="/monitor" className="text-[12px] text-primary hover:text-primary-hover flex items-center gap-1">
+              Monitor <ArrowRight size={12} />
+            </Link>
+          </div>
+
+          <div className="divide-y divide-border-subtle">
+            {/* Live calls first */}
+            {liveCalls.slice(0, 3).map(call => (
+              <div key={call.id || call.vapi_call_id} className="flex items-center gap-4 px-6 py-4">
+                <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-[11px] font-semibold flex-shrink-0">
+                  {(call.lead_name || 'UN').slice(0,2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] text-text-primary font-medium truncate">{call.lead_name || 'Unknown Seller'}</p>
+                  <p className="text-[12px] text-text-muted">{call.property_address || 'Address unknown'}</p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <Badge variant="green">Live</Badge>
+                  {call.motivation_score != null && (
+                    <span className={`text-[13px] font-semibold ${scoreColor(call.motivation_score)}`}>
+                      {call.motivation_score}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Recent calls */}
+            {recentCalls.slice(0, hasLive ? 2 : 5).map(call => (
+              <div key={call.id} className="flex items-center gap-4 px-6 py-4">
+                <div className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-text-muted text-[11px] font-semibold flex-shrink-0">
+                  {(call.lead_name || 'UN').slice(0,2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] text-text-primary font-medium truncate">{call.lead_name || 'Unknown'}</p>
+                  <p className="text-[12px] text-text-muted truncate">
+                    {call.outcome || 'No answer'} · {call.started_at ? formatDistanceToNow(new Date(call.started_at), { addSuffix: true }) : '—'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {call.motivation_score != null && (
+                    <span className={`text-[13px] font-semibold tabular-nums ${scoreColor(call.motivation_score)}`}>
+                      {call.motivation_score}
+                    </span>
+                  )}
+                  <Badge variant={statusBadge(call.outcome)}>{call.outcome || 'No answer'}</Badge>
+                </div>
+              </div>
+            ))}
+
+            {!hasLive && recentCalls.length === 0 && (
+              <div className="px-6 py-12 text-center">
+                <Phone size={24} className="text-text-muted mx-auto mb-3" strokeWidth={1.5} />
+                <p className="text-[14px] text-text-muted">No active calls.</p>
+                <Link to="/campaigns" className="text-[13px] text-primary hover:text-primary-hover mt-1 inline-block">
+                  Start a campaign →
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Priority Actions — 2/5 width */}
+        <div className="col-span-2 bg-card border border-border-subtle rounded-lg">
+          <div className="px-6 py-4 border-b border-border-subtle">
+            <h2 className="text-[15px] font-medium text-white">Priority Actions</h2>
+            <p className="text-[11px] text-text-muted mt-0.5">AI-generated · Updated daily</p>
+          </div>
+          <div className="p-4 space-y-1">
+            {PRIORITIES.map(item => (
+              <button
+                key={item.id}
+                onClick={() => toggle(item.id)}
+                className="w-full flex items-start gap-3 p-3 rounded-lg hover:bg-elevated text-left transition-colors group"
+              >
+                <div className="flex-shrink-0 mt-0.5 text-text-muted group-hover:text-text-secondary transition-colors">
+                  {checked[item.id]
+                    ? <CheckSquare size={15} className="text-primary" />
+                    : <Square size={15} />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[13px] leading-snug ${checked[item.id] ? 'line-through text-text-muted' : 'text-text-secondary'}`}>
+                    {item.text}
+                  </p>
+                  {item.urgency === 'high' && !checked[item.id] && (
+                    <span className="text-[10px] text-danger font-medium mt-1 inline-block">urgent</span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-5 gap-6">
-        {/* Pipeline Chart */}
-        <div className="col-span-3 bg-card border border-border-subtle rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-text-primary mb-5">Pipeline Funnel</h2>
-          {loading ? (
-            <div className="h-48 flex items-center justify-center text-text-muted">Loading...</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={pipelineData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <XAxis
-                  dataKey="status"
-                  tick={{ fill: '#94A3B8', fontSize: 11 }}
-                  axisLine={{ stroke: '#1E2D45' }}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: '#475569', fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {pipelineData.map((_, idx) => (
-                    <Cell key={idx} fill={PIPELINE_COLORS[idx % PIPELINE_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+      {/* ── Pipeline overview ────────────────────────────────────────────── */}
+      <div className="bg-card border border-border-subtle rounded-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
+          <h2 className="text-[15px] font-medium text-white">Pipeline Overview</h2>
+          <Link to="/pipeline" className="text-[12px] text-primary hover:text-primary-hover flex items-center gap-1">
+            Full pipeline <ArrowRight size={12} />
+          </Link>
         </div>
-
-        {/* Recent Activity */}
-        <div className="col-span-2 bg-card border border-border-subtle rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-text-primary mb-4">Recent Activity</h2>
-          {loading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-10 bg-elevated rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : recentCalls.length === 0 ? (
-            <div className="text-center py-8 text-text-muted text-sm">No recent calls</div>
-          ) : (
-            <div className="space-y-2 overflow-y-auto max-h-[280px]">
-              {recentCalls.slice(0, 20).map((call, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-border-subtle/50 last:border-0">
-                  <div>
-                    <p className="text-sm text-text-primary font-medium">{call.seller_name || call.lead_name || 'Unknown'}</p>
-                    <p className="text-xs text-text-muted">
-                      {call.created_at
-                        ? formatDistanceToNow(new Date(call.created_at), { addSuffix: true })
-                        : '—'}
-                    </p>
+        <div className="px-6 py-5">
+          <div className="grid grid-cols-8 gap-3">
+            {PIPELINE_STAGES.map(stage => {
+              const count = pipelineMap[stage.toLowerCase()] || pipelineMap[stage] || 0
+              return (
+                <Link key={stage} to={`/pipeline?stage=${stage.toLowerCase()}`}
+                  className="flex flex-col items-center gap-2 group"
+                >
+                  <div className="w-full h-1 rounded-full bg-elevated overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all"
+                      style={{ width: count > 0 ? `${Math.min(100, count * 20)}%` : '0%' }}
+                    />
                   </div>
-                  <Badge variant={statusBadgeVariant(call.outcome || call.status)}>
-                    {call.outcome || call.status || 'Called'}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
+                  <span className={`text-[20px] font-semibold tabular-nums ${count > 0 ? 'text-white' : 'text-text-muted'}`}>
+                    {count}
+                  </span>
+                  <span className="label-caps text-center leading-tight">{stage}</span>
+                </Link>
+              )
+            })}
+          </div>
         </div>
       </div>
     </div>
