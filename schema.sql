@@ -170,13 +170,14 @@ CREATE TABLE IF NOT EXISTS leads (
 );
 
 -- DNC (Do Not Call) list
-CREATE TABLE IF NOT EXISTS dnc_list (
+CREATE TABLE IF NOT EXISTS dnc_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   phone TEXT NOT NULL,
   reason TEXT,
+  added_by UUID REFERENCES users(id),
   added_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, phone)
+  UNIQUE(phone)
 );
 
 -- Campaigns

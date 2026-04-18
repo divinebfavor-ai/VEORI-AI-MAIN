@@ -140,10 +140,10 @@ async function bulkSkipTrace(leads) {
  */
 async function checkDNC(phoneNumber) {
   // In production: check against federal DNC registry via approved API
-  // For now: check our local dnc_list table
-  const { data } = await supabase.from('dnc_list')
+  // For now: check our local dnc_records table
+  const { data } = await supabase.from('dnc_records')
     .select('id, reason, added_at')
-    .eq('phone_number', phoneNumber)
+    .eq('phone', phoneNumber)
     .maybeSingle();
 
   return {

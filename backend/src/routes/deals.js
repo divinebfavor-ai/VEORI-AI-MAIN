@@ -24,7 +24,7 @@ router.get('/', async (req, res, next) => {
 // GET /api/deals/:id
 router.get('/:id', async (req, res, next) => {
   try {
-    const { data, error } = await supabase.from('deals').select('*, leads(*), buyer_campaigns(*, buyers(*))')
+    const { data, error } = await supabase.from('deals').select('*, leads(*), buyers(*)')
       .eq('id', req.params.id).eq('user_id', req.user.id).single();
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'Deal not found' });
