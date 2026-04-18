@@ -20,13 +20,22 @@ api.interceptors.request.use(
 )
 
 // Response interceptor — handle 401
+// Only force-logout when the backend explicitly says the token is invalid/expired.
+// Don't kick the user out just because a data endpoint returned 401.
+let isRedirecting = false
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status
+    const msg    = error.response?.data?.error || error.response?.data?.message || ''
+    const isTokenError = /invalid token|token expired|jwt|unauthorized|not authenticated/i.test(msg)
+
+    if (status === 401 && isTokenError && !isRedirecting) {
+      isRedirecting = true
       localStorage.removeItem('veori_token')
       localStorage.removeItem('veori_user')
-      window.location.href = '/login'
+      // Use replace so there's no back-button loop
+      window.location.replace('/login')
     }
     return Promise.reject(error)
   }

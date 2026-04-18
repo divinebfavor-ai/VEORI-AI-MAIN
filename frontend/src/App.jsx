@@ -17,6 +17,11 @@ import Analytics from './pages/Analytics'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const hydrated        = useAuthStore((s) => s.hydrated)
+
+  // Don't redirect until we've read localStorage — avoids flash-logout on page load
+  if (!hydrated) return null
+
   if (!isAuthenticated) return <Navigate to="/login" replace />
   return children
 }
