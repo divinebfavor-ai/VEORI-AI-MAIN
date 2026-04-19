@@ -1,115 +1,11 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowRight } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
-// ─── Reuse the same NodeGraph from Login ─────────────────────────────────────
-const NODES = [
-  { id:  1, x: 130, y: 180, r: 3.5, hot: false },
-  { id:  2, x: 260, y:  90, r: 2.8, hot: false },
-  { id:  3, x: 400, y: 155, r: 5.0, hot: true  },
-  { id:  4, x: 540, y:  85, r: 2.8, hot: false },
-  { id:  5, x: 660, y: 200, r: 3.5, hot: false },
-  { id:  6, x: 190, y: 320, r: 3.0, hot: false },
-  { id:  7, x: 360, y: 295, r: 5.5, hot: true  },
-  { id:  8, x: 510, y: 360, r: 3.5, hot: false },
-  { id:  9, x: 680, y: 345, r: 2.8, hot: false },
-  { id: 10, x: 140, y: 460, r: 2.8, hot: false },
-  { id: 11, x: 320, y: 455, r: 4.0, hot: false },
-  { id: 12, x: 560, y: 490, r: 3.0, hot: false },
-]
-
-const EDGES = [
-  [1, 2], [1, 6],
-  [2, 3], [2, 7],
-  [3, 4], [3, 7],
-  [4, 5], [5, 8],
-  [6, 7], [6, 10],
-  [7, 8], [7, 11],
-  [8, 9], [8, 12],
-  [10, 11], [11, 12],
-]
-
-const PULSES = [
-  { edge: [3, 4], delay: 0 },
-  { edge: [2, 7], delay: 900 },
-  { edge: [6, 7], delay: 1800 },
-  { edge: [7, 11], delay: 600 },
-  { edge: [10, 11], delay: 2400 },
-]
-
-function NodeGraph() {
-  const nodeMap = Object.fromEntries(NODES.map(n => [n.id, n]))
-  return (
-    <svg
-      viewBox="0 0 800 580"
-      style={{ width: '100%', height: '100%', overflow: 'visible' }}
-      aria-hidden="true"
-    >
-      <defs>
-        <radialGradient id="hotGlowR" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#00E57A" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#00E57A" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-
-      {EDGES.map(([a, b], i) => {
-        const na = nodeMap[a], nb = nodeMap[b]
-        return (
-          <line
-            key={i}
-            x1={na.x} y1={na.y} x2={nb.x} y2={nb.y}
-            stroke="rgba(0,229,122,0.07)"
-            strokeWidth="0.8"
-          />
-        )
-      })}
-
-      {PULSES.map(({ edge: [a, b], delay }, i) => {
-        const na = nodeMap[a], nb = nodeMap[b]
-        const id = `rp-${i}`
-        return (
-          <g key={id}>
-            <path id={id} d={`M${na.x},${na.y} L${nb.x},${nb.y}`} fill="none" />
-            <circle r="2.2" fill="#00E57A" opacity="0.7">
-              <animateMotion dur="3s" begin={`${delay}ms`} repeatCount="indefinite" rotate="auto">
-                <mpath href={`#${id}`} />
-              </animateMotion>
-              <animate attributeName="opacity" values="0;0.7;0.7;0" dur="3s" begin={`${delay}ms`} repeatCount="indefinite" />
-            </circle>
-          </g>
-        )
-      })}
-
-      {NODES.map(n => (
-        <g key={n.id}>
-          {n.hot && (
-            <circle
-              cx={n.x} cy={n.y} r={n.r * 5}
-              fill="url(#hotGlowR)"
-              style={{ animation: `node-breathe ${3 + n.id * 0.3}s ease-in-out infinite` }}
-            />
-          )}
-          <circle
-            cx={n.x} cy={n.y} r={n.r}
-            fill={n.hot ? '#00E57A' : 'rgba(255,255,255,0.15)'}
-            style={{
-              animation: `node-breathe ${2.5 + n.id * 0.4}s ease-in-out infinite`,
-              animationDelay: `${n.id * 150}ms`,
-            }}
-          />
-        </g>
-      ))}
-    </svg>
-  )
-}
-
-// ─── Register Page ────────────────────────────────────────────────────────────
 export default function Register() {
-  const [form, setForm]     = useState({ full_name: '', email: '', password: '', company_name: '' })
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', company_name: '' })
   const [loading, setLoading] = useState(false)
-  const [focusedField, setFocused] = useState(null)
   const { register } = useAuth()
   const navigate = useNavigate()
 
@@ -137,209 +33,112 @@ export default function Register() {
     }
   }
 
-  const fieldStyle = (name) => ({
-    width: '100%',
-    height: 44,
-    background: 'rgba(255,255,255,0.04)',
-    border: `1px solid ${focusedField === name ? 'rgba(0,229,122,0.50)' : 'rgba(255,255,255,0.08)'}`,
-    borderRadius: 8,
-    padding: '0 14px',
-    fontSize: 14,
-    color: '#F0F0F5',
-    outline: 'none',
-    boxShadow: focusedField === name ? '0 0 0 3px rgba(0,229,122,0.08)' : 'none',
-    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
-    fontFamily: 'Inter, sans-serif',
-  })
-
-  const labelStyle = {
-    fontSize: 10,
-    fontWeight: 600,
-    letterSpacing: '0.07em',
-    textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.35)',
-    marginBottom: 6,
-    display: 'block',
-  }
-
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0D0D0F', overflow: 'hidden' }}>
+    <div style={{
+      width: '100vw', height: '100vh',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      background: '#000000', position: 'relative', overflow: 'hidden',
+    }}>
+      {/* Background orbs */}
+      <div className="login-bg-orb-1" />
+      <div className="login-bg-orb-2" />
 
-      {/* ── Left: System Visualization (60%) ─────────────────────────── */}
-      <div style={{
-        flex: '0 0 60%',
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
-        padding: 40,
-        overflow: 'hidden',
-      }}>
-        <div style={{ position: 'absolute', inset: 0, opacity: 0.9 }}>
-          <NodeGraph />
-        </div>
-
-        {/* Bottom tagline */}
+      {/* Logo */}
+      <div style={{ textAlign: 'center', marginBottom: 32, position: 'relative', zIndex: 10 }}>
         <div style={{
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
+          width: 52, height: 52, borderRadius: 14,
+          background: 'rgba(0,195,122,0.10)',
+          border: '1px solid rgba(0,195,122,0.30)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px', backdropFilter: 'blur(10px)',
+          boxShadow: '0 0 30px rgba(0,195,122,0.15)',
         }}>
-          <p style={{
-            fontFamily: '"JetBrains Mono", "SF Mono", monospace',
-            fontSize: 11,
-            color: 'rgba(255,255,255,0.25)',
-            letterSpacing: '0.04em',
-          }}>
-            veori.ai — Real estate acquisitions, automated.
-          </p>
-          <p style={{
-            fontFamily: '"JetBrains Mono", "SF Mono", monospace',
-            fontSize: 11,
-            color: 'rgba(0,229,122,0.50)',
-            letterSpacing: '0.04em',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}>
-            <span style={{
-              display: 'inline-block', width: 5, height: 5, borderRadius: '50%',
-              background: '#00E57A',
-              animation: 'dot-live-anim 2s ease-in-out infinite',
-            }} />
-            System accepting new operators
-          </p>
+          <span style={{ fontSize: 26, fontWeight: 700, color: '#00C37A', letterSpacing: '-0.02em' }}>V</span>
         </div>
+        <h1 style={{ fontSize: 28, fontWeight: 500, color: '#FFFFFF', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+          Veori
+        </h1>
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          Built to Achieve
+        </p>
       </div>
 
-      {/* ── Right: Registration Panel (40%) ──────────────────────────── */}
+      {/* Glass card */}
       <div style={{
-        flex: '0 0 40%',
-        borderLeft: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        padding: '0 52px',
-        background: '#111115',
-        overflowY: 'auto',
+        width: 440, padding: '36px 40px', borderRadius: 20,
+        background: 'rgba(255,255,255,0.035)',
+        backdropFilter: 'blur(24px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        boxShadow: '0 0 0 0.5px rgba(255,255,255,0.04) inset, 0 8px 32px rgba(0,0,0,0.6)',
+        position: 'relative', zIndex: 10,
       }}>
-        {/* Identity */}
-        <div style={{ marginBottom: 36 }}>
-          <p style={{
-            fontSize: 22, fontWeight: 600, color: '#F0F0F5',
-            letterSpacing: '-0.02em', marginBottom: 8,
-          }}>
-            Create account
-          </p>
-          <p style={{ fontSize: 13, color: '#44444F', lineHeight: 1.5 }}>
-            Start closing deals autonomously.
-          </p>
-        </div>
+        {/* Refraction edge */}
+        <div style={{
+          position: 'absolute', top: 0, left: '10%', right: '10%', height: 1,
+          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15) 30%, rgba(255,255,255,0.30) 50%, rgba(255,255,255,0.15) 70%, transparent)',
+        }} />
 
-        {/* Form */}
+        <h2 style={{ fontSize: 20, fontWeight: 500, color: '#FFFFFF', margin: '0 0 4px', letterSpacing: '-0.01em' }}>
+          Create your account
+        </h2>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', margin: '0 0 24px' }}>
+          Start closing deals autonomously
+        </p>
+
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {[
+            { key: 'full_name',    label: 'Full Name',    type: 'text',     ph: 'John Smith',            ac: 'name' },
+            { key: 'company_name', label: 'Company Name', type: 'text',     ph: 'Smith Acquisitions',    ac: 'organization' },
+            { key: 'email',        label: 'Email Address',type: 'email',    ph: 'you@company.com',       ac: 'email' },
+            { key: 'password',     label: 'Password',     type: 'password', ph: 'Minimum 8 characters',  ac: 'new-password' },
+          ].map(f => (
+            <div key={f.key}>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)', marginBottom: 8 }}>
+                {f.label}
+              </label>
+              <input
+                type={f.type} placeholder={f.ph}
+                value={form[f.key]} onChange={set(f.key)} autoComplete={f.ac}
+                className="glass-input"
+                style={{ width: '100%', height: 48, padding: '0 16px', boxSizing: 'border-box' }}
+              />
+            </div>
+          ))}
 
-          {/* Full Name */}
-          <div>
-            <label style={labelStyle}>Full Name</label>
-            <input
-              type="text"
-              placeholder="John Smith"
-              value={form.full_name}
-              onChange={set('full_name')}
-              onFocus={() => setFocused('name')}
-              onBlur={() => setFocused(null)}
-              autoComplete="name"
-              style={fieldStyle('name')}
-            />
-          </div>
-
-          {/* Company */}
-          <div>
-            <label style={labelStyle}>Company Name</label>
-            <input
-              type="text"
-              placeholder="Smith Acquisitions"
-              value={form.company_name}
-              onChange={set('company_name')}
-              onFocus={() => setFocused('company')}
-              onBlur={() => setFocused(null)}
-              style={fieldStyle('company')}
-            />
-          </div>
-
-          {/* Email */}
-          <div>
-            <label style={labelStyle}>Email Address</label>
-            <input
-              type="email"
-              placeholder="you@company.com"
-              value={form.email}
-              onChange={set('email')}
-              onFocus={() => setFocused('email')}
-              onBlur={() => setFocused(null)}
-              autoComplete="email"
-              style={fieldStyle('email')}
-            />
-          </div>
-
-          {/* Password */}
-          <div>
-            <label style={labelStyle}>Password</label>
-            <input
-              type="password"
-              placeholder="Minimum 8 characters"
-              value={form.password}
-              onChange={set('password')}
-              onFocus={() => setFocused('password')}
-              onBlur={() => setFocused(null)}
-              autoComplete="new-password"
-              style={fieldStyle('password')}
-            />
-          </div>
-
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
+          <button type="submit" disabled={loading}
             style={{
-              marginTop: 6,
-              width: '100%', height: 46,
-              background: loading ? 'rgba(0,229,122,0.6)' : '#00E57A',
-              color: '#000',
-              fontWeight: 600, fontSize: 14,
-              border: 'none', borderRadius: 8,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              transition: 'filter 0.15s ease',
-              fontFamily: 'Inter, sans-serif',
+              width: '100%', height: 52,
+              background: loading ? 'rgba(0,195,122,0.7)' : '#00C37A',
+              border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600,
+              color: '#000', cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.2s ease', marginTop: 4,
+              boxShadow: '0 0 20px rgba(0,195,122,0.25), 0 4px 12px rgba(0,195,122,0.15)',
+              fontFamily: 'inherit',
             }}
-            onMouseEnter={e => { if (!loading) e.currentTarget.style.filter = 'brightness(1.08)' }}
-            onMouseLeave={e => { e.currentTarget.style.filter = '' }}
+            onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = '#00A868'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
+            onMouseLeave={e => { e.currentTarget.style.background = loading ? 'rgba(0,195,122,0.7)' : '#00C37A'; e.currentTarget.style.transform = 'translateY(0)' }}
           >
             {loading ? (
-              <svg className="animate-spin" style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3.5" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <svg className="animate-spin" style={{ width: 18, height: 18 }} fill="none" viewBox="0 0 24 24">
+                <circle opacity={0.25} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path opacity={0.75} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-            ) : (
-              <>Get Access <ArrowRight size={15} strokeWidth={2} /></>
-            )}
+            ) : 'Create Account'}
           </button>
         </form>
 
-        {/* Sign in link */}
-        <p style={{ marginTop: 28, fontSize: 13, color: '#44444F', textAlign: 'center' }}>
-          Already have access?{' '}
-          <Link
-            to="/login"
-            style={{ color: '#00E57A', textDecoration: 'none', fontWeight: 500 }}
-          >
-            Sign in →
-          </Link>
+        <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.30)', margin: '24px 0 0' }}>
+          Already have an account?{' '}
+          <Link to="/login" style={{ color: '#00C37A', textDecoration: 'none', fontWeight: 500 }}>Sign in</Link>
         </p>
       </div>
+
+      <p style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.15)', marginTop: 24, letterSpacing: '0.03em', position: 'relative', zIndex: 10 }}>
+        veori.net · Autonomous Real Estate Intelligence
+      </p>
     </div>
   )
 }

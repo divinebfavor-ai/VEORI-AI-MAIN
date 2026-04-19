@@ -8,38 +8,23 @@ import useThemeStore from '../../store/themeStore'
 
 export default function Layout() {
   const { init } = useThemeStore()
-
-  // Apply saved theme on mount
   useEffect(() => { init() }, [])
 
   return (
-    <div
-      className="flex flex-col h-screen overflow-hidden"
-      style={{ background: 'var(--bg)' }}
-    >
-      {/* ── System Status Bar — full width, 36px ─────────────────────── */}
+    <div className="flex flex-col h-screen overflow-hidden" style={{
+      background:
+        'radial-gradient(ellipse 80% 60% at 15% 10%, rgba(0,195,122,0.04) 0%, transparent 60%), ' +
+        'radial-gradient(ellipse 60% 40% at 85% 90%, rgba(201,168,76,0.03) 0%, transparent 50%), ' +
+        'radial-gradient(ellipse 100% 80% at 50% 50%, #050A14 0%, #000000 100%)',
+    }}>
       <SystemStatusBar />
-
-      {/* ── Three-zone workspace ─────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-
-        {/* Zone 1: Command Rail — 64px, icon-only nav */}
         <CommandRail />
-
-        {/* Zone 2: Primary Workspace — adaptive, scrollable */}
-        <main
-          className="flex-1 overflow-y-auto min-w-0"
-          style={{ background: 'var(--bg)' }}
-        >
+        <main className="flex-1 overflow-y-auto min-w-0" style={{ background: 'transparent' }}>
           <Outlet />
         </main>
-
-        {/* Zone 3: Intelligence Panel — 320px, always visible */}
         <IntelPanel />
-
       </div>
-
-      {/* Floating AI Assistant */}
       <AssistantChat />
     </div>
   )

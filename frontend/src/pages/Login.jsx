@@ -1,138 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff, ArrowRight } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
-// ─── Network Visualization ────────────────────────────────────────────────────
-// Precision-drawn SVG node graph. Represents the AI system at work.
-// Nodes pulse slowly, data packets travel along connection lines.
-
-const NODES = [
-  { id:  1, x: 130, y: 180, r: 3.5, hot: false },
-  { id:  2, x: 260, y:  90, r: 2.8, hot: false },
-  { id:  3, x: 400, y: 155, r: 5.0, hot: true  },  // focal hot node
-  { id:  4, x: 540, y:  85, r: 2.8, hot: false },
-  { id:  5, x: 660, y: 200, r: 3.5, hot: false },
-  { id:  6, x: 190, y: 320, r: 3.0, hot: false },
-  { id:  7, x: 360, y: 295, r: 5.5, hot: true  },  // secondary hot
-  { id:  8, x: 510, y: 360, r: 3.5, hot: false },
-  { id:  9, x: 680, y: 345, r: 2.8, hot: false },
-  { id: 10, x: 140, y: 460, r: 2.8, hot: false },
-  { id: 11, x: 320, y: 455, r: 4.0, hot: false },
-  { id: 12, x: 560, y: 490, r: 3.0, hot: false },
-]
-
-const EDGES = [
-  [1, 2], [1, 6],
-  [2, 3], [2, 7],
-  [3, 4], [3, 7],
-  [4, 5], [5, 8],
-  [6, 7], [6, 10],
-  [7, 8], [7, 11],
-  [8, 9], [8, 12],
-  [10, 11], [11, 12],
-]
-
-// Pulses: which edges animate and at what phase offset
-const PULSES = [
-  { edge: [2, 3], delay: 0 },
-  { edge: [3, 7], delay: 1200 },
-  { edge: [7, 8], delay: 800 },
-  { edge: [1, 6], delay: 2000 },
-  { edge: [6, 10], delay: 1500 },
-]
-
-function NodeGraph() {
-  const nodeMap = Object.fromEntries(NODES.map(n => [n.id, n]))
-
+// ─── Google Icon ──────────────────────────────────────────────────────────────
+function GoogleIcon() {
   return (
-    <svg
-      viewBox="0 0 800 580"
-      style={{ width: '100%', height: '100%', overflow: 'visible' }}
-      aria-hidden="true"
-    >
-      <defs>
-        <radialGradient id="hotGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#00E57A" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#00E57A" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-
-      {/* ── Connection lines ─────────────────────────────────────────── */}
-      {EDGES.map(([a, b], i) => {
-        const na = nodeMap[a], nb = nodeMap[b]
-        return (
-          <line
-            key={i}
-            x1={na.x} y1={na.y} x2={nb.x} y2={nb.y}
-            stroke="rgba(0,229,122,0.07)"
-            strokeWidth="0.8"
-          />
-        )
-      })}
-
-      {/* ── Pulse dots traveling along edges ─────────────────────────── */}
-      {PULSES.map(({ edge: [a, b], delay }, i) => {
-        const na = nodeMap[a], nb = nodeMap[b]
-        const id = `pulse-path-${i}`
-        return (
-          <g key={`p${i}`}>
-            <path id={id} d={`M${na.x},${na.y} L${nb.x},${nb.y}`} fill="none" />
-            <circle r="2.2" fill="#00E57A" opacity="0.7">
-              <animateMotion
-                dur="3s"
-                begin={`${delay}ms`}
-                repeatCount="indefinite"
-                rotate="auto"
-              >
-                <mpath href={`#${id}`} />
-              </animateMotion>
-              <animate
-                attributeName="opacity"
-                values="0;0.7;0.7;0"
-                dur="3s"
-                begin={`${delay}ms`}
-                repeatCount="indefinite"
-              />
-            </circle>
-          </g>
-        )
-      })}
-
-      {/* ── Nodes ────────────────────────────────────────────────────── */}
-      {NODES.map(n => (
-        <g key={n.id}>
-          {/* Glow halo for hot nodes */}
-          {n.hot && (
-            <circle
-              cx={n.x} cy={n.y} r={n.r * 5}
-              fill="url(#hotGlow)"
-              style={{ animation: `node-breathe ${3 + n.id * 0.3}s ease-in-out infinite` }}
-            />
-          )}
-          {/* Node circle */}
-          <circle
-            cx={n.x} cy={n.y} r={n.r}
-            fill={n.hot ? '#00E57A' : 'rgba(255,255,255,0.15)'}
-            style={{
-              animation: `node-breathe ${2.5 + n.id * 0.4}s ease-in-out infinite`,
-              animationDelay: `${n.id * 150}ms`,
-            }}
-          />
-        </g>
-      ))}
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+      <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
     </svg>
   )
 }
 
 // ─── Login Page ───────────────────────────────────────────────────────────────
 export default function Login() {
-  const [email, setEmail]       = useState('')
+  const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
-  const [loading, setLoading]   = useState(false)
-  const [focusedField, setFocused] = useState(null)
+  const [loading,  setLoading]  = useState(false)
   const { login }  = useAuth()
   const navigate   = useNavigate()
   const emailRef   = useRef(null)
@@ -153,186 +42,190 @@ export default function Login() {
     }
   }
 
-  const fieldStyle = (name) => ({
-    width: '100%',
-    height: 46,
-    background: 'rgba(255,255,255,0.04)',
-    border: `1px solid ${focusedField === name ? 'rgba(0,229,122,0.50)' : 'rgba(255,255,255,0.08)'}`,
-    borderRadius: 8,
-    padding: '0 44px 0 14px',
-    fontSize: 14,
-    color: '#F0F0F5',
-    outline: 'none',
-    boxShadow: focusedField === name ? '0 0 0 3px rgba(0,229,122,0.08)' : 'none',
-    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
-    fontFamily: 'Inter, sans-serif',
-  })
-
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0D0D0F', overflow: 'hidden' }}>
+    <div style={{
+      width: '100vw', height: '100vh',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      background: '#000000',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {/* Animated background orbs */}
+      <div className="login-bg-orb-1" />
+      <div className="login-bg-orb-2" />
 
-      {/* ── Left: System Visualization (60%) ─────────────────────────── */}
-      <div style={{
-        flex: '0 0 60%',
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
-        padding: 40,
-        overflow: 'hidden',
-      }}>
-        {/* Network graph fills the space */}
-        <div style={{ position: 'absolute', inset: 0, opacity: 0.9 }}>
-          <NodeGraph />
-        </div>
-
-        {/* Bottom status line */}
+      {/* Logo */}
+      <div style={{ textAlign: 'center', marginBottom: 32, position: 'relative', zIndex: 10 }}>
         <div style={{
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          fontFamily: '"JetBrains Mono", "SF Mono", monospace',
-          fontSize: 11,
-          color: 'rgba(255,255,255,0.25)',
-          letterSpacing: '0.04em',
+          width: 52, height: 52, borderRadius: 14,
+          background: 'rgba(0,195,122,0.10)',
+          border: '1px solid rgba(0,195,122,0.30)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 0 30px rgba(0,195,122,0.15)',
         }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{
-              display: 'inline-block', width: 5, height: 5, borderRadius: '50%',
-              background: '#00E57A',
-              animation: 'dot-live-anim 2s ease-in-out infinite',
-            }} />
-            AI Systems Online
-          </span>
-          <span style={{ color: 'rgba(255,255,255,0.10)' }}>·</span>
-          <span>4 Sequences Running</span>
-          <span style={{ color: 'rgba(255,255,255,0.10)' }}>·</span>
-          <span>veori.ai</span>
+          <span style={{ fontSize: 26, fontWeight: 700, color: '#00C37A', letterSpacing: '-0.02em' }}>V</span>
         </div>
+        <h1 style={{ fontSize: 28, fontWeight: 500, color: '#FFFFFF', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+          Veori
+        </h1>
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          Built to Achieve
+        </p>
       </div>
 
-      {/* ── Right: Access Panel (40%) ─────────────────────────────────── */}
+      {/* Glass card */}
       <div style={{
-        flex: '0 0 40%',
-        borderLeft: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        padding: '0 52px',
-        background: '#111115',
+        width: 440, padding: 40, borderRadius: 20,
+        background: 'rgba(255,255,255,0.035)',
+        backdropFilter: 'blur(24px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        boxShadow: '0 0 0 0.5px rgba(255,255,255,0.04) inset, 0 8px 32px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
+        position: 'relative', zIndex: 10,
       }}>
-        {/* Identity */}
-        <div style={{ marginBottom: 44 }}>
-          <p style={{
-            fontSize: 22, fontWeight: 600, color: '#F0F0F5',
-            letterSpacing: '-0.02em', marginBottom: 8,
-          }}>
-            Veori AI
-          </p>
-          <p style={{ fontSize: 13, color: '#44444F', lineHeight: 1.5 }}>
-            Real estate acquisitions, automated.
-          </p>
-        </div>
+        {/* Refraction edge */}
+        <div style={{
+          position: 'absolute', top: 0, left: '10%', right: '10%', height: 1,
+          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15) 30%, rgba(255,255,255,0.30) 50%, rgba(255,255,255,0.15) 70%, transparent)',
+        }} />
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 500, color: '#FFFFFF', margin: '0 0 4px', letterSpacing: '-0.01em' }}>
+          Welcome back
+        </h2>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', margin: '0 0 28px' }}>
+          Sign in to your acquisitions command center
+        </p>
 
+        <form onSubmit={handleSubmit}>
           {/* Email */}
-          <div style={{ position: 'relative' }}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)', marginBottom: 8 }}>
+              Email Address
+            </label>
             <input
-              ref={emailRef}
-              type="email"
-              placeholder="Email address"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              onFocus={() => setFocused('email')}
-              onBlur={() => setFocused(null)}
-              autoComplete="email"
-              style={{ ...fieldStyle('email'), paddingLeft: 14 }}
+              ref={emailRef} type="email" placeholder="you@company.com"
+              value={email} onChange={e => setEmail(e.target.value)}
+              autoComplete="email" className="glass-input"
+              style={{ width: '100%', height: 52, padding: '0 16px', boxSizing: 'border-box' }}
             />
           </div>
 
           {/* Password */}
-          <div style={{ position: 'relative' }}>
-            <input
-              type={showPass ? 'text' : 'password'}
-              placeholder="Password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onFocus={() => setFocused('password')}
-              onBlur={() => setFocused(null)}
-              autoComplete="current-password"
-              style={fieldStyle('password')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPass(s => !s)}
-              tabIndex={-1}
-              style={{
-                position: 'absolute', right: 14, top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none', border: 'none', color: '#44444F',
-                cursor: 'pointer', display: 'flex', alignItems: 'center',
-              }}
-            >
-              {showPass
-                ? <EyeOff size={15} strokeWidth={1.6} />
-                : <Eye    size={15} strokeWidth={1.6} />
-              }
-            </button>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)', marginBottom: 8 }}>
+              Password
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPass ? 'text' : 'password'} placeholder="••••••••••••"
+                value={password} onChange={e => setPassword(e.target.value)}
+                autoComplete="current-password" className="glass-input"
+                style={{ width: '100%', height: 52, padding: '0 48px 0 16px', boxSizing: 'border-box' }}
+              />
+              <button
+                type="button" tabIndex={-1} onClick={() => setShowPass(s => !s)}
+                style={{
+                  position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', color: 'rgba(255,255,255,0.30)',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4,
+                  transition: 'color 0.2s ease',
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#00C37A'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.30)'}
+              >
+                {showPass ? <EyeOff size={15} strokeWidth={1.6} /> : <Eye size={15} strokeWidth={1.6} />}
+              </button>
+            </div>
           </div>
 
           {/* Forgot */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -8 }}>
-            <button
-              type="button"
-              style={{ background: 'none', border: 'none', fontSize: 12, color: '#44444F', cursor: 'pointer', padding: 0 }}
+          <div style={{ textAlign: 'right', marginBottom: 24 }}>
+            <button type="button"
+              style={{ background: 'none', border: 'none', fontSize: 12, color: 'rgba(255,255,255,0.30)', cursor: 'pointer', padding: 0, fontFamily: 'inherit', transition: 'color 0.2s ease' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.30)'}
             >
               Forgot password?
             </button>
           </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
+          {/* Sign In */}
+          <button type="submit" disabled={loading}
             style={{
-              width: '100%', height: 46,
-              background: loading ? 'rgba(0,229,122,0.6)' : '#00E57A',
-              color: '#000',
-              fontWeight: 600, fontSize: 14,
-              border: 'none', borderRadius: 8,
-              cursor: loading ? 'not-allowed' : 'pointer',
+              width: '100%', height: 52, background: loading ? 'rgba(0,195,122,0.7)' : '#00C37A',
+              border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, color: '#000000',
+              cursor: loading ? 'not-allowed' : 'pointer', marginBottom: 16,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              transition: 'filter 0.15s ease',
-              fontFamily: 'Inter, sans-serif',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 0 20px rgba(0,195,122,0.25), 0 4px 12px rgba(0,195,122,0.15)',
+              letterSpacing: '-0.01em', fontFamily: 'inherit',
             }}
-            onMouseEnter={e => { if (!loading) e.currentTarget.style.filter = 'brightness(1.08)' }}
-            onMouseLeave={e => { e.currentTarget.style.filter = '' }}
+            onMouseEnter={e => {
+              if (!loading) {
+                e.currentTarget.style.background = '#00A868'
+                e.currentTarget.style.boxShadow = '0 0 30px rgba(0,195,122,0.4), 0 8px 20px rgba(0,195,122,0.2)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+              }
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = loading ? 'rgba(0,195,122,0.7)' : '#00C37A'
+              e.currentTarget.style.boxShadow = '0 0 20px rgba(0,195,122,0.25), 0 4px 12px rgba(0,195,122,0.15)'
+              e.currentTarget.style.transform = 'translateY(0)'
+            }}
           >
             {loading ? (
-              <svg className="animate-spin" style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3.5" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <svg className="animate-spin" style={{ width: 18, height: 18 }} fill="none" viewBox="0 0 24 24">
+                <circle opacity={0.25} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path opacity={0.75} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-            ) : (
-              <>Sign In <ArrowRight size={15} strokeWidth={2} /></>
-            )}
+            ) : 'Sign In'}
           </button>
-        </form>
 
-        {/* Register link */}
-        <p style={{ marginTop: 28, fontSize: 13, color: '#44444F', textAlign: 'center' }}>
-          Don&apos;t have access?{' '}
-          <Link
-            to="/register"
-            style={{ color: '#00E57A', textDecoration: 'none', fontWeight: 500 }}
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.20)', letterSpacing: '0.05em' }}>OR</span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+          </div>
+
+          {/* Google */}
+          <button type="button" onClick={() => toast.info('Google SSO coming soon')}
+            style={{
+              width: '100%', height: 52,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 10, fontSize: 14, fontWeight: 500, color: '#FFFFFF',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              marginBottom: 28, transition: 'all 0.2s ease', fontFamily: 'inherit',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.07)'
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'
+            }}
           >
-            Start here →
-          </Link>
-        </p>
+            <GoogleIcon /> Continue with Google
+          </button>
+
+          {/* Register link */}
+          <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.30)', margin: 0 }}>
+            Don&apos;t have an account?{' '}
+            <Link to="/register" style={{ color: '#00C37A', textDecoration: 'none', fontWeight: 500 }}>
+              Sign up
+            </Link>
+          </p>
+        </form>
       </div>
+
+      {/* Footer */}
+      <p style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.15)', marginTop: 24, letterSpacing: '0.03em', position: 'relative', zIndex: 10 }}>
+        veori.net · Autonomous Real Estate Intelligence
+      </p>
     </div>
   )
 }

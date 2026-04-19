@@ -1,44 +1,21 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { Send, Plus, Sparkles, ArrowRight, MessageSquare, Trash2, Clock, TrendingUp, Users, BookOpen } from 'lucide-react'
+import { Send, Plus, Sparkles, MessageSquare, Trash2, TrendingUp, Users, BookOpen, Zap } from 'lucide-react'
 import { formatDistanceToNow, isToday, isYesterday } from 'date-fns'
 import toast from 'react-hot-toast'
 import { ai } from '../services/api'
 import MarkdownRenderer from '../components/ui/MarkdownRenderer'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const DAILY_LIMIT = 20
-const STORAGE_KEY = 'aria_daily'
 const HISTORY_KEY = 'aria_history'
 
 const STARTER_PROMPTS = [
-  { icon: TrendingUp, label: 'How do I calculate MAO on a deal?',               q: 'How do I calculate MAO (Maximum Allowable Offer) on a wholesale real estate deal?' },
-  { icon: Users,      label: 'What makes a seller motivated to sell?',           q: 'What are the signs that indicate a seller is highly motivated to sell their property?' },
-  { icon: Sparkles,   label: 'How do I find cash buyers fast?',                  q: 'What are the fastest ways to build a cash buyers list for wholesaling deals?' },
-  { icon: BookOpen,   label: 'Walk me through a wholesale deal start to finish', q: 'Can you walk me through a complete wholesale real estate deal from finding a property to closing?' },
+  { icon: TrendingUp, label: 'How do I calculate MAO on a deal?',                q: 'How do I calculate MAO (Maximum Allowable Offer) on a wholesale real estate deal?' },
+  { icon: Users,      label: 'What makes a seller motivated to sell?',            q: 'What are the signs that indicate a seller is highly motivated to sell their property?' },
+  { icon: Sparkles,   label: 'How do I find cash buyers fast?',                   q: 'What are the fastest ways to build a cash buyers list for wholesaling deals?' },
+  { icon: BookOpen,   label: 'Walk me through a wholesale deal start to finish',  q: 'Can you walk me through a complete wholesale real estate deal from finding a property to closing?' },
 ]
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
-function getDailyData() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') } catch { return null }
-}
-function getRemaining() {
-  const today = new Date().toDateString()
-  const d = getDailyData()
-  if (!d || d.date !== today) return DAILY_LIMIT
-  return Math.max(0, DAILY_LIMIT - (d.count || 0))
-}
-function incrementUsage() {
-  const today = new Date().toDateString()
-  const d = getDailyData()
-  if (!d || d.date !== today) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, count: 1 }))
-    return DAILY_LIMIT - 1
-  }
-  const next = (d.count || 0) + 1
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, count: next }))
-  return DAILY_LIMIT - next
-}
 function loadHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { return [] }
 }
@@ -58,9 +35,9 @@ function useStreamText(targetText, isStreaming) {
       idx += Math.floor(Math.random() * 3) + 2
       if (idx >= targetText.length) { setDisplayed(targetText); return }
       setDisplayed(targetText.slice(0, idx))
-      ref.current = setTimeout(step, 12)
+      ref.current = setTimeout(step, 10)
     }
-    ref.current = setTimeout(step, 12)
+    ref.current = setTimeout(step, 10)
     return () => clearTimeout(ref.current)
   }, [targetText, isStreaming])
   return displayed
@@ -69,19 +46,31 @@ function useStreamText(targetText, isStreaming) {
 // ─── User message ─────────────────────────────────────────────────────────────
 function UserMessage({ content, timestamp }) {
   return (
-    <div className="flex justify-end gap-3 group">
-      <div className="flex flex-col items-end gap-1">
-        <div className="px-4 py-3 text-[14px] text-white leading-[1.7] max-w-[75%]"
-          style={{ background: '#1A3A2A', border: '1px solid #00C37A33', borderRadius: '12px 12px 3px 12px' }}>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }} className="group">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, maxWidth: '75%' }}>
+        <div style={{
+          padding: '11px 16px',
+          fontSize: 14, color: 'rgba(255,255,255,0.92)', lineHeight: 1.7,
+          background: 'rgba(0,195,122,0.10)',
+          border: '1px solid rgba(0,195,122,0.20)',
+          borderRadius: '12px 12px 3px 12px',
+        }}>
           {content}
         </div>
         {timestamp && (
-          <span className="text-[10px] text-text-muted opacity-0 group-hover:opacity-100 transition-opacity mr-1">
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', opacity: 0, transition: 'opacity 0.2s' }} className="group-hover:opacity-100">
             {formatDistanceToNow(new Date(timestamp), { addSuffix: true })}
           </span>
         )}
       </div>
-      <div className="w-7 h-7 rounded-full bg-elevated border border-border-default flex items-center justify-center flex-shrink-0 mt-0.5 text-[11px] font-bold text-text-secondary">
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%',
+        background: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.10)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, marginTop: 2,
+        fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.50)',
+      }}>
         U
       </div>
     </div>
@@ -94,17 +83,32 @@ function AIMessage({ content, isStreaming, isError }) {
   const text = isStreaming ? displayed : content
 
   return (
-    <div className="flex gap-3 group">
-      <div className="flex-shrink-0 mt-0.5">
-        <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-          <span className="text-[12px] font-bold text-primary">A</span>
+    <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ flexShrink: 0, marginTop: 2 }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: '50%',
+          background: 'rgba(0,195,122,0.10)',
+          border: '1px solid rgba(0,195,122,0.25)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 0 12px rgba(0,195,122,0.15)',
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#00C37A' }}>A</span>
         </div>
       </div>
-      <div className="flex-1 min-w-0 pt-0.5">
-        {isError
-          ? <p className="text-danger text-[14px] leading-[1.7]">{text}</p>
-          : <MarkdownRenderer content={text} />
-        }
+      <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+        {isError ? (
+          <p style={{ fontSize: 14, color: '#FF4444', lineHeight: 1.7 }}>{text}</p>
+        ) : (
+          <MarkdownRenderer content={text} />
+        )}
+        {isStreaming && (
+          <span style={{
+            display: 'inline-block', width: 6, height: 14,
+            background: '#00C37A', borderRadius: 1,
+            marginLeft: 2, verticalAlign: 'text-bottom',
+            animation: 'breathe 0.6s ease infinite',
+          }} />
+        )}
       </div>
     </div>
   )
@@ -113,49 +117,27 @@ function AIMessage({ content, isStreaming, isError }) {
 // ─── Typing indicator ─────────────────────────────────────────────────────────
 function TypingIndicator() {
   return (
-    <div className="flex gap-3">
-      <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-        <span className="text-[12px] font-bold text-primary">A</span>
+    <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%',
+        background: 'rgba(0,195,122,0.10)',
+        border: '1px solid rgba(0,195,122,0.25)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color: '#00C37A' }}>A</span>
       </div>
-      <div className="flex items-center gap-1.5 py-2">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingTop: 6 }}>
         {[0, 150, 300].map(delay => (
-          <div key={delay} className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+          <div key={delay} style={{
+            width: 6, height: 6,
+            background: 'rgba(255,255,255,0.25)',
+            borderRadius: '50%',
+            animation: 'bounce 1s ease infinite',
+            animationDelay: `${delay}ms`,
+          }} />
         ))}
       </div>
-    </div>
-  )
-}
-
-// ─── Chat input ───────────────────────────────────────────────────────────────
-function ChatInput({ value, onChange, onSend, disabled, placeholder }) {
-  const ref = useRef(null)
-
-  const handleKeyDown = e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend() }
-  }
-
-  const resize = () => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = Math.min(120, el.scrollHeight) + 'px'
-  }
-
-  useEffect(() => { resize() }, [value])
-
-  return (
-    <div className="flex items-end gap-3 bg-surface border border-border-subtle rounded-[10px] px-4 py-3 focus-within:border-border-default transition-colors">
-      <textarea ref={ref} value={value} onChange={e => { onChange(e.target.value); resize() }}
-        onKeyDown={handleKeyDown} placeholder={placeholder} rows={1} disabled={disabled}
-        className="flex-1 bg-transparent text-[14px] text-text-primary placeholder-text-muted focus:outline-none resize-none disabled:opacity-40"
-        style={{ maxHeight: '120px', lineHeight: '1.6' }}
-      />
-      {value.trim() && (
-        <button onClick={onSend} disabled={disabled}
-          className="w-8 h-8 flex items-center justify-center rounded-[6px] bg-primary hover:bg-primary-hover text-black transition-colors disabled:opacity-40 flex-shrink-0">
-          <Send size={13} />
-        </button>
-      )}
     </div>
   )
 }
@@ -165,10 +147,10 @@ function groupByDate(conversations) {
   const groups = { Today: [], Yesterday: [], 'Last 7 days': [], Older: [] }
   conversations.forEach(c => {
     const d = new Date(c.updatedAt || c.createdAt)
-    if (isToday(d))           groups.Today.push(c)
-    else if (isYesterday(d))  groups.Yesterday.push(c)
+    if (isToday(d))          groups.Today.push(c)
+    else if (isYesterday(d)) groups.Yesterday.push(c)
     else if (Date.now() - d.getTime() < 7 * 86400000) groups['Last 7 days'].push(c)
-    else                      groups.Older.push(c)
+    else                     groups.Older.push(c)
   })
   return groups
 }
@@ -182,16 +164,17 @@ export default function Aria() {
   const [messages, setMessages]           = useState([])
   const [input, setInput]                 = useState('')
   const [loading, setLoading]             = useState(false)
-  const [remaining, setRemaining]         = useState(getRemaining)
   const [streamingId, setStreamingId]     = useState(null)
   const [hoveredId, setHoveredId]         = useState(null)
-  const bottomRef = useRef(null)
+  const bottomRef  = useRef(null)
+  const inputRef   = useRef(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
   useEffect(() => { saveHistory(conversations) }, [conversations])
 
   const startNewChat = useCallback(() => {
     setActiveId(null); setMessages([]); setInput('')
+    setTimeout(() => inputRef.current?.focus(), 50)
   }, [])
 
   const loadConversation = useCallback(convo => {
@@ -204,10 +187,9 @@ export default function Aria() {
     if (activeId === id) startNewChat()
   }, [activeId, startNewChat])
 
-  const send = useCallback(async text => {
+  const send = useCallback(async (text) => {
     const trimmed = (text || input).trim()
     if (!trimmed || loading) return
-    if (remaining <= 0) { toast.error('Daily limit reached.'); return }
 
     setInput('')
     const msgId   = Date.now().toString()
@@ -227,12 +209,9 @@ export default function Aria() {
 
       setMessages(final)
       setStreamingId(aiMsgId)
-      setTimeout(() => setStreamingId(null), Math.min(reply.length * 12, 4000))
+      setTimeout(() => setStreamingId(null), Math.min(reply.length * 10, 5000))
 
-      const left = incrementUsage()
-      setRemaining(left)
-
-      const title = trimmed.slice(0, 50) + (trimmed.length > 50 ? '…' : '')
+      const title = trimmed.slice(0, 52) + (trimmed.length > 52 ? '…' : '')
       const now   = new Date().toISOString()
 
       if (activeId) {
@@ -251,46 +230,106 @@ export default function Aria() {
     } finally {
       setLoading(false)
     }
-  }, [input, loading, remaining, messages, activeId])
+  }, [input, loading, messages, activeId])
+
+  const handleKeyDown = e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+  }
+
+  const resizeInput = () => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(130, el.scrollHeight) + 'px'
+  }
+
+  useEffect(() => { resizeInput() }, [input])
 
   const isEmpty = messages.length === 0
   const groups  = groupByDate(conversations)
-  const isLow   = remaining <= 5 && remaining > 0
 
   return (
-    <div className="flex h-full bg-bg overflow-hidden">
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
-      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-      <aside className="w-[240px] flex-shrink-0 bg-surface border-r border-border-subtle flex flex-col">
+      {/* ── Sidebar ───────────────────────────────────────────────────────────── */}
+      <aside style={{
+        width: 240, flexShrink: 0,
+        background: 'rgba(255,255,255,0.02)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderRight: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex', flexDirection: 'column',
+      }}>
         {/* New chat */}
-        <div className="p-3 border-b border-border-subtle">
-          <button onClick={startNewChat}
-            className="w-full flex items-center gap-2 bg-primary hover:bg-primary-hover text-black text-[13px] font-semibold px-3 py-2.5 rounded-[6px] transition-colors">
+        <div style={{ padding: '14px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <button
+            onClick={startNewChat}
+            style={{
+              width: '100%', height: 36,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              background: '#00C37A', color: '#000',
+              fontSize: 13, fontWeight: 700,
+              border: 'none', borderRadius: 8, cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: '0 0 16px rgba(0,195,122,0.25)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#00A868'; e.currentTarget.style.boxShadow = '0 0 24px rgba(0,195,122,0.40)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#00C37A'; e.currentTarget.style.boxShadow = '0 0 16px rgba(0,195,122,0.25)' }}
+          >
             <Plus size={14} />
             New Chat
           </button>
         </div>
 
         {/* History */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-4 scrollbar-hide">
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 8px' }}>
           {Object.entries(groups).map(([label, convos]) =>
             convos.length === 0 ? null : (
-              <div key={label}>
-                <p className="label-caps px-2 mb-1.5">{label}</p>
+              <div key={label} style={{ marginBottom: 16 }}>
+                <p style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
+                  textTransform: 'uppercase', color: 'rgba(255,255,255,0.25)',
+                  padding: '0 8px', marginBottom: 4,
+                }}>
+                  {label}
+                </p>
                 {convos.map(c => (
-                  <button key={c.id} onClick={() => loadConversation(c)}
+                  <button
+                    key={c.id}
+                    onClick={() => loadConversation(c)}
                     onMouseEnter={() => setHoveredId(c.id)}
                     onMouseLeave={() => setHoveredId(null)}
-                    className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-[6px] text-left transition-colors text-[13px] ${
-                      activeId === c.id
-                        ? 'bg-elevated text-text-primary'
-                        : 'text-text-muted hover:bg-elevated hover:text-text-secondary'
-                    }`}>
-                    <span className="truncate flex-1">{c.title}</span>
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between', gap: 6,
+                      padding: '7px 10px', borderRadius: 7,
+                      background: activeId === c.id ? 'rgba(0,195,122,0.08)' : hoveredId === c.id ? 'rgba(255,255,255,0.04)' : 'transparent',
+                      border: `1px solid ${activeId === c.id ? 'rgba(0,195,122,0.20)' : 'transparent'}`,
+                      cursor: 'pointer', textAlign: 'left',
+                      transition: 'all 0.12s ease',
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 12,
+                      color: activeId === c.id ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.45)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      flex: 1,
+                      transition: 'color 0.12s ease',
+                    }}>
+                      {c.title}
+                    </span>
                     {hoveredId === c.id && (
-                      <span onClick={e => deleteConversation(c.id, e)}
-                        className="flex-shrink-0 p-0.5 rounded hover:text-danger transition-colors">
-                        <Trash2 size={12} />
+                      <span
+                        onClick={e => deleteConversation(c.id, e)}
+                        style={{
+                          flexShrink: 0, padding: 3, borderRadius: 4,
+                          color: 'rgba(255,255,255,0.30)', cursor: 'pointer',
+                          display: 'flex',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#FF4444' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.30)' }}
+                      >
+                        <Trash2 size={11} />
                       </span>
                     )}
                   </button>
@@ -299,76 +338,132 @@ export default function Aria() {
             )
           )}
           {conversations.length === 0 && (
-            <div className="px-3 py-8 text-center">
-              <MessageSquare size={20} className="text-text-muted mx-auto mb-2" strokeWidth={1.5} />
-              <p className="text-[12px] text-text-muted">No conversations yet</p>
+            <div style={{ padding: '40px 12px', textAlign: 'center' }}>
+              <MessageSquare size={20} style={{ color: 'rgba(255,255,255,0.20)', margin: '0 auto 8px', display: 'block' }} strokeWidth={1.5} />
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>No conversations yet</p>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-border-subtle">
-          <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-[4px] bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <span className="text-[11px] font-bold text-primary">A</span>
+        {/* Aria footer badge */}
+        <div style={{ padding: '14px 16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 7,
+              background: 'rgba(0,195,122,0.10)',
+              border: '1px solid rgba(0,195,122,0.20)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#00C37A' }}>A</span>
             </div>
             <div>
-              <p className="text-[12px] font-medium text-text-primary">Aria</p>
-              <p className="text-[10px] text-text-muted">Real Estate Intelligence</p>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.80)' }}>Aria</p>
+              <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)' }}>Real Estate Intelligence</p>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* ── Main area ────────────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0">
+      {/* ── Main area ─────────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
 
         {/* Top bar */}
-        <header className="flex items-center justify-between px-6 py-3 border-b border-border-subtle flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-[4px] bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <span className="text-[11px] font-bold text-primary">A</span>
+        <header style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 24px', height: 48,
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 26, height: 26, borderRadius: 7,
+              background: 'rgba(0,195,122,0.10)',
+              border: '1px solid rgba(0,195,122,0.22)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 10px rgba(0,195,122,0.15)',
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#00C37A' }}>A</span>
             </div>
-            <span className="text-[14px] font-medium text-text-primary">Aria</span>
-            <span className="text-[12px] text-text-muted">— Real Estate Intelligence</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.90)' }}>Aria</span>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.28)' }}>Real Estate Intelligence</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Limit pill */}
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] border ${
-              isLow
-                ? 'bg-warning/10 border-warning/30 text-warning'
-                : 'bg-elevated border-border-subtle text-text-muted'
-            }`}>
-              <Clock size={10} />
-              {remaining} / {DAILY_LIMIT} left
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px',
+              background: 'rgba(0,195,122,0.06)',
+              border: '1px solid rgba(0,195,122,0.15)',
+              borderRadius: 20,
+              fontSize: 10, fontWeight: 600,
+              color: '#00C37A', letterSpacing: '0.05em',
+            }}>
+              <Zap size={9} strokeWidth={2.5} />
+              UNLIMITED
             </div>
-            <Link to="/login" className="text-[12px] font-medium text-primary hover:text-primary-hover transition-colors">
-              Sign in →
-            </Link>
           </div>
         </header>
 
         {/* Chat thread */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <div className="max-w-[720px] mx-auto px-6 py-6 space-y-6">
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ maxWidth: 740, margin: '0 auto', padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
             {isEmpty ? (
-              /* Empty state */
-              <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
-                <div className="w-14 h-14 rounded-[12px] bg-primary/10 border border-primary/20 flex items-center justify-center mb-6">
-                  <span className="text-[28px] font-bold text-primary">A</span>
+              /* Empty / welcome state */
+              <div style={{
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                minHeight: '50vh', textAlign: 'center',
+              }}>
+                <div style={{
+                  width: 64, height: 64, borderRadius: 16,
+                  background: 'rgba(0,195,122,0.08)',
+                  border: '1px solid rgba(0,195,122,0.20)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 24,
+                  boxShadow: '0 0 32px rgba(0,195,122,0.12)',
+                }}>
+                  <span style={{ fontSize: 30, fontWeight: 800, color: '#00C37A' }}>A</span>
                 </div>
-                <h1 className="text-[28px] font-medium text-white mb-2">Hi, I'm Aria.</h1>
-                <p className="text-[14px] text-text-secondary mb-1">Your free AI advisor for real estate investing.</p>
-                <p className="text-[13px] text-text-muted mb-10">Ask me anything about wholesaling, ARV, MAO, or finding deals.</p>
+                <h1 style={{ fontSize: 28, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.03em', marginBottom: 8 }}>
+                  Hi, I'm Aria.
+                </h1>
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', marginBottom: 6 }}>
+                  Your AI advisor for real estate investing.
+                </p>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.28)', marginBottom: 40 }}>
+                  Ask me anything about wholesaling, ARV, MAO, finding deals, or building your business.
+                </p>
 
-                <div className="grid grid-cols-2 gap-3 w-full max-w-[560px]">
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 1fr',
+                  gap: 10, width: '100%', maxWidth: 580,
+                }}>
                   {STARTER_PROMPTS.map(p => (
-                    <button key={p.label} onClick={() => send(p.q)}
-                      className="flex items-start gap-3 bg-card hover:bg-elevated border border-border-subtle hover:border-primary/30 rounded-lg p-4 text-left transition-all group">
-                      <p.icon size={14} className="text-primary flex-shrink-0 mt-0.5" />
-                      <span className="text-[13px] text-text-muted group-hover:text-text-secondary transition-colors leading-snug">
+                    <button
+                      key={p.label}
+                      onClick={() => send(p.q)}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        borderRadius: 12, padding: '14px 16px',
+                        textAlign: 'left', cursor: 'pointer',
+                        transition: 'all 0.18s ease',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(0,195,122,0.05)'
+                        e.currentTarget.style.borderColor = 'rgba(0,195,122,0.20)'
+                        e.currentTarget.style.transform = 'translateY(-1px)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'
+                        e.currentTarget.style.transform = 'none'
+                      }}
+                    >
+                      <p.icon size={14} style={{ color: '#00C37A', flexShrink: 0, marginTop: 1 }} />
+                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 }}>
                         {p.label}
                       </span>
                     </button>
@@ -381,7 +476,8 @@ export default function Aria() {
                 {messages.map((msg, idx) => {
                   if (msg.role === 'assistant') {
                     return (
-                      <AIMessage key={msg.id || idx}
+                      <AIMessage
+                        key={msg.id || idx}
                         content={msg.content}
                         isStreaming={streamingId === msg.id}
                         isError={msg.isError}
@@ -394,49 +490,65 @@ export default function Aria() {
               </>
             )}
 
-            {/* Limit exhausted */}
-            {remaining === 0 && !isEmpty && (
-              <div className="flex justify-center">
-                <div className="bg-card border border-border-subtle rounded-lg p-6 text-center max-w-sm w-full">
-                  <p className="text-[14px] font-medium text-text-primary mb-1">You've used all your free messages today.</p>
-                  <p className="text-[13px] text-text-muted mb-4">Sign up free to get 50 messages per day.</p>
-                  <Link to="/register"
-                    className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-black font-semibold px-5 py-2.5 rounded-[6px] text-[13px] transition-colors">
-                    Create Free Account <ArrowRight size={13} />
-                  </Link>
-                </div>
-              </div>
-            )}
-
             <div ref={bottomRef} />
           </div>
         </div>
 
-        {/* Low limit banner */}
-        {isLow && (
-          <div className="flex-shrink-0 mx-auto w-full max-w-[720px] px-6 pb-1">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-warning/5 border border-warning/20 rounded-[6px]">
-              <p className="text-[12px] text-warning">{remaining} free messages remaining today</p>
-              <Link to="/register" className="text-[12px] text-primary hover:underline font-medium">
-                Sign up for unlimited →
-              </Link>
+        {/* Input area */}
+        <div style={{ flexShrink: 0, padding: '12px 24px 24px' }}>
+          <div style={{ maxWidth: 740, margin: '0 auto' }}>
+            <div style={{
+              display: 'flex', alignItems: 'flex-end', gap: 10,
+              background: 'rgba(255,255,255,0.04)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 14,
+              padding: '12px 14px',
+              transition: 'border-color 0.15s ease',
+            }}
+              onFocusCapture={e => { e.currentTarget.style.borderColor = 'rgba(0,195,122,0.35)' }}
+              onBlurCapture={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+            >
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={e => { setInput(e.target.value); resizeInput() }}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask Aria anything about real estate…"
+                rows={1}
+                disabled={loading}
+                style={{
+                  flex: 1, background: 'transparent',
+                  border: 'none', outline: 'none', resize: 'none',
+                  fontSize: 14, color: 'rgba(255,255,255,0.88)',
+                  lineHeight: 1.65, maxHeight: 130,
+                  fontFamily: 'inherit',
+                  caretColor: '#00C37A',
+                }}
+              />
+              {input.trim() && (
+                <button
+                  onClick={() => send()}
+                  disabled={loading}
+                  style={{
+                    width: 34, height: 34, borderRadius: 9,
+                    background: '#00C37A', color: '#000',
+                    border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                    boxShadow: '0 0 12px rgba(0,195,122,0.30)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#00A868'; e.currentTarget.style.transform = 'scale(1.05)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#00C37A'; e.currentTarget.style.transform = 'scale(1)' }}
+                >
+                  <Send size={13} />
+                </button>
+              )}
             </div>
-          </div>
-        )}
-
-        {/* Input */}
-        <div className="flex-shrink-0 px-6 pb-6 pt-2">
-          <div className="max-w-[720px] mx-auto">
-            <ChatInput
-              value={input}
-              onChange={setInput}
-              onSend={() => send()}
-              disabled={loading || remaining === 0}
-              placeholder={remaining > 0 ? 'Ask Aria anything about real estate…' : 'Daily limit reached — sign up for unlimited access'}
-            />
-            <p className="text-center text-[11px] text-text-muted mt-2">
-              Educational information only — not legal or financial advice.{' '}
-              <Link to="/login" className="text-primary hover:underline">Already have an account?</Link>
+            <p style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.20)', marginTop: 8 }}>
+              Educational information only — not legal or financial advice.
             </p>
           </div>
         </div>
