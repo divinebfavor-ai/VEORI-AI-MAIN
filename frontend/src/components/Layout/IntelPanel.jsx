@@ -75,22 +75,25 @@ function fmtDate(d) { return d ? formatDistanceToNow(new Date(d), { addSuffix: t
 function SystemPanel() {
   const { calls: liveCalls } = useLiveCalls()
 
-  const AI_LOG = [
-    { time: '4m',  text: 'Marcus Johnson scored 78', tag: 'motivation spike' },
-    { time: '7m',  text: '3 leads enrolled in sequence', tag: 'no answer' },
-    { time: '12m', text: 'Postcard triggered → 1204 Pine', tag: '3rd no-answer' },
-    { time: '18m', text: 'Inbound call matched to DB', tag: 'same lead' },
-    { time: '1h',  text: 'Campaign paused', tag: 'daily limit' },
-  ]
-
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ padding: 16 }}>
       <Section title="Live Activity">
         {liveCalls.length === 0 ? (
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontStyle: 'italic' }}>No active calls</p>
+          <div style={{ padding: '28px 0', textAlign: 'center' }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 10px',
+            }}>
+              <Phone size={14} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.25)' }} />
+            </div>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>No active calls</p>
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {liveCalls.slice(0, 3).map(c => (
+            {liveCalls.slice(0, 5).map(c => (
               <div key={c.id} style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
                 background: 'rgba(0,195,122,0.04)',
@@ -119,28 +122,6 @@ function SystemPanel() {
             ))}
           </div>
         )}
-      </Section>
-
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />
-
-      <Section title="AI Activity">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {AI_LOG.map((item, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10 }}>
-              <span style={{
-                fontSize: 10, color: 'rgba(255,255,255,0.22)',
-                flexShrink: 0, paddingTop: 1,
-                fontVariantNumeric: 'tabular-nums', minWidth: 22,
-              }}>
-                {item.time}
-              </span>
-              <div>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{item.text}</span>
-                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)', marginLeft: 5 }}>[{item.tag}]</span>
-              </div>
-            </div>
-          ))}
-        </div>
       </Section>
     </div>
   )

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { Link } from 'react-router-dom'
-import { Phone, Flame, Briefcase, DollarSign, ArrowRight, CheckSquare, Square, ChevronRight, TrendingUp, AlertTriangle, Clock } from 'lucide-react'
+import { Phone, Flame, Briefcase, DollarSign, ArrowRight } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import { analytics } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
@@ -78,22 +78,12 @@ function StatCard({ label, value, icon: Icon, accent, sub, loading }) {
   )
 }
 
-// ─── Priority Item ────────────────────────────────────────────────────────────
-const PRIORITIES = [
-  { id: 1, text: 'Follow up with Marcus Johnson — accepted offer verbally', urgency: 'high',   to: '/pipeline' },
-  { id: 2, text: 'Send PSA contract to 847 Oak Street Detroit',             urgency: 'high',   to: '/pipeline' },
-  { id: 3, text: 'Review 3 new hot leads from yesterday\'s campaign',       urgency: 'medium', to: '/leads' },
-  { id: 4, text: 'Schedule callback for Sarah Williams before 6pm',         urgency: 'medium', to: '/leads' },
-  { id: 5, text: 'Check buyer interest on 1204 Pine Ave Memphis',           urgency: 'low',    to: '/pipeline' },
-]
-
 // ─── Command Center ───────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [stats, setStats]             = useState(null)
   const [recentCalls, setRecentCalls] = useState([])
   const [pipeline, setPipeline]       = useState([])
   const [loading, setLoading]         = useState(true)
-  const [checked, setChecked]         = useState({})
   const { calls: liveCalls }          = useLiveCalls()
   const user    = useAuthStore(s => s.user)
   const setIntel = useIntelStore(s => s.setIntel)
@@ -112,7 +102,6 @@ export default function Dashboard() {
     }).finally(() => setLoading(false))
   }, [])
 
-  const toggle = (id) => setChecked(p => ({ ...p, [id]: !p[id] }))
   const hasLive = liveCalls.length > 0
 
   const pipelineMap = {}
@@ -178,8 +167,8 @@ export default function Dashboard() {
         ) : null
       })()}
 
-      {/* ── Main content grid ────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16 }}>
+      {/* ── Live Activity ────────────────────────────────────────────────── */}
+      <div>
 
         {/* Left: Live Activity */}
         <div className="glass-card glass-refraction" style={{ borderRadius: 16, overflow: 'hidden' }}>
@@ -300,51 +289,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Right: Priority Actions */}
-        <div className="glass-card glass-refraction" style={{ borderRadius: 16, borderLeft: '1px solid rgba(201,168,76,0.18)' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 style={{ fontSize: 14, fontWeight: 500, color: '#FFFFFF', margin: '0 0 2px' }}>AI Priority Actions</h2>
-            <p className="label-caps">Generated · Updated daily</p>
-          </div>
-          <div style={{ padding: '8px 0' }}>
-            {PRIORITIES.map(item => (
-              <button
-                key={item.id}
-                onClick={() => toggle(item.id)}
-                style={{
-                  width: 'calc(100% - 8px)', textAlign: 'left',
-                  display: 'flex', alignItems: 'flex-start', gap: 10,
-                  padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
-                  borderRadius: 8, margin: '1px 4px', transition: 'background 0.15s ease',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                <div style={{ marginTop: 2, flexShrink: 0 }}>
-                  {checked[item.id]
-                    ? <CheckSquare size={14} style={{ color: '#00C37A' }} />
-                    : <Square size={14} style={{ color: 'rgba(255,255,255,0.30)' }} />
-                  }
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{
-                    fontSize: 13, lineHeight: 1.5,
-                    color: checked[item.id] ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.75)',
-                    textDecoration: checked[item.id] ? 'line-through' : 'none',
-                    margin: '0 0 3px',
-                  }}>
-                    {item.text}
-                  </p>
-                  {item.urgency === 'high' && !checked[item.id] && (
-                    <span style={{ fontSize: 9, fontWeight: 700, color: '#FF4444', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                      Urgent
-                    </span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* ── Pipeline Overview ────────────────────────────────────────────── */}
