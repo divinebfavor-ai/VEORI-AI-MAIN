@@ -1,110 +1,329 @@
-@font-face {
-  font-family: 'Geist';
-  src: url('/fonts/Geist-Variable.woff2') format('woff2');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ─── CSS Variables — Theme System ──────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg:  #0D0D0F;
+  --s1:  #111115;
+  --s2:  #17171C;
+  --s3:  #1E1E25;
+  --s4:  #25252E;
+  --s5:  #2D2D37;
+
+  /* Borders */
+  --border-rest:   rgba(255, 255, 255, 0.06);
+  --border-active: rgba(255, 255, 255, 0.14);
+  --border-focus:  rgba(0, 229, 122, 0.50);
+  --border-danger: rgba(255, 59, 78, 0.40);
+
+  /* Actions */
+  --green:     #00E57A;
+  --green-dim: rgba(0, 229, 122, 0.10);
+  --green-glow:rgba(0, 229, 122, 0.06);
+  --gold:      #D4A843;
+  --gold-dim:  rgba(212, 168, 67, 0.12);
+  --red:       #FF3B4E;
+  --red-dim:   rgba(255, 59, 78, 0.10);
+  --amber:     #FF8C00;
+  --amber-dim: rgba(255, 140, 0, 0.10);
+
+  /* Text */
+  --t1: #F0F0F5;
+  --t2: #8A8A96;
+  --t3: #44444F;
+  --t4: #2E2E38;
+
+  /* Layout */
+  --rail-width:  64px;
+  --intel-width: 320px;
+  --status-h:    36px;
+}
+
+/* ─── Light Mode Theme ───────────────────────────────────────────────────────── */
+[data-theme='light'] {
+  --bg:  #F5F5F7;
+  --s1:  #FFFFFF;
+  --s2:  #F0F0F3;
+  --s3:  #E8E8ED;
+  --s4:  #DCDCE2;
+  --s5:  #D0D0D8;
+
+  --border-rest:   rgba(0, 0, 0, 0.07);
+  --border-active: rgba(0, 0, 0, 0.14);
+  --border-focus:  rgba(0, 180, 90, 0.50);
+  --border-danger: rgba(220, 30, 50, 0.35);
+
+  --green:     #00A85A;
+  --green-dim: rgba(0, 168, 90, 0.10);
+  --green-glow:rgba(0, 168, 90, 0.06);
+  --gold:      #B88D2A;
+  --gold-dim:  rgba(184, 141, 42, 0.12);
+  --red:       #DC1E32;
+  --red-dim:   rgba(220, 30, 50, 0.10);
+  --amber:     #CC6800;
+  --amber-dim: rgba(204, 104, 0, 0.10);
+
+  --t1: #0D0D0F;
+  --t2: #4A4A58;
+  --t3: #8A8A9A;
+  --t4: #B8B8C8;
+}
+
 /* ─── Global reset ───────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
 
 body {
-  background-color: #000000;
-  color: #FFFFFF;
-  font-family: 'Geist', 'Inter', system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--t1);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   line-height: 1.5;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar          { width: 4px; height: 4px; }
+/* ─── Scrollbar — near-invisible ─────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track    { background: transparent; }
-::-webkit-scrollbar-thumb    { background: #2E2E2E; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #3E3E3E; }
+::-webkit-scrollbar-thumb    { background: var(--border-active); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--s5); }
 
-.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide                          { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar       { display: none; }
 
-/* ─── Typography utilities ───────────────────────────────────────────────────── */
+/* ─── Typography ─────────────────────────────────────────────────────────────── */
 .label-caps {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: #555555;
+  color: var(--t3);
 }
 
-/* ─── Green dot pulsing indicator ───────────────────────────────────────────── */
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
+.label-caps-sm {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--t4);
 }
+
+/* ─── Status indicators ──────────────────────────────────────────────────────── */
+@keyframes dot-live-anim {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
 .dot-live {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 6px; height: 6px;
   border-radius: 50%;
-  background: #00C37A;
-  animation: pulse-dot 2s ease-in-out infinite;
+  background: var(--green);
+  animation: dot-live-anim 2s ease-in-out infinite;
+  flex-shrink: 0;
 }
 .dot-amber {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 6px; height: 6px;
   border-radius: 50%;
-  background: #FF9500;
+  background: var(--amber);
+  flex-shrink: 0;
 }
 .dot-red {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 6px; height: 6px;
   border-radius: 50%;
-  background: #FF4444;
+  background: var(--red);
+  flex-shrink: 0;
+}
+.dot-gray {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--t3);
+  flex-shrink: 0;
 }
 
-/* ─── Animations ─────────────────────────────────────────────────────────────── */
-@keyframes slide-in-right {
-  from { transform: translateX(100%); opacity: 0; }
+/* ─── Score colors ───────────────────────────────────────────────────────────── */
+.score-hot  { color: var(--green); }
+.score-warm { color: var(--amber); }
+.score-cold { color: var(--red); }
+
+/* ─── Entrance animations ────────────────────────────────────────────────────── */
+@keyframes slide-right-anim {
+  from { transform: translateX(14px); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
-@keyframes slide-in-up {
-  from { transform: translateY(8px); opacity: 0; }
-  to   { transform: translateY(0);   opacity: 1; }
+@keyframes slide-up-anim {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
-@keyframes fade-in {
+@keyframes fade-in-anim {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-@keyframes waveform {
-  0%, 100% { transform: scaleY(0.3); }
-  50%       { transform: scaleY(1);   }
+@keyframes waveform-anim {
+  0%, 100% { transform: scaleY(0.14); }
+  50%       { transform: scaleY(1);    }
+}
+@keyframes score-pulse {
+  0%   { color: var(--green); }
+  50%  { color: #FFFFFF; }
+  100% { color: var(--green); }
 }
 
-.animate-slide-in-right { animation: slide-in-right 0.3s ease-out; }
-.animate-slide-in-up    { animation: slide-in-up 0.25s ease-out; }
-.animate-fade-in        { animation: fade-in 0.2s ease-out; }
-.waveform-bar           { animation: waveform 0.8s ease-in-out infinite; }
+.animate-slide-in-right { animation: slide-right-anim 0.2s ease-out; }
+.animate-slide-in-up    { animation: slide-up-anim 0.2s ease-out; }
+.animate-slide-right    { animation: slide-right-anim 0.2s ease-out; }
+.animate-slide-up       { animation: slide-up-anim 0.2s ease-out; }
+.animate-fade-in        { animation: fade-in-anim 0.2s ease-out; }
+.waveform-bar           { animation: waveform-anim 0.9s ease-in-out infinite; }
 
-/* ─── Card hover states ──────────────────────────────────────────────────────── */
-.card-hover {
+/* ─── Attention pulse — fires once on state change ───────────────────────────── */
+@keyframes attention-green {
+  0%   { box-shadow: 0 0 0 0 rgba(0,229,122,0.5); }
+  100% { box-shadow: 0 0 0 10px rgba(0,229,122,0); }
+}
+@keyframes attention-red {
+  0%   { box-shadow: 0 0 0 0 rgba(255,59,78,0.5); }
+  100% { box-shadow: 0 0 0 10px rgba(255,59,78,0); }
+}
+.pulse-green-once { animation: attention-green 0.35s ease-out; }
+.pulse-red-once   { animation: attention-red 0.35s ease-out; }
+
+/* ─── System layout variables ────────────────────────────────────────────────── */
+.layout-rail  { width: var(--rail-width); flex-shrink: 0; }
+.layout-intel { width: var(--intel-width); flex-shrink: 0; }
+.layout-status-h { height: var(--status-h); }
+
+/* ─── Inline editable field ─────────────────────────────────────────────────── */
+.inline-edit {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-rest);
+  color: var(--t1);
+  font-size: 14px;
+  padding: 2px 0;
+  outline: none;
+  width: 100%;
   transition: border-color 0.15s ease;
 }
-.card-hover:hover { border-color: #2E2E2E; }
-.card-active      { border-color: #00C37A !important; }
+.inline-edit:focus { border-bottom-color: var(--green); }
 
-/* ─── Score colors ───────────────────────────────────────────────────────────── */
-.score-hot    { color: #00C37A; }
-.score-warm   { color: #FF9500; }
-.score-cold   { color: #FF4444; }
-
-/* ─── Kanban drag ────────────────────────────────────────────────────────────── */
-.kanban-card-dragging {
-  opacity: 0.5;
-  cursor: grabbing;
+/* ─── Keyboard shortcut badge ────────────────────────────────────────────────── */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  background: var(--s3);
+  border: 1px solid var(--border-active);
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 10px;
+  color: var(--t2);
+  line-height: 1.6;
 }
+
+/* ─── Card system ─────────────────────────────────────────────────────────────── */
+.v-card {
+  background: var(--s2);
+  border: 1px solid var(--border-rest);
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+}
+.v-card:hover { border-color: var(--border-active); }
+.v-card-active { border-color: rgba(0,229,122,0.35) !important; }
+
+/* ─── Legacy compat ───────────────────────────────────────────────────────────── */
+.card-hover { transition: border-color 0.15s ease; }
+.card-hover:hover { border-color: var(--border-active); }
+.card-active { border-color: var(--green) !important; }
+.kanban-card-dragging { opacity: 0.5; cursor: grabbing; }
+
+/* ─── Number animation (score counter) ──────────────────────────────────────── */
+.num-anim {
+  transition: color 0.15s ease;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── System status bar ──────────────────────────────────────────────────────── */
+.status-bar {
+  height: var(--status-h);
+  background: var(--s1);
+  border-bottom: 1px solid var(--border-rest);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 16px;
+  font-size: 11px;
+  color: var(--t3);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.status-bar .status-sep { color: var(--t4); margin: 0 2px; }
+
+/* ─── Command rail tooltip ───────────────────────────────────────────────────── */
+.rail-tooltip {
+  position: absolute;
+  left: calc(var(--rail-width) + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--s4);
+  border: 1px solid var(--border-active);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--t1);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+/* ─── Intel panel divider ────────────────────────────────────────────────────── */
+.intel-divider {
+  height: 1px;
+  background: var(--border-rest);
+  margin: 16px 0;
+}
+
+/* ─── Focus ring ─────────────────────────────────────────────────────────────── */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(0,229,122,0.40);
+}
+
+/* ─── Stagger list animation ─────────────────────────────────────────────────── */
+.stagger > * {
+  animation: slide-up-anim 0.2s ease-out both;
+}
+.stagger > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger > *:nth-child(2)  { animation-delay: 30ms; }
+.stagger > *:nth-child(3)  { animation-delay: 60ms; }
+.stagger > *:nth-child(4)  { animation-delay: 90ms; }
+.stagger > *:nth-child(5)  { animation-delay: 120ms; }
+.stagger > *:nth-child(6)  { animation-delay: 150ms; }
+.stagger > *:nth-child(7)  { animation-delay: 180ms; }
+.stagger > *:nth-child(8)  { animation-delay: 210ms; }
+.stagger > *:nth-child(9)  { animation-delay: 240ms; }
+.stagger > *:nth-child(10) { animation-delay: 270ms; }
+
+/* ─── Momentum indicator ─────────────────────────────────────────────────────── */
+.momentum-hot     { color: var(--green); }
+.momentum-stalled { color: var(--amber); }
+.momentum-dying   { color: var(--red); }

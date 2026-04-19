@@ -1,24 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, MapPin, Tag, FileText, ExternalLink, Mic, Zap, Mail } from 'lucide-react'
+import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
-import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
 import { leads, calls as callsApi, deals as dealsApi } from '../services/api'
+import useIntelStore from '../store/intelStore'
 
-// ─── Score helpers ────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function scoreColor(s) {
-  if (s == null) return 'text-text-muted'
-  if (s >= 70) return 'text-primary'
-  if (s >= 40) return 'text-warning'
-  return 'text-danger'
-}
-function scoreBadge(s) {
-  if (s >= 70) return 'green'
-  if (s >= 40) return 'amber'
-  return 'red'
+  if (s == null) return 'var(--t4)'
+  if (s >= 70) return 'var(--green)'
+  if (s >= 40) return 'var(--amber)'
+  return 'var(--red)'
 }
 function statusBadge(s) {
   const m = { interested:'green','appointment set':'green','under contract':'green','offer made':'gold',calling:'amber',new:'gray',contacted:'amber',dnc:'red',closed:'gold' }
@@ -26,21 +22,32 @@ function statusBadge(s) {
 }
 function fmt$(n) { return n ? '$' + Number(n).toLocaleString() : '—' }
 
-const PAGE_SIZE = 15
+const PAGE_SIZE = 20
 const STATUS_OPTIONS = ['All','New','Contacted','Calling','Interested','Appointment Set','Offer Made','Under Contract','DNC','Closed']
-const SCORE_OPTIONS  = [{ label:'All Scores', min:0, max:100 },{ label:'Hot (70+)', min:70, max:100 },{ label:'Warm (40–69)', min:40, max:69 },{ label:'Cold (<40)', min:0, max:39 }]
+const SCORE_OPTIONS  = [
+  { label: 'All Scores', min: 0,  max: 100 },
+  { label: 'Hot (70+)',  min: 70, max: 100 },
+  { label: 'Warm (40–69)', min: 40, max: 69 },
+  { label: 'Cold (<40)', min: 0,  max: 39 },
+]
 
-// ─── Lead Drawer ─────────────────────────────────────────────────────────────
-function LeadDrawer({ lead, onClose, onNavigate }) {
+// ─── Lead Detail Panel (slide-in from right, replaces old drawer) ─────────────
+function LeadPanel({ lead, onClose, onNavigate }) {
   const [tab, setTab]         = useState('overview')
   const [callLog, setCallLog] = useState([])
   const [notes, setNotes]     = useState(lead.notes || '')
   const [saving, setSaving]   = useState(false)
-  const [dialing, setDialing]           = useState(false)
+  const [dialing, setDialing] = useState(false)
   const [creatingDeal, setCreatingDeal] = useState(false)
-  const [tracing, setTracing]           = useState(false)
-  const [dropping, setDropping]         = useState(false)
-  const [mailing, setMailing]           = useState(false)
+  const [tracing, setTracing] = useState(false)
+  const [dropping, setDropping] = useState(false)
+  const [mailing, setMailing] = useState(false)
+
+  useEffect(() => {
+    setNotes(lead.notes || '')
+    setTab('overview')
+    setCallLog([])
+  }, [lead.id])
 
   useEffect(() => {
     if (tab === 'calls') {
@@ -74,12 +81,10 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
     try {
       const r = await leads.skipTrace(lead.id)
       const d = r.data?.data || r.data
-      const phonesFound = d?.phones?.length || 0
-      const emailsFound = d?.emails?.length || 0
       if (d?.simulated) {
         toast('Skip trace: set BATCH_SKIP_TRACE_API_KEY to enable', { icon: '⚠️' })
       } else {
-        toast.success(`Found ${phonesFound} phone${phonesFound !== 1 ? 's' : ''}, ${emailsFound} email${emailsFound !== 1 ? 's' : ''}`)
+        toast.success(`Found ${d?.phones?.length || 0} phones, ${d?.emails?.length || 0} emails`)
       }
     } catch { toast.error('Skip trace failed') }
     finally { setTracing(false) }
@@ -87,7 +92,7 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
 
   const dropVm = async () => {
     if (lead.is_on_dnc) { toast.error('Lead is on DNC list'); return }
-    if (!lead.phone) { toast.error('No phone number on file — run skip trace first'); return }
+    if (!lead.phone) { toast.error('No phone number — run skip trace first'); return }
     setDropping(true)
     try {
       await leads.dropVoicemail(lead.id, 'first_contact')
@@ -98,7 +103,7 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
   }
 
   const sendMail = async () => {
-    if (!lead.property_address) { toast.error('No property address — cannot send mail'); return }
+    if (!lead.property_address) { toast.error('No property address'); return }
     setMailing(true)
     try {
       const r = await leads.sendDirectMail(lead.id, 'no_answer')
@@ -133,48 +138,108 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
     finally { setCreatingDeal(false) }
   }
 
-  const TABS = ['Overview','Calls','Notes']
+  const TABS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'calls',    label: 'Calls' },
+    { id: 'notes',    label: 'Notes' },
+  ]
+
+  const score = lead.motivation_score
 
   return (
-    <div className="fixed inset-0 z-50 flex">
-      <div className="flex-1 bg-black/60" onClick={onClose} />
-      <div className="w-[480px] bg-card border-l border-border-subtle flex flex-col animate-slide-in-right">
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex' }}>
+      {/* Backdrop */}
+      <div
+        style={{ flex: 1, background: 'rgba(0,0,0,0.5)' }}
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div style={{
+        width: 460,
+        background: 'var(--s1)',
+        borderLeft: '1px solid var(--border-rest)',
+        display: 'flex',
+        flexDirection: 'column',
+        animation: 'slide-right 0.18s ease-out',
+      }}>
+
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-5 border-b border-border-subtle">
+        <div style={{
+          padding: '18px 20px 16px',
+          borderBottom: '1px solid var(--border-rest)',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}>
           <div>
-            <h2 className="text-[18px] font-medium text-white">{lead.first_name} {lead.last_name}</h2>
-            <div className="flex items-center gap-2 mt-1">
-              {lead.phone && <span className="flex items-center gap-1 text-[12px] text-text-muted"><Phone size={11} />{lead.phone}</span>}
+            <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--t1)', marginBottom: 5 }}>
+              {lead.first_name} {lead.last_name}
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {lead.phone && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--t3)' }}>
+                  <Phone size={10} strokeWidth={1.8} />
+                  {lead.phone}
+                </span>
+              )}
               <Badge variant={statusBadge(lead.status)}>{lead.status || 'new'}</Badge>
+              {lead.is_on_dnc && <Badge variant="red">DNC</Badge>}
             </div>
           </div>
-          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors mt-0.5">
-            <X size={18} />
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: 'var(--t3)', cursor: 'pointer', padding: 4, marginTop: -2, lineHeight: 1 }}
+          >
+            <X size={16} strokeWidth={1.8} />
           </button>
         </div>
 
-        {/* Score banner */}
-        {lead.motivation_score != null && (
-          <div className="px-6 py-4 border-b border-border-subtle flex items-center justify-between bg-elevated/50">
+        {/* Score + stats banner */}
+        {score != null && (
+          <div style={{
+            padding: '14px 20px',
+            borderBottom: '1px solid var(--border-rest)',
+            background: 'var(--s2)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 24,
+          }}>
             <div>
-              <p className="label-caps mb-1">Motivation Score</p>
-              <p className={`text-[48px] font-bold leading-none ${scoreColor(lead.motivation_score)}`}>
-                {lead.motivation_score}
+              <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 3 }}>
+                Motivation Score
+              </p>
+              <p style={{ fontSize: 40, fontWeight: 700, lineHeight: 1, color: scoreColor(score), letterSpacing: '-0.03em' }}>
+                {score}
+              </p>
+              {/* score bar */}
+              <div style={{ width: 80, height: 3, background: 'var(--s4)', borderRadius: 2, marginTop: 6, overflow: 'hidden' }}>
+                <div style={{ width: `${score}%`, height: '100%', background: scoreColor(score), borderRadius: 2 }} />
+              </div>
+            </div>
+            <div>
+              <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 3 }}>
+                Calls Made
+              </p>
+              <p style={{ fontSize: 32, fontWeight: 600, lineHeight: 1, color: 'var(--t1)', letterSpacing: '-0.02em' }}>
+                {lead.call_count || 0}
               </p>
             </div>
-            <div className="text-right">
-              <p className="label-caps mb-1">Calls Made</p>
-              <p className="text-[32px] font-semibold text-text-primary leading-none">{lead.call_count || 0}</p>
-            </div>
+            {lead.seller_personality && (
+              <div style={{ marginLeft: 'auto' }}>
+                <Badge variant="amber">{lead.seller_personality}</Badge>
+              </div>
+            )}
           </div>
         )}
 
         {/* Action buttons */}
-        <div className="px-6 py-3 border-b border-border-subtle space-y-2">
-          <div className="flex gap-2">
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-rest)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
             <Button
+              variant="primary"
               size="sm"
-              className="flex-1"
+              style={{ flex: 1 }}
               loading={dialing}
               disabled={!!lead.is_on_dnc}
               onClick={dialNow}
@@ -182,101 +247,264 @@ function LeadDrawer({ lead, onClose, onNavigate }) {
               <Phone size={12} /> {lead.is_on_dnc ? 'DNC' : 'Dial Now'}
             </Button>
             <Button
-              size="sm"
               variant="secondary"
-              className="flex-1"
+              size="sm"
+              style={{ flex: 1 }}
               loading={creatingDeal}
               onClick={createDeal}
             >
               <FileText size={12} /> Create Deal
             </Button>
           </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="secondary" className="flex-1" loading={dropping} onClick={dropVm} disabled={!!lead.is_on_dnc}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="secondary" size="sm" style={{ flex: 1 }} loading={dropping} onClick={dropVm} disabled={!!lead.is_on_dnc}>
               <Mic size={12} /> Drop VM
             </Button>
-            <Button size="sm" variant="secondary" className="flex-1" loading={tracing} onClick={runSkipTrace}>
+            <Button variant="secondary" size="sm" style={{ flex: 1 }} loading={tracing} onClick={runSkipTrace}>
               <Zap size={12} /> Skip Trace
             </Button>
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="secondary" className="flex-1" loading={mailing} onClick={sendMail} disabled={!!lead.is_on_dnc || !lead.property_address}>
-              <Mail size={12} /> Send Postcard
+            <Button variant="secondary" size="sm" style={{ flex: 1 }} loading={mailing} onClick={sendMail} disabled={!!lead.is_on_dnc || !lead.property_address}>
+              <Mail size={12} /> Postcard
             </Button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border-subtle px-6">
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--border-rest)',
+          padding: '0 20px',
+          gap: 4,
+        }}>
           {TABS.map(t => (
-            <button key={t} onClick={() => setTab(t.toLowerCase())}
-              className={`py-3 pr-6 text-[13px] font-medium border-b-2 transition-colors ${
-                tab === t.toLowerCase() ? 'border-primary text-white' : 'border-transparent text-text-muted hover:text-text-secondary'
-              }`}>
-              {t}
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: '10px 12px',
+                fontSize: 12,
+                fontWeight: 500,
+                color: tab === t.id ? 'var(--t1)' : 'var(--t3)',
+                background: 'none',
+                border: 'none',
+                borderBottom: `2px solid ${tab === t.id ? 'var(--green)' : 'transparent'}`,
+                cursor: 'pointer',
+                transition: 'color 0.15s ease',
+              }}
+            >
+              {t.label}
             </button>
           ))}
         </div>
 
         {/* Tab content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+
           {tab === 'overview' && (
-            <div className="space-y-1">
+            <div>
               {[
-                ['Property Address', [lead.property_address, lead.property_city, lead.property_state].filter(Boolean).join(', ')],
-                ['Property Type',    lead.property_type],
-                ['Estimated Value',  fmt$(lead.estimated_value)],
-                ['Estimated ARV',    fmt$(lead.estimated_arv)],
-                ['Estimated Equity', fmt$(lead.estimated_equity)],
-                ['Source',           lead.source],
-                ['Email',            lead.email],
-                ['Last Called',      lead.last_call_date ? formatDistanceToNow(new Date(lead.last_call_date), { addSuffix: true }) : 'Never'],
-                ['Seller Personality', lead.seller_personality],
-                ['AI Summary',       lead.ai_summary || lead.notes],
-              ].map(([label, val]) => val ? (
-                <div key={label} className="flex gap-4 py-2.5 border-b border-border-subtle last:border-0">
-                  <span className="label-caps w-[140px] flex-shrink-0 pt-0.5">{label}</span>
-                  <span className="text-[13px] text-text-secondary flex-1">{val}</span>
+                ['Property', [lead.property_address, lead.property_city, lead.property_state].filter(Boolean).join(', ')],
+                ['Property Type', lead.property_type],
+                ['Est. Value',    fmt$(lead.estimated_value)],
+                ['Est. ARV',      fmt$(lead.estimated_arv)],
+                ['Est. Equity',   fmt$(lead.estimated_equity)],
+                ['Email',         lead.email],
+                ['Source',        lead.source],
+                ['Last Called',   lead.last_call_date ? formatDistanceToNow(new Date(lead.last_call_date), { addSuffix: true }) : 'Never'],
+              ].filter(([, val]) => val).map(([label, val]) => (
+                <div
+                  key={label}
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    padding: '8px 0',
+                    borderBottom: '1px solid var(--border-rest)',
+                  }}
+                >
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, letterSpacing: '0.07em',
+                    textTransform: 'uppercase', color: 'var(--t3)',
+                    width: 120, flexShrink: 0, paddingTop: 1,
+                  }}>
+                    {label}
+                  </span>
+                  <span style={{ fontSize: 13, color: 'var(--t2)', flex: 1, wordBreak: 'break-word' }}>
+                    {val}
+                  </span>
                 </div>
-              ) : null)}
+              ))}
+
+              {(lead.ai_summary || lead.notes) && (
+                <div style={{ marginTop: 16 }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 8 }}>
+                    AI Summary
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--t2)', lineHeight: 1.6, background: 'var(--s2)', padding: '10px 12px', borderRadius: 6 }}>
+                    {lead.ai_summary || lead.notes}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
           {tab === 'calls' && (
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {callLog.length === 0 && (
-                <div className="text-center py-12 text-text-muted">
-                  <Phone size={24} className="mx-auto mb-3" strokeWidth={1.5} />
-                  <p className="text-[13px]">No calls recorded yet</p>
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--t3)' }}>
+                  <Phone size={22} style={{ margin: '0 auto 10px', display: 'block' }} strokeWidth={1.5} />
+                  <p style={{ fontSize: 13 }}>No calls recorded yet</p>
                 </div>
               )}
               {callLog.map(c => (
-                <div key={c.id} className="bg-elevated border border-border-subtle rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[13px] text-text-primary font-medium">
+                <div
+                  key={c.id}
+                  style={{
+                    background: 'var(--s2)',
+                    border: '1px solid var(--border-rest)',
+                    borderRadius: 6,
+                    padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: c.ai_summary ? 6 : 0 }}>
+                    <span style={{ fontSize: 12, color: 'var(--t2)', fontWeight: 500 }}>
                       {c.started_at ? formatDistanceToNow(new Date(c.started_at), { addSuffix: true }) : '—'}
                     </span>
-                    <div className="flex items-center gap-2">
-                      {c.duration_seconds && <span className="text-[11px] text-text-muted">{Math.floor(c.duration_seconds/60)}:{String(c.duration_seconds%60).padStart(2,'0')}</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {c.duration_seconds && (
+                        <span style={{ fontSize: 11, color: 'var(--t4)' }}>
+                          {Math.floor(c.duration_seconds/60)}:{String(c.duration_seconds%60).padStart(2,'0')}
+                        </span>
+                      )}
                       <Badge variant={statusBadge(c.outcome)}>{c.outcome || 'no answer'}</Badge>
-                      {c.motivation_score != null && <span className={`text-[13px] font-semibold ${scoreColor(c.motivation_score)}`}>{c.motivation_score}</span>}
+                      {c.motivation_score != null && (
+                        <span style={{ fontSize: 13, fontWeight: 600, color: scoreColor(c.motivation_score) }}>
+                          {c.motivation_score}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  {c.ai_summary && <p className="text-[12px] text-text-muted leading-relaxed mt-1">{c.ai_summary}</p>}
+                  {c.ai_summary && (
+                    <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.5 }}>{c.ai_summary}</p>
+                  )}
                 </div>
               ))}
             </div>
           )}
 
           {tab === 'notes' && (
-            <div className="space-y-3">
-              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={8}
-                className="w-full bg-surface border border-border-subtle rounded-[6px] px-4 py-3 text-[14px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary resize-none"
-                placeholder="Add notes about this seller…" />
-              <Button loading={saving} onClick={saveNotes}>Save Notes</Button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                rows={10}
+                placeholder="Add notes about this seller…"
+                style={{
+                  width: '100%',
+                  background: 'var(--s2)',
+                  border: '1px solid var(--border-rest)',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  fontSize: 13,
+                  color: 'var(--t1)',
+                  resize: 'none',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                  lineHeight: 1.6,
+                }}
+                onFocus={e => { e.target.style.borderColor = 'rgba(0,229,122,0.40)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--border-rest)' }}
+              />
+              <Button loading={saving} onClick={saveNotes} variant="primary" size="sm">
+                Save Notes
+              </Button>
             </div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Lead Row ─────────────────────────────────────────────────────────────────
+function LeadRow({ lead, selected, onClick }) {
+  const score = lead.motivation_score
+  const [hov, setHov] = useState(false)
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 200px 52px 110px 90px',
+        alignItems: 'center',
+        height: 44,
+        padding: '0 16px',
+        cursor: 'pointer',
+        background: selected
+          ? 'rgba(0,229,122,0.05)'
+          : hov ? 'var(--s2)' : 'transparent',
+        borderLeft: `2px solid ${selected ? 'var(--green)' : 'transparent'}`,
+        transition: 'background 0.1s ease',
+      }}
+    >
+      {/* Seller */}
+      <div style={{ minWidth: 0 }}>
+        <p style={{
+          fontSize: 13, fontWeight: 500, color: 'var(--t1)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {lead.first_name} {lead.last_name}
+          {lead.is_on_dnc && (
+            <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 600, color: 'var(--red)', letterSpacing: '0.05em' }}>DNC</span>
+          )}
+        </p>
+        {lead.phone && (
+          <p style={{ fontSize: 10, color: 'var(--t4)', marginTop: 1 }}>{lead.phone}</p>
+        )}
+      </div>
+
+      {/* Property */}
+      <div style={{ minWidth: 0 }}>
+        {lead.property_address ? (
+          <p style={{
+            fontSize: 12, color: 'var(--t3)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {lead.property_address}
+          </p>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
+        )}
+      </div>
+
+      {/* Score */}
+      <div style={{ textAlign: 'right' }}>
+        {score != null ? (
+          <span style={{
+            fontSize: 14, fontWeight: 700, color: scoreColor(score),
+            letterSpacing: '-0.01em',
+          }}>
+            {score}
+          </span>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
+        )}
+      </div>
+
+      {/* Status */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Badge variant={statusBadge(lead.status)}>{lead.status || 'new'}</Badge>
+      </div>
+
+      {/* Last call */}
+      <div style={{ textAlign: 'right' }}>
+        <span style={{ fontSize: 11, color: 'var(--t4)' }}>
+          {lead.last_call_date
+            ? formatDistanceToNow(new Date(lead.last_call_date), { addSuffix: true })
+            : 'Never'}
+        </span>
       </div>
     </div>
   )
@@ -292,13 +520,18 @@ export default function Leads() {
   const [scoreFilter, setScore]   = useState(0)
   const [page, setPage]           = useState(1)
   const [importing, setImporting] = useState(false)
-  const fileRef = useRef()
+  const [searchFocused, setSearchFocused] = useState(false)
+  const fileRef  = useRef()
   const navigate = useNavigate()
+  const setIntel = useIntelStore(s => s.setIntel)
 
   const load = async () => {
     setLoading(true)
-    try { const r = await leads.getLeads({ limit: 500 }); const raw = r.data?.leads ?? r.data?.data ?? r.data; setAllLeads(Array.isArray(raw) ? raw : []) }
-    catch { setAllLeads([]) }
+    try {
+      const r = await leads.getLeads({ limit: 500 })
+      const raw = r.data?.leads ?? r.data?.data ?? r.data
+      setAllLeads(Array.isArray(raw) ? raw : [])
+    } catch { setAllLeads([]) }
     finally { setLoading(false) }
   }
 
@@ -318,6 +551,11 @@ export default function Leads() {
 
   const pages     = Math.ceil(filtered.length / PAGE_SIZE)
   const paginated = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE)
+
+  const selectLead = (lead) => {
+    setSelected(lead)
+    setIntel('lead', lead)
+  }
 
   // CSV import
   const handleFile = (e) => {
@@ -346,137 +584,228 @@ export default function Leads() {
     })
   }
 
+  const selectStyle = {
+    height: 32,
+    background: 'var(--s2)',
+    border: '1px solid var(--border-rest)',
+    borderRadius: 6,
+    padding: '0 10px',
+    fontSize: 12,
+    color: 'var(--t2)',
+    outline: 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  }
+
   return (
-    <div className="p-8 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-[28px] font-medium text-white">Leads</h1>
-          <p className="text-[13px] text-text-muted mt-1">{allLeads.length.toLocaleString()} total · {filtered.length} shown</p>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div style={{
+        padding: '20px 20px 0',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <h1 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)', letterSpacing: '-0.02em' }}>
+              Lead Management
+            </h1>
+            <p style={{ fontSize: 12, color: 'var(--t3)', marginTop: 2 }}>
+              {allLeads.length.toLocaleString()} total · {filtered.length} shown
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFile} />
+            <Button variant="secondary" size="sm" loading={importing} onClick={() => fileRef.current?.click()}>
+              <Upload size={13} /> Import CSV
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => toast.info('Manual lead entry coming soon')}>
+              <Plus size={13} /> Add Lead
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFile} />
-          <Button variant="secondary" loading={importing} onClick={() => fileRef.current?.click()}>
-            <Upload size={14} /> Import CSV
-          </Button>
-          <Button onClick={() => toast.info('Manual lead entry coming soon')}>
-            <Plus size={14} /> Add Lead
-          </Button>
+
+        {/* Filter bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 0 }}>
+          {/* Search */}
+          <div style={{ position: 'relative' }}>
+            <Search
+              size={12}
+              strokeWidth={2}
+              style={{
+                position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)',
+                color: 'var(--t3)',
+              }}
+            />
+            <input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              placeholder="Search leads…"
+              style={{
+                height: 32,
+                background: 'var(--s2)',
+                border: `1px solid ${searchFocused ? 'rgba(0,229,122,0.40)' : 'var(--border-rest)'}`,
+                borderRadius: 6,
+                paddingLeft: 28,
+                paddingRight: 10,
+                fontSize: 12,
+                color: 'var(--t2)',
+                outline: 'none',
+                width: 200,
+                fontFamily: 'inherit',
+                transition: 'border-color 0.15s ease',
+              }}
+            />
+          </div>
+
+          {/* Status filter */}
+          <select
+            value={status}
+            onChange={e => { setStatus(e.target.value); setPage(1) }}
+            style={selectStyle}
+          >
+            {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+          </select>
+
+          {/* Score filter */}
+          <select
+            value={scoreFilter}
+            onChange={e => { setScore(Number(e.target.value)); setPage(1) }}
+            style={selectStyle}
+          >
+            {SCORE_OPTIONS.map((o, i) => <option key={o.label} value={i}>{o.label}</option>)}
+          </select>
+
+          {(search || status !== 'All' || scoreFilter !== 0) && (
+            <button
+              onClick={() => { setSearch(''); setStatus('All'); setScore(0); setPage(1) }}
+              style={{
+                background: 'none', border: 'none',
+                fontSize: 11, color: 'var(--t4)', cursor: 'pointer', padding: 0,
+              }}
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <div className="relative">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder="Search leads…"
-            className="h-9 bg-surface border border-border-subtle rounded-[6px] pl-8 pr-4 text-[13px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary w-56"
-          />
-        </div>
-        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-          className="h-9 bg-surface border border-border-subtle rounded-[6px] px-3 text-[13px] text-text-primary focus:outline-none focus:border-primary cursor-pointer">
-          {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select value={scoreFilter} onChange={e => { setScore(Number(e.target.value)); setPage(1) }}
-          className="h-9 bg-surface border border-border-subtle rounded-[6px] px-3 text-[13px] text-text-primary focus:outline-none focus:border-primary cursor-pointer">
-          {SCORE_OPTIONS.map((o, i) => <option key={o.label} value={i}>{o.label}</option>)}
-        </select>
-        {(search || status !== 'All' || scoreFilter !== 0) && (
-          <button onClick={() => { setSearch(''); setStatus('All'); setScore(0); setPage(1) }}
-            className="text-[12px] text-text-muted hover:text-text-secondary transition-colors">
-            Clear filters
-          </button>
+      {/* ── Column headers ───────────────────────────────────────────────── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 200px 52px 110px 90px',
+        alignItems: 'center',
+        height: 32,
+        padding: '0 16px',
+        borderTop: '1px solid var(--border-rest)',
+        borderBottom: '1px solid var(--border-rest)',
+        marginTop: 12,
+        flexShrink: 0,
+      }}>
+        {['Seller', 'Property', 'Score', 'Status', 'Last Call'].map((h, i) => (
+          <span
+            key={h}
+            style={{
+              fontSize: 10, fontWeight: 600, letterSpacing: '0.07em',
+              textTransform: 'uppercase', color: 'var(--t4)',
+              textAlign: i >= 2 && i <= 2 ? 'right' : i === 4 ? 'right' : 'left',
+              ...(i === 3 ? { textAlign: 'center' } : {}),
+            }}
+          >
+            {h}
+          </span>
+        ))}
+      </div>
+
+      {/* ── Lead rows ────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--t3)', fontSize: 13 }}>
+            Loading leads…
+          </div>
+        ) : paginated.length === 0 ? (
+          <div style={{
+            textAlign: 'center', padding: '60px 20px',
+          }}>
+            <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--t2)', marginBottom: 6 }}>
+              {search || status !== 'All' ? 'No results' : 'No leads yet'}
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>
+              Import a CSV to get started
+            </p>
+            {!search && (
+              <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
+                <Upload size={13} /> Import CSV
+              </Button>
+            )}
+          </div>
+        ) : (
+          paginated.map(l => (
+            <LeadRow
+              key={l.id}
+              lead={l}
+              selected={selected?.id === l.id}
+              onClick={() => selectLead(l)}
+            />
+          ))
         )}
       </div>
 
-      {/* Table */}
-      {loading ? (
-        <div className="text-center py-20 text-text-muted text-[14px]">Loading leads…</div>
-      ) : paginated.length === 0 ? (
-        <div className="bg-card border border-border-subtle rounded-lg py-20 text-center">
-          <p className="text-[15px] font-medium text-text-primary mb-2">{search || status !== 'All' ? 'No results' : 'No leads yet'}</p>
-          <p className="text-[13px] text-text-muted mb-6">Import a CSV to get started</p>
-          {!search && <Button variant="secondary" onClick={() => fileRef.current?.click()}><Upload size={14} /> Import CSV</Button>}
-        </div>
-      ) : (
-        <div className="bg-card border border-border-subtle rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border-subtle">
-                <th className="text-left px-6 py-3 label-caps">Seller</th>
-                <th className="text-left px-6 py-3 label-caps">Property</th>
-                <th className="text-left px-6 py-3 label-caps w-20">Score</th>
-                <th className="text-left px-6 py-3 label-caps">Status</th>
-                <th className="text-left px-6 py-3 label-caps">Last Call</th>
-                <th className="text-left px-6 py-3 label-caps">Source</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {paginated.map(l => (
-                <tr key={l.id} onClick={() => setSelected(l)}
-                  className="hover:bg-elevated cursor-pointer transition-colors">
-                  <td className="px-6 py-4">
-                    <p className="text-[14px] font-medium text-text-primary">{l.first_name} {l.last_name}</p>
-                    {l.phone && <p className="text-[11px] text-text-muted mt-0.5">{l.phone}</p>}
-                  </td>
-                  <td className="px-6 py-4">
-                    {l.property_address
-                      ? <><p className="text-[13px] text-text-secondary truncate max-w-[220px]">{l.property_address}</p>
-                          <p className="text-[11px] text-text-muted">{[l.property_city, l.property_state].filter(Boolean).join(', ')}</p></>
-                      : <span className="text-text-muted text-[13px]">—</span>
-                    }
-                  </td>
-                  <td className="px-6 py-4">
-                    {l.motivation_score != null ? (
-                      <div>
-                        <span className={`text-[18px] font-bold tabular-nums leading-none ${scoreColor(l.motivation_score)}`}>
-                          {l.motivation_score}
-                        </span>
-                        <div className="mt-1 h-0.5 w-10 bg-elevated rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${l.motivation_score>=70?'bg-primary':l.motivation_score>=40?'bg-warning':'bg-danger'}`}
-                            style={{ width: `${l.motivation_score}%` }} />
-                        </div>
-                      </div>
-                    ) : <span className="text-text-muted text-[13px]">—</span>}
-                  </td>
-                  <td className="px-6 py-4">
-                    <Badge variant={statusBadge(l.status)}>{l.status || 'new'}</Badge>
-                  </td>
-                  <td className="px-6 py-4 text-[12px] text-text-muted">
-                    {l.last_call_date ? formatDistanceToNow(new Date(l.last_call_date), { addSuffix: true }) : 'Never'}
-                  </td>
-                  <td className="px-6 py-4">
-                    {l.source && <span className="text-[11px] bg-elevated border border-border-subtle text-text-muted px-2 py-0.5 rounded-[3px]">{l.source}</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Pagination */}
-          {pages > 1 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t border-border-subtle">
-              <p className="text-[12px] text-text-muted">
-                Showing {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}
-              </p>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}
-                  className="w-8 h-8 flex items-center justify-center rounded-[5px] border border-border-subtle text-text-muted hover:text-text-primary hover:bg-elevated disabled:opacity-30 transition-colors">
-                  <ChevronLeft size={14} />
-                </button>
-                <span className="text-[13px] text-text-secondary px-3">{page} / {pages}</span>
-                <button onClick={() => setPage(p => Math.min(pages, p+1))} disabled={page===pages}
-                  className="w-8 h-8 flex items-center justify-center rounded-[5px] border border-border-subtle text-text-muted hover:text-text-primary hover:bg-elevated disabled:opacity-30 transition-colors">
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
-          )}
+      {/* ── Pagination ───────────────────────────────────────────────────── */}
+      {pages > 1 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 16px',
+          borderTop: '1px solid var(--border-rest)',
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 11, color: 'var(--t4)' }}>
+            {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={() => setPage(p => Math.max(1, p-1))}
+              disabled={page === 1}
+              style={{
+                width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--s2)', border: '1px solid var(--border-rest)', borderRadius: 5,
+                color: 'var(--t3)', cursor: page === 1 ? 'not-allowed' : 'pointer',
+                opacity: page === 1 ? 0.3 : 1,
+              }}
+            >
+              <ChevronLeft size={13} />
+            </button>
+            <span style={{ fontSize: 12, color: 'var(--t3)', minWidth: 50, textAlign: 'center' }}>
+              {page} / {pages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(pages, p+1))}
+              disabled={page === pages}
+              style={{
+                width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--s2)', border: '1px solid var(--border-rest)', borderRadius: 5,
+                color: 'var(--t3)', cursor: page === pages ? 'not-allowed' : 'pointer',
+                opacity: page === pages ? 0.3 : 1,
+              }}
+            >
+              <ChevronRight size={13} />
+            </button>
+          </div>
         </div>
       )}
 
-      {selected && <LeadDrawer lead={selected} onClose={() => setSelected(null)} onNavigate={(path) => { setSelected(null); navigate(path) }} />}
+      {/* ── Lead Detail Panel ────────────────────────────────────────────── */}
+      {selected && (
+        <LeadPanel
+          lead={selected}
+          onClose={() => { setSelected(null) }}
+          onNavigate={(path) => { setSelected(null); navigate(path) }}
+        />
+      )}
     </div>
   )
 }

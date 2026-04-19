@@ -1,52 +1,98 @@
 import React, { useState } from 'react'
-import clsx from 'clsx'
 import { Eye, EyeOff } from 'lucide-react'
 
 export default function Input({
   label,
   error,
+  hint,
   className = '',
   id,
   type = 'text',
+  style: extra = {},
   ...props
 }) {
-  const [show, setShow] = useState(false)
-  const inputId = id || label?.toLowerCase().replace(/\s+/g, '-')
+  const [show, setShow]       = useState(false)
+  const [focused, setFocused] = useState(false)
+  const inputId    = id || label?.toLowerCase().replace(/\s+/g, '-')
   const isPassword = type === 'password'
-  const inputType = isPassword ? (show ? 'text' : 'password') : type
+  const inputType  = isPassword ? (show ? 'text' : 'password') : type
+
+  const borderColor = error
+    ? 'rgba(255,59,78,0.40)'
+    : focused
+    ? 'rgba(0,229,122,0.50)'
+    : 'var(--border-rest)'
+
+  const boxShadow = error
+    ? focused ? '0 0 0 3px rgba(255,59,78,0.10)' : 'none'
+    : focused
+    ? '0 0 0 3px rgba(0,229,122,0.08)'
+    : 'none'
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {label && (
-        <label htmlFor={inputId} className="label-caps">
+        <label
+          htmlFor={inputId}
+          className="label-caps"
+          style={{ cursor: 'default' }}
+        >
           {label}
         </label>
       )}
-      <div className="relative">
+      <div style={{ position: 'relative' }}>
         <input
           id={inputId}
           type={inputType}
-          className={clsx(
-            'w-full h-[44px] bg-surface border rounded-[6px] px-3 text-[15px] text-text-primary placeholder-text-muted',
-            'focus:outline-none focus:border-primary transition-colors duration-150',
-            error ? 'border-danger' : 'border-border-subtle',
-            isPassword && 'pr-10',
-            className
-          )}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          className={className}
+          style={{
+            width: '100%',
+            height: 44,
+            background: 'var(--s2)',
+            border: `1px solid ${borderColor}`,
+            borderRadius: 6,
+            padding: isPassword ? '0 40px 0 12px' : '0 12px',
+            fontSize: 14,
+            color: 'var(--t1)',
+            outline: 'none',
+            transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+            boxShadow,
+            fontFamily: 'inherit',
+            ...extra,
+          }}
+          placeholder={props.placeholder}
           {...props}
         />
         {isPassword && (
           <button
             type="button"
-            onClick={() => setShow(!show)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+            onClick={() => setShow((s) => !s)}
             tabIndex={-1}
+            style={{
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              color: 'var(--t3)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              padding: 0,
+            }}
           >
-            {show ? <EyeOff size={16} /> : <Eye size={16} />}
+            {show ? <EyeOff size={15} strokeWidth={1.6} /> : <Eye size={15} strokeWidth={1.6} />}
           </button>
         )}
       </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {(error || hint) && (
+        <p style={{ fontSize: 11, color: error ? 'var(--red)' : 'var(--t3)' }}>
+          {error || hint}
+        </p>
+      )}
     </div>
   )
 }

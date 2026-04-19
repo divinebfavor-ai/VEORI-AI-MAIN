@@ -1,27 +1,62 @@
 import React from 'react'
-import clsx from 'clsx'
 
-const variants = {
-  green:  { bg: 'bg-primary/10',  text: 'text-primary',        dot: 'bg-primary' },
-  amber:  { bg: 'bg-warning/10',  text: 'text-warning',        dot: 'bg-warning' },
-  red:    { bg: 'bg-danger/10',   text: 'text-danger',         dot: 'bg-danger' },
-  gold:   { bg: 'bg-gold/10',     text: 'text-gold',           dot: 'bg-gold' },
-  white:  { bg: 'bg-white/5',     text: 'text-text-primary',   dot: 'bg-text-primary' },
-  gray:   { bg: 'bg-white/5',     text: 'text-text-secondary', dot: 'bg-text-muted' },
+/*
+  No dot — background color IS the status signal.
+  10px / 600 / uppercase / border-radius: 4px
+  Each color means exactly one thing:
+    green — live / active / success
+    amber — warning / paused / warm lead
+    red   — error / DNC / cold
+    gold  — money / deal / closed
+    gray  — neutral / new / unknown
+*/
+
+const V = {
+  green: { bg: 'rgba(0,229,122,0.12)',    text: 'var(--green)', border: 'rgba(0,229,122,0.22)' },
+  amber: { bg: 'rgba(255,140,0,0.12)',    text: 'var(--amber)', border: 'rgba(255,140,0,0.22)' },
+  red:   { bg: 'rgba(255,59,78,0.12)',    text: 'var(--red)',   border: 'rgba(255,59,78,0.22)' },
+  gold:  { bg: 'rgba(212,168,67,0.12)',   text: 'var(--gold)',  border: 'rgba(212,168,67,0.22)' },
+  gray:  { bg: 'rgba(255,255,255,0.06)',  text: 'var(--t3)',    border: 'var(--border-rest)' },
+  white: { bg: 'rgba(255,255,255,0.06)',  text: 'var(--t1)',    border: 'var(--border-rest)' },
   // legacy aliases
-  yellow: { bg: 'bg-warning/10',  text: 'text-warning',        dot: 'bg-warning' },
-  blue:   { bg: 'bg-primary/10',  text: 'text-primary',        dot: 'bg-primary' },
-  orange: { bg: 'bg-warning/10',  text: 'text-warning',        dot: 'bg-warning' },
+  yellow: { bg: 'rgba(255,140,0,0.12)',   text: 'var(--amber)', border: 'rgba(255,140,0,0.22)' },
+  blue:   { bg: 'rgba(0,229,122,0.12)',   text: 'var(--green)', border: 'rgba(0,229,122,0.22)' },
+  orange: { bg: 'rgba(255,140,0,0.12)',   text: 'var(--amber)', border: 'rgba(255,140,0,0.22)' },
 }
 
-export default function Badge({ variant = 'gray', children, dot = true, className = '' }) {
-  const v = variants[variant] || variants.gray
+export default function Badge({
+  variant   = 'gray',
+  children,
+  dot       = false,  // dot disabled by default in new design
+  className = '',
+  style: extra = {},
+}) {
+  const v = V[variant] || V.gray
   return (
-    <span className={clsx(
-      'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium tracking-wide',
-      v.bg, v.text, className
-    )}>
-      {dot && <span className={clsx('w-1.5 h-1.5 rounded-full flex-shrink-0', v.dot)} />}
+    <span
+      className={`inline-flex items-center gap-1 ${className}`}
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: '0.07em',
+        textTransform: 'uppercase',
+        lineHeight: 1,
+        padding: '3px 7px',
+        borderRadius: 4,
+        background: v.bg,
+        color: v.text,
+        border: `1px solid ${v.border}`,
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+        ...extra,
+      }}
+    >
+      {dot && (
+        <span style={{
+          width: 5, height: 5, borderRadius: '50%',
+          background: v.text, flexShrink: 0, display: 'inline-block',
+        }} />
+      )}
       {children}
     </span>
   )
