@@ -158,10 +158,10 @@ function LeadPanel({ lead, onClose, onNavigate }) {
       {/* Panel */}
       <div style={{
         width: 480,
-        background: 'rgba(10,16,26,0.96)',
+        background: 'var(--card-bg)',
         backdropFilter: 'blur(32px) saturate(160%)',
         WebkitBackdropFilter: 'blur(32px) saturate(160%)',
-        borderLeft: '1px solid rgba(255,255,255,0.08)',
+        borderLeft: '1px solid var(--border)',
         display: 'flex',
         flexDirection: 'column',
         animation: 'slide-in-right 0.22s cubic-bezier(0.4,0,0.2,1)',
@@ -178,7 +178,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
         {/* Header */}
         <div style={{
           padding: '20px 24px 18px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid var(--border)',
           display: 'flex',
           alignItems: 'flex-start',
           justifyContent: 'space-between',
@@ -198,12 +198,12 @@ function LeadPanel({ lead, onClose, onNavigate }) {
               </span>
             </div>
             <div>
-              <p style={{ fontSize: 17, fontWeight: 600, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 5 }}>
+              <p style={{ fontSize: 17, fontWeight: 600, color: 'var(--t1)', letterSpacing: '-0.02em', marginBottom: 5 }}>
                 {lead.first_name} {lead.last_name}
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {lead.phone && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--t4)' }}>
                     <Phone size={10} strokeWidth={1.8} />
                     {lead.phone}
                   </span>
@@ -217,9 +217,9 @@ function LeadPanel({ lead, onClose, onNavigate }) {
             onClick={onClose}
             style={{
               width: 28, height: 28, borderRadius: 7,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: 'rgba(255,255,255,0.50)',
+              background: 'var(--surface-bg)',
+              border: '1px solid var(--border)',
+              color: 'var(--t3)',
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               marginTop: -2, flexShrink: 0,
             }}
@@ -232,20 +232,20 @@ function LeadPanel({ lead, onClose, onNavigate }) {
         {score != null && (
           <div style={{
             padding: '16px 24px',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
-            background: 'rgba(255,255,255,0.02)',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--surface-bg)',
             display: 'flex',
             alignItems: 'center',
             gap: 32,
           }}>
             <div>
-              <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 4 }}>
+              <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--t4)', marginBottom: 4 }}>
                 Motivation Score
               </p>
               <p style={{ fontSize: 40, fontWeight: 700, lineHeight: 1, color, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
                 {score}
               </p>
-              <div style={{ width: 60, height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, marginTop: 6, overflow: 'hidden' }}>
+              <div style={{ width: 60, height: 3, background: 'var(--border)', borderRadius: 2, marginTop: 6, overflow: 'hidden' }}>
                 <div style={{
                   width: `${score}%`, height: '100%',
                   background: color,
@@ -255,10 +255,10 @@ function LeadPanel({ lead, onClose, onNavigate }) {
               </div>
             </div>
             <div>
-              <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 4 }}>
+              <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--t4)', marginBottom: 4 }}>
                 Calls Made
               </p>
-              <p style={{ fontSize: 32, fontWeight: 600, lineHeight: 1, color: 'rgba(255,255,255,0.90)', letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
+              <p style={{ fontSize: 32, fontWeight: 600, lineHeight: 1, color: 'var(--t1)', letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
                 {lead.call_count || 0}
               </p>
             </div>
@@ -271,7 +271,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
         )}
 
         {/* Action buttons */}
-        <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="primary" size="sm" style={{ flex: 1 }} loading={dialing} disabled={!!lead.is_on_dnc} onClick={dialNow}>
               <Phone size={12} /> {lead.is_on_dnc ? 'DNC' : 'Dial Now'}
@@ -294,7 +294,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '0 24px', gap: 2, flexShrink: 0 }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 24px', gap: 2, flexShrink: 0 }}>
           {TABS.map(t => (
             <button
               key={t.id}
@@ -302,7 +302,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
               style={{
                 padding: '11px 14px',
                 fontSize: 12, fontWeight: 500,
-                color: tab === t.id ? '#ffffff' : 'rgba(255,255,255,0.38)',
+                color: tab === t.id ? 'var(--t1)' : 'var(--t4)',
                 background: 'none', border: 'none',
                 borderBottom: `2px solid ${tab === t.id ? '#00C37A' : 'transparent'}`,
                 cursor: 'pointer',
@@ -333,16 +333,16 @@ function LeadPanel({ lead, onClose, onNavigate }) {
                 <div key={label} style={{
                   display: 'flex', gap: 12,
                   padding: '9px 0',
-                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                  borderBottom: '1px solid var(--border)',
                 }}>
                   <span style={{
                     fontSize: 10, fontWeight: 600, letterSpacing: '0.07em',
-                    textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)',
+                    textTransform: 'uppercase', color: 'var(--t4)',
                     width: 110, flexShrink: 0, paddingTop: 1,
                   }}>
                     {label}
                   </span>
-                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.80)', flex: 1, wordBreak: 'break-word', lineHeight: 1.4 }}>
+                  <span style={{ fontSize: 13, color: 'var(--t2)', flex: 1, wordBreak: 'break-word', lineHeight: 1.4 }}>
                     {val}
                   </span>
                 </div>
@@ -350,11 +350,11 @@ function LeadPanel({ lead, onClose, onNavigate }) {
 
               {(lead.ai_summary || lead.notes) && (
                 <div style={{ marginTop: 18 }}>
-                  <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)', marginBottom: 8 }}>
+                  <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--t4)', marginBottom: 8 }}>
                     AI Summary
                   </p>
                   <div style={{
-                    fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.65,
+                    fontSize: 12, color: 'var(--t3)', lineHeight: 1.65,
                     background: 'rgba(0,195,122,0.04)',
                     border: '1px solid rgba(0,195,122,0.12)',
                     padding: '12px 14px', borderRadius: 8,
@@ -370,23 +370,23 @@ function LeadPanel({ lead, onClose, onNavigate }) {
           {tab === 'calls' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {callLog.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '48px 0', color: 'rgba(255,255,255,0.25)' }}>
+                <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t4)' }}>
                   <Phone size={22} style={{ margin: '0 auto 10px', display: 'block' }} strokeWidth={1.5} />
                   <p style={{ fontSize: 13 }}>No calls recorded yet</p>
                 </div>
               ) : callLog.map(c => (
                 <div key={c.id} style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.07)',
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border)',
                   borderRadius: 10, padding: '12px 14px',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: c.ai_summary ? 6 : 0 }}>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>
+                    <span style={{ fontSize: 12, color: 'var(--t2)', fontWeight: 500 }}>
                       {c.started_at ? formatDistanceToNow(new Date(c.started_at), { addSuffix: true }) : '—'}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {c.duration_seconds && (
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.30)', fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ fontSize: 11, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>
                           {Math.floor(c.duration_seconds / 60)}:{String(c.duration_seconds % 60).padStart(2, '0')}
                         </span>
                       )}
@@ -399,7 +399,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
                     </div>
                   </div>
                   {c.ai_summary && (
-                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{c.ai_summary}</p>
+                    <p style={{ fontSize: 11, color: 'var(--t4)', lineHeight: 1.5 }}>{c.ai_summary}</p>
                   )}
                 </div>
               ))}
@@ -415,12 +415,12 @@ function LeadPanel({ lead, onClose, onNavigate }) {
                 placeholder="Add notes about this seller…"
                 style={{
                   width: '100%',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   padding: '12px 14px',
                   fontSize: 13,
-                  color: 'rgba(255,255,255,0.85)',
+                  color: 'var(--t2)',
                   resize: 'vertical',
                   outline: 'none',
                   fontFamily: 'inherit',
@@ -429,7 +429,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
                   boxSizing: 'border-box',
                 }}
                 onFocus={e => { e.target.style.borderColor = 'rgba(0,195,122,0.40)' }}
-                onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--border)' }}
               />
               <Button loading={saving} onClick={saveNotes} variant="primary" size="sm">
                 Save Notes
@@ -462,9 +462,9 @@ function LeadRow({ lead, selected, onClick }) {
         cursor: 'pointer',
         background: selected
           ? 'rgba(0,195,122,0.06)'
-          : hov ? 'rgba(255,255,255,0.025)' : 'transparent',
+          : hov ? 'var(--surface-bg-3)' : 'transparent',
         borderLeft: `2px solid ${selected ? '#00C37A' : 'transparent'}`,
-        borderBottom: '1px solid rgba(255,255,255,0.03)',
+        borderBottom: '1px solid var(--border)',
         transition: 'all 0.15s ease',
         transform: hov && !selected ? 'translateY(-0.5px)' : 'none',
       }}
@@ -648,17 +648,15 @@ export default function Leads() {
 
   const inputStyle = {
     height: 34,
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'var(--surface-bg)',
+    border: '1px solid var(--border)',
     borderRadius: 8,
     padding: '0 10px',
     fontSize: 12,
-    color: 'rgba(255,255,255,0.75)',
+    color: 'var(--t2)',
     outline: 'none',
     cursor: 'pointer',
     fontFamily: 'inherit',
-    backdropFilter: 'blur(8px)',
-    WebkitBackdropFilter: 'blur(8px)',
     transition: 'border-color 0.15s ease',
     appearance: 'none',
     WebkitAppearance: 'none',
@@ -676,10 +674,10 @@ export default function Leads() {
       <div style={{ padding: '22px 24px 0', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.03em', marginBottom: 4 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.03em', marginBottom: 4 }}>
               Lead Intelligence
             </h1>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
+            <p style={{ fontSize: 12, color: 'var(--t4)' }}>
               {allLeads.length.toLocaleString()} total ·{' '}
               <span style={{ color: '#00C37A' }}>{hotCount} hot</span> ·{' '}
               <span style={{ color: '#FF9500' }}>{warmCount} warm</span>
@@ -703,13 +701,13 @@ export default function Leads() {
           <div style={{ position: 'relative' }}>
             <Search
               size={12} strokeWidth={2}
-              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.30)' }}
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--t4)' }}
             />
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
               onFocus={e => { setSearchFocused(true); e.target.style.borderColor = 'rgba(0,195,122,0.40)' }}
-              onBlur={e => { setSearchFocused(false); e.target.style.borderColor = 'rgba(255,255,255,0.08)' }}
+              onBlur={e => { setSearchFocused(false); e.target.style.borderColor = 'var(--border)' }}
               placeholder="Search leads…"
               style={{
                 ...inputStyle,
@@ -734,7 +732,7 @@ export default function Leads() {
               onClick={() => { setSearch(''); setStatus('All'); setScore(0); setPage(1) }}
               style={{
                 background: 'none', border: 'none',
-                fontSize: 11, color: 'rgba(255,255,255,0.35)', cursor: 'pointer',
+                fontSize: 11, color: 'var(--t4)', cursor: 'pointer',
                 padding: '0 4px',
               }}
             >
@@ -751,11 +749,11 @@ export default function Leads() {
         alignItems: 'center',
         height: 30,
         padding: '0 20px',
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        borderTop: '1px solid var(--border)',
+        borderBottom: '1px solid var(--border)',
         marginTop: 14,
         flexShrink: 0,
-        background: 'rgba(255,255,255,0.015)',
+        background: 'var(--surface-bg)',
       }}>
         {[
           { label: 'Seller', align: 'left' },
@@ -766,7 +764,7 @@ export default function Leads() {
         ].map(h => (
           <span key={h.label} style={{
             fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-            textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)',
+            textTransform: 'uppercase', color: 'var(--t4)',
             textAlign: h.align,
           }}>
             {h.label}
@@ -789,10 +787,10 @@ export default function Leads() {
             }}>
               <Users size={22} strokeWidth={1.5} color="#00C37A" />
             </div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.70)', marginBottom: 6 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t2)', marginBottom: 6 }}>
               {search || status !== 'All' ? 'No results match your filters' : 'No leads yet'}
             </p>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)', marginBottom: 20 }}>
+            <p style={{ fontSize: 12, color: 'var(--t4)', marginBottom: 20 }}>
               {search || status !== 'All' ? 'Try adjusting your search or filters' : 'Import a CSV to get started'}
             </p>
             {!search && status === 'All' && (

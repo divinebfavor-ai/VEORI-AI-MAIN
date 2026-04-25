@@ -39,6 +39,7 @@ export const auth = {
   login:    (email, password) => api.post('/api/auth/login', { email, password }),
   register: (data)            => api.post('/api/auth/register', data),
   getMe:    ()                => api.get('/api/auth/me'),
+  changePassword: (data)      => api.put('/api/auth/password', data),
   logout:   ()                => api.post('/api/auth/logout'),
 }
 
@@ -97,11 +98,20 @@ export const phones = {
 export const deals = {
   getDeals:          (params)       => api.get('/api/deals', { params }),
   getDeal:           (id)           => api.get(`/api/deals/${id}`),
+  getDealActivity:   (id)           => api.get(`/api/deals/${id}/activity`),
+  getTitleLog:       (id)           => api.get(`/api/deals/${id}/title-log`),
   createDeal:        (data)         => api.post('/api/deals', data),
   updateDeal:        (id, data)     => api.put(`/api/deals/${id}`, data),
   generateContract:  (id, type)     => api.post(`/api/deals/${id}/generate-contract`, { type }),
   sendContract:      (id, type, data) => api.post(`/api/deals/${id}/send-contract`, { type, ...data }),
+  sendToTitle:       (id, data)     => api.post(`/api/deals/${id}/send-to-title`, data),
   startBuyerCampaign:(id)           => api.post(`/api/deals/${id}/start-buyer-campaign`),
+}
+
+export const contracts = {
+  createContract:       (data)  => api.post('/api/contracts/create_contract', data),
+  startSigningSession:  (data)  => api.post('/api/contracts/start_signing_session', data),
+  getSignedContract:    (id)    => api.get(`/api/contracts/get_signed_contract/${id}`),
 }
 
 // ─── Buyers ──────────────────────────────────────────────────────────────────
@@ -157,6 +167,17 @@ export const compliance = {
   getState:     (code)   => api.get(`/api/compliance/state/${code}`),
   getDisclosure:(code)   => api.get(`/api/compliance/disclosure/${code}`),
   getTcpaLog:   (params) => api.get('/api/compliance/tcpa-log', { params }),
+}
+
+export const followUps = {
+  getAll:          (params) => api.get('/api/follow-ups', { params }),
+  createFollowUp:  (data)   => api.post('/api/follow-ups/create_follow_up', data),
+  updateFollowUp:  (id, data) => api.put(`/api/follow-ups/${id}`, data),
+}
+
+export const propertyPhotos = {
+  upload:   (data) => api.post('/api/property-photos/upload_property_photos', data),
+  getByDeal:(dealId) => api.get(`/api/property-photos/get_property_photos_for_buyer/${dealId}`),
 }
 
 export default api

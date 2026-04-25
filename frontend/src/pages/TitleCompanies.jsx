@@ -26,7 +26,14 @@ function TitleModal({ onClose, onSave, existing = null }) {
     setSaving(true)
     try {
       const payload = {
-        ...form,
+        name: form.name,
+        contact_name: form.contact_name,
+        phone: form.phone,
+        email: form.email,
+        address: form.address,
+        city: form.city,
+        state: form.state,
+        notes: form.notes,
         preferred_states: form.preferred_states.split(',').map(s => s.trim()).filter(Boolean),
       }
       if (existing) {

@@ -70,6 +70,46 @@ router.get('/me', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── Change Password ─────────────────────────────────────────────────────────
+router.put('/password', requireAuth, async (req, res, next) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return res.status(400).json({ success: false, error: 'current_password and new_password required' });
+    }
+
+    if (String(new_password).length < 8) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
+    }
+
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('id, password_hash')
+      .eq('id', req.user.id)
+      .single();
+
+    if (fetchError || !user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const valid = await bcrypt.compare(current_password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+    }
+
+    const password_hash = await bcrypt.hash(new_password, 12);
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password_hash, updated_at: new Date().toISOString() })
+      .eq('id', req.user.id);
+
+    if (updateError) throw updateError;
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err) { next(err); }
+});
+
 // ─── Logout ───────────────────────────────────────────────────────────────────
 router.post('/logout', (_req, res) => res.json({ success: true, message: 'Logged out' }));
 

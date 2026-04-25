@@ -39,18 +39,18 @@ function NavItem({ to, icon: Icon, label, liveBadge }) {
           borderLeft: `2px solid ${isActive ? '#00C37A' : 'transparent'}`,
           background: isActive
             ? 'rgba(0,195,122,0.08)'
-            : hov ? 'rgba(255,255,255,0.04)' : 'transparent',
+            : hov ? 'var(--surface-bg-3)' : 'transparent',
           transition: 'all 0.15s ease',
           cursor: 'pointer',
           position: 'relative',
         }}>
           <Icon
             size={17} strokeWidth={1.6}
-            style={{ color: isActive ? '#00C37A' : hov ? 'rgba(255,255,255,0.70)' : 'rgba(255,255,255,0.32)', flexShrink: 0 }}
+            style={{ color: isActive ? '#00C37A' : hov ? 'var(--t2)' : 'var(--t4)', flexShrink: 0 }}
           />
           <span style={{
             fontSize: 13, fontWeight: isActive ? 500 : 400,
-            color: isActive ? '#FFFFFF' : hov ? 'rgba(255,255,255,0.70)' : 'rgba(255,255,255,0.35)',
+            color: isActive ? 'var(--t1)' : hov ? 'var(--t2)' : 'var(--t3)',
             letterSpacing: '-0.01em',
             transition: 'color 0.15s ease',
           }}>
@@ -95,7 +95,7 @@ export default function CommandRail() {
       height: '100%', position: 'relative', zIndex: 20,
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid var(--sidebar-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
@@ -108,8 +108,8 @@ export default function CommandRail() {
             <span style={{ fontSize: 15, fontWeight: 700, color: '#00C37A', letterSpacing: '-0.02em' }}>V</span>
           </div>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#FFFFFF', letterSpacing: '-0.01em', lineHeight: 1.2, margin: 0 }}>Veori</p>
-            <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.10em', textTransform: 'uppercase', margin: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)', letterSpacing: '-0.01em', lineHeight: 1.2, margin: 0 }}>Veori</p>
+            <p style={{ fontSize: 9, color: 'var(--t4)', letterSpacing: '0.10em', textTransform: 'uppercase', margin: 0 }}>
               Autonomous Acquisitions
             </p>
           </div>
@@ -117,7 +117,7 @@ export default function CommandRail() {
         {/* System live indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <span className="live-dot" style={{ width: 5, height: 5 }} />
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.04em' }}>System Live</span>
+          <span style={{ fontSize: 10, color: 'var(--t4)', letterSpacing: '0.04em' }}>System Live</span>
         </div>
       </div>
 
@@ -135,7 +135,7 @@ export default function CommandRail() {
       </nav>
 
       {/* Bottom */}
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '12px 0 8px' }}>
+      <div style={{ borderTop: '1px solid var(--sidebar-border)', padding: '12px 0 8px' }}>
         {/* Settings */}
         <NavItem to="/settings" icon={Settings} label="Settings" />
 
@@ -148,14 +148,14 @@ export default function CommandRail() {
             background: 'none', border: 'none', cursor: 'pointer',
             transition: 'background 0.15s ease',
           }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-bg-3)'}
           onMouseLeave={e => e.currentTarget.style.background = 'none'}
         >
           {theme === 'dark'
-            ? <Sun  size={16} strokeWidth={1.6} style={{ color: 'rgba(255,255,255,0.32)', flexShrink: 0 }} />
-            : <Moon size={16} strokeWidth={1.6} style={{ color: 'rgba(255,255,255,0.32)', flexShrink: 0 }} />
+            ? <Sun  size={16} strokeWidth={1.6} style={{ color: 'var(--t4)', flexShrink: 0 }} />
+            : <Moon size={16} strokeWidth={1.6} style={{ color: 'var(--t4)', flexShrink: 0 }} />
           }
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+          <span style={{ fontSize: 13, color: 'var(--t3)' }}>
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
           </span>
         </button>
@@ -165,8 +165,8 @@ export default function CommandRail() {
           margin: '8px 12px 4px',
           padding: '10px 10px',
           borderRadius: 10,
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.06)',
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--sidebar-border)',
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <div style={{
@@ -179,10 +179,10 @@ export default function CommandRail() {
             {initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.80)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--t2)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.full_name || 'Operator'}
             </p>
-            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <p style={{ fontSize: 10, color: 'var(--t4)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.company_name || 'veori.net'}
             </p>
           </div>
@@ -191,12 +191,12 @@ export default function CommandRail() {
             title="Sign out"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              color: 'rgba(255,255,255,0.25)', padding: 4,
+              color: 'var(--t4)', padding: 4,
               display: 'flex', alignItems: 'center',
               transition: 'color 0.15s ease', flexShrink: 0,
             }}
             onMouseEnter={e => e.currentTarget.style.color = '#FF4444'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.25)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--t4)'}
           >
             <LogOut size={14} strokeWidth={1.6} />
           </button>

@@ -1,9 +1,9 @@
 import React from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Phone, Zap, Mail, Mic, FileText } from 'lucide-react'
+import { Phone, Zap, Mail, Mic, FileText, Clock3, FileSignature, AlertTriangle } from 'lucide-react'
 import useIntelStore from '../../store/intelStore'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
-import { calls as callsApi } from '../../services/api'
+import { calls as callsApi, analytics } from '../../services/api'
 import toast from 'react-hot-toast'
 
 // ─── Shared components ────────────────────────────────────────────────────────
@@ -74,6 +74,13 @@ function fmtDate(d) { return d ? formatDistanceToNow(new Date(d), { addSuffix: t
 // ─── System Mode ──────────────────────────────────────────────────────────────
 function SystemPanel() {
   const { calls: liveCalls } = useLiveCalls()
+  const [dashboard, setDashboard] = React.useState(null)
+
+  React.useEffect(() => {
+    analytics.getDashboard()
+      .then(r => setDashboard(r.data?.data || null))
+      .catch(() => setDashboard(null))
+  }, [])
 
   return (
     <div style={{ padding: 16 }}>
@@ -122,6 +129,34 @@ function SystemPanel() {
             ))}
           </div>
         )}
+      </Section>
+
+      <div style={{ height: 18 }} />
+
+      <Section title="Execution Queue">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            { icon: Clock3, label: 'Due Follow-Ups', value: dashboard?.due_follow_ups?.length || 0, color: '#00C37A' },
+            { icon: FileSignature, label: 'Pending Signatures', value: dashboard?.pending_contracts?.length || 0, color: '#C9A84C' },
+            { icon: AlertTriangle, label: 'Title Watchlist', value: dashboard?.title_risks?.length || 0, color: '#FF9500' },
+          ].map(item => (
+            <div key={item.label} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 10px',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <item.icon size={13} style={{ color: item.color }} />
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>{item.label}</span>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: item.color, fontVariantNumeric: 'tabular-nums' }}>
+                {item.value}
+              </span>
+            </div>
+          ))}
+        </div>
       </Section>
     </div>
   )

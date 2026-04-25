@@ -18,6 +18,14 @@ const useAuthStore = create((set) => ({
     set({ user: null, token: null, isAuthenticated: false })
   },
 
+  updateUser: (updates) => {
+    set((state) => {
+      const user = state.user ? { ...state.user, ...updates } : state.user
+      if (user) localStorage.setItem('veori_user', JSON.stringify(user))
+      return { user }
+    })
+  },
+
   loadFromStorage: () => {
     const token   = localStorage.getItem('veori_token')
     const userStr = localStorage.getItem('veori_user')

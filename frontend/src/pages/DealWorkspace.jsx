@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, Send, Users, Shield,
-  ChevronDown, ChevronUp, Edit2, Check, X, Wrench
+  ChevronDown, ChevronUp, Edit2, Check, X, Wrench, Image as ImageIcon, Upload
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import RepairEstimator from '../components/ui/RepairEstimator'
-import { deals as dealsApi, buyers as buyersApi, titleCompanies as titleApi, compliance as complianceApi } from '../services/api'
+import { deals as dealsApi, buyers as buyersApi, titleCompanies as titleApi, compliance as complianceApi, followUps as followUpsApi, propertyPhotos as propertyPhotosApi } from '../services/api'
 
 const STAGES = ['New','Calling','Contacted','Offer Made','Negotiating','Under Contract','Buyer Search','Title','Closed']
 
@@ -38,6 +38,16 @@ function fieldKey(label) {
 }
 
 function fmt$(n) { return n ? '$' + Math.round(Number(n)).toLocaleString() : '—' }
+
+function formatTimestamp(ts) {
+  if (!ts) return '—'
+  return new Date(ts).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
 
 // ─── Collapsible Section ──────────────────────────────────────────────────────
 function Section({ title, icon: Icon, children, defaultOpen = true }) {
@@ -249,10 +259,46 @@ export default function DealWorkspace() {
   const [buyers,      setBuyers]      = useState([])
   const [titleCos,    setTitleCos]    = useState([])
   const [compliance,  setCompliance]  = useState(null)
+  const [activity,    setActivity]    = useState([])
+  const [titleLog,    setTitleLog]    = useState(null)
+  const [followUps,   setFollowUps]   = useState([])
+  const [photos,      setPhotos]      = useState([])
+  const [followUpAt,  setFollowUpAt]  = useState('')
+  const [followUpReason, setFollowUpReason] = useState('')
+  const [followUpType, setFollowUpType] = useState('text')
   const [stage,       setStage]       = useState('')
   const [savingStage, setSavingStage] = useState(false)
   const [genContract, setGenContract] = useState(false)
+  const [sendingToTitle, setSendingToTitle] = useState(false)
+  const [schedulingFollowUp, setSchedulingFollowUp] = useState(false)
+  const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [showRepairs, setShowRepairs] = useState(false)
+
+  const loadActivity = () => {
+    dealsApi.getDealActivity(id).then(r => {
+      const raw = r.data?.activity ?? r.data?.data ?? r.data
+      setActivity(Array.isArray(raw) ? raw : [])
+    }).catch(() => setActivity([]))
+  }
+
+  const loadTitleLog = () => {
+    dealsApi.getTitleLog(id).then(r => {
+      setTitleLog(r.data?.title_log || null)
+    }).catch(() => setTitleLog(null))
+  }
+
+  const loadFollowUps = () => {
+    followUpsApi.getAll({ deal_id: id }).then(r => {
+      const raw = r.data?.follow_ups ?? r.data?.data ?? r.data
+      setFollowUps(Array.isArray(raw) ? raw : [])
+    }).catch(() => setFollowUps([]))
+  }
+
+  const loadPhotos = () => {
+    propertyPhotosApi.getByDeal(id).then(r => {
+      setPhotos(Array.isArray(r.data?.photos) ? r.data.photos : [])
+    }).catch(() => setPhotos([]))
+  }
 
   useEffect(() => {
     if (!id) return
@@ -271,6 +317,11 @@ export default function DealWorkspace() {
       .catch(() => toast.error('Deal not found'))
       .finally(() => setLoading(false))
 
+    loadActivity()
+    loadTitleLog()
+    loadFollowUps()
+    loadPhotos()
+
     buyersApi.getBuyers().then(r => {
       const raw = r.data?.buyers ?? r.data?.data ?? r.data
       setBuyers(Array.isArray(raw) ? raw : [])
@@ -284,8 +335,10 @@ export default function DealWorkspace() {
 
   const updateDeal = async (updates) => {
     try {
-      await dealsApi.updateDeal(id, updates)
-      setDeal(d => ({ ...d, ...updates }))
+      const r = await dealsApi.updateDeal(id, updates)
+      const updated = r.data?.data || r.data
+      setDeal(d => ({ ...d, ...(updated || updates) }))
+      loadActivity()
       toast.success('Saved')
     } catch { toast.error('Save failed') }
   }
@@ -309,10 +362,101 @@ export default function DealWorkspace() {
 
   const sendContract = async (type) => {
     try {
-      await dealsApi.sendContract(id, type)
+      const r = await dealsApi.sendContract(id, type)
       toast.success('Contract sent to seller')
-      updateDeal({ contract_status: 'sent' })
+      await updateDeal({ contract_status: 'sent' })
+      const signingUrl = r.data?.data?.signing_url || r.data?.signing_url
+      if (signingUrl) window.open(signingUrl, '_blank', 'noopener,noreferrer')
     } catch { toast.error('Failed to send contract') }
+  }
+
+  const sendToTitle = async () => {
+    if (!deal.title_company_id) {
+      toast.error('Select a title company first')
+      return
+    }
+
+    setSendingToTitle(true)
+    try {
+      const r = await dealsApi.sendToTitle(id, {
+        title_company_id: deal.title_company_id,
+        closing_date: deal.closing_date || null,
+      })
+      const payload = r.data?.data || {}
+      if (payload.deal) setDeal(d => ({ ...d, ...payload.deal }))
+      setTitleLog(payload.title_log || null)
+      loadActivity()
+      toast.success('Deal sent to title')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to send to title')
+    } finally {
+      setSendingToTitle(false)
+    }
+  }
+
+  const scheduleFollowUp = async () => {
+    if (!followUpAt || !followUpReason.trim()) {
+      toast.error('Pick a time and add a reason')
+      return
+    }
+    setSchedulingFollowUp(true)
+    try {
+      await followUpsApi.createFollowUp({
+        deal_id: id,
+        contact_id: deal.lead_id || null,
+        contact_type: 'seller',
+        follow_up_type: followUpType,
+        next_follow_up_at: new Date(followUpAt).toISOString(),
+        reason: followUpReason.trim(),
+      })
+      setFollowUpReason('')
+      setFollowUpAt('')
+      setFollowUpType('text')
+      loadFollowUps()
+      loadActivity()
+      toast.success('Follow-up scheduled')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to schedule follow-up')
+    } finally {
+      setSchedulingFollowUp(false)
+    }
+  }
+
+  const uploadPhotos = async (event) => {
+    const files = Array.from(event.target.files || [])
+    if (files.length === 0) return
+
+    setUploadingPhotos(true)
+    try {
+      const serialized = await Promise.all(files.slice(0, 12).map((file) => new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = String(reader.result || '')
+          const [, base64 = ''] = result.split(',')
+          resolve({
+            filename: file.name,
+            content_type: file.type || 'image/jpeg',
+            data_base64: base64,
+            caption: file.name,
+          })
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })))
+
+      await propertyPhotosApi.upload({
+        deal_id: id,
+        photos: serialized,
+      })
+      loadPhotos()
+      loadActivity()
+      toast.success('Property photos uploaded')
+      event.target.value = ''
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Photo upload failed')
+    } finally {
+      setUploadingPhotos(false)
+    }
   }
 
   const applyRepairEstimate = (midpoint) => {
@@ -560,6 +704,175 @@ export default function DealWorkspace() {
                 </div>
               )}
             </Section>
+
+            <Section title="Execution Timeline" icon={FileText}>
+              {activity.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--t3)' }}>No activity logged yet for this deal</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {activity.map(item => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        padding: '12px 14px',
+                        background: 'var(--s2)',
+                        border: '1px solid var(--border-rest)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div>
+                        <p style={{ fontSize: 13, color: 'var(--t1)', marginBottom: 3 }}>{item.message}</p>
+                        <p style={{ fontSize: 10, color: 'var(--t4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          {String(item.activity_type || '').replace(/_/g, ' ')}
+                        </p>
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--t4)', whiteSpace: 'nowrap' }}>
+                        {formatTimestamp(item.created_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            <Section title="Follow-Up Queue" icon={Send}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px 120px', gap: 10, marginBottom: 14 }}>
+                <input
+                  value={followUpReason}
+                  onChange={e => setFollowUpReason(e.target.value)}
+                  placeholder="Reason for the next touchpoint"
+                  style={{
+                    height: 36, background: 'var(--s2)', border: '1px solid var(--border-rest)',
+                    borderRadius: 6, padding: '0 10px', color: 'var(--t1)', fontSize: 12, outline: 'none',
+                  }}
+                />
+                <input
+                  type="datetime-local"
+                  value={followUpAt}
+                  onChange={e => setFollowUpAt(e.target.value)}
+                  style={{
+                    height: 36, background: 'var(--s2)', border: '1px solid var(--border-rest)',
+                    borderRadius: 6, padding: '0 10px', color: 'var(--t1)', fontSize: 12, outline: 'none',
+                  }}
+                />
+                <select
+                  value={followUpType}
+                  onChange={e => setFollowUpType(e.target.value)}
+                  style={{
+                    height: 36, background: 'var(--s2)', border: '1px solid var(--border-rest)',
+                    borderRadius: 6, padding: '0 10px', color: 'var(--t1)', fontSize: 12, outline: 'none',
+                  }}
+                >
+                  <option value="text">Text</option>
+                  <option value="voice_call">Voice Call</option>
+                  <option value="alert">Alert</option>
+                </select>
+              </div>
+              <Button variant="primary" size="sm" loading={schedulingFollowUp} onClick={scheduleFollowUp}>
+                <Send size={11} /> Schedule Follow-Up
+              </Button>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+                {followUps.length === 0 ? (
+                  <p style={{ fontSize: 12, color: 'var(--t3)' }}>No follow-ups scheduled for this deal yet.</p>
+                ) : followUps.map(item => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      padding: '10px 12px',
+                      background: 'var(--s2)',
+                      border: '1px solid var(--border-rest)',
+                      borderRadius: 6,
+                    }}
+                  >
+                    <div>
+                      <p style={{ fontSize: 12, color: 'var(--t1)', marginBottom: 3 }}>{item.reason}</p>
+                      <p style={{ fontSize: 10, color: 'var(--t4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        {String(item.follow_up_type || '').replace(/_/g, ' ')} · {item.status}
+                      </p>
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--t3)', whiteSpace: 'nowrap' }}>
+                      {formatTimestamp(item.next_follow_up_at)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section title="Property Photos" icon={ImageIcon}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <p style={{ fontSize: 13, color: 'var(--t2)', margin: 0 }}>
+                    {photos.length} seller photo{photos.length === 1 ? '' : 's'} attached to this deal
+                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--t4)', margin: '4px 0 0' }}>
+                    Upload property-condition photos and share them with buyers from the gallery.
+                  </p>
+                </div>
+                <Link
+                  to={`/deals/${id}/photos`}
+                  style={{ fontSize: 12, color: 'var(--green)', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                >
+                  Open gallery
+                </Link>
+              </div>
+
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  height: 34,
+                  padding: '0 12px',
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  color: 'var(--t2)',
+                  fontSize: 12,
+                  cursor: uploadingPhotos ? 'not-allowed' : 'pointer',
+                  opacity: uploadingPhotos ? 0.6 : 1,
+                }}
+              >
+                <Upload size={12} />
+                {uploadingPhotos ? 'Uploading…' : 'Upload photos'}
+                <input type="file" accept="image/*" multiple onChange={uploadPhotos} style={{ display: 'none' }} disabled={uploadingPhotos} />
+              </label>
+
+              {photos.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 14 }}>
+                  {photos.slice(0, 6).map((photo) => (
+                    <div
+                      key={photo.id}
+                      style={{
+                        background: 'var(--s2)',
+                        border: '1px solid var(--border-rest)',
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {photo.signed_url ? (
+                        <img src={photo.signed_url} alt={photo.caption || 'Property'} style={{ width: '100%', height: 96, objectFit: 'cover', display: 'block' }} />
+                      ) : (
+                        <div style={{ height: 96, background: 'var(--surface-bg)' }} />
+                      )}
+                      <div style={{ padding: 8 }}>
+                        <p style={{ fontSize: 10, color: 'var(--t4)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {photo.caption || 'Seller photo'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
           </div>
 
           {/* ── Right: Sidebar ───────────────────────────────────────────── */}
@@ -649,6 +962,12 @@ export default function DealWorkspace() {
                     <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--t1)', marginBottom: 3 }}>{t.name}</p>
                     {t.contact_name && <p style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 1 }}>{t.contact_name}</p>}
                     {t.phone && <p style={{ fontSize: 11, color: 'var(--t3)' }}>{t.phone}</p>}
+                    {t.email && <p style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>{t.email}</p>}
+                    <div style={{ marginTop: 10 }}>
+                      <Button variant="primary" size="sm" style={{ width: '100%' }} loading={sendingToTitle} onClick={sendToTitle}>
+                        <Send size={11} /> Send to Title
+                      </Button>
+                    </div>
                   </div>
                 )
               })() : (
@@ -670,6 +989,46 @@ export default function DealWorkspace() {
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
+              )}
+            </div>
+
+            <div style={{
+              background: 'var(--s1)',
+              border: '1px solid var(--border-rest)',
+              borderRadius: 8,
+              padding: '14px 16px',
+            }}>
+              <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 10 }}>
+                Title Status
+              </p>
+              {titleLog ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ fontSize: 12, color: 'var(--t3)' }}>Status</span>
+                    <Badge variant={titleLog.status === 'closed' ? 'green' : titleLog.status === 'funding_pending' ? 'gold' : 'amber'}>
+                      {titleLog.status || 'documents_sent'}
+                    </Badge>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ fontSize: 12, color: 'var(--t3)' }}>Sent to title</span>
+                    <span style={{ fontSize: 12, color: 'var(--t2)' }}>{formatTimestamp(titleLog.sent_to_title_at)}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ fontSize: 12, color: 'var(--t3)' }}>Closing date</span>
+                    <span style={{ fontSize: 12, color: 'var(--t2)' }}>{titleLog.closing_date || deal.closing_date || '—'}</span>
+                  </div>
+                  {titleLog.title_contact_name && (
+                    <div style={{ paddingTop: 8, borderTop: '1px solid var(--border-rest)' }}>
+                      <p style={{ fontSize: 12, color: 'var(--t1)', marginBottom: 2 }}>{titleLog.title_contact_name}</p>
+                      {titleLog.title_contact_phone && <p style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 2 }}>{titleLog.title_contact_phone}</p>}
+                      {titleLog.title_contact_email && <p style={{ fontSize: 11, color: 'var(--t3)' }}>{titleLog.title_contact_email}</p>}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.6 }}>
+                  This deal has not been sent to title yet.
+                </p>
               )}
             </div>
 

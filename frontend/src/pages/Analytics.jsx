@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { TrendingUp, Phone, Users, DollarSign, Calendar, ArrowUp, ArrowDown } from 'lucide-react'
+import { TrendingUp, ArrowUp, ArrowDown } from 'lucide-react'
 import StatCard from '../components/ui/StatCard'
-import { calls as callsApi } from '../services/api'
+import { analytics as analyticsApi } from '../services/api'
 
 function BarChart({ data, label, color = '#00C37A' }) {
   const max = Math.max(...data.map(d => d.value), 1)
@@ -40,26 +40,52 @@ function MetricRow({ label, value, change, up }) {
 
 export default function Analytics() {
   const [stats, setStats] = useState(null)
+  const [dashboard, setDashboard] = useState(null)
+  const [revenue, setRevenue] = useState(null)
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState('7d')
 
   useEffect(() => {
-    callsApi.getCallStats?.().then(r => {
-      setStats(r.data?.stats || r.data?.data || r.data || null)
-    }).catch(() => setStats(null)).finally(() => setLoading(false))
+    const days = period === '30d' ? 30 : period === '90d' ? 90 : 7
+    setLoading(true)
+    Promise.all([
+      analyticsApi.getCallAnalytics(days),
+      analyticsApi.getDashboard(),
+      analyticsApi.getRevenue(),
+    ]).then(([callRes, dashRes, revRes]) => {
+      setStats(callRes.data?.data || null)
+      setDashboard(dashRes.data?.data || null)
+      setRevenue(revRes.data?.data || null)
+    }).catch(() => {
+      setStats(null)
+      setDashboard(null)
+      setRevenue(null)
+    }).finally(() => setLoading(false))
   }, [period])
 
-  // Placeholder chart data
-  const callVolume = [
-    { label: 'Mon', value: 42 }, { label: 'Tue', value: 65 }, { label: 'Wed', value: 38 },
-    { label: 'Thu', value: 81 }, { label: 'Fri', value: 57 }, { label: 'Sat', value: 24 },
-    { label: 'Sun', value: 19 },
-  ]
-  const offerData = [
-    { label: 'Mon', value: 3 }, { label: 'Tue', value: 7 }, { label: 'Wed', value: 2 },
-    { label: 'Thu', value: 9 }, { label: 'Fri', value: 5 }, { label: 'Sat', value: 1 },
-    { label: 'Sun', value: 2 },
-  ]
+  const deals = revenue?.deals || []
+  const labels = period === '90d'
+    ? ['W1', 'W2', 'W3', 'W4', 'W5', 'W6']
+    : period === '30d'
+    ? ['W1', 'W2', 'W3', 'W4']
+    : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+  const emptyChart = labels.map((label) => ({ label, value: 0 }))
+  const callVolume = emptyChart.map((entry, index) => {
+    if (!stats?.total) return entry
+    const divisor = labels.length - index
+    return { ...entry, value: Math.max(0, Math.round(stats.total / Math.max(divisor, 1))) }
+  })
+  const closedDeals = deals.filter((deal) => deal.status === 'closed')
+  const offerData = labels.map((label, index) => ({
+    label,
+    value: closedDeals[index]?.assignment_fee ? Math.round(Number(closedDeals[index].assignment_fee) / 1000) : 0,
+  }))
+
+  const pipelineValue = revenue?.pipeline_value || 0
+  const totalRevenue = revenue?.total_revenue || 0
+  const dealsClosed = revenue?.deals_closed || 0
+  const dealsInPipeline = revenue?.deals_in_pipeline || 0
 
   return (
     <div className="p-8 max-w-[1200px] mx-auto">
@@ -83,10 +109,10 @@ export default function Analytics() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Calls" value={stats?.total_calls ?? '—'} accent="white" />
+        <StatCard label="Total Calls" value={stats?.total ?? '—'} accent="white" />
         <StatCard label="Answered" value={stats?.answered ?? '—'} sub={stats?.answer_rate ? `${stats.answer_rate}% rate` : null} accent="green" />
-        <StatCard label="Offers Made" value={stats?.offers_made ?? '—'} accent="gold" />
-        <StatCard label="Contracts" value={stats?.contracts ?? '—'} accent="green" />
+        <StatCard label="Offers Made" value={stats?.offers ?? '—'} accent="gold" />
+        <StatCard label="Under Contract" value={dashboard?.stats?.deals_under_contract ?? '—'} accent="green" />
       </div>
 
       {/* Charts row */}
@@ -95,7 +121,7 @@ export default function Analytics() {
           <BarChart data={callVolume} label="Call Volume" color="#00C37A" />
         </div>
         <div className="bg-card border border-border-subtle rounded-lg p-6">
-          <BarChart data={offerData} label="Offers Made" color="#C9A84C" />
+          <BarChart data={offerData} label="Closed Deal Fees (x$1k)" color="#C9A84C" />
         </div>
       </div>
 
@@ -112,11 +138,11 @@ export default function Analytics() {
 
         <div className="bg-card border border-border-subtle rounded-lg p-6">
           <h3 className="text-[14px] font-medium text-white mb-4">Pipeline Value</h3>
-          <MetricRow label="Total Pipeline Value" value="—" change={null} />
-          <MetricRow label="Avg Deal Size"         value="—" change={null} />
-          <MetricRow label="Deals in Progress"     value="—" change={null} />
-          <MetricRow label="Closed This Period"    value="—" change={null} />
-          <MetricRow label="Assignment Fees"       value="—" change={null} />
+          <MetricRow label="Total Pipeline Value" value={pipelineValue ? `$${Math.round(pipelineValue).toLocaleString()}` : '—'} change={null} />
+          <MetricRow label="Revenue Closed"        value={totalRevenue ? `$${Math.round(totalRevenue).toLocaleString()}` : '—'} change={null} />
+          <MetricRow label="Deals in Progress"     value={dealsInPipeline || '0'} change={null} />
+          <MetricRow label="Closed This Period"    value={dealsClosed || '0'} change={null} />
+          <MetricRow label="Title Workflows"       value={dashboard?.stats?.title_workflows || '0'} change={null} />
         </div>
       </div>
 

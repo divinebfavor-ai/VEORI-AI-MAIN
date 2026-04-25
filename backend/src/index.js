@@ -19,9 +19,12 @@ const callsRouter     = require('./routes/calls');
 const campaignsRouter = require('./routes/campaigns');
 const phonesRouter    = require('./routes/phones');
 const dealsRouter     = require('./routes/deals');
+const contractsRouter = require('./routes/contracts');
 const buyersRouter    = require('./routes/buyers');
 const analyticsRouter = require('./routes/analytics');
 const vapiRouter      = require('./routes/vapi');
+const followUpsRouter = require('./routes/followUps');
+const propertyPhotosRouter = require('./routes/propertyPhotos');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -79,9 +82,12 @@ app.use('/api/calls',     callsRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/phones',    phonesRouter);
 app.use('/api/deals',     dealsRouter);
+app.use('/api/contracts', contractsRouter);
 app.use('/api/buyers',    buyersRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/vapi',      vapiRouter);
+app.use('/api/follow-ups', followUpsRouter);
+app.use('/api/property-photos', propertyPhotosRouter);
 
 const operatorRouter     = require('./routes/operatorProfile');
 const titleCoRouter      = require('./routes/titleCompanies');

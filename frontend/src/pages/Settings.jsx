@@ -35,7 +35,28 @@ export default function Settings() {
   const [loading, setLoading]     = useState(false)
   const [persona, setPersona]     = useState({})
   const [bankAccounts, setBankAccounts] = useState([])
+  const [profileForm, setProfileForm] = useState({
+    full_name: '',
+    company_name: '',
+    email: '',
+    phone: '',
+  })
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  })
   const user = useAuthStore(s => s.user)
+  const updateUser = useAuthStore(s => s.updateUser)
+
+  useEffect(() => {
+    setProfileForm({
+      full_name: user?.full_name || '',
+      company_name: user?.company_name || '',
+      email: user?.email || '',
+      phone: user?.phone || '',
+    })
+  }, [user])
 
   useEffect(() => {
     if (tab === 'phones') {
@@ -57,6 +78,76 @@ export default function Settings() {
     if (s === 'healthy') return 'green'
     if (s === 'warning') return 'amber'
     return 'red'
+  }
+
+  const setProfile = (field) => (e) => {
+    setProfileForm(prev => ({ ...prev, [field]: e.target.value }))
+  }
+
+  const setPassword = (field) => (e) => {
+    setPasswordForm(prev => ({ ...prev, [field]: e.target.value }))
+  }
+
+  const saveProfile = async () => {
+    if (!profileForm.full_name.trim()) {
+      toast.error('Full name is required')
+      return
+    }
+
+    if (!profileForm.email.trim()) {
+      toast.error('Email is required')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const { data } = await operatorApi.updateProfile({
+        full_name: profileForm.full_name.trim(),
+        company_name: profileForm.company_name.trim(),
+        phone: profileForm.phone.trim(),
+      })
+
+      updateUser({
+        ...data?.profile,
+        email: profileForm.email.trim(),
+      })
+      toast.success('Profile saved')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to save profile')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updatePassword = async () => {
+    if (!passwordForm.current_password || !passwordForm.new_password || !passwordForm.confirm_password) {
+      toast.error('Fill in all password fields')
+      return
+    }
+
+    if (passwordForm.new_password.length < 8) {
+      toast.error('New password must be at least 8 characters')
+      return
+    }
+
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      toast.error('New passwords do not match')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await auth.changePassword({
+        current_password: passwordForm.current_password,
+        new_password: passwordForm.new_password,
+      })
+      setPasswordForm({ current_password: '', new_password: '', confirm_password: '' })
+      toast.success('Password updated')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update password')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -89,13 +180,13 @@ export default function Settings() {
               <Section title="Account Information" description="Your personal and business details">
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <Input label="Full Name" defaultValue={user?.full_name || ''} placeholder="John Smith" />
-                    <Input label="Company Name" defaultValue={user?.company_name || ''} placeholder="Smith Acquisitions" />
+                    <Input label="Full Name" value={profileForm.full_name} onChange={setProfile('full_name')} placeholder="John Smith" />
+                    <Input label="Company Name" value={profileForm.company_name} onChange={setProfile('company_name')} placeholder="Smith Acquisitions" />
                   </div>
-                  <Input label="Email" type="email" defaultValue={user?.email || ''} placeholder="you@company.com" />
-                  <Input label="Phone" type="tel" defaultValue={user?.phone || ''} placeholder="+1 (555) 000-0000" />
+                  <Input label="Email" type="email" value={profileForm.email} onChange={setProfile('email')} placeholder="you@company.com" disabled hint="Email changes are not yet available from Settings." />
+                  <Input label="Phone" type="tel" value={profileForm.phone} onChange={setProfile('phone')} placeholder="+1 (555) 000-0000" />
                   <div className="pt-2">
-                    <Button onClick={() => toast.success('Profile saved')}>Save Changes</Button>
+                    <Button onClick={saveProfile} loading={loading}>Save Changes</Button>
                   </div>
                 </div>
               </Section>
@@ -196,10 +287,10 @@ export default function Settings() {
           {tab === 'security' && (
             <Section title="Security" description="Password and account security">
               <div className="space-y-4">
-                <Input label="Current Password" type="password" placeholder="••••••••" />
-                <Input label="New Password" type="password" placeholder="••••••••" />
-                <Input label="Confirm New Password" type="password" placeholder="••••••••" />
-                <Button onClick={() => toast.success('Password updated')}>Update Password</Button>
+                <Input label="Current Password" type="password" value={passwordForm.current_password} onChange={setPassword('current_password')} placeholder="••••••••" />
+                <Input label="New Password" type="password" value={passwordForm.new_password} onChange={setPassword('new_password')} placeholder="••••••••" hint="Use at least 8 characters." />
+                <Input label="Confirm New Password" type="password" value={passwordForm.confirm_password} onChange={setPassword('confirm_password')} placeholder="••••••••" />
+                <Button onClick={updatePassword} loading={loading}>Update Password</Button>
               </div>
             </Section>
           )}

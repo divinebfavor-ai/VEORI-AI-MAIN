@@ -31,6 +31,8 @@ export default function SystemStatusBar() {
   const callsToday = stats?.calls_today ?? '—'
   const hotLeads   = stats?.hot_leads   ?? '—'
   const deals      = stats?.deals_under_contract ?? '—'
+  const pendingSigs = stats?.pending_signatures ?? '—'
+  const dueFollowUps = stats?.due_follow_ups ?? '—'
 
   const since = lastUpdate
     ? (() => {
@@ -44,7 +46,7 @@ export default function SystemStatusBar() {
   const isActive = liveCount > 0
 
   const sep = (
-    <span style={{ color: 'rgba(255,255,255,0.14)', fontSize: 11, userSelect: 'none' }}>·</span>
+    <span style={{ color: 'var(--t4)', fontSize: 11, userSelect: 'none', opacity: 0.5 }}>·</span>
   )
 
   return (
@@ -55,16 +57,17 @@ export default function SystemStatusBar() {
       gap: 8,
       paddingLeft: 'calc(240px + 16px)',
       paddingRight: 16,
-      background: 'rgba(255,255,255,0.015)',
+      background: 'var(--surface-bg)',
       backdropFilter: 'blur(12px)',
       WebkitBackdropFilter: 'blur(12px)',
-      borderBottom: '1px solid rgba(255,255,255,0.05)',
+      borderBottom: '1px solid var(--border)',
       flexShrink: 0,
       fontSize: 11,
       fontWeight: 500,
-      color: 'rgba(255,255,255,0.30)',
+      color: 'var(--t4)',
       letterSpacing: '0.04em',
       userSelect: 'none',
+      transition: 'background 0.3s ease, color 0.3s ease, border-color 0.3s ease',
     }}>
 
       {/* System state */}
@@ -74,11 +77,11 @@ export default function SystemStatusBar() {
           CALLING ACTIVE
         </span>
       ) : (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.30)' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--t4)' }}>
           <span style={{
             width: 5, height: 5, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.20)', flexShrink: 0,
-            display: 'inline-block',
+            background: 'var(--t4)', flexShrink: 0,
+            display: 'inline-block', opacity: 0.4,
           }} />
           IDLE — READY
         </span>
@@ -89,7 +92,7 @@ export default function SystemStatusBar() {
       {isActive && (
         <>
           <span>
-            <span style={{ color: 'rgba(255,255,255,0.80)' }}>{liveCount}</span>
+            <span style={{ color: 'var(--t1)', fontVariantNumeric: 'tabular-nums' }}>{liveCount}</span>
             {' '}live {liveCount === 1 ? 'line' : 'lines'}
           </span>
           {sep}
@@ -97,25 +100,37 @@ export default function SystemStatusBar() {
       )}
 
       <span>
-        <span style={{ color: 'rgba(255,255,255,0.65)', fontVariantNumeric: 'tabular-nums' }}>{callsToday}</span> calls today
+        <span style={{ color: 'var(--t2)', fontVariantNumeric: 'tabular-nums' }}>{callsToday}</span> calls today
       </span>
 
       {sep}
 
-      <span style={{ color: hotLeads > 0 ? '#C9A84C' : 'rgba(255,255,255,0.30)', fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ color: hotLeads > 0 ? '#C9A84C' : 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>
         {hotLeads} hot leads
       </span>
 
       {sep}
 
       <span>
-        <span style={{ color: 'rgba(255,255,255,0.65)', fontVariantNumeric: 'tabular-nums' }}>{deals}</span> under contract
+        <span style={{ color: 'var(--t2)', fontVariantNumeric: 'tabular-nums' }}>{deals}</span> under contract
+      </span>
+
+      {sep}
+
+      <span>
+        <span style={{ color: 'var(--t2)', fontVariantNumeric: 'tabular-nums' }}>{pendingSigs}</span> pending signatures
+      </span>
+
+      {sep}
+
+      <span style={{ color: Number(dueFollowUps) > 0 ? '#FF9500' : 'var(--t4)' }}>
+        {dueFollowUps} due follow-ups
       </span>
 
       {since && (
         <>
           {sep}
-          <span style={{ color: 'rgba(255,255,255,0.22)', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ color: 'var(--t4)', fontVariantNumeric: 'tabular-nums', opacity: 0.7 }}>
             updated {since}
           </span>
         </>
@@ -125,7 +140,7 @@ export default function SystemStatusBar() {
       <span style={{ flex: 1 }} />
 
       {/* System health — right */}
-      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.28)' }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--t4)' }}>
         <span style={{
           width: 5, height: 5, borderRadius: '50%',
           background: '#00C37A', flexShrink: 0,

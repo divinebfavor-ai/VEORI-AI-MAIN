@@ -11,12 +11,7 @@ export default function Layout() {
   useEffect(() => { init() }, [])
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{
-      background:
-        'radial-gradient(ellipse 80% 60% at 15% 10%, rgba(0,195,122,0.04) 0%, transparent 60%), ' +
-        'radial-gradient(ellipse 60% 40% at 85% 90%, rgba(201,168,76,0.03) 0%, transparent 50%), ' +
-        'radial-gradient(ellipse 100% 80% at 50% 50%, #050A14 0%, #000000 100%)',
-    }}>
+    <div className="app-bg flex flex-col h-screen overflow-hidden">
       <SystemStatusBar />
       <div className="flex flex-1 overflow-hidden">
         <CommandRail />

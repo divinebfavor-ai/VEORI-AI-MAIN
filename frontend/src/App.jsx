@@ -18,7 +18,9 @@ import Calculator from './pages/Calculator'
 import Compliance from './pages/Compliance'
 import Dialer from './pages/Dialer'
 import DealWorkspace from './pages/DealWorkspace'
+import DealPhotoGallery from './pages/DealPhotoGallery'
 import TitleCompanies from './pages/TitleCompanies'
+import ContractSigning from './pages/ContractSigning'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -38,6 +40,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/aria" element={<Aria />} />
+      <Route path="/sign/:token" element={<ContractSigning />} />
 
       {/* Protected */}
       <Route
@@ -59,6 +62,7 @@ export default function App() {
         <Route path="/compliance" element={<Compliance />} />
         <Route path="/dialer" element={<Dialer />} />
         <Route path="/deals/:id" element={<DealWorkspace />} />
+        <Route path="/deals/:id/photos" element={<DealPhotoGallery />} />
         <Route path="/title-companies" element={<TitleCompanies />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
