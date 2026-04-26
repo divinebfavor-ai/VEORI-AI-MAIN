@@ -121,12 +121,32 @@ function AddPhoneForm({ onAdd, onCancel }) {
 function PhoneTab({ phoneList, setPhoneList }) {
   const [planStatus, setPlanStatus] = useState(null)
   const [provisioning, setProvisioning] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [provisionForm, setProvisionForm] = useState({ area_code: '', friendly_name: '' })
   const [showProvision, setShowProvision] = useState(false)
 
   useEffect(() => {
     phones.getPlanStatus().then(r => setPlanStatus(r.data)).catch(() => {})
   }, [phoneList.length])
+
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      const { data } = await phones.syncFromVapi()
+      if (data.imported > 0) {
+        const fresh = await phones.getPhones()
+        const raw = fresh.data?.numbers ?? fresh.data?.data ?? fresh.data
+        setPhoneList(Array.isArray(raw) ? raw : [])
+        toast.success(`Synced ${data.imported} number${data.imported > 1 ? 's' : ''} from Vapi`)
+      } else {
+        toast.success('All Vapi numbers already in Veori')
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const handleProvision = async () => {
     setProvisioning(true)
@@ -212,8 +232,11 @@ function PhoneTab({ phoneList, setPhoneList }) {
           >
             <Plus size={14} /> Get a Number
           </Button>
-          <Button variant="secondary" onClick={() => setShowProvision('manual')}>
-            <Plus size={14} /> Add Existing Number
+          <Button variant="secondary" loading={syncing} onClick={handleSync}>
+            Sync from Vapi
+          </Button>
+          <Button variant="ghost" onClick={() => setShowProvision('manual')}>
+            <Plus size={14} /> Add Manually
           </Button>
         </div>
       ) : showProvision === 'manual' ? (

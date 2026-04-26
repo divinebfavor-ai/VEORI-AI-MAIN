@@ -91,6 +91,7 @@ export const phones = {
   getPlanStatus:  ()             => api.get('/api/phones/plan-status'),
   addPhone:       (data)         => api.post('/api/phones', data),
   provision:      (area_code, friendly_name) => api.post('/api/phones/provision', { area_code, friendly_name }),
+  syncFromVapi:   ()             => api.post('/api/phones/sync-vapi'),
   updatePhone:    (id, data)     => api.put(`/api/phones/${id}`, data),
   deletePhone:    (id)           => api.delete(`/api/phones/${id}`),
   bulkAddPhones:  (numbers)      => api.post('/api/phones/bulk', { numbers }),

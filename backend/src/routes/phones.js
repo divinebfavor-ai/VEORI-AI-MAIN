@@ -29,13 +29,21 @@ router.post('/provision', async (req, res, next) => {
     const vapiKey = process.env.VAPI_API_KEY;
     if (!vapiKey) return res.status(500).json({ success: false, error: 'Vapi API key not configured' });
 
+    // Build inbound webhook URL — Railway sets RAILWAY_PUBLIC_DOMAIN automatically
+    const webhookUrl = process.env.VAPI_WEBHOOK_URL
+      || (process.env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/vapi/webhook`
+        : null);
+
     let vapiNumber;
     try {
       const vapiRes = await axios.post('https://api.vapi.ai/phone-number', {
         provider: 'twilio',
         areaCode: area_code || '415',
-        name: friendly_name || `Veori Number ${Date.now()}`,
-        assistantId: process.env.VAPI_ASSISTANT_ID || undefined,
+        name: friendly_name || `Veori #${Date.now()}`,
+        // serverUrl wires inbound calls to our webhook so sellers calling back get Alex
+        ...(webhookUrl ? { serverUrl: webhookUrl } : {}),
+        ...(process.env.VAPI_WEBHOOK_SECRET ? { serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET } : {}),
       }, {
         headers: { Authorization: `Bearer ${vapiKey}`, 'Content-Type': 'application/json' },
         timeout: 30000,
@@ -72,6 +80,58 @@ router.get('/plan-status', async (req, res, next) => {
     const limit = PLAN_LIMITS[tier] || 1;
     const { count } = await supabase.from('phone_numbers').select('*', { count: 'exact', head: true }).eq('user_id', req.user.id);
     res.json({ success: true, tier, used: count || 0, limit, can_provision: (count || 0) < limit });
+  } catch (err) { next(err); }
+});
+
+// POST /api/phones/sync-vapi — import all numbers from Vapi account into Veori
+router.post('/sync-vapi', async (req, res, next) => {
+  try {
+    const vapiKey = process.env.VAPI_API_KEY;
+    if (!vapiKey) return res.status(500).json({ success: false, error: 'Vapi API key not configured' });
+
+    // Fetch all numbers from Vapi
+    const { data: vapiNumbers } = await axios.get('https://api.vapi.ai/phone-number', {
+      headers: { Authorization: `Bearer ${vapiKey}` },
+      timeout: 15000,
+    });
+    const numbers = Array.isArray(vapiNumbers) ? vapiNumbers : (vapiNumbers?.results || []);
+
+    // Get already-imported Vapi IDs for this user
+    const { data: existing } = await supabase.from('phone_numbers').select('vapi_phone_number_id').eq('user_id', req.user.id);
+    const existingIds = new Set((existing || []).map(p => p.vapi_phone_number_id).filter(Boolean));
+
+    const webhookUrl = process.env.VAPI_WEBHOOK_URL
+      || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/vapi/webhook` : null);
+
+    const toImport = numbers.filter(n => n.id && !existingIds.has(n.id));
+    if (!toImport.length) return res.json({ success: true, imported: 0, message: 'All Vapi numbers already synced' });
+
+    // Wire inbound webhook on each number in Vapi if not already set
+    if (webhookUrl) {
+      await Promise.all(toImport.map(n =>
+        axios.patch(`https://api.vapi.ai/phone-number/${n.id}`, { serverUrl: webhookUrl }, {
+          headers: { Authorization: `Bearer ${vapiKey}` },
+          timeout: 10000,
+        }).catch(() => {})
+      ));
+    }
+
+    const records = toImport.map(n => ({
+      id: uuidv4(),
+      user_id: req.user.id,
+      number: n.number,
+      friendly_name: n.name || n.number,
+      area_code: n.number?.replace(/\D/g, '').slice(1, 4) || null,
+      vapi_phone_number_id: n.id,
+      health_status: 'healthy',
+      is_active: true,
+      daily_call_limit: 50,
+    }));
+
+    const { data: inserted, error } = await supabase.from('phone_numbers').insert(records).select();
+    if (error) throw error;
+
+    res.json({ success: true, imported: inserted.length, numbers: inserted });
   } catch (err) { next(err); }
 });
 
