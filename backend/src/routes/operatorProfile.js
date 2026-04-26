@@ -84,4 +84,48 @@ router.delete('/bank-accounts/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// PUT /api/operator/preferences  — theme, dark mode, contextual tips
+router.put('/preferences', requireAuth, async (req, res, next) => {
+  try {
+    const allowed = ['theme', 'dark_mode', 'contextual_tips_enabled', 'notification_preferences', 'tfa_enabled'];
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase.from('users').update(updates).eq('id', req.user.id).select(
+      'theme, dark_mode, contextual_tips_enabled, tfa_enabled'
+    ).single();
+    if (error) throw error;
+    res.json({ success: true, preferences: data });
+  } catch (err) { next(err); }
+});
+
+// GET /api/operator/preferences
+router.get('/preferences', requireAuth, async (req, res, next) => {
+  try {
+    const { data, error } = await supabase.from('users')
+      .select('theme, dark_mode, contextual_tips_enabled, tfa_enabled, notification_preferences')
+      .eq('id', req.user.id)
+      .single();
+    if (error) throw error;
+    res.json({ success: true, preferences: data });
+  } catch (err) { next(err); }
+});
+
+// GET /api/operator/activity  — real AI action log for Command Center
+router.get('/activity', requireAuth, async (req, res, next) => {
+  try {
+    const { limit = 20, offset = 0 } = req.query;
+    const { data, error } = await supabase.from('ai_command_log')
+      .select('log_id, action_type, contact_name, message_sent, outcome, created_at, deal_id')
+      .eq('operator_id', req.user.id)
+      .order('created_at', { ascending: false })
+      .range(Number(offset), Number(offset) + Number(limit) - 1);
+    if (error) throw error;
+    res.json({ success: true, activity: data || [] });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

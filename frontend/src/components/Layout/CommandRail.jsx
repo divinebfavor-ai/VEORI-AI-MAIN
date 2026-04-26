@@ -1,14 +1,15 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Radio,
   Columns, Briefcase, BarChart2, Settings, LogOut,
   Calculator, Shield, Phone, Building2,
-  Sun, Moon, MessageSquare, Headphones,
+  Sun, Moon, MessageSquare, BookOpen, Store, Bell,
 } from 'lucide-react'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
 import useAuthStore from '../../store/authStore'
 import useThemeStore from '../../store/themeStore'
+import { notifications as notifApi } from '../../services/api'
 
 const NAV = [
   { to: '/dashboard',   icon: LayoutDashboard, label: 'Command Center' },
@@ -21,8 +22,78 @@ const NAV = [
   { to: '/dialer',      icon: Phone,           label: 'Dialer' },
   { to: '/calculator',  icon: Calculator,      label: 'Calculator' },
   { to: '/compliance',  icon: Shield,          label: 'Compliance' },
+  { to: '/academy',     icon: BookOpen,        label: 'Academy' },
+  { to: '/marketplace', icon: Store,           label: 'Marketplace' },
   { to: '/aria',        icon: MessageSquare,   label: 'Aria AI' },
 ]
+
+// ─── Notifications dropdown ───────────────────────────────────────────────────
+function NotifDropdown({ open, onClose }) {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    notifApi.getAll({ limit: 10, offset: 0 })
+      .then(r => setItems(r.data?.notifications || []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false))
+  }, [open])
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open, onClose])
+
+  const markAll = async () => {
+    await notifApi.markAllRead().catch(() => {})
+    setItems(prev => prev.map(n => ({ ...n, is_read: true })))
+  }
+
+  if (!open) return null
+
+  return (
+    <div ref={ref} style={{
+      position: 'absolute', left: '100%', top: 0, marginLeft: 8,
+      width: 320, maxHeight: 420,
+      background: 'var(--card-bg)', border: '1px solid var(--border)',
+      borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.40)',
+      overflow: 'hidden', display: 'flex', flexDirection: 'column',
+      zIndex: 100,
+    }}>
+      <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>Notifications</span>
+        <button onClick={markAll} style={{ fontSize: 11, color: '#00C37A', background: 'none', border: 'none', cursor: 'pointer' }}>
+          Mark all read
+        </button>
+      </div>
+      <div style={{ overflowY: 'auto', flex: 1 }} className="scrollbar-hide">
+        {loading ? (
+          <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--t4)' }}>Loading…</div>
+        ) : items.length === 0 ? (
+          <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--t4)' }}>No notifications yet.</div>
+        ) : items.map(n => (
+          <div key={n.notification_id} style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid var(--border)',
+            background: n.is_read ? 'transparent' : 'rgba(0,195,122,0.04)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              {!n.is_read && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#00C37A', marginTop: 5, flexShrink: 0 }} />}
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--t1)', marginBottom: 2 }}>{n.title}</p>
+                <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.4 }}>{n.message}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function NavItem({ to, icon: Icon, label, liveBadge }) {
   const [hov, setHov] = useState(false)
@@ -81,6 +152,18 @@ export default function CommandRail() {
   const { theme, toggleTheme } = useThemeStore()
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const notifRef = useRef(null)
+
+  useEffect(() => {
+    const load = () => {
+      notifApi.getUnreadCount().then(r => setUnreadCount(r.data?.count || 0)).catch(() => {})
+    }
+    load()
+    const t = setInterval(load, 30000)
+    return () => clearInterval(t)
+  }, [])
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -135,9 +218,44 @@ export default function CommandRail() {
       </nav>
 
       {/* Bottom */}
-      <div style={{ borderTop: '1px solid var(--sidebar-border)', padding: '12px 0 8px' }}>
+      <div style={{ borderTop: '1px solid var(--sidebar-border)', padding: '12px 0 8px', position: 'relative' }}>
         {/* Settings */}
         <NavItem to="/settings" icon={Settings} label="Settings" />
+
+        {/* Notifications */}
+        <div ref={notifRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setNotifOpen(v => !v)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+              height: 44, padding: '0 18px',
+              background: notifOpen ? 'var(--surface-bg-3)' : 'none',
+              border: 'none', cursor: 'pointer',
+              transition: 'background 0.15s ease',
+              position: 'relative',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-bg-3)'}
+            onMouseLeave={e => e.currentTarget.style.background = notifOpen ? 'var(--surface-bg-3)' : 'none'}
+          >
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <Bell size={16} strokeWidth={1.6} style={{ color: 'var(--t4)' }} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -5,
+                  minWidth: 14, height: 14, borderRadius: 7,
+                  background: '#00C37A', color: '#000',
+                  fontSize: 9, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 3px',
+                }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: 13, color: 'var(--t3)' }}>Notifications</span>
+          </button>
+          <NotifDropdown open={notifOpen} onClose={() => setNotifOpen(false)} />
+        </div>
 
         {/* Theme toggle */}
         <button

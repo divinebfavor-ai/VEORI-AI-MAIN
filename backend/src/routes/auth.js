@@ -9,6 +9,14 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'veori-ai-secret-change-in-production';
 
+function validatePasswordStrength(password) {
+  if (!password || password.length < 12) return 'Password must be at least 12 characters';
+  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
+  if (!/[0-9]/.test(password)) return 'Password must contain at least one number';
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Password must contain at least one special character';
+  return null;
+}
+
 // ─── Register ─────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res, next) => {
   try {
@@ -16,6 +24,9 @@ router.post('/register', async (req, res, next) => {
     if (!email || !password || !full_name) {
       return res.status(400).json({ success: false, error: 'email, password and full_name required' });
     }
+
+    const pwError = validatePasswordStrength(password);
+    if (pwError) return res.status(400).json({ success: false, error: pwError });
 
     const hash = await bcrypt.hash(password, 12);
     const { data, error } = await supabase
@@ -79,9 +90,8 @@ router.put('/password', requireAuth, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'current_password and new_password required' });
     }
 
-    if (String(new_password).length < 8) {
-      return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
-    }
+    const pwError = validatePasswordStrength(new_password);
+    if (pwError) return res.status(400).json({ success: false, error: pwError });
 
     const { data: user, error: fetchError } = await supabase
       .from('users')

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { Link } from 'react-router-dom'
-import { Phone, Flame, Briefcase, DollarSign, ArrowRight, Clock3, FileSignature, AlertTriangle } from 'lucide-react'
+import { Phone, Flame, Briefcase, DollarSign, ArrowRight, Clock3, FileSignature, AlertTriangle, Zap, CheckCircle, X } from 'lucide-react'
 import Badge from '../components/ui/Badge'
-import { analytics } from '../services/api'
+import { analytics, preferences as prefsApi } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
 import useAuthStore from '../store/authStore'
 import useIntelStore from '../store/intelStore'
@@ -79,6 +79,162 @@ function StatCard({ label, value, icon: Icon, accent, sub, loading }) {
   )
 }
 
+// ─── Onboarding checklist ─────────────────────────────────────────────────────
+const CHECKLIST = [
+  { key: 'profile',   label: 'Complete your operator profile',    to: '/settings' },
+  { key: 'phone',     label: 'Add a Vapi phone number',           to: '/settings' },
+  { key: 'lead',      label: 'Import your first lead',            to: '/leads' },
+  { key: 'campaign',  label: 'Launch your first campaign',        to: '/campaigns' },
+  { key: 'buyer',     label: 'Add a cash buyer',                  to: '/buyers' },
+]
+
+function OnboardingChecklist({ onDismiss }) {
+  const [checked, setChecked] = useState({})
+  const allDone = CHECKLIST.every(c => checked[c.key])
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 24, right: 24, zIndex: 200,
+      width: 340,
+      background: 'var(--card-bg)',
+      border: '1px solid var(--border)',
+      borderRadius: 16,
+      boxShadow: '0 20px 60px rgba(0,0,0,0.50)',
+      overflow: 'hidden',
+    }}>
+      <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Zap size={14} style={{ color: '#C9A84C' }} strokeWidth={1.8} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>Getting Started</span>
+        </div>
+        <button onClick={onDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t4)', padding: 2, display: 'flex' }}>
+          <X size={14} />
+        </button>
+      </div>
+      <div style={{ padding: '12px 18px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {CHECKLIST.map(item => (
+          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={() => setChecked(p => ({ ...p, [item.key]: !p[item.key] }))}
+              style={{
+                width: 18, height: 18, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0,
+                background: checked[item.key] ? '#00C37A' : 'var(--surface-bg-3)',
+                border: `1px solid ${checked[item.key] ? '#00C37A' : 'var(--border)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease',
+              }}
+            >
+              {checked[item.key] && <CheckCircle size={11} style={{ color: '#000' }} />}
+            </button>
+            <Link to={item.to} style={{
+              fontSize: 12, color: checked[item.key] ? 'var(--t4)' : 'var(--t2)',
+              textDecoration: checked[item.key] ? 'line-through' : 'none',
+              flex: 1, transition: 'all 0.2s ease',
+            }}>
+              {item.label}
+            </Link>
+          </div>
+        ))}
+        {allDone && (
+          <button onClick={onDismiss} style={{
+            marginTop: 6, width: '100%', padding: '8px 0', borderRadius: 10,
+            background: '#00C37A', color: '#000', border: 'none', cursor: 'pointer',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.03em',
+          }}>
+            You're all set — dismiss
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── AI Command Log panel ─────────────────────────────────────────────────────
+function AICommandLog() {
+  const [log, setLog] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(() => {
+    prefsApi.activity({ limit: 20 })
+      .then(r => setLog(r.data?.activity || []))
+      .catch(() => setLog([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 15000)
+    return () => clearInterval(t)
+  }, [load])
+
+  const iconFor = (type) => {
+    if (!type) return '⚡'
+    if (type.includes('call'))     return '📞'
+    if (type.includes('sms'))      return '💬'
+    if (type.includes('contract')) return '📄'
+    if (type.includes('qualify'))  return '🎯'
+    if (type.includes('brief'))    return '📋'
+    if (type.includes('title'))    return '🏠'
+    if (type.includes('follow'))   return '🔁'
+    return '⚡'
+  }
+
+  return (
+    <div style={{ borderRadius: 16, marginTop: 16, background: 'var(--card-bg)', border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+        <Zap size={14} style={{ color: '#C9A84C' }} strokeWidth={1.8} />
+        <h2 style={{ fontSize: 14, fontWeight: 500, color: 'var(--t1)', margin: 0 }}>AI Command Log</h2>
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--t4)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          Live · refreshes every 15s
+        </span>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[1, 2, 3].map(i => (
+            <div key={i} style={{ height: 42, borderRadius: 8, background: 'var(--surface-bg)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          ))}
+        </div>
+      ) : log.length === 0 ? (
+        <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+          <p style={{ fontSize: 13, color: 'var(--t4)', margin: 0 }}>No AI actions recorded yet. Start a campaign to see the command log populate.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
+          {log.map((entry, i) => (
+            <div key={entry.log_id || i} style={{
+              padding: '12px 18px',
+              borderBottom: '1px solid var(--border)',
+              borderRight: i % 2 === 0 ? '1px solid var(--border)' : 'none',
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}>
+              <span style={{ fontSize: 16, lineHeight: 1, marginTop: 2, flexShrink: 0 }}>{iconFor(entry.action_type)}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--t2)', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {entry.summary || String(entry.action_type || '').replace(/_/g, ' ')}
+                </p>
+                <p style={{ fontSize: 10, color: 'var(--t4)', margin: 0 }}>
+                  {entry.model ? `${entry.model} · ` : ''}
+                  {entry.created_at ? formatDistanceToNow(new Date(entry.created_at), { addSuffix: true }) : '—'}
+                </p>
+              </div>
+              {entry.status && (
+                <span style={{
+                  fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 20,
+                  background: entry.status === 'success' ? 'rgba(0,195,122,0.10)' : 'rgba(255,68,68,0.10)',
+                  color: entry.status === 'success' ? '#00C37A' : '#FF4444',
+                  flexShrink: 0,
+                }}>
+                  {entry.status}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Command Center ───────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [stats, setStats]             = useState(null)
@@ -88,9 +244,15 @@ export default function Dashboard() {
   const [pendingContracts, setPendingContracts] = useState([])
   const [titleRisks, setTitleRisks] = useState([])
   const [loading, setLoading]         = useState(true)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const { calls: liveCalls }          = useLiveCalls()
   const user    = useAuthStore(s => s.user)
   const setIntel = useIntelStore(s => s.setIntel)
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem('veori_onboarding_dismissed')
+    if (!dismissed) setShowOnboarding(true)
+  }, [])
 
   useEffect(() => {
     analytics.getDashboard().then(r => {
@@ -369,6 +531,17 @@ export default function Dashboard() {
           })}
         </div>
       </div>
+
+      {/* ── AI Command Log ────────────────────────────────────────────────── */}
+      <AICommandLog />
+
+      {/* ── Onboarding Checklist (first login) ───────────────────────────── */}
+      {showOnboarding && (
+        <OnboardingChecklist onDismiss={() => {
+          localStorage.setItem('veori_onboarding_dismissed', '1')
+          setShowOnboarding(false)
+        }} />
+      )}
     </div>
   )
 }

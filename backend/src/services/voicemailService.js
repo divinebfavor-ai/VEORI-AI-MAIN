@@ -81,7 +81,7 @@ ${vmMessage}`,
       recordingEnabled: true,
       // Voicemail detection: speak message, then hang up immediately after greeting
       voicemailDetection: {
-        provider: 'twilio',
+        provider: 'vapi',
         voicemailDetectionTypes: ['machine_end_beep', 'machine_end_silence'],
         enabled: true,
         machineDetectionTimeout: 30,

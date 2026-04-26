@@ -150,4 +150,192 @@ router.get('/revenue', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── Extended analytics endpoints for Phase 6 dashboard ─────────────────────
+
+// GET /api/analytics/kpis
+router.get('/kpis', async (req, res, next) => {
+  try {
+    const uid = req.user.id;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+
+    const [leads, activeDeals, closedThisMonth, prevClosed, fees, prevFees] = await Promise.all([
+      supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', uid),
+      supabase.from('deals').select('deal_id', { count: 'exact', head: true }).eq('operator_id', uid).eq('status', 'active'),
+      supabase.from('deals').select('deal_id', { count: 'exact', head: true }).eq('operator_id', uid).eq('stage', 'closed').gte('closed_at', monthStart),
+      supabase.from('deals').select('deal_id', { count: 'exact', head: true }).eq('operator_id', uid).eq('stage', 'closed').gte('closed_at', prevMonthStart).lt('closed_at', monthStart),
+      supabase.from('deals').select('assignment_fee').eq('operator_id', uid).eq('stage', 'closed').gte('closed_at', monthStart),
+      supabase.from('deals').select('assignment_fee').eq('operator_id', uid).eq('stage', 'closed').gte('closed_at', prevMonthStart).lt('closed_at', monthStart),
+    ]);
+
+    const totalFees = (fees.data || []).reduce((s, d) => s + (d.assignment_fee || 0), 0);
+    const prevTotalFees = (prevFees.data || []).reduce((s, d) => s + (d.assignment_fee || 0), 0);
+    const closedDelta = (closedThisMonth.count || 0) - (prevClosed.count || 0);
+    const feesDelta = totalFees - prevTotalFees;
+
+    res.json({
+      success: true,
+      kpis: {
+        total_leads: leads.count || 0,
+        active_deals: activeDeals.count || 0,
+        closed_this_month: closedThisMonth.count || 0,
+        closed_delta: closedDelta,
+        total_assignment_fees: totalFees,
+        fees_delta: feesDelta,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/analytics/deal-flow-by-month
+router.get('/deal-flow-by-month', async (req, res, next) => {
+  try {
+    const uid = req.user.id;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const { data: deals } = await supabase.from('deals')
+      .select('created_at, closed_at, stage')
+      .eq('operator_id', uid)
+      .gte('created_at', `${year}-01-01`)
+      .lte('created_at', `${year}-12-31`);
+
+    const months = Array.from({ length: 12 }, (_, i) => ({
+      month: new Date(year, i).toLocaleString('default', { month: 'short' }),
+      total: 0,
+      closed: 0,
+    }));
+
+    (deals || []).forEach(d => {
+      const m = new Date(d.created_at).getMonth();
+      months[m].total++;
+      if (d.stage === 'closed') months[m].closed++;
+    });
+
+    res.json({ success: true, data: months, year });
+  } catch (err) { next(err); }
+});
+
+// GET /api/analytics/performance-by-state
+router.get('/performance-by-state', async (req, res, next) => {
+  try {
+    const uid = req.user.id;
+    const { data: deals } = await supabase.from('deals').select('state, stage, assignment_fee, created_at').eq('operator_id', uid);
+    const { data: leads } = await supabase.from('leads').select('property_state').eq('user_id', uid);
+
+    const stateMap = {};
+    (leads || []).forEach(l => {
+      if (!l.property_state) return;
+      if (!stateMap[l.property_state]) stateMap[l.property_state] = { state: l.property_state, leads: 0, active_deals: 0, closings: 0, assignment_fees: 0 };
+      stateMap[l.property_state].leads++;
+    });
+
+    (deals || []).forEach(d => {
+      if (!d.state) return;
+      if (!stateMap[d.state]) stateMap[d.state] = { state: d.state, leads: 0, active_deals: 0, closings: 0, assignment_fees: 0 };
+      if (d.stage !== 'closed') stateMap[d.state].active_deals++;
+      if (d.stage === 'closed') { stateMap[d.state].closings++; stateMap[d.state].assignment_fees += d.assignment_fee || 0; }
+    });
+
+    const stateData = Object.values(stateMap).sort((a, b) => b.closings - a.closings);
+    res.json({ success: true, data: stateData, top5: stateData.slice(0, 5) });
+  } catch (err) { next(err); }
+});
+
+// GET /api/analytics/seller-segments
+router.get('/seller-segments', async (req, res, next) => {
+  try {
+    const uid = req.user.id;
+    const { data } = await supabase.from('sellers').select('motivation_type').eq('operator_id', uid);
+    const segments = {};
+    (data || []).forEach(s => {
+      const t = s.motivation_type || 'other';
+      segments[t] = (segments[t] || 0) + 1;
+    });
+    const result = Object.entries(segments).map(([type, count]) => ({ type, count }));
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
+// GET /api/analytics/deal-types
+router.get('/deal-types', async (req, res, next) => {
+  try {
+    const uid = req.user.id;
+    const { data } = await supabase.from('deals').select('deal_type, assignment_fee').eq('operator_id', uid);
+    const types = {};
+    (data || []).forEach(d => {
+      const t = d.deal_type || 'assignment';
+      if (!types[t]) types[t] = { type: t, count: 0, total_fees: 0 };
+      types[t].count++;
+      types[t].total_fees += d.assignment_fee || 0;
+    });
+    const total = Object.values(types).reduce((s, t) => s + t.count, 0);
+    const result = Object.values(types).map(t => ({ ...t, percentage: total > 0 ? Math.round((t.count / total) * 100) : 0 }));
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
+// GET /api/analytics/regional-performance
+router.get('/regional-performance', async (req, res, next) => {
+  try {
+    const uid = req.user.id;
+    const { data: deals } = await supabase.from('deals').select('state, deal_type, assignment_fee, stage').eq('operator_id', uid);
+
+    const regions = {
+      East:    { states: ['ME','NH','VT','MA','RI','CT','NY','NJ','PA','DE','MD','VA','WV','NC','SC','GA','FL'], deals: 0, closed: 0, fees: 0 },
+      West:    { states: ['WA','OR','CA','NV','ID','MT','WY','UT','CO','AZ','NM','AK','HI'], deals: 0, closed: 0, fees: 0 },
+      Central: { states: ['ND','SD','NE','KS','MN','IA','MO','WI','IL','MI','IN','OH'], deals: 0, closed: 0, fees: 0 },
+      South:   { states: ['TX','OK','AR','LA','MS','AL','TN','KY'], deals: 0, closed: 0, fees: 0 },
+    };
+
+    (deals || []).forEach(d => {
+      for (const [region, data] of Object.entries(regions)) {
+        if (data.states.includes(d.state)) {
+          data.deals++;
+          if (d.stage === 'closed') { data.closed++; data.fees += d.assignment_fee || 0; }
+          break;
+        }
+      }
+    });
+
+    const result = Object.entries(regions).map(([name, data]) => ({
+      region: name,
+      total_deals: data.deals,
+      closed: data.closed,
+      assignment_fees: data.fees,
+    }));
+
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
+// GET /api/analytics/ai-insights — Claude Sonnet 4.6 generated insights
+router.get('/ai-insights', async (req, res, next) => {
+  try {
+    const uid = req.user.id;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const [kpisRes, statesRes, alertsRes] = await Promise.all([
+      supabase.from('deals').select('stage, assignment_fee, state, created_at').eq('operator_id', uid).gte('created_at', monthStart),
+      supabase.from('market_intelligence').select('state, avg_motivation_score, trend_direction, trend_percentage').order('trend_percentage', { ascending: false }).limit(5),
+      supabase.from('notifications').select('message').eq('operator_id', uid).eq('is_read', false).order('created_at', { ascending: false }).limit(5),
+    ]);
+
+    const { generateAnalyticsInsights } = require('../services/dualAIService');
+    const insights = await generateAnalyticsInsights({
+      kpis: {
+        deals_this_month: (kpisRes.data || []).length,
+        closed_this_month: (kpisRes.data || []).filter(d => d.stage === 'closed').length,
+        total_fees: (kpisRes.data || []).reduce((s, d) => s + (d.assignment_fee || 0), 0),
+      },
+      topStates: statesRes.data || [],
+      recentDeals: kpisRes.data || [],
+      marketAlerts: alertsRes.data || [],
+    }).catch(() => ['📊 Connect more deals to generate AI insights.']);
+
+    res.json({ success: true, insights, generated_at: new Date().toISOString() });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

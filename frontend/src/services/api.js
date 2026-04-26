@@ -180,4 +180,52 @@ export const propertyPhotos = {
   getByDeal:(dealId) => api.get(`/api/property-photos/get_property_photos_for_buyer/${dealId}`),
 }
 
+// ─── Operator preferences ─────────────────────────────────────────────────────
+export const preferences = {
+  get:    ()       => api.get('/api/operator/preferences'),
+  update: (data)   => api.put('/api/operator/preferences', data),
+  activity: (p)    => api.get('/api/operator/activity', { params: p }),
+}
+
+// ─── Conversations ────────────────────────────────────────────────────────────
+export const conversations = {
+  sendSms:       (data)    => api.post('/api/conversations/send-sms', data),
+  handleReply:   (data)    => api.post('/api/conversations/handle-reply', data),
+  scheduleCall:  (data)    => api.post('/api/conversations/schedule-call', data),
+  getByDeal:     (dealId)  => api.get(`/api/conversations/${dealId}`),
+}
+
+// ─── Academy ─────────────────────────────────────────────────────────────────
+export const academy = {
+  getLessons:      ()              => api.get('/api/academy/lessons'),
+  getProgress:     (userId)        => api.get(`/api/academy/progress/${userId}`),
+  completeLesson:  (data)          => api.post('/api/academy/complete-lesson', data),
+  getGlossary:     ()              => api.get('/api/academy/glossary'),
+}
+
+// ─── Waitlist ─────────────────────────────────────────────────────────────────
+export const waitlist = {
+  join:  (data) => api.post('/api/waitlist/veori-credits', data),
+  count: ()     => api.get('/api/waitlist/count'),
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+export const notifications = {
+  getAll:      (params) => api.get('/api/notifications', { params }),
+  markRead:    (id)     => api.put(`/api/notifications/${id}/read`),
+  markAllRead: ()       => api.put('/api/notifications/read-all'),
+  getUnreadCount: ()    => api.get('/api/notifications/unread-count'),
+}
+
+// ─── Analytics (extended) ─────────────────────────────────────────────────────
+export const analyticsExtended = {
+  kpis:               (params) => api.get('/api/analytics/kpis', { params }),
+  dealFlowByMonth:    (params) => api.get('/api/analytics/deal-flow-by-month', { params }),
+  performanceByState: (params) => api.get('/api/analytics/performance-by-state', { params }),
+  sellerSegments:     (params) => api.get('/api/analytics/seller-segments', { params }),
+  dealTypes:          (params) => api.get('/api/analytics/deal-types', { params }),
+  regionalPerformance:(params) => api.get('/api/analytics/regional-performance', { params }),
+  aiInsights:         ()       => api.get('/api/analytics/ai-insights'),
+}
+
 export default api

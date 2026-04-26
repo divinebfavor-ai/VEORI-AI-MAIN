@@ -242,11 +242,13 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
     serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET,
   };
 
-  // Phone number: use VAPI_PHONE_NUMBER_ID if set, otherwise use Twilio number
+  // Phone number: use VAPI_PHONE_NUMBER_ID if set, otherwise use Vapi-managed number
   if (process.env.VAPI_PHONE_NUMBER_ID) {
     payload.phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
+  } else if (phoneNumber?.vapi_phone_number_id) {
+    payload.phoneNumberId = phoneNumber.vapi_phone_number_id;
   } else if (phoneNumber?.number) {
-    payload.phoneNumber = { twilioPhoneNumber: phoneNumber.number };
+    payload.phoneNumber = { number: phoneNumber.number };
   }
 
   const { data } = await vapiHttp.post('/call/phone', payload);

@@ -21,6 +21,8 @@ import DealWorkspace from './pages/DealWorkspace'
 import DealPhotoGallery from './pages/DealPhotoGallery'
 import TitleCompanies from './pages/TitleCompanies'
 import ContractSigning from './pages/ContractSigning'
+import Academy from './pages/Academy'
+import Marketplace from './pages/Marketplace'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -64,6 +66,8 @@ export default function App() {
         <Route path="/deals/:id" element={<DealWorkspace />} />
         <Route path="/deals/:id/photos" element={<DealPhotoGallery />} />
         <Route path="/title-companies" element={<TitleCompanies />} />
+        <Route path="/academy" element={<Academy />} />
+        <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 

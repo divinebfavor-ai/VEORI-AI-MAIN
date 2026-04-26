@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+import useThemeStore from './store/themeStore'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -12,6 +13,20 @@ const queryClient = new QueryClient({
     queries: { retry: 1, staleTime: 30000 }
   }
 })
+
+// Apply theme immediately before first render to avoid flash
+const themeState = useThemeStore.getState()
+const hasStoredTheme = localStorage.getItem('veori-theme')
+if (!hasStoredTheme) {
+  themeState.detectOSPreference()
+} else {
+  themeState.init()
+}
+
+// Sync from DB after auth is available (non-blocking)
+if (localStorage.getItem('veori_token')) {
+  themeState.syncFromDB()
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <ErrorBoundary>

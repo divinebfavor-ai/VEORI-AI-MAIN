@@ -204,6 +204,128 @@ router.post('/:id/voicemail', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/leads/ingest — structured lead ingestion with all required fields
+router.post('/ingest', async (req, res, next) => {
+  try {
+    const {
+      name, phone, email, property_address, motivation_type,
+      price_range_min, price_range_max, timeline, contact_preference,
+      lead_source, target_area, notes
+    } = req.body;
+
+    if (!phone) return res.status(400).json({ success: false, error: 'phone required' });
+
+    // DNC check
+    const { data: dnc } = await supabase.from('dnc_records').select('id').eq('phone', phone).single();
+    if (dnc) return res.status(400).json({ success: false, error: 'This number is on the DNC list' });
+
+    const nameParts = (name || '').split(' ');
+    const first_name = nameParts[0] || '';
+    const last_name  = nameParts.slice(1).join(' ') || '';
+
+    const { data: seller, error } = await supabase.from('sellers').insert({
+      name: name || `${first_name} ${last_name}`.trim(),
+      phone,
+      email: email || null,
+      property_address: property_address || target_area || null,
+      motivation_type: motivation_type || 'other',
+      price_range_min: price_range_min || null,
+      price_range_max: price_range_max || null,
+      timeline: timeline || null,
+      contact_preference: contact_preference || 'sms',
+      lead_source: lead_source || 'manual',
+      operator_id: req.user.id,
+    }).select().single();
+
+    if (error) throw error;
+
+    // Also create a lead record
+    await supabase.from('leads').insert({
+      id: uuidv4(),
+      user_id: req.user.id,
+      first_name, last_name, phone, email: email || null,
+      property_address: property_address || target_area || null,
+      source: lead_source || 'ingest',
+      status: 'new',
+      motivation_type: motivation_type || 'other',
+    });
+
+    // Log the ingestion
+    await supabase.from('ai_command_log').insert({
+      contact_name: name,
+      action_type: 'lead_ingested',
+      message_sent: `New ${motivation_type || 'other'} seller lead ingested: ${property_address || phone}`,
+      outcome: 'success',
+      operator_id: req.user.id,
+    });
+
+    res.status(201).json({ success: true, seller });
+  } catch (err) { next(err); }
+});
+
+// POST /api/leads/qualify — AI qualification engine
+router.post('/qualify', async (req, res, next) => {
+  try {
+    const { lead_id, conversation_text } = req.body;
+    if (!lead_id) return res.status(400).json({ success: false, error: 'lead_id required' });
+
+    const { data: lead } = await supabase.from('leads').select('*').eq('id', lead_id).eq('user_id', req.user.id).single();
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+    const { qualifyLead } = require('../services/dualAIService');
+    const result = await qualifyLead({
+      name: `${lead.first_name} ${lead.last_name}`.trim(),
+      phone: lead.phone,
+      propertyAddress: lead.property_address,
+      conversationHistory: conversation_text || '',
+      motivationType: lead.motivation_type || 'other',
+    });
+
+    // Update motivation score
+    await supabase.from('leads').update({
+      motivation_score: result.motivation_score,
+      updated_at: new Date().toISOString(),
+    }).eq('id', lead_id);
+
+    // Store qualification conversation
+    if (conversation_text) {
+      await supabase.from('ai_command_log').insert({
+        contact_id: lead_id,
+        contact_name: `${lead.first_name} ${lead.last_name}`.trim(),
+        action_type: 'lead_qualified',
+        message_sent: conversation_text.substring(0, 500),
+        outcome: result.recommended_action,
+        operator_id: req.user.id,
+      });
+    }
+
+    // Auto-escalate to pipeline if score >= 60
+    if (result.motivation_score >= 60 && result.recommended_action === 'escalate_to_pipeline') {
+      const { data: deal } = await supabase.from('deals').insert({
+        property_address: lead.property_address,
+        state: lead.property_state || '',
+        stage: 'contacted',
+        seller_id: lead.id,
+        operator_id: req.user.id,
+        status: 'active',
+      }).select().single();
+
+      await supabase.from('leads').update({ status: 'offer_made', deal_id: deal?.deal_id }).eq('id', lead_id);
+
+      await supabase.from('ai_command_log').insert({
+        deal_id: deal?.deal_id,
+        contact_name: `${lead.first_name} ${lead.last_name}`.trim(),
+        action_type: 'escalated_to_pipeline',
+        message_sent: `Score: ${result.motivation_score}/100 — auto-escalated to deal pipeline`,
+        outcome: 'deal_created',
+        operator_id: req.user.id,
+      });
+    }
+
+    res.json({ success: true, qualification: result });
+  } catch (err) { next(err); }
+});
+
 function parseNum(v) { const n = parseFloat(String(v || '').replace(/[^0-9.]/g, '')); return isNaN(n) ? null : n; }
 
 module.exports = router;

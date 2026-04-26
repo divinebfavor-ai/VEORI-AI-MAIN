@@ -94,16 +94,31 @@ const titleCoRouter      = require('./routes/titleCompanies');
 const sequencesRouter    = require('./routes/sequences');
 const complianceRouter   = require('./routes/compliance');
 const ariaRouter         = require('./routes/aria');
+const conversationsRouter = require('./routes/conversations');
+const academyRouter      = require('./routes/academy');
+const waitlistRouter     = require('./routes/waitlist');
+const notificationsRouter = require('./routes/notifications');
 
 app.use('/api/operator',        operatorRouter);
 app.use('/api/title-companies', titleCoRouter);
 app.use('/api/sequences',       sequencesRouter);
 app.use('/api/compliance',      complianceRouter);
 app.use('/api/aria',            ariaRouter);
+app.use('/api/conversations',   conversationsRouter);
+app.use('/api/academy',         academyRouter);
+app.use('/api/waitlist',        waitlistRouter);
+app.use('/api/notifications',   notificationsRouter);
 
-// ─── Sequence Processor (runs every hour) ────────────────────────────────────
-const { processReadySequences } = require('./services/sequenceEngine');
-setInterval(processReadySequences, 60 * 60 * 1000); // every hour
+// ─── BullMQ Job Queue (replaces all setInterval business logic) ───────────────
+const { initWorkers } = require('./services/queueService');
+try {
+  initWorkers();
+} catch (err) {
+  console.warn('[Queue] BullMQ init failed (Redis may be unavailable):', err.message);
+  // Fallback: hourly sequence scan when Redis not available
+  const { processReadySequences } = require('./services/sequenceEngine');
+  setInterval(processReadySequences, 60 * 60 * 1000);
+}
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);
