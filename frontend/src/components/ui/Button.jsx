@@ -14,14 +14,14 @@ const STYLES = {
     act:   { transform: 'translateY(0)', background: '#009960' },
   },
   secondary: {
-    base:  { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.70)', border: '1px solid rgba(255,255,255,0.10)', fontWeight: 500, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },
-    hover: { background: 'rgba(255,255,255,0.09)', borderColor: 'rgba(255,255,255,0.18)', color: '#FFFFFF' },
-    act:   { background: 'rgba(255,255,255,0.12)' },
+    base:  { background: 'var(--surface-bg-2)', color: 'var(--t2)', border: '1px solid var(--border)', fontWeight: 500, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },
+    hover: { background: 'var(--surface-bg-3)', borderColor: 'var(--border-active)', color: 'var(--t1)' },
+    act:   { background: 'var(--surface-bg-3)' },
   },
   ghost: {
-    base:  { background: 'transparent', color: 'rgba(255,255,255,0.40)', border: '1px solid transparent', fontWeight: 400 },
-    hover: { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.80)' },
-    act:   { background: 'rgba(255,255,255,0.08)' },
+    base:  { background: 'transparent', color: 'var(--t3)', border: '1px solid transparent', fontWeight: 400 },
+    hover: { background: 'var(--surface-bg-2)', color: 'var(--t2)' },
+    act:   { background: 'var(--surface-bg-3)' },
   },
   danger: {
     base:  { background: 'rgba(255,68,68,0.10)', color: '#FF4444', border: '1px solid rgba(255,68,68,0.22)', fontWeight: 500, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },

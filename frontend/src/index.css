@@ -67,6 +67,18 @@
   --border-rest:  rgba(255,255,255,0.07);
 }
 
+/* ─── Light mode — global text-white fix ────────────────────────────────── */
+/* Buttons use inline styles so this only affects page content headings/text */
+[data-theme="light"] .text-white {
+  color: var(--t1) !important;
+}
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4 {
+  color: var(--t1);
+}
+
 /* ─── Light mode overrides ───────────────────────────────────────────────── */
 [data-theme="light"] {
   --app-bg:

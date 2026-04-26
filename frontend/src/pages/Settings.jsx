@@ -61,6 +61,74 @@ function PasswordStrengthBar({ password }) {
   )
 }
 
+function AddPhoneForm({ onAdd }) {
+  const [form, setForm] = useState({ number: '', friendly_name: '', state: '', area_code: '', daily_call_limit: '50' })
+  const [saving, setSaving] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }))
+
+  const handleAdd = async () => {
+    const num = form.number.trim()
+    if (!num) { toast.error('Phone number is required'); return }
+    // Basic format check
+    if (!/^\+?[1-9]\d{7,14}$/.test(num.replace(/[\s\-().]/g, ''))) {
+      toast.error('Enter a valid phone number (e.g. +15551234567)'); return
+    }
+    setSaving(true)
+    try {
+      const { data } = await phones.addPhone({
+        number: num.replace(/[\s\-().]/g, '').startsWith('+') ? num.trim() : `+1${num.replace(/[\s\-().]/g, '')}`,
+        friendly_name: form.friendly_name.trim() || null,
+        state: form.state.trim().toUpperCase() || null,
+        area_code: form.area_code.trim() || null,
+        daily_call_limit: parseInt(form.daily_call_limit) || 50,
+      })
+      onAdd(data.data || data)
+      setForm({ number: '', friendly_name: '', state: '', area_code: '', daily_call_limit: '50' })
+      setOpen(false)
+      toast.success('Phone number added')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to add phone number')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Plus size={14} /> Add Phone Number
+      </Button>
+    )
+  }
+
+  return (
+    <div className="border border-primary/20 rounded-xl p-5 bg-primary/5 space-y-4">
+      <p className="text-[13px] font-semibold text-text-primary">New Phone Number</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <Input
+            label="Phone Number *"
+            value={form.number}
+            onChange={set('number')}
+            placeholder="+15551234567"
+            hint="Include country code. US numbers without + will be auto-prefixed with +1"
+          />
+        </div>
+        <Input label="Label (optional)" value={form.friendly_name} onChange={set('friendly_name')} placeholder="Main Line" />
+        <Input label="State (optional)" value={form.state} onChange={set('state')} placeholder="TX" maxLength={2} />
+        <Input label="Area Code (optional)" value={form.area_code} onChange={set('area_code')} placeholder="512" />
+        <Input label="Daily Call Limit" type="number" value={form.daily_call_limit} onChange={set('daily_call_limit')} placeholder="50" min="1" max="500" />
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button onClick={handleAdd} loading={saving}>Add Number</Button>
+        <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+    </div>
+  )
+}
+
 function AddBankAccountForm({ onSave, onCancel }) {
   const [form, setForm] = useState({
     label: 'Primary',
@@ -353,30 +421,40 @@ export default function Settings() {
 
           {tab === 'phones' && (
             <Section title="Phone Numbers" description="Manage your Vapi calling numbers and health scores">
-              <div className="space-y-2 mb-4">
+              <div className="space-y-2 mb-5">
                 {phoneList.length === 0 && (
                   <div className="text-center py-8">
                     <Phone size={28} className="text-text-muted mx-auto mb-3" strokeWidth={1.5} />
-                    <p className="text-[14px] text-text-muted">No phone numbers configured</p>
-                    <p className="text-[12px] text-text-muted mt-1">Add your Vapi phone numbers to start calling</p>
+                    <p className="text-[14px] text-text-muted">No phone numbers yet</p>
+                    <p className="text-[12px] text-text-muted mt-1">Add a number below to start calling</p>
                   </div>
                 )}
                 {phoneList.map(p => (
                   <div key={p.id} className="flex items-center justify-between py-3 border-b border-border-subtle last:border-0">
                     <div>
                       <p className="text-[14px] font-medium text-text-primary">{p.number}</p>
-                      <p className="text-[11px] text-text-muted">{p.state || 'Unknown state'} · {p.daily_calls_made || 0} calls today</p>
+                      <p className="text-[11px] text-text-muted">
+                        {p.friendly_name ? `${p.friendly_name} · ` : ''}{p.state || 'All states'} · {p.daily_calls_made || 0}/{p.daily_call_limit || 50} calls today
+                      </p>
                     </div>
                     <div className="flex items-center gap-3">
                       <Badge variant={healthColor(p.health_status)}>{p.health_status || 'healthy'}</Badge>
-                      <span className="text-[12px] text-text-muted">Score: {p.spam_score || 100}</span>
+                      <span className="text-[12px] text-text-muted">Score: {p.spam_score ?? 100}</span>
+                      <button
+                        onClick={async () => {
+                          try { await phones.deletePhone(p.id); setPhoneList(prev => prev.filter(x => x.id !== p.id)); toast.success('Removed') } catch { toast.error('Failed to remove') }
+                        }}
+                        className="text-text-muted hover:text-danger transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
-              <Button variant="secondary" onClick={() => toast.info('Add numbers in your Vapi dashboard and sync them here')}>
-                <Plus size={14} /> Add Phone Number
-              </Button>
+
+              {/* Add phone number form */}
+              <AddPhoneForm onAdd={(num) => setPhoneList(prev => [...prev, num])} />
             </Section>
           )}
 

@@ -1,9 +1,189 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Phone, PhoneOff, Search, Mic, MicOff, Clock, Star, AlertCircle, ChevronRight } from 'lucide-react'
+import { Phone, PhoneOff, Search, Mic, MicOff, Clock, AlertCircle, Delete } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { leads as leadsApi, calls as callsApi, phones as phonesApi } from '../services/api'
+
+// ─── Keypad digit button ───────────────────────────────────────────────────────
+function KeyBtn({ digit, sub, onPress }) {
+  const [pressed, setPressed] = useState(false)
+  return (
+    <button
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => { setPressed(false); onPress(digit) }}
+      onMouseLeave={() => setPressed(false)}
+      onTouchStart={() => { setPressed(true); onPress(digit) }}
+      onTouchEnd={() => setPressed(false)}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: 64, borderRadius: 16,
+        background: pressed ? 'var(--surface-bg-3)' : 'var(--surface-bg-2)',
+        border: '1px solid var(--border)',
+        cursor: 'pointer', transition: 'all 0.08s ease',
+        transform: pressed ? 'scale(0.94)' : 'scale(1)',
+        userSelect: 'none',
+      }}
+    >
+      <span style={{ fontSize: 22, fontWeight: 500, color: 'var(--t1)', lineHeight: 1, fontFamily: 'Geist, sans-serif' }}>{digit}</span>
+      {sub && <span style={{ fontSize: 9, letterSpacing: '0.12em', color: 'var(--t4)', marginTop: 2, textTransform: 'uppercase' }}>{sub}</span>}
+    </button>
+  )
+}
+
+const KEYPAD_ROWS = [
+  [{ d: '1', s: '' }, { d: '2', s: 'abc' }, { d: '3', s: 'def' }],
+  [{ d: '4', s: 'ghi' }, { d: '5', s: 'jkl' }, { d: '6', s: 'mno' }],
+  [{ d: '7', s: 'pqrs' }, { d: '8', s: 'tuv' }, { d: '9', s: 'wxyz' }],
+  [{ d: '*', s: '' }, { d: '0', s: '+' }, { d: '#', s: '' }],
+]
+
+// ─── Manual keypad panel ──────────────────────────────────────────────────────
+function KeypadDialer({ phoneList, selectedPhone, setPhone, callState }) {
+  const [number, setNumber] = useState('')
+  const [dialState, setDialState] = useState('idle') // idle | ringing | active | ended
+  const [duration, setDuration] = useState(0)
+  const timerRef = useRef(null)
+
+  const press = (digit) => {
+    if (dialState !== 'idle') return
+    setNumber(prev => (prev + digit).slice(0, 16))
+  }
+
+  const backspace = () => {
+    if (dialState !== 'idle') return
+    setNumber(prev => prev.slice(0, -1))
+  }
+
+  const fmt = s => `${String(Math.floor(s / 60)).padStart(2,'0')}:${String(s % 60).padStart(2,'0')}`
+
+  const dial = async () => {
+    const cleaned = number.replace(/[\s\-().]/g, '')
+    if (!cleaned || cleaned.length < 7) { toast.error('Enter a valid phone number'); return }
+    if (!selectedPhone) { toast.error('Select a caller ID first'); return }
+    setDialState('ringing')
+    try {
+      await callsApi.initiateCall({ phone_number: cleaned.startsWith('+') ? cleaned : `+1${cleaned}`, phone_number_id: selectedPhone })
+      setDialState('active')
+      setDuration(0)
+      timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+      toast.success('Calling ' + number)
+    } catch (err) {
+      setDialState('idle')
+      toast.error(err.response?.data?.error || 'Call failed')
+    }
+  }
+
+  const hangUp = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    setDialState('ended')
+    setTimeout(() => { setDialState('idle'); setDuration(0) }, 3000)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+      {/* Number display */}
+      <div style={{
+        width: '100%', position: 'relative',
+        display: 'flex', alignItems: 'center',
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border)',
+        borderRadius: 14, overflow: 'hidden',
+      }}>
+        <input
+          type="tel"
+          value={number}
+          onChange={e => dialState === 'idle' && setNumber(e.target.value.slice(0, 16))}
+          placeholder="+1 (555) 000-0000"
+          readOnly={dialState !== 'idle'}
+          style={{
+            flex: 1, padding: '14px 16px',
+            background: 'transparent', border: 'none', outline: 'none',
+            fontSize: 22, fontWeight: 500, letterSpacing: '0.06em',
+            color: 'var(--t1)', textAlign: 'center',
+            fontFamily: 'Geist Mono, monospace',
+          }}
+        />
+        {number.length > 0 && dialState === 'idle' && (
+          <button onClick={backspace} style={{ padding: '14px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t3)' }}>
+            <Delete size={18} />
+          </button>
+        )}
+      </div>
+
+      {/* Keypad grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, width: '100%' }}>
+        {KEYPAD_ROWS.flat().map(({ d, s }) => (
+          <KeyBtn key={d} digit={d} sub={s} onPress={press} />
+        ))}
+      </div>
+
+      {/* Caller ID selector */}
+      {phoneList.length > 0 && (
+        <div style={{ width: '100%' }}>
+          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--t4)', marginBottom: 6 }}>Caller ID</p>
+          <select
+            value={selectedPhone}
+            onChange={e => setPhone(e.target.value)}
+            disabled={dialState !== 'idle'}
+            style={{
+              width: '100%', height: 40, padding: '0 12px', borderRadius: 10,
+              background: 'var(--surface-bg)', border: '1px solid var(--border)',
+              color: 'var(--t1)', fontSize: 13, outline: 'none',
+            }}
+          >
+            {phoneList.map(p => (
+              <option key={p.id} value={p.id}>{p.number} {p.health_status === 'healthy' ? '✅' : '⚠️'}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Call button */}
+      {dialState === 'idle' && (
+        <button
+          onClick={dial}
+          disabled={number.length < 7}
+          style={{
+            width: 68, height: 68, borderRadius: '50%',
+            background: number.length >= 7 ? '#00C37A' : 'rgba(0,195,122,0.15)',
+            border: 'none', cursor: number.length >= 7 ? 'pointer' : 'not-allowed',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: number.length >= 7 ? '0 0 24px rgba(0,195,122,0.40)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <Phone size={26} style={{ color: number.length >= 7 ? '#000' : 'rgba(0,195,122,0.40)' }} strokeWidth={2} />
+        </button>
+      )}
+
+      {dialState === 'ringing' && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'rgba(0,195,122,0.12)', border: '1px solid rgba(0,195,122,0.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pulse-live 1.5s ease-in-out infinite' }}>
+            <Phone size={26} style={{ color: '#00C37A' }} strokeWidth={1.8} />
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--t3)' }}>Calling {number}…</p>
+        </div>
+      )}
+
+      {dialState === 'active' && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <p style={{ fontSize: 13, color: '#00C37A', fontWeight: 600 }}>● LIVE · {fmt(duration)}</p>
+          <button
+            onClick={hangUp}
+            style={{ width: 68, height: 68, borderRadius: '50%', background: '#FF4444', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(255,68,68,0.35)' }}
+          >
+            <PhoneOff size={26} style={{ color: '#fff' }} strokeWidth={2} />
+          </button>
+        </div>
+      )}
+
+      {dialState === 'ended' && (
+        <p style={{ fontSize: 13, color: 'var(--t3)', textAlign: 'center' }}>Call ended · {fmt(duration)}</p>
+      )}
+    </div>
+  )
+}
 
 const OUTCOMES = [
   { value: 'not_home',           label: 'No Answer / VM',  color: 'gray'  },
@@ -186,19 +366,45 @@ export default function Dialer() {
 
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
+  const [dialerTab, setDialerTab] = useState('search') // 'search' | 'keypad'
+
   return (
     <div className="p-8 max-w-[1100px] mx-auto">
-      <div className="mb-8">
-        <h1 className="text-[28px] font-medium text-white">Manual Dialer</h1>
-        <p className="text-[13px] text-text-muted mt-1">Call a lead directly — AI transcription and scoring in real time</p>
+      <div className="flex items-end justify-between mb-8">
+        <div>
+          <h1 className="text-[28px] font-medium text-text-primary">Manual Dialer</h1>
+          <p className="text-[13px] text-text-muted mt-1">Call a lead directly — AI transcription and scoring in real time</p>
+        </div>
+        <div className="flex items-center gap-1 bg-surface border border-border-subtle rounded-xl p-1">
+          <button
+            onClick={() => setDialerTab('search')}
+            className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-all ${dialerTab === 'search' ? 'bg-card text-text-primary border border-border-subtle' : 'text-text-muted hover:text-text-secondary'}`}
+          >
+            Lead Search
+          </button>
+          <button
+            onClick={() => setDialerTab('keypad')}
+            className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-all ${dialerTab === 'keypad' ? 'bg-card text-text-primary border border-border-subtle' : 'text-text-muted hover:text-text-secondary'}`}
+          >
+            Keypad
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-[380px,1fr] gap-6">
+      {dialerTab === 'keypad' && (
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: 320, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 24, padding: 28 }}>
+            <KeypadDialer phoneList={phones} selectedPhone={selectedPhone} setPhone={setPhone} callState={callState} />
+          </div>
+        </div>
+      )}
+
+      {dialerTab === 'search' && <div className="grid grid-cols-[380px,1fr] gap-6">
         {/* ── Left panel ── */}
         <div className="space-y-4">
           {/* Lead search */}
           <div className="bg-card border border-border-subtle rounded-lg p-5">
-            <h2 className="text-[13px] font-semibold text-white mb-3">Select Lead</h2>
+            <h2 className="text-[13px] font-semibold text-text-primary mb-3">Select Lead</h2>
             <div className="relative mb-3">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
@@ -234,7 +440,7 @@ export default function Dialer() {
               <div className="bg-elevated border border-border-default rounded-[6px] p-3">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0">
-                    <p className="text-[14px] font-semibold text-white">
+                    <p className="text-[14px] font-semibold text-text-primary">
                       {selectedLead.first_name} {selectedLead.last_name}
                     </p>
                     <p className="text-[12px] text-text-muted truncate">{selectedLead.property_address}</p>
@@ -264,7 +470,7 @@ export default function Dialer() {
 
           {/* Phone number selector */}
           <div className="bg-card border border-border-subtle rounded-lg p-5">
-            <h2 className="text-[13px] font-semibold text-white mb-3">Caller ID</h2>
+            <h2 className="text-[13px] font-semibold text-text-primary mb-3">Caller ID</h2>
             {phones.length === 0 ? (
               <p className="text-[12px] text-text-muted">No phone numbers configured</p>
             ) : (
@@ -374,7 +580,7 @@ export default function Dialer() {
         {/* ── Right panel: Live transcript ── */}
         <div className="bg-card border border-border-subtle rounded-lg flex flex-col" style={{ minHeight: '500px' }}>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-border-subtle flex-shrink-0">
-            <h2 className="text-[13px] font-semibold text-white">Live Transcript</h2>
+            <h2 className="text-[13px] font-semibold text-text-primary">Live Transcript</h2>
             {callState === 'active' && (
               <div className="flex items-center gap-1.5 text-primary text-[11px]">
                 <Mic size={12} className="animate-pulse" />
@@ -415,7 +621,7 @@ export default function Dialer() {
             <div ref={transcriptEndRef} />
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }
