@@ -1,17 +1,19 @@
 const { Queue, Worker, QueueEvents } = require('bullmq');
 const IORedis = require('ioredis');
 
+const REDIS_AVAILABLE = !!process.env.REDIS_URL;
 let connection = null;
 
 function getRedisConnection() {
+  if (!REDIS_AVAILABLE) return null;
   if (!connection) {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    connection = new IORedis(redisUrl, {
+    connection = new IORedis(process.env.REDIS_URL, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
+      lazyConnect: true,
     });
     connection.on('error', (err) => {
-      console.error('[Queue] Redis connection error:', err.message);
+      console.warn('[Queue] Redis error:', err.message);
     });
   }
   return connection;
@@ -30,6 +32,7 @@ const QUEUE_NAMES = {
 const queues = {};
 
 function getQueue(name) {
+  if (!REDIS_AVAILABLE) return null;
   if (!queues[name]) {
     queues[name] = new Queue(name, { connection: getRedisConnection() });
   }
@@ -109,6 +112,10 @@ async function cancelJob(queueName, jobId) {
 
 // ─── Initialize workers ───────────────────────────────────────────────────────
 function initWorkers() {
+  if (!REDIS_AVAILABLE) {
+    console.warn('[Queue] REDIS_URL not set — BullMQ disabled. Add Redis on Railway to enable job queues.');
+    return;
+  }
   const conn = getRedisConnection();
 
   // Follow-up worker
