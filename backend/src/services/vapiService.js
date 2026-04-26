@@ -177,7 +177,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
   if (!VAPI_API_KEY) throw new Error('VAPI_API_KEY not configured');
 
   const aiName  = operator.ai_caller_name || 'Alex';
-  const voiceId = operator.ai_voice_id || process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+  const voiceId = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
 
   const systemPrompt  = buildAlexPrompt({ operator, lead });
   const firstMessage  = operator.ai_intro_script
@@ -210,12 +210,8 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
         emotionRecognitionEnabled: true,
       },
       voice: {
-        provider: 'elevenlabs',
+        provider: 'vapi',
         voiceId,
-        stability: 0.5,
-        similarityBoost: 0.75,
-        style: 0.0,
-        useSpeakerBoost: true,
       },
       firstMessage,
       firstMessageMode: 'assistant-speaks-first',
@@ -293,7 +289,7 @@ async function listActiveCalls() {
 async function initiateBuyerCall({ buyer, deal, phoneNumber, callId, operator = {} }) {
   if (!VAPI_API_KEY) throw new Error('VAPI_API_KEY not configured');
   const aiName  = operator.ai_caller_name || 'Alex';
-  const voiceId = operator.ai_voice_id || process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+  const voiceId = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
 
   const systemPrompt = `You are ${aiName}, a real estate wholesaler calling a cash buyer about an off-market property.
 
@@ -327,7 +323,7 @@ RULES:
       name: aiName,
       transcriber: { provider: 'deepgram', model: 'nova-2' },
       model: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', systemPrompt, maxTokens: 300, temperature: 0.7 },
-      voice: { provider: 'elevenlabs', voiceId },
+      voice: { provider: 'vapi', voiceId },
       firstMessage: `Hi ${buyer.name}, this is ${aiName}. I have an off-market deal in ${deal.property_city || 'your target area'} that I think matches your buy box. Do you have two quick minutes?`,
       recordingEnabled: true,
       maxDurationSeconds: 600,
@@ -347,7 +343,7 @@ RULES:
 // ─── Inbound call handler — lookup seller from phone number ──────────────────
 async function buildInboundAssistantConfig({ callerPhone, operator = {} }) {
   const aiName  = operator.ai_caller_name || 'Alex';
-  const voiceId = operator.ai_voice_id || process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+  const voiceId = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
 
   const systemPrompt = `You are ${aiName}, a real estate investor. Someone has just called in — they may be a seller responding to mail, a sign, or a previous conversation.
 
@@ -376,7 +372,7 @@ Always be warm — they called YOU, which means they have some interest.`;
       temperature: 0.75,
       maxTokens: 600,
     },
-    voice: { provider: 'elevenlabs', voiceId, stability: 0.5, similarityBoost: 0.75 },
+    voice: { provider: 'vapi', voiceId },
     firstMessage: `Thank you for calling! This is ${aiName}. Are you calling about selling your property?`,
     recordingEnabled: true,
     silenceTimeoutSeconds: 30,
