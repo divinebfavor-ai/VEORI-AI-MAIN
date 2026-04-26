@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Plus, Sparkles, MessageSquare, Trash2, TrendingUp, Users, BookOpen, Zap } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Send, Plus, Sparkles, MessageSquare, Trash2, TrendingUp, Users, BookOpen, Zap, ArrowLeft } from 'lucide-react'
 import { formatDistanceToNow, isToday, isYesterday } from 'date-fns'
 import toast from 'react-hot-toast'
 import { ai } from '../services/api'
@@ -159,6 +160,7 @@ function groupByDate(conversations) {
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Aria() {
+  const navigate = useNavigate()
   const [conversations, setConversations] = useState(() => loadHistory())
   const [activeId, setActiveId]           = useState(null)
   const [messages, setMessages]           = useState([])
@@ -260,6 +262,26 @@ export default function Aria() {
         borderRight: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', flexDirection: 'column',
       }}>
+        {/* Back to app */}
+        <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 10px', borderRadius: 8,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: 'rgba(255,255,255,0.50)', fontSize: 12,
+              cursor: 'pointer', transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.50)' }}
+          >
+            <ArrowLeft size={13} />
+            Back
+          </button>
+        </div>
+
         {/* New chat */}
         <div style={{ padding: '14px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <button

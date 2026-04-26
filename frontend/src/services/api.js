@@ -86,12 +86,14 @@ export const campaigns = {
 
 // ─── Phones ──────────────────────────────────────────────────────────────────
 export const phones = {
-  getPhones:     ()         => api.get('/api/phones'),
-  getPhoneHealth:()         => api.get('/api/phones/health'),
-  addPhone:      (data)     => api.post('/api/phones', data),
-  updatePhone:   (id, data) => api.put(`/api/phones/${id}`, data),
-  deletePhone:   (id)       => api.delete(`/api/phones/${id}`),
-  bulkAddPhones: (numbers)  => api.post('/api/phones/bulk', { numbers }),
+  getPhones:      ()             => api.get('/api/phones'),
+  getPhoneHealth: ()             => api.get('/api/phones/health'),
+  getPlanStatus:  ()             => api.get('/api/phones/plan-status'),
+  addPhone:       (data)         => api.post('/api/phones', data),
+  provision:      (area_code, friendly_name) => api.post('/api/phones/provision', { area_code, friendly_name }),
+  updatePhone:    (id, data)     => api.put(`/api/phones/${id}`, data),
+  deletePhone:    (id)           => api.delete(`/api/phones/${id}`),
+  bulkAddPhones:  (numbers)      => api.post('/api/phones/bulk', { numbers }),
 }
 
 // ─── Deals ───────────────────────────────────────────────────────────────────

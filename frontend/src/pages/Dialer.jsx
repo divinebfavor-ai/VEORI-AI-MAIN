@@ -5,16 +5,53 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { leads as leadsApi, calls as callsApi, phones as phonesApi } from '../services/api'
 
+// ─── Phone number formatter ────────────────────────────────────────────────────
+function fmtPhoneDisplay(raw) {
+  // raw is digits + possibly leading + or */#
+  const digits = raw.replace(/\D/g, '')
+  if (raw.startsWith('+')) {
+    // international: show as typed
+    if (digits.length <= 1) return raw
+    if (digits.length <= 4) return `+${digits}`
+    if (digits.length <= 7) return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4)}`
+    if (digits.length <= 10) return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`
+    return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 11)}`
+  }
+  // US domestic
+  if (digits.length === 0) return ''
+  if (digits.length <= 3) return `(${digits}`
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`
+}
+
 // ─── Keypad digit button ───────────────────────────────────────────────────────
-function KeyBtn({ digit, sub, onPress }) {
+function KeyBtn({ digit, sub, onPress, onLongPress }) {
   const [pressed, setPressed] = useState(false)
+  const longRef = useRef(null)
+
+  const handleDown = () => {
+    setPressed(true)
+    if (onLongPress) {
+      longRef.current = setTimeout(() => { onLongPress() }, 600)
+    }
+  }
+  const handleUp = () => {
+    clearTimeout(longRef.current)
+    setPressed(false)
+    onPress(digit)
+  }
+  const handleLeave = () => {
+    clearTimeout(longRef.current)
+    setPressed(false)
+  }
+
   return (
     <button
-      onMouseDown={() => setPressed(true)}
-      onMouseUp={() => { setPressed(false); onPress(digit) }}
-      onMouseLeave={() => setPressed(false)}
-      onTouchStart={() => { setPressed(true); onPress(digit) }}
-      onTouchEnd={() => setPressed(false)}
+      onMouseDown={handleDown}
+      onMouseUp={handleUp}
+      onMouseLeave={handleLeave}
+      onTouchStart={e => { e.preventDefault(); handleDown() }}
+      onTouchEnd={e => { e.preventDefault(); handleUp() }}
       style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         height: 64, borderRadius: 16,
@@ -39,35 +76,54 @@ const KEYPAD_ROWS = [
 ]
 
 // ─── Manual keypad panel ──────────────────────────────────────────────────────
-function KeypadDialer({ phoneList, selectedPhone, setPhone, callState }) {
-  const [number, setNumber] = useState('')
+function KeypadDialer({ phoneList, selectedPhone, setPhone }) {
+  const [rawDigits, setRawDigits] = useState('') // actual digits/chars
   const [dialState, setDialState] = useState('idle') // idle | ringing | active | ended
   const [duration, setDuration] = useState(0)
   const timerRef = useRef(null)
 
   const press = (digit) => {
     if (dialState !== 'idle') return
-    setNumber(prev => (prev + digit).slice(0, 16))
+    if (['*', '#'].includes(digit)) {
+      setRawDigits(prev => prev + digit)
+      return
+    }
+    setRawDigits(prev => {
+      const digits = (prev + digit).replace(/\D/g, '').slice(0, 10)
+      return digits
+    })
+  }
+
+  const longPress0 = () => {
+    if (dialState !== 'idle') return
+    setRawDigits('+')
   }
 
   const backspace = () => {
     if (dialState !== 'idle') return
-    setNumber(prev => prev.slice(0, -1))
+    setRawDigits(prev => prev.slice(0, -1))
   }
 
+  const clearAll = () => {
+    if (dialState !== 'idle') return
+    setRawDigits('')
+  }
+
+  const displayValue = fmtPhoneDisplay(rawDigits)
   const fmt = s => `${String(Math.floor(s / 60)).padStart(2,'0')}:${String(s % 60).padStart(2,'0')}`
 
   const dial = async () => {
-    const cleaned = number.replace(/[\s\-().]/g, '')
-    if (!cleaned || cleaned.length < 7) { toast.error('Enter a valid phone number'); return }
+    const digits = rawDigits.replace(/\D/g, '')
+    if (!digits || digits.length < 7) { toast.error('Enter a valid phone number'); return }
     if (!selectedPhone) { toast.error('Select a caller ID first'); return }
     setDialState('ringing')
     try {
-      await callsApi.initiateCall({ phone_number: cleaned.startsWith('+') ? cleaned : `+1${cleaned}`, phone_number_id: selectedPhone })
+      const e164 = rawDigits.startsWith('+') ? `+${digits}` : `+1${digits}`
+      await callsApi.initiateCall({ phone_number: e164, phone_number_id: selectedPhone })
       setDialState('active')
       setDuration(0)
       timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
-      toast.success('Calling ' + number)
+      toast.success('Calling ' + displayValue)
     } catch (err) {
       setDialState('idle')
       toast.error(err.response?.data?.error || 'Call failed')
@@ -90,21 +146,25 @@ function KeypadDialer({ phoneList, selectedPhone, setPhone, callState }) {
         border: '1px solid var(--border)',
         borderRadius: 14, overflow: 'hidden',
       }}>
-        <input
-          type="tel"
-          value={number}
-          onChange={e => dialState === 'idle' && setNumber(e.target.value.slice(0, 16))}
-          placeholder="+1 (555) 000-0000"
-          readOnly={dialState !== 'idle'}
-          style={{
-            flex: 1, padding: '14px 16px',
-            background: 'transparent', border: 'none', outline: 'none',
-            fontSize: 22, fontWeight: 500, letterSpacing: '0.06em',
-            color: 'var(--t1)', textAlign: 'center',
-            fontFamily: 'Geist Mono, monospace',
-          }}
-        />
-        {number.length > 0 && dialState === 'idle' && (
+        {rawDigits.length > 0 && dialState === 'idle' && (
+          <button
+            onClick={clearAll}
+            title="Clear"
+            style={{ padding: '14px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t4)', fontSize: 11, flexShrink: 0 }}
+          >
+            CLR
+          </button>
+        )}
+        <div style={{
+          flex: 1, padding: '14px 4px',
+          fontSize: rawDigits.length > 8 ? 20 : 24, fontWeight: 500, letterSpacing: '0.04em',
+          color: rawDigits ? 'var(--t1)' : 'var(--t4)', textAlign: 'center',
+          fontFamily: 'Geist Mono, monospace',
+          minHeight: 54, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {displayValue || '+1 (555) 000-0000'}
+        </div>
+        {rawDigits.length > 0 && dialState === 'idle' && (
           <button onClick={backspace} style={{ padding: '14px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t3)' }}>
             <Delete size={18} />
           </button>
@@ -114,7 +174,10 @@ function KeypadDialer({ phoneList, selectedPhone, setPhone, callState }) {
       {/* Keypad grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, width: '100%' }}>
         {KEYPAD_ROWS.flat().map(({ d, s }) => (
-          <KeyBtn key={d} digit={d} sub={s} onPress={press} />
+          <KeyBtn
+            key={d} digit={d} sub={s} onPress={press}
+            onLongPress={d === '0' ? longPress0 : undefined}
+          />
         ))}
       </div>
 
@@ -140,29 +203,32 @@ function KeypadDialer({ phoneList, selectedPhone, setPhone, callState }) {
       )}
 
       {/* Call button */}
-      {dialState === 'idle' && (
-        <button
-          onClick={dial}
-          disabled={number.length < 7}
-          style={{
-            width: 68, height: 68, borderRadius: '50%',
-            background: number.length >= 7 ? '#00C37A' : 'rgba(0,195,122,0.15)',
-            border: 'none', cursor: number.length >= 7 ? 'pointer' : 'not-allowed',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: number.length >= 7 ? '0 0 24px rgba(0,195,122,0.40)' : 'none',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <Phone size={26} style={{ color: number.length >= 7 ? '#000' : 'rgba(0,195,122,0.40)' }} strokeWidth={2} />
-        </button>
-      )}
+      {dialState === 'idle' && (() => {
+        const ready = rawDigits.replace(/\D/g, '').length >= 7
+        return (
+          <button
+            onClick={dial}
+            disabled={!ready}
+            style={{
+              width: 68, height: 68, borderRadius: '50%',
+              background: ready ? '#00C37A' : 'rgba(0,195,122,0.15)',
+              border: 'none', cursor: ready ? 'pointer' : 'not-allowed',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: ready ? '0 0 24px rgba(0,195,122,0.40)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Phone size={26} style={{ color: ready ? '#000' : 'rgba(0,195,122,0.40)' }} strokeWidth={2} />
+          </button>
+        )
+      })()}
 
       {dialState === 'ringing' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'rgba(0,195,122,0.12)', border: '1px solid rgba(0,195,122,0.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pulse-live 1.5s ease-in-out infinite' }}>
             <Phone size={26} style={{ color: '#00C37A' }} strokeWidth={1.8} />
           </div>
-          <p style={{ fontSize: 13, color: 'var(--t3)' }}>Calling {number}…</p>
+          <p style={{ fontSize: 13, color: 'var(--t3)' }}>Calling {displayValue}…</p>
         </div>
       )}
 

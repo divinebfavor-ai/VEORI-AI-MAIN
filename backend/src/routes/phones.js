@@ -1,10 +1,79 @@
 const express  = require('express');
 const { v4: uuidv4 } = require('uuid');
+const axios    = require('axios');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
+
+// Plan limits: max phone numbers per subscription tier
+const PLAN_LIMITS = { free: 1, starter: 3, growth: 10, professional: 25, enterprise: 100 };
+
+// POST /api/phones/provision — buy a number from Vapi, store in Veori
+router.post('/provision', async (req, res, next) => {
+  try {
+    const { area_code, friendly_name } = req.body;
+
+    // Check plan limit
+    const { data: userData } = await supabase.from('users').select('subscription_tier').eq('id', req.user.id).single();
+    const tier = userData?.subscription_tier || 'free';
+    const limit = PLAN_LIMITS[tier] || 1;
+
+    const { count } = await supabase.from('phone_numbers').select('*', { count: 'exact', head: true }).eq('user_id', req.user.id);
+    if ((count || 0) >= limit) {
+      return res.status(403).json({ success: false, error: `Your ${tier} plan allows up to ${limit} phone number(s). Upgrade to add more.` });
+    }
+
+    // Purchase from Vapi
+    const vapiKey = process.env.VAPI_API_KEY;
+    if (!vapiKey) return res.status(500).json({ success: false, error: 'Vapi API key not configured' });
+
+    let vapiNumber;
+    try {
+      const vapiRes = await axios.post('https://api.vapi.ai/phone-number', {
+        provider: 'twilio',
+        areaCode: area_code || '415',
+        name: friendly_name || `Veori Number ${Date.now()}`,
+        assistantId: process.env.VAPI_ASSISTANT_ID || undefined,
+      }, {
+        headers: { Authorization: `Bearer ${vapiKey}`, 'Content-Type': 'application/json' },
+        timeout: 30000,
+      });
+      vapiNumber = vapiRes.data;
+    } catch (vapiErr) {
+      const msg = vapiErr.response?.data?.message || vapiErr.message;
+      return res.status(502).json({ success: false, error: `Vapi error: ${msg}` });
+    }
+
+    // Save to Supabase
+    const { data, error } = await supabase.from('phone_numbers').insert([{
+      id: uuidv4(),
+      user_id: req.user.id,
+      number: vapiNumber.number,
+      friendly_name: friendly_name || vapiNumber.number,
+      area_code: area_code || vapiNumber.number?.slice(2, 5),
+      vapi_phone_number_id: vapiNumber.id,
+      health_status: 'healthy',
+      is_active: true,
+      daily_call_limit: 50,
+    }]).select().single();
+    if (error) throw error;
+
+    res.status(201).json({ success: true, data, vapi_id: vapiNumber.id });
+  } catch (err) { next(err); }
+});
+
+// GET /api/phones/plan-status — current usage vs limit
+router.get('/plan-status', async (req, res, next) => {
+  try {
+    const { data: userData } = await supabase.from('users').select('subscription_tier').eq('id', req.user.id).single();
+    const tier = userData?.subscription_tier || 'free';
+    const limit = PLAN_LIMITS[tier] || 1;
+    const { count } = await supabase.from('phone_numbers').select('*', { count: 'exact', head: true }).eq('user_id', req.user.id);
+    res.json({ success: true, tier, used: count || 0, limit, can_provision: (count || 0) < limit });
+  } catch (err) { next(err); }
+});
 
 // GET /api/phones
 router.get('/', async (req, res, next) => {

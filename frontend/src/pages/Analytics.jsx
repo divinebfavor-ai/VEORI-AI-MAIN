@@ -102,6 +102,143 @@ function SectionHeader({ title, sub }) {
   )
 }
 
+// ─── US Choropleth Map ────────────────────────────────────────────────────────
+// Tile-grid US map
+const US_STATE_GRID = [
+  {c:0,r:0,a:'AK'},{c:10,r:0,a:'ME'},
+  {c:0,r:1,a:'WA'},{c:1,r:1,a:'MT'},{c:2,r:1,a:'ND'},{c:3,r:1,a:'MN'},{c:4,r:1,a:'WI'},{c:9,r:1,a:'VT'},{c:10,r:1,a:'NH'},
+  {c:0,r:2,a:'OR'},{c:1,r:2,a:'ID'},{c:2,r:2,a:'SD'},{c:3,r:2,a:'NE'},{c:4,r:2,a:'IA'},{c:5,r:2,a:'MI'},{c:8,r:2,a:'NY'},{c:9,r:2,a:'MA'},{c:10,r:2,a:'RI'},
+  {c:0,r:3,a:'CA'},{c:1,r:3,a:'NV'},{c:2,r:3,a:'WY'},{c:3,r:3,a:'CO'},{c:4,r:3,a:'MO'},{c:5,r:3,a:'IL'},{c:6,r:3,a:'IN'},{c:7,r:3,a:'OH'},{c:8,r:3,a:'PA'},{c:9,r:3,a:'NJ'},{c:10,r:3,a:'CT'},
+  {c:0,r:4,a:'AZ'},{c:1,r:4,a:'UT'},{c:2,r:4,a:'NM'},{c:3,r:4,a:'KS'},{c:4,r:4,a:'AR'},{c:5,r:4,a:'KY'},{c:6,r:4,a:'WV'},{c:7,r:4,a:'VA'},{c:8,r:4,a:'MD'},{c:9,r:4,a:'DE'},
+  {c:0,r:5,a:'TX'},{c:2,r:5,a:'OK'},{c:3,r:5,a:'TN'},{c:4,r:5,a:'MS'},{c:5,r:5,a:'AL'},{c:6,r:5,a:'NC'},{c:7,r:5,a:'SC'},{c:8,r:5,a:'DC'},
+  {c:1,r:6,a:'LA'},{c:4,r:6,a:'GA'},{c:5,r:6,a:'FL'},
+  {c:9,r:6,a:'HI'},
+]
+
+function USStateMap({ stateData }) {
+  const [hovered, setHovered] = useState(null)
+  const [tooltip, setTooltip] = useState(null)
+
+  // Build lookup: abbr → close_rate
+  const rateMap = {}
+  ;(stateData || []).forEach(s => {
+    if (s.state) rateMap[s.state.toUpperCase()] = s.close_rate || 0
+  })
+
+  const maxRate = Math.max(...Object.values(rateMap), 1)
+
+  const TILE = 38
+  const GAP  = 3
+  const COLS  = 11
+  const ROWS  = 7
+
+  const stateColor = (abbr) => {
+    const rate = rateMap[abbr]
+    if (rate === undefined) return 'var(--surface-bg-2)'
+    const intensity = rate / maxRate
+    return `rgba(0,195,122,${0.08 + intensity * 0.82})`
+  }
+
+  const stateTextColor = (abbr) => {
+    const rate = rateMap[abbr]
+    if (rate === undefined) return 'var(--t4)'
+    const intensity = rate / maxRate
+    return intensity > 0.5 ? '#000' : '#00C37A'
+  }
+
+  const W = (COLS + 1) * (TILE + GAP)
+  const H = (ROWS + 1) * (TILE + GAP)
+
+  return (
+    <div style={{ position: 'relative', width: '100%', overflowX: 'auto' }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', maxWidth: W, display: 'block' }}
+        onMouseLeave={() => { setHovered(null); setTooltip(null) }}
+      >
+        {US_STATE_GRID.map(({ c, r, a }) => {
+          const x = c * (TILE + GAP)
+          const y = r * (TILE + GAP)
+          const rate = rateMap[a]
+          const isHov = hovered === a
+          return (
+            <g key={a}
+              onMouseEnter={(e) => {
+                setHovered(a)
+                setTooltip({ abbr: a, rate, x: c * (TILE + GAP) + TILE / 2, y: r * (TILE + GAP) })
+              }}
+              onMouseLeave={() => { setHovered(null); setTooltip(null) }}
+              style={{ cursor: rate !== undefined ? 'pointer' : 'default' }}
+            >
+              <rect
+                x={x} y={y} width={TILE} height={TILE} rx={5}
+                fill={stateColor(a)}
+                stroke={isHov ? '#00C37A' : 'var(--border)'}
+                strokeWidth={isHov ? 1.5 : 0.5}
+                style={{ transition: 'all 0.15s ease' }}
+              />
+              <text
+                x={x + TILE / 2} y={y + TILE / 2 + 1}
+                textAnchor="middle" dominantBaseline="middle"
+                style={{ fontSize: 9, fontWeight: 600, fill: stateTextColor(a), fontFamily: 'Geist, sans-serif', pointerEvents: 'none' }}
+              >
+                {a}
+              </text>
+              {rate !== undefined && (
+                <text
+                  x={x + TILE / 2} y={y + TILE / 2 + 10}
+                  textAnchor="middle" dominantBaseline="middle"
+                  style={{ fontSize: 7, fill: stateTextColor(a), opacity: 0.75, fontFamily: 'Geist Mono, monospace', pointerEvents: 'none' }}
+                >
+                  {Math.round(rate)}%
+                </text>
+              )}
+            </g>
+          )
+        })}
+
+        {/* Tooltip */}
+        {tooltip && tooltip.rate !== undefined && (
+          <g>
+            <rect
+              x={Math.min(tooltip.x - 50, W - 115)} y={Math.max(tooltip.y - 48, 0)}
+              width={110} height={40} rx={6}
+              fill="var(--card-bg)" stroke="#00C37A" strokeWidth={0.8}
+            />
+            <text
+              x={Math.min(tooltip.x - 50, W - 115) + 55}
+              y={Math.max(tooltip.y - 48, 0) + 14}
+              textAnchor="middle"
+              style={{ fontSize: 10, fontWeight: 700, fill: 'var(--t1)', fontFamily: 'Geist, sans-serif' }}
+            >
+              {tooltip.abbr}
+            </text>
+            <text
+              x={Math.min(tooltip.x - 50, W - 115) + 55}
+              y={Math.max(tooltip.y - 48, 0) + 28}
+              textAnchor="middle"
+              style={{ fontSize: 9, fill: '#00C37A', fontFamily: 'Geist Mono, monospace' }}
+            >
+              {Math.round(tooltip.rate)}% close rate
+            </text>
+          </g>
+        )}
+      </svg>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <span style={{ fontSize: 10, color: 'var(--t4)' }}>No data</span>
+        <div style={{ display: 'flex', gap: 2 }}>
+          {[0.08, 0.25, 0.42, 0.60, 0.82].map((o, i) => (
+            <div key={i} style={{ width: 18, height: 8, borderRadius: 2, background: `rgba(0,195,122,${o})` }} />
+          ))}
+        </div>
+        <span style={{ fontSize: 10, color: '#00C37A' }}>High close rate</span>
+      </div>
+    </div>
+  )
+}
+
 // ─── State heatmap row ────────────────────────────────────────────────────────
 function StateHeatmapRow({ state, closeRate, dealsAttempted, dealsClosed, avgFee, trend }) {
   const intensity = Math.min(closeRate / 100, 1)
@@ -371,34 +508,42 @@ export default function Analytics() {
 
         {/* State performance heatmap */}
         <div className="lg:col-span-2 bg-card border border-border-subtle rounded-xl p-6">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-[16px] font-semibold text-text-primary">Performance by State</h2>
+            <span className="text-[10px] text-text-muted px-2 py-0.5 rounded-full bg-surface border border-border-subtle">US Heatmap</span>
           </div>
-          <div className="flex items-center gap-6 mb-5 text-[11px] text-text-muted">
-            <span>Close rate</span>
-            <span>Deals closed / attempted</span>
-            <span className="text-gold">Avg assignment fee</span>
-          </div>
+
           {loading ? (
-            <div className="space-y-3">
-              {[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded-lg bg-surface animate-pulse" />)}
-            </div>
-          ) : statePerf.length === 0 ? (
-            <p className="text-[13px] text-text-muted py-8 text-center">No state data yet.</p>
+            <div className="h-48 rounded-xl bg-surface animate-pulse mb-4" />
           ) : (
-            <div>
-              {statePerf.slice(0, 8).map((s, i) => (
-                <StateHeatmapRow
-                  key={i}
-                  state={s.state}
-                  closeRate={s.close_rate || 0}
-                  dealsAttempted={s.deals_attempted || 0}
-                  dealsClosed={s.deals_closed || 0}
-                  avgFee={s.avg_assignment_fee}
-                  trend={s.trend_direction || 'flat'}
-                />
-              ))}
-            </div>
+            <USStateMap stateData={statePerf} />
+          )}
+
+          {statePerf.length > 0 && (
+            <>
+              <div className="flex items-center gap-6 mt-5 mb-3 text-[11px] text-text-muted">
+                <span>Close rate</span>
+                <span>Deals closed / attempted</span>
+                <span className="text-gold">Avg assignment fee</span>
+              </div>
+              <div>
+                {statePerf.slice(0, 6).map((s, i) => (
+                  <StateHeatmapRow
+                    key={i}
+                    state={s.state}
+                    closeRate={s.close_rate || 0}
+                    dealsAttempted={s.deals_attempted || 0}
+                    dealsClosed={s.deals_closed || 0}
+                    avgFee={s.avg_assignment_fee}
+                    trend={s.trend_direction || 'flat'}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {statePerf.length === 0 && !loading && (
+            <p className="text-[13px] text-text-muted py-4 text-center">Close deals to populate the map.</p>
           )}
         </div>
 

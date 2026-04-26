@@ -61,17 +61,15 @@ function PasswordStrengthBar({ password }) {
   )
 }
 
-function AddPhoneForm({ onAdd }) {
+function AddPhoneForm({ onAdd, onCancel }) {
   const [form, setForm] = useState({ number: '', friendly_name: '', state: '', area_code: '', daily_call_limit: '50' })
   const [saving, setSaving] = useState(false)
-  const [open, setOpen] = useState(false)
 
   const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }))
 
   const handleAdd = async () => {
     const num = form.number.trim()
     if (!num) { toast.error('Phone number is required'); return }
-    // Basic format check
     if (!/^\+?[1-9]\d{7,14}$/.test(num.replace(/[\s\-().]/g, ''))) {
       toast.error('Enter a valid phone number (e.g. +15551234567)'); return
     }
@@ -86,7 +84,6 @@ function AddPhoneForm({ onAdd }) {
       })
       onAdd(data.data || data)
       setForm({ number: '', friendly_name: '', state: '', area_code: '', daily_call_limit: '50' })
-      setOpen(false)
       toast.success('Phone number added')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to add phone number')
@@ -95,17 +92,9 @@ function AddPhoneForm({ onAdd }) {
     }
   }
 
-  if (!open) {
-    return (
-      <Button variant="secondary" onClick={() => setOpen(true)}>
-        <Plus size={14} /> Add Phone Number
-      </Button>
-    )
-  }
-
   return (
     <div className="border border-primary/20 rounded-xl p-5 bg-primary/5 space-y-4">
-      <p className="text-[13px] font-semibold text-text-primary">New Phone Number</p>
+      <p className="text-[13px] font-semibold text-text-primary">Add Existing Number</p>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <Input
@@ -123,9 +112,138 @@ function AddPhoneForm({ onAdd }) {
       </div>
       <div className="flex gap-2 pt-1">
         <Button onClick={handleAdd} loading={saving}>Add Number</Button>
-        <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
+  )
+}
+
+function PhoneTab({ phoneList, setPhoneList }) {
+  const [planStatus, setPlanStatus] = useState(null)
+  const [provisioning, setProvisioning] = useState(false)
+  const [provisionForm, setProvisionForm] = useState({ area_code: '', friendly_name: '' })
+  const [showProvision, setShowProvision] = useState(false)
+
+  useEffect(() => {
+    phones.getPlanStatus().then(r => setPlanStatus(r.data)).catch(() => {})
+  }, [phoneList.length])
+
+  const handleProvision = async () => {
+    setProvisioning(true)
+    try {
+      const { data } = await phones.provision(provisionForm.area_code || '415', provisionForm.friendly_name || undefined)
+      setPhoneList(prev => [...prev, data.data || data])
+      setShowProvision(false)
+      setProvisionForm({ area_code: '', friendly_name: '' })
+      toast.success('Phone number purchased and ready to use!')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to provision number')
+    } finally {
+      setProvisioning(false)
+    }
+  }
+
+  const healthColor = s => s === 'healthy' ? 'success' : s === 'cooling' ? 'warning' : s === 'resting' ? 'info' : 'danger'
+
+  return (
+    <Section title="Phone Numbers" description="Buy and manage numbers for AI calling — powered by Vapi">
+      {/* Plan status bar */}
+      {planStatus && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', borderRadius: 10, marginBottom: 20,
+          background: 'var(--surface-bg)', border: '1px solid var(--border)',
+        }}>
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>
+              {planStatus.used} / {planStatus.limit} numbers used
+            </p>
+            <p style={{ fontSize: 11, color: 'var(--t4)', margin: '2px 0 0' }}>
+              {planStatus.tier} plan · {planStatus.can_provision ? `${planStatus.limit - planStatus.used} slot(s) remaining` : 'Limit reached — upgrade to add more'}
+            </p>
+          </div>
+          <div style={{ height: 6, width: 120, background: 'var(--surface-bg-3)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${Math.min(planStatus.used / planStatus.limit * 100, 100)}%`, background: planStatus.can_provision ? '#00C37A' : '#FF4444', borderRadius: 3, transition: 'width 0.4s ease' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Phone list */}
+      <div className="space-y-2 mb-5">
+        {phoneList.length === 0 && (
+          <div className="text-center py-8">
+            <Phone size={28} className="text-text-muted mx-auto mb-3" strokeWidth={1.5} />
+            <p className="text-[14px] text-text-muted">No phone numbers yet</p>
+            <p className="text-[12px] text-text-muted mt-1">Get a number below to start calling leads</p>
+          </div>
+        )}
+        {phoneList.map(p => (
+          <div key={p.id} className="flex items-center justify-between py-3 border-b border-border-subtle last:border-0">
+            <div>
+              <p className="text-[14px] font-medium text-text-primary">{p.number}</p>
+              <p className="text-[11px] text-text-muted">
+                {p.friendly_name ? `${p.friendly_name} · ` : ''}{p.state || 'All states'} · {p.daily_calls_made || 0}/{p.daily_call_limit || 50} calls today
+                {p.vapi_phone_number_id && <span className="text-primary ml-2">· Vapi #{p.vapi_phone_number_id.slice(-6)}</span>}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant={healthColor(p.health_status)}>{p.health_status || 'healthy'}</Badge>
+              <span className="text-[12px] text-text-muted">Score: {p.spam_score ?? 100}</span>
+              <button
+                onClick={async () => {
+                  try { await phones.deletePhone(p.id); setPhoneList(prev => prev.filter(x => x.id !== p.id)); toast.success('Removed') } catch { toast.error('Failed to remove') }
+                }}
+                className="text-text-muted hover:text-danger transition-colors"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Get a Number — provisioning */}
+      {!showProvision ? (
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="primary"
+            onClick={() => setShowProvision(true)}
+            disabled={planStatus && !planStatus.can_provision}
+          >
+            <Plus size={14} /> Get a Number
+          </Button>
+          <Button variant="secondary" onClick={() => setShowProvision('manual')}>
+            <Plus size={14} /> Add Existing Number
+          </Button>
+        </div>
+      ) : showProvision === 'manual' ? (
+        <AddPhoneForm onAdd={(num) => { setPhoneList(prev => [...prev, num]); setShowProvision(false) }} onCancel={() => setShowProvision(false)} />
+      ) : (
+        <div style={{ borderRadius: 12, padding: 20, background: 'rgba(0,195,122,0.04)', border: '1px solid rgba(0,195,122,0.18)' }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', marginBottom: 4 }}>Buy a Phone Number</p>
+          <p style={{ fontSize: 12, color: 'var(--t4)', marginBottom: 16 }}>Veori purchases this number from Vapi on your behalf. It is ready to use immediately.</p>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <Input
+              label="Area Code (optional)"
+              value={provisionForm.area_code}
+              onChange={e => setProvisionForm(p => ({ ...p, area_code: e.target.value.replace(/\D/, '').slice(0, 3) }))}
+              placeholder="e.g. 512 for Austin TX"
+              maxLength={3}
+            />
+            <Input
+              label="Label (optional)"
+              value={provisionForm.friendly_name}
+              onChange={e => setProvisionForm(p => ({ ...p, friendly_name: e.target.value }))}
+              placeholder="Main Outreach Line"
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button onClick={handleProvision} loading={provisioning}>Buy Number</Button>
+            <Button variant="ghost" onClick={() => setShowProvision(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+    </Section>
   )
 }
 
@@ -420,42 +538,7 @@ export default function Settings() {
           )}
 
           {tab === 'phones' && (
-            <Section title="Phone Numbers" description="Manage your Vapi calling numbers and health scores">
-              <div className="space-y-2 mb-5">
-                {phoneList.length === 0 && (
-                  <div className="text-center py-8">
-                    <Phone size={28} className="text-text-muted mx-auto mb-3" strokeWidth={1.5} />
-                    <p className="text-[14px] text-text-muted">No phone numbers yet</p>
-                    <p className="text-[12px] text-text-muted mt-1">Add a number below to start calling</p>
-                  </div>
-                )}
-                {phoneList.map(p => (
-                  <div key={p.id} className="flex items-center justify-between py-3 border-b border-border-subtle last:border-0">
-                    <div>
-                      <p className="text-[14px] font-medium text-text-primary">{p.number}</p>
-                      <p className="text-[11px] text-text-muted">
-                        {p.friendly_name ? `${p.friendly_name} · ` : ''}{p.state || 'All states'} · {p.daily_calls_made || 0}/{p.daily_call_limit || 50} calls today
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant={healthColor(p.health_status)}>{p.health_status || 'healthy'}</Badge>
-                      <span className="text-[12px] text-text-muted">Score: {p.spam_score ?? 100}</span>
-                      <button
-                        onClick={async () => {
-                          try { await phones.deletePhone(p.id); setPhoneList(prev => prev.filter(x => x.id !== p.id)); toast.success('Removed') } catch { toast.error('Failed to remove') }
-                        }}
-                        className="text-text-muted hover:text-danger transition-colors"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add phone number form */}
-              <AddPhoneForm onAdd={(num) => setPhoneList(prev => [...prev, num])} />
-            </Section>
+            <PhoneTab phoneList={phoneList} setPhoneList={setPhoneList} />
           )}
 
           {tab === 'security' && (

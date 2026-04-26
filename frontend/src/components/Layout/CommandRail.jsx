@@ -5,7 +5,9 @@ import {
   Columns, Briefcase, BarChart2, Settings, LogOut,
   Calculator, Shield, Phone, Building2,
   Sun, Moon, MessageSquare, BookOpen, Store, Bell,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
+import VeoriLogo from '../VeoriLogo'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
 import useAuthStore from '../../store/authStore'
 import useThemeStore from '../../store/themeStore'
@@ -95,18 +97,20 @@ function NotifDropdown({ open, onClose }) {
   )
 }
 
-function NavItem({ to, icon: Icon, label, liveBadge }) {
+function NavItem({ to, icon: Icon, label, liveBadge, collapsed }) {
   const [hov, setHov] = useState(false)
   return (
     <NavLink to={to}
       style={{ textDecoration: 'none', display: 'block' }}
+      title={collapsed ? label : undefined}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
     >
       {({ isActive }) => (
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          height: 44, padding: '0 16px',
+          display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 12,
+          height: 44, padding: collapsed ? '0' : '0 16px',
+          justifyContent: collapsed ? 'center' : 'flex-start',
           borderLeft: `2px solid ${isActive ? '#00C37A' : 'transparent'}`,
           background: isActive
             ? 'rgba(0,195,122,0.08)'
@@ -119,15 +123,18 @@ function NavItem({ to, icon: Icon, label, liveBadge }) {
             size={17} strokeWidth={1.6}
             style={{ color: isActive ? '#00C37A' : hov ? 'var(--t2)' : 'var(--t4)', flexShrink: 0 }}
           />
-          <span style={{
-            fontSize: 13, fontWeight: isActive ? 500 : 400,
-            color: isActive ? 'var(--t1)' : hov ? 'var(--t2)' : 'var(--t3)',
-            letterSpacing: '-0.01em',
-            transition: 'color 0.15s ease',
-          }}>
-            {label}
-          </span>
-          {liveBadge > 0 && (
+          {!collapsed && (
+            <span style={{
+              fontSize: 13, fontWeight: isActive ? 500 : 400,
+              color: isActive ? 'var(--t1)' : hov ? 'var(--t2)' : 'var(--t3)',
+              letterSpacing: '-0.01em',
+              transition: 'color 0.15s ease',
+              whiteSpace: 'nowrap',
+            }}>
+              {label}
+            </span>
+          )}
+          {!collapsed && liveBadge > 0 && (
             <div style={{
               marginLeft: 'auto',
               minWidth: 20, height: 18,
@@ -140,6 +147,9 @@ function NavItem({ to, icon: Icon, label, liveBadge }) {
             }}>
               {liveBadge}
             </div>
+          )}
+          {collapsed && liveBadge > 0 && (
+            <span style={{ position: 'absolute', top: 8, right: 6, width: 6, height: 6, borderRadius: '50%', background: '#00C37A' }} />
           )}
         </div>
       )}
@@ -154,7 +164,16 @@ export default function CommandRail() {
   const navigate = useNavigate()
   const [notifOpen, setNotifOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === '1')
   const notifRef = useRef(null)
+
+  const toggleCollapse = () => {
+    setCollapsed(v => {
+      const next = !v
+      localStorage.setItem('sidebar_collapsed', next ? '1' : '0')
+      return next
+    })
+  }
 
   useEffect(() => {
     const load = () => {
@@ -173,35 +192,40 @@ export default function CommandRail() {
 
   return (
     <div className="glass-sidebar" style={{
-      width: 240, flexShrink: 0,
+      width: collapsed ? 60 : 240, flexShrink: 0,
       display: 'flex', flexDirection: 'column',
       height: '100%', position: 'relative', zIndex: 20,
+      transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
+      overflow: 'hidden',
     }}>
-      {/* Logo */}
-      <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid var(--sidebar-border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: 'rgba(0,195,122,0.12)',
-            border: '1px solid rgba(0,195,122,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 16px rgba(0,195,122,0.10)',
-            flexShrink: 0,
-          }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#00C37A', letterSpacing: '-0.02em' }}>V</span>
+      {/* Logo + collapse toggle */}
+      <div style={{ padding: collapsed ? '16px 0' : '20px 16px 16px', borderBottom: '1px solid var(--sidebar-border)', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', gap: 10 }}>
+        {!collapsed && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+            <VeoriLogo size={34} />
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0 }}>Veori</p>
+              <p style={{ fontSize: 9, color: 'var(--t4)', letterSpacing: '0.10em', textTransform: 'uppercase', margin: 0 }}>
+                AI Platform
+              </p>
+            </div>
           </div>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)', letterSpacing: '-0.01em', lineHeight: 1.2, margin: 0 }}>Veori</p>
-            <p style={{ fontSize: 9, color: 'var(--t4)', letterSpacing: '0.10em', textTransform: 'uppercase', margin: 0 }}>
-              Autonomous Acquisitions
-            </p>
-          </div>
-        </div>
-        {/* System live indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span className="live-dot" style={{ width: 5, height: 5 }} />
-          <span style={{ fontSize: 10, color: 'var(--t4)', letterSpacing: '0.04em' }}>System Live</span>
-        </div>
+        )}
+        {collapsed && <VeoriLogo size={30} />}
+        <button
+          onClick={toggleCollapse}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          style={{
+            width: 24, height: 24, borderRadius: 6, border: '1px solid var(--sidebar-border)',
+            background: 'var(--surface-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: 'var(--t4)', flexShrink: 0,
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-bg-3)'; e.currentTarget.style.color = 'var(--t2)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-bg)'; e.currentTarget.style.color = 'var(--t4)' }}
+        >
+          {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+        </button>
       </div>
 
       {/* Nav */}
@@ -213,6 +237,7 @@ export default function CommandRail() {
             icon={icon}
             label={label}
             liveBadge={live ? liveCalls.length : 0}
+            collapsed={collapsed}
           />
         ))}
       </nav>
@@ -220,15 +245,19 @@ export default function CommandRail() {
       {/* Bottom */}
       <div style={{ borderTop: '1px solid var(--sidebar-border)', padding: '12px 0 8px', position: 'relative' }}>
         {/* Settings */}
-        <NavItem to="/settings" icon={Settings} label="Settings" />
+        <NavItem to="/settings" icon={Settings} label="Settings" collapsed={collapsed} />
 
         {/* Notifications */}
         <div ref={notifRef} style={{ position: 'relative' }}>
           <button
             onClick={() => setNotifOpen(v => !v)}
+            title={collapsed ? 'Notifications' : undefined}
             style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-              height: 44, padding: '0 18px',
+              width: '100%', display: 'flex', alignItems: 'center',
+              gap: collapsed ? 0 : 12,
+              height: 44,
+              padding: collapsed ? '0' : '0 18px',
+              justifyContent: collapsed ? 'center' : 'flex-start',
               background: notifOpen ? 'var(--surface-bg-3)' : 'none',
               border: 'none', cursor: 'pointer',
               transition: 'background 0.15s ease',
@@ -252,7 +281,7 @@ export default function CommandRail() {
                 </span>
               )}
             </div>
-            <span style={{ fontSize: 13, color: 'var(--t3)' }}>Notifications</span>
+            {!collapsed && <span style={{ fontSize: 13, color: 'var(--t3)' }}>Notifications</span>}
           </button>
           <NotifDropdown open={notifOpen} onClose={() => setNotifOpen(false)} />
         </div>
@@ -260,9 +289,13 @@ export default function CommandRail() {
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
+          title={collapsed ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : undefined}
           style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-            height: 44, padding: '0 18px',
+            width: '100%', display: 'flex', alignItems: 'center',
+            gap: collapsed ? 0 : 12,
+            height: 44,
+            padding: collapsed ? '0' : '0 18px',
+            justifyContent: collapsed ? 'center' : 'flex-start',
             background: 'none', border: 'none', cursor: 'pointer',
             transition: 'background 0.15s ease',
           }}
@@ -273,52 +306,75 @@ export default function CommandRail() {
             ? <Sun  size={16} strokeWidth={1.6} style={{ color: 'var(--t4)', flexShrink: 0 }} />
             : <Moon size={16} strokeWidth={1.6} style={{ color: 'var(--t4)', flexShrink: 0 }} />
           }
-          <span style={{ fontSize: 13, color: 'var(--t3)' }}>
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          </span>
+          {!collapsed && (
+            <span style={{ fontSize: 13, color: 'var(--t3)' }}>
+              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            </span>
+          )}
         </button>
 
         {/* User + logout */}
-        <div style={{
-          margin: '8px 12px 4px',
-          padding: '10px 10px',
-          borderRadius: 10,
-          background: 'var(--surface-bg)',
-          border: '1px solid var(--sidebar-border)',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
+        {collapsed ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 4px' }}>
+            <button
+              onClick={handleLogout}
+              title={`Sign out (${user?.full_name || 'Operator'})`}
+              style={{
+                width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                background: 'rgba(0,195,122,0.12)',
+                border: '1px solid rgba(0,195,122,0.25)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700, color: '#00C37A',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,68,68,0.12)'; e.currentTarget.style.color = '#FF4444'; e.currentTarget.style.borderColor = 'rgba(255,68,68,0.25)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,195,122,0.12)'; e.currentTarget.style.color = '#00C37A'; e.currentTarget.style.borderColor = 'rgba(0,195,122,0.25)' }}
+            >
+              {initials}
+            </button>
+          </div>
+        ) : (
           <div style={{
-            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-            background: 'rgba(0,195,122,0.12)',
-            border: '1px solid rgba(0,195,122,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: '#00C37A',
+            margin: '8px 12px 4px',
+            padding: '10px 10px',
+            borderRadius: 10,
+            background: 'var(--surface-bg)',
+            border: '1px solid var(--sidebar-border)',
+            display: 'flex', alignItems: 'center', gap: 10,
           }}>
-            {initials}
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(0,195,122,0.12)',
+              border: '1px solid rgba(0,195,122,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700, color: '#00C37A',
+            }}>
+              {initials}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--t2)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.full_name || 'Operator'}
+              </p>
+              <p style={{ fontSize: 10, color: 'var(--t4)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.company_name || 'veori.net'}
+              </p>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Sign out"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--t4)', padding: 4,
+                display: 'flex', alignItems: 'center',
+                transition: 'color 0.15s ease', flexShrink: 0,
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#FF4444'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--t4)'}
+            >
+              <LogOut size={14} strokeWidth={1.6} />
+            </button>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--t2)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user?.full_name || 'Operator'}
-            </p>
-            <p style={{ fontSize: 10, color: 'var(--t4)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user?.company_name || 'veori.net'}
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            title="Sign out"
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--t4)', padding: 4,
-              display: 'flex', alignItems: 'center',
-              transition: 'color 0.15s ease', flexShrink: 0,
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = '#FF4444'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--t4)'}
-          >
-            <LogOut size={14} strokeWidth={1.6} />
-          </button>
-        </div>
+        )}
       </div>
     </div>
   )
