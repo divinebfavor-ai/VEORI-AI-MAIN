@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
 const aiService = require('../services/aiService');
+const { tagLead, tagLeadsBulk, getOpeningSMS } = require('../services/leadTaggingService');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -61,6 +62,27 @@ router.post('/', async (req, res, next) => {
     }]).select().single();
 
     if (error) throw error;
+
+    // Auto-tag within 60 seconds (async — don't block response)
+    setImmediate(async () => {
+      const tagged = await tagLead(data.id);
+      if (tagged && !is_on_dnc) {
+        // Re-fetch to get tag for SMS
+        const { data: full } = await supabase.from('leads').select('*').eq('id', data.id).single();
+        if (full) {
+          const sms = getOpeningSMS(full);
+          // Log opening SMS to be sent (conversations service picks this up)
+          await supabase.from('ai_command_log').insert({
+            operator_id: req.user.id,
+            action_type: 'opening_sms',
+            contact_name: `${full.first_name} ${full.last_name}`,
+            message_sent: sms,
+            outcome: 'queued',
+          }).catch(() => {});
+        }
+      }
+    });
+
     res.status(201).json({ success: true, data });
   } catch (err) { next(err); }
 });
@@ -109,6 +131,18 @@ router.post('/bulk', async (req, res, next) => {
       else duplicates += chunk.length;
     }
 
+    // Auto-tag all imported leads async — don't block the response
+    const { data: newLeads } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false })
+      .limit(imported);
+
+    if (newLeads?.length) {
+      setImmediate(() => tagLeadsBulk(newLeads.map(l => l.id)));
+    }
+
     res.status(201).json({
       success: true,
       imported,
@@ -141,6 +175,26 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 // GET /api/leads/:id/research — AI property analysis
+// POST /api/leads/:id/retag — manually retag a lead
+router.post('/:id/retag', async (req, res, next) => {
+  try {
+    const { data: lead } = await supabase.from('leads').select('id, user_id').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+    const tagged = await tagLead(lead.id);
+    res.json({ success: true, data: tagged });
+  } catch (err) { next(err); }
+});
+
+// POST /api/leads/retag-all — retag all leads for this operator
+router.post('/retag-all', async (req, res, next) => {
+  try {
+    const { data: leads } = await supabase.from('leads').select('id').eq('user_id', req.user.id);
+    if (!leads?.length) return res.json({ success: true, tagged: 0 });
+    setImmediate(() => tagLeadsBulk(leads.map(l => l.id)));
+    res.json({ success: true, queued: leads.length, message: `Tagging ${leads.length} leads in background` });
+  } catch (err) { next(err); }
+});
+
 router.get('/:id/research', async (req, res, next) => {
   try {
     const { data: lead } = await supabase.from('leads').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();

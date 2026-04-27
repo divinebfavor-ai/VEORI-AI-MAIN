@@ -169,7 +169,159 @@ Current lead context:
 - Estimated Value: ${lead.estimated_value ? '$' + lead.estimated_value.toLocaleString() : 'Unknown'}
 - Estimated Equity: ${lead.estimated_equity ? '$' + lead.estimated_equity.toLocaleString() : 'Unknown'}
 - Property Type: ${lead.property_type || 'Single Family'}
-- Prior Motivation Score: ${lead.motivation_score != null ? lead.motivation_score + '/100' : 'First contact'}`;
+- Prior Motivation Score: ${lead.motivation_score != null ? lead.motivation_score + '/100' : 'First contact'}
+${buildTagIntelligenceBlock(lead)}`;
+}
+
+// ─── Tag-matched call intelligence block ─────────────────────────────────────
+function buildTagIntelligenceBlock(lead) {
+  const tag = lead.primary_tag;
+  if (!tag) return '';
+
+  const intelligence = {
+    pre_foreclosure: {
+      tone:     'Calm, empathetic, solution-focused',
+      goal:     'Find out timeline, open them to a cash exit before they lose everything',
+      never:    'Never say "foreclosure" first — let them bring it up',
+      angle:    '"We help homeowners find a clean exit fast"',
+      open:     'Lead with empathy. Acknowledge things can get complicated. Offer a solution, not a transaction.',
+      qualify:  'How urgent is their situation? What do they owe? Are they behind on payments?',
+    },
+    tax_delinquent: {
+      tone:     'Casual, helpful, low pressure',
+      goal:     'Find out if they want to offload the burden',
+      never:    'Never mention taxes aggressively or make them feel judged',
+      angle:    '"We make selling simple — no fees, no hassle"',
+      open:     'Confirm property ownership, then pivot to whether they want a clean exit.',
+      qualify:  'How long delinquent? Is property vacant or rented? Are they managing it themselves?',
+    },
+    absentee_owner: {
+      tone:     'Direct, respectful, get to the point fast',
+      goal:     'Find out if they are a tired landlord or ready to cash out',
+      never:    'Never assume they are in financial trouble',
+      angle:    '"We buy from owners who want to simplify"',
+      open:     'Confirm the property address, then ask if it is rented or vacant.',
+      qualify:  'How long owned? Rented or vacant? Enjoying it or is it a headache?',
+    },
+    inherited: {
+      tone:     'Warm, gentle, slow, respectful above everything',
+      goal:     'Make them feel supported, not sold to',
+      never:    'Never rush them. Never mention money first. Never use words like "deal" or "profit" early.',
+      angle:    '"We make inherited properties easy to handle"',
+      open:     'Acknowledge the situation gently. Ask if they are the right person to talk to about the property.',
+      qualify:  'Are other family members involved? Is the estate settled? What condition is the property in?',
+    },
+    probate: {
+      tone:     'Warm, gentle, patient — respect above everything',
+      goal:     'Make them feel supported and guide them toward a clean exit',
+      never:    'Never rush or use transactional language early',
+      angle:    '"We make inherited and estate properties simple to handle"',
+      open:     'Acknowledge the estate situation gently. Be the easiest call they take today.',
+      qualify:  'Is there an attorney involved? Are all heirs in agreement? What is the property condition?',
+    },
+    free_and_clear: {
+      tone:     'Professional, direct, peer-to-peer',
+      goal:     'Get to the number fast — these owners are experienced',
+      never:    'Never over-explain or talk down to them',
+      angle:    '"Clean cash deal, no liens, fast close"',
+      open:     'Direct. Confirm the property. Ask if they are open to a cash offer.',
+      qualify:  'Current use — rental income or hold? What number makes it worth it? Timeline preference?',
+    },
+    fsbo: {
+      tone:     'Helpful, agent-alternative positioning',
+      goal:     'Show them selling to us is easier than selling themselves',
+      never:    'Never criticize their decision to list themselves',
+      angle:    '"We can close faster with less hassle than listing"',
+      open:     'Acknowledge they are already trying to sell. Ask how it is going.',
+      qualify:  'How long listed? Any offers yet? What is their timeline?',
+    },
+    vacant: {
+      tone:     'Straightforward, problem-solver',
+      goal:     'Find out why it is vacant and how long',
+      never:    'Never make assumptions about why it is empty',
+      angle:    '"A vacant property is a cost — we can take that off your hands"',
+      open:     'Confirm ownership. Ask how long it has been vacant.',
+      qualify:  'Reason for vacancy? Condition of property? Any plans for it?',
+    },
+    cash_buyer: {
+      tone:     'Direct, fast, numbers-first — they are professionals',
+      goal:     'Pitch the deal fast, get a yes or no within 2 minutes',
+      never:    'Never waste a cash buyer\'s time with fluff',
+      angle:    'Lead with ARV, repair cost, assignment fee, and close timeline',
+      open:     'Jump straight to the deal: "I have something that fits your buy box."',
+      qualify:  'What is their current buy box? Min/max price? Do they self-manage or use PMs?',
+    },
+  };
+
+  const intel = intelligence[tag];
+  if (!intel) return '';
+
+  const secondary = (lead.secondary_tags || []);
+  const secNotes = secondary.length
+    ? `\nSecondary signals: ${secondary.join(', ')} — factor these into your approach.`
+    : '';
+
+  return `
+═══════════════════════════════════════════
+LEAD INTELLIGENCE — PRIMARY TAG: ${tag.toUpperCase().replace(/_/g,' ')}
+═══════════════════════════════════════════
+TONE: ${intel.tone}
+GOAL: ${intel.goal}
+NEVER: ${intel.never}
+KEY ANGLE: ${intel.angle}
+HOW TO OPEN: ${intel.open}
+QUALIFY BY ASKING: ${intel.qualify}${secNotes}
+
+Tag confidence: ${lead.tag_confidence || 0}% | Reason: ${lead.tag_reason || 'auto-detected'}
+This intelligence overrides the generic call flow above. Use it as your guiding strategy for this specific lead.`;
+}
+
+// ─── Buyer pitch strategy by buyer type ──────────────────────────────────────
+function buildBuyerPitch(buyerType, deal) {
+  const arv      = deal.arv || 0;
+  const price    = deal.buyer_price || deal.offer_price || 0;
+  const repairs  = deal.repair_estimate || 0;
+  const fee      = deal.assignment_fee || 0;
+  const rent     = deal.estimated_rent || 0;
+  const equity   = arv - price - repairs;
+  const capRate  = rent > 0 && price > 0 ? ((rent * 12 / price) * 100).toFixed(1) : null;
+
+  if (buyerType.includes('flip') || buyerType.includes('fix')) {
+    return `LEAD WITH: ARV, repair cost, and profit margin.
+- ARV: $${arv.toLocaleString()}
+- Repairs: ~$${repairs.toLocaleString()}
+- Price: $${price.toLocaleString()}
+- Potential profit after repairs: ~$${equity.toLocaleString()}
+PITCH: "After repairs you are looking at roughly $${equity.toLocaleString()} in profit on an ARV of $${arv.toLocaleString()}. Repairs are estimated at $${repairs.toLocaleString()}. Price is $${price.toLocaleString()}. Numbers work — are you in?"`;
+  }
+
+  if (buyerType.includes('landlord') || buyerType.includes('rental') || buyerType.includes('buy') || buyerType.includes('hold')) {
+    return `LEAD WITH: Cap rate, rent estimate, and cash flow.
+- Estimated monthly rent: $${rent.toLocaleString() || 'TBD'}
+- Purchase price: $${price.toLocaleString()}
+- Cap rate: ${capRate || 'TBD'}%
+PITCH: "This one cash flows well. Rent estimate is $${rent.toLocaleString()}/mo, price is $${price.toLocaleString()}, cap rate works out to ${capRate || 'TBD'}%. Good long-term hold — interested in the numbers?"`;
+  }
+
+  if (buyerType.includes('brrr')) {
+    return `LEAD WITH: ARV, after-repair equity, and refinance potential.
+- ARV: $${arv.toLocaleString()}
+- Price + Repairs all-in: ~$${(price + repairs).toLocaleString()}
+- After-repair equity: ~$${equity.toLocaleString()}
+PITCH: "Strong BRRRR play. All-in around $${(price + repairs).toLocaleString()}, ARV is $${arv.toLocaleString()}. You refinance at 70% ARV = $${Math.floor(arv * 0.7).toLocaleString()} — you could pull your money back out and still cash flow. Interested?"`;
+  }
+
+  if (buyerType.includes('wholesale') || buyerType.includes('jv')) {
+    return `LEAD WITH: Assignment fee and close speed.
+- Assignment fee: $${fee.toLocaleString()}
+- Price: $${price.toLocaleString()}
+- ARV: $${arv.toLocaleString()}
+PITCH: "JV opportunity. Assign for $${fee.toLocaleString()}. ARV is $${arv.toLocaleString()}, price is $${price.toLocaleString()}. Motivated seller — this one moves in under 21 days. Want to co-wholesale?"`;
+  }
+
+  // generic fallback
+  return `LEAD WITH: All key numbers.
+- ARV: $${arv.toLocaleString()} | Price: $${price.toLocaleString()} | Repairs: $${repairs.toLocaleString()} | Assignment Fee: $${fee.toLocaleString()}`;
 }
 
 // ─── Initiate outbound call ───────────────────────────────────────────────────
@@ -291,28 +443,38 @@ async function initiateBuyerCall({ buyer, deal, phoneNumber, callId, operator = 
   const aiName  = operator.ai_caller_name || 'Alex';
   const voiceId = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
 
+  // Buyer-type matched pitch strategy
+  const buyerType = (buyer.buyer_type || buyer.investment_strategy || 'flipper').toLowerCase();
+  const buyerPitch = buildBuyerPitch(buyerType, deal);
+
   const systemPrompt = `You are ${aiName}, a real estate wholesaler calling a cash buyer about an off-market property.
 
 PROPERTY:
 - Address: ${deal.property_address}, ${deal.property_city}, ${deal.property_state}
+- Seller Type: ${deal.seller_primary_tag || 'motivated seller'}
 - ARV: $${deal.arv?.toLocaleString() || 'TBD'}
 - Asking Price: $${(deal.buyer_price || deal.offer_price)?.toLocaleString() || 'TBD'}
 - Repair Estimate: ~$${deal.repair_estimate?.toLocaleString() || 'TBD'}
+- Assignment Fee: $${deal.assignment_fee?.toLocaleString() || 'TBD'}
 - Potential Buyer Profit: ~$${deal.arv && deal.buyer_price && deal.repair_estimate
     ? (deal.arv - deal.buyer_price - deal.repair_estimate).toLocaleString()
     : 'TBD'}
+
+BUYER PROFILE: ${buyerType.toUpperCase()}
+${buyerPitch}
 
 YOUR GOAL: Qualify the buyer and get them to commit to reviewing the deal package.
 
 CALL FLOW:
 1. "Hi ${buyer.name}, this is ${aiName}. I have an off-market deal in ${deal.property_city}, ${deal.property_state} that I think fits your criteria. Do you have a quick two minutes?"
-2. Describe the deal quickly: address, ARV, asking price, repairs
+2. Lead with the numbers that matter MOST to THIS buyer type (see Buyer Profile above)
 3. Ask: "Does this fit your buy box?" / "Are you actively buying in this area?"
 4. If interested: "Perfect — I'll text you the full deal package right now. Can you look at it within 24 hours? We have another buyer interested."
 5. If not interested: "No problem. What does your ideal deal look like right now? I'll keep you in mind."
 
 RULES:
 - Be brief and confident. Buyers are busy.
+- Never pitch a rental buyer on flip profit. Never pitch a flipper on cap rate.
 - Create urgency without lying: "We have interest from other buyers"
 - Get a commitment: "Will you review it today or tomorrow?"`;
 

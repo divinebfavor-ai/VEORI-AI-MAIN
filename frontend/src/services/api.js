@@ -57,6 +57,8 @@ export const leads = {
   deleteLead:       (id)        => api.delete(`/api/leads/${id}`),
   getLeadResearch:  (id)        => api.get(`/api/leads/${id}/research`),
   addToDNC:         (id, reason) => api.post(`/api/leads/${id}/dnc`, { reason }),
+  retagLead:        (id)        => api.post(`/api/leads/${id}/retag`),
+  retagAll:         ()          => api.post('/api/leads/retag-all'),
 }
 
 // ─── Calls ────────────────────────────────────────────────────────────────────
