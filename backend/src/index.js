@@ -23,8 +23,17 @@ const contractsRouter = require('./routes/contracts');
 const buyersRouter    = require('./routes/buyers');
 const analyticsRouter = require('./routes/analytics');
 const vapiRouter      = require('./routes/vapi');
-const followUpsRouter = require('./routes/followUps');
-const propertyPhotosRouter = require('./routes/propertyPhotos');
+const followUpsRouter        = require('./routes/followUps');
+const propertyPhotosRouter   = require('./routes/propertyPhotos');
+const operatorRouter         = require('./routes/operatorProfile');
+const titleCoRouter          = require('./routes/titleCompanies');
+const sequencesRouter        = require('./routes/sequences');
+const complianceRouter       = require('./routes/compliance');
+const ariaRouter             = require('./routes/aria');
+const conversationsRouter    = require('./routes/conversations');
+const academyRouter          = require('./routes/academy');
+const waitlistRouter         = require('./routes/waitlist');
+const notificationsRouter    = require('./routes/notifications');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -88,17 +97,6 @@ app.use('/api/analytics', analyticsRouter);
 app.use('/api/vapi',      vapiRouter);
 app.use('/api/follow-ups', followUpsRouter);
 app.use('/api/property-photos', propertyPhotosRouter);
-
-const operatorRouter     = require('./routes/operatorProfile');
-const titleCoRouter      = require('./routes/titleCompanies');
-const sequencesRouter    = require('./routes/sequences');
-const complianceRouter   = require('./routes/compliance');
-const ariaRouter         = require('./routes/aria');
-const conversationsRouter = require('./routes/conversations');
-const academyRouter      = require('./routes/academy');
-const waitlistRouter     = require('./routes/waitlist');
-const notificationsRouter = require('./routes/notifications');
-
 app.use('/api/operator',        operatorRouter);
 app.use('/api/title-companies', titleCoRouter);
 app.use('/api/sequences',       sequencesRouter);
