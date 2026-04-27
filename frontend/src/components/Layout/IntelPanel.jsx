@@ -6,13 +6,12 @@ import { useLiveCalls } from '../../hooks/useLiveCalls'
 import { calls as callsApi, analytics } from '../../services/api'
 import toast from 'react-hot-toast'
 
-// ─── Shared components ────────────────────────────────────────────────────────
 function Section({ title, children }) {
   return (
     <div>
       <p style={{
         fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-        textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)',
+        textTransform: 'uppercase', color: 'var(--t4)',
         marginBottom: 10,
       }}>
         {title}
@@ -26,10 +25,10 @@ function StatRow({ label, value, valueStyle }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+      padding: '7px 0', borderBottom: '1px solid var(--border)',
     }}>
-      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.40)' }}>{label}</span>
-      <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.80)', fontVariantNumeric: 'tabular-nums', ...(valueStyle || {}) }}>
+      <span style={{ fontSize: 12, color: 'var(--t3)' }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--t2)', fontVariantNumeric: 'tabular-nums', ...(valueStyle || {}) }}>
         {value ?? '—'}
       </span>
     </div>
@@ -38,8 +37,8 @@ function StatRow({ label, value, valueStyle }) {
 
 function ActionBtn({ icon: Icon, label, onClick, variant = 'default' }) {
   const styles = {
-    default: { bg: 'rgba(255,255,255,0.04)', text: 'rgba(255,255,255,0.55)', border: 'rgba(255,255,255,0.08)' },
-    green:   { bg: '#00C37A', text: '#000',   border: 'transparent' },
+    default: { bg: 'var(--surface-bg)', text: 'var(--t3)', border: 'var(--border)' },
+    green:   { bg: '#00C37A', text: '#000', border: 'transparent' },
     amber:   { bg: 'rgba(255,149,0,0.10)', text: '#FF9500', border: 'rgba(255,149,0,0.22)' },
   }
   const s = styles[variant] || styles.default
@@ -63,7 +62,7 @@ function ActionBtn({ icon: Icon, label, onClick, variant = 'default' }) {
 }
 
 function scoreColor(s) {
-  if (s == null) return 'rgba(255,255,255,0.40)'
+  if (s == null) return 'var(--t3)'
   if (s >= 70) return '#00C37A'
   if (s >= 40) return '#FF9500'
   return '#FF4444'
@@ -71,7 +70,6 @@ function scoreColor(s) {
 function fmt$(n) { return n ? '$' + Number(n).toLocaleString() : '—' }
 function fmtDate(d) { return d ? formatDistanceToNow(new Date(d), { addSuffix: true }) : 'Never' }
 
-// ─── System Mode ──────────────────────────────────────────────────────────────
 function SystemPanel() {
   const { calls: liveCalls } = useLiveCalls()
   const [dashboard, setDashboard] = React.useState(null)
@@ -89,14 +87,14 @@ function SystemPanel() {
           <div style={{ padding: '28px 0', textAlign: 'center' }}>
             <div style={{
               width: 36, height: 36, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.07)',
+              background: 'var(--surface-bg)',
+              border: '1px solid var(--border)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               margin: '0 auto 10px',
             }}>
-              <Phone size={14} strokeWidth={1.5} style={{ color: 'rgba(255,255,255,0.25)' }} />
+              <Phone size={14} strokeWidth={1.5} style={{ color: 'var(--t4)' }} />
             </div>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>No active calls</p>
+            <p style={{ fontSize: 12, color: 'var(--t4)' }}>No active calls</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -109,10 +107,10 @@ function SystemPanel() {
               }}>
                 <span className="live-dot" style={{ width: 5, height: 5, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--t1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {c.leads?.first_name} {c.leads?.last_name}
                   </p>
-                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ fontSize: 10, color: 'var(--t4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {c.leads?.property_address || '—'}
                   </p>
                 </div>
@@ -136,20 +134,20 @@ function SystemPanel() {
       <Section title="Execution Queue">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
-            { icon: Clock3, label: 'Due Follow-Ups', value: dashboard?.due_follow_ups?.length || 0, color: '#00C37A' },
-            { icon: FileSignature, label: 'Pending Signatures', value: dashboard?.pending_contracts?.length || 0, color: '#C9A84C' },
-            { icon: AlertTriangle, label: 'Title Watchlist', value: dashboard?.title_risks?.length || 0, color: '#FF9500' },
+            { icon: Clock3,        label: 'Due Follow-Ups',      value: dashboard?.due_follow_ups?.length || 0,      color: '#00C37A' },
+            { icon: FileSignature, label: 'Pending Signatures',  value: dashboard?.pending_contracts?.length || 0,   color: '#C9A84C' },
+            { icon: AlertTriangle, label: 'Title Watchlist',     value: dashboard?.title_risks?.length || 0,         color: '#FF9500' },
           ].map(item => (
             <div key={item.label} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '8px 10px',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.07)',
+              background: 'var(--surface-bg)',
+              border: '1px solid var(--border)',
               borderRadius: 8,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <item.icon size={13} style={{ color: item.color }} />
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>{item.label}</span>
+                <span style={{ fontSize: 12, color: 'var(--t2)' }}>{item.label}</span>
               </div>
               <span style={{ fontSize: 13, fontWeight: 700, color: item.color, fontVariantNumeric: 'tabular-nums' }}>
                 {item.value}
@@ -162,7 +160,6 @@ function SystemPanel() {
   )
 }
 
-// ─── Lead Mode ────────────────────────────────────────────────────────────────
 function LeadPanel({ data: lead }) {
   const [dialing, setDialing] = React.useState(false)
   if (!lead) return <SystemPanel />
@@ -182,27 +179,25 @@ function LeadPanel({ data: lead }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Header */}
-      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--border)' }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--t1)', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
           {lead.first_name} {lead.last_name}
         </p>
-        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>
+        <p style={{ fontSize: 11, color: 'var(--t4)', marginTop: 3 }}>
           {[lead.property_city, lead.property_state].filter(Boolean).join(', ') || '—'}
         </p>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {/* Score */}
         {score != null && (
           <div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 48, fontWeight: 700, color, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
                 {score}
               </span>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)' }}>motivation</span>
+              <span style={{ fontSize: 12, color: 'var(--t4)' }}>motivation</span>
             </div>
-            <div style={{ height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ height: 3, background: 'var(--surface-bg-3)', borderRadius: 2, overflow: 'hidden' }}>
               <div style={{
                 height: '100%', width: `${Math.min(100, score)}%`,
                 background: color, borderRadius: 2,
@@ -213,7 +208,6 @@ function LeadPanel({ data: lead }) {
           </div>
         )}
 
-        {/* Personality badge */}
         {lead.seller_personality && (
           <div style={{
             padding: '10px 12px', borderRadius: 8,
@@ -223,7 +217,7 @@ function LeadPanel({ data: lead }) {
             <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#FF9500', marginBottom: 5 }}>
               {lead.seller_personality} Seller
             </p>
-            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6 }}>
+            <p style={{ fontSize: 11, color: 'var(--t2)', lineHeight: 1.6 }}>
               {lead.seller_personality === 'Emotional'  && 'Lead with empathy before numbers.'}
               {lead.seller_personality === 'Analytical' && 'Provide data and comparables first.'}
               {lead.seller_personality === 'Skeptical'  && 'Build credibility before the offer.'}
@@ -233,22 +227,20 @@ function LeadPanel({ data: lead }) {
           </div>
         )}
 
-        {/* Property facts */}
         <Section title="Property">
           <div>
-            <StatRow label="Address" value={lead.property_address ? lead.property_address.split(',')[0] : '—'} />
-            <StatRow label="ARV"     value={fmt$(lead.estimated_arv || lead.estimated_value)} valueStyle={{ color: '#C9A84C' }} />
-            <StatRow label="Equity"  value={fmt$(lead.estimated_equity)} />
-            <StatRow label="Source"  value={lead.source} />
+            <StatRow label="Address"   value={lead.property_address ? lead.property_address.split(',')[0] : '—'} />
+            <StatRow label="ARV"       value={fmt$(lead.estimated_arv || lead.estimated_value)} valueStyle={{ color: '#C9A84C' }} />
+            <StatRow label="Equity"    value={fmt$(lead.estimated_equity)} />
+            <StatRow label="Source"    value={lead.source} />
             <StatRow label="Last Call" value={fmtDate(lead.last_call_date)} />
           </div>
         </Section>
 
-        {/* AI Summary */}
         {lead.ai_summary && (
           <Section title="AI Analysis">
             <div style={{
-              fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7,
+              fontSize: 11, color: 'var(--t2)', lineHeight: 1.7,
               background: 'rgba(0,195,122,0.04)',
               border: '1px solid rgba(0,195,122,0.10)',
               borderLeft: '2px solid rgba(0,195,122,0.35)',
@@ -260,8 +252,7 @@ function LeadPanel({ data: lead }) {
         )}
       </div>
 
-      {/* Action strip */}
-      <div style={{ padding: '10px 12px 12px', borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ padding: '10px 12px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', gap: 6 }}>
           <ActionBtn icon={Phone} label={dialing ? 'Dialing…' : lead.is_on_dnc ? 'DNC' : 'Dial Now'} onClick={dialNow} variant="green" />
           <ActionBtn icon={FileText} label="Create Deal" onClick={() => {}} />
@@ -276,7 +267,6 @@ function LeadPanel({ data: lead }) {
   )
 }
 
-// ─── Call Mode ────────────────────────────────────────────────────────────────
 function CallPanel({ data: call }) {
   if (!call) return <SystemPanel />
 
@@ -286,11 +276,11 @@ function CallPanel({ data: call }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', letterSpacing: '-0.01em' }}>
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--border)' }}>
+        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)', letterSpacing: '-0.01em' }}>
           {call.lead_name || 'Live Call'}
         </p>
-        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>
+        <p style={{ fontSize: 11, color: 'var(--t4)', marginTop: 3 }}>
           {call.property_address || 'Address unknown'}
         </p>
       </div>
@@ -302,9 +292,9 @@ function CallPanel({ data: call }) {
               <span style={{ fontSize: 48, fontWeight: 700, color, lineHeight: 1, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em' }}>
                 {score}
               </span>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.30)' }}>↑ rising</span>
+              <span style={{ fontSize: 11, color: 'var(--t4)' }}>↑ rising</span>
             </div>
-            <div style={{ height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ height: 3, background: 'var(--surface-bg-3)', borderRadius: 2, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${score}%`, background: color, borderRadius: 2 }} />
             </div>
           </div>
@@ -334,7 +324,7 @@ function CallPanel({ data: call }) {
               padding: '10px 12px', borderRadius: 8,
               background: 'rgba(0,195,122,0.04)',
               border: '1px solid rgba(0,195,122,0.12)',
-              fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.7,
+              fontSize: 12, color: 'var(--t2)', lineHeight: 1.7,
             }}>
               {call.coaching}
             </div>
@@ -353,17 +343,16 @@ function CallPanel({ data: call }) {
   )
 }
 
-// ─── Deal Mode ────────────────────────────────────────────────────────────────
 function DealPanel({ data: deal }) {
   if (!deal) return <SystemPanel />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', letterSpacing: '-0.01em', lineHeight: 1.3 }}>
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--border)' }}>
+        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>
           {deal.property_address || 'Deal'}
         </p>
-        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>
+        <p style={{ fontSize: 11, color: 'var(--t4)', marginTop: 3 }}>
           {[deal.property_city, deal.property_state].filter(Boolean).join(', ')}
         </p>
       </div>
@@ -377,9 +366,9 @@ function DealPanel({ data: deal }) {
             <StatRow label="Buyer price"  value={fmt$(deal.buyer_price)} />
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+              padding: '8px 0', borderBottom: '1px solid var(--border)',
             }}>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.40)' }}>Assignment fee</span>
+              <span style={{ fontSize: 12, color: 'var(--t3)' }}>Assignment fee</span>
               <span style={{ fontSize: 18, fontWeight: 700, color: '#C9A84C', fontVariantNumeric: 'tabular-nums' }}>
                 {fmt$(deal.assignment_fee)}
               </span>
@@ -391,7 +380,6 @@ function DealPanel({ data: deal }) {
   )
 }
 
-// ─── Root Intel Panel ─────────────────────────────────────────────────────────
 export default function IntelPanel() {
   const { mode, data } = useIntelStore()
 
@@ -404,34 +392,28 @@ export default function IntelPanel() {
 
   return (
     <div style={{
-      width: 280,
-      flexShrink: 0,
-      display: 'flex',
-      flexDirection: 'column',
+      width: 280, flexShrink: 0,
+      display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
-      background: 'rgba(255,255,255,0.015)',
+      background: 'var(--surface-bg)',
       backdropFilter: 'blur(12px)',
       WebkitBackdropFilter: 'blur(12px)',
-      borderLeft: '1px solid rgba(255,255,255,0.06)',
+      borderLeft: '1px solid var(--border)',
     }}>
-      {/* Panel header */}
       <div style={{
-        height: 36,
-        display: 'flex',
-        alignItems: 'center',
+        height: 36, display: 'flex', alignItems: 'center',
         padding: '0 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        borderBottom: '1px solid var(--border)',
         flexShrink: 0,
       }}>
         <span style={{
           fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-          textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)',
+          textTransform: 'uppercase', color: 'var(--t4)',
         }}>
           {modeLabels[mode] || 'System'}
         </span>
       </div>
 
-      {/* Panel content */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {mode === 'system' && <SystemPanel />}
         {mode === 'lead'   && <LeadPanel data={data} />}
