@@ -11,21 +11,21 @@ import useAuthStore from '../../store/authStore'
 import { auth } from '../../services/api'
 
 const NAV = [
-  { label: 'Dashboard',   icon: LayoutDashboard, to: '/dashboard' },
-  { label: 'Leads',       icon: Users,            to: '/leads' },
-  { label: 'Campaigns',   icon: PlayCircle,       to: '/campaigns' },
-  { label: 'Live Calls',  icon: Radio,            to: '/monitor', live: true },
-  { label: 'Pipeline',    icon: Columns,          to: '/pipeline' },
-  { label: 'Buyers',      icon: Briefcase,        to: '/buyers' },
-  { label: 'Follow-Ups',  icon: Bell,             to: '/follow-ups' },
-  { label: 'Title Co.',   icon: Building2,        to: '/title-companies' },
-  { label: 'Analytics',   icon: BarChart2,        to: '/analytics' },
-  { label: 'Dialer',      icon: Phone,            to: '/dialer' },
-  { label: 'Calculator',  icon: Calculator,       to: '/calculator' },
-  { label: 'Compliance',  icon: Shield,           to: '/compliance' },
-  { label: 'Academy',     icon: GraduationCap,    to: '/academy' },
-  { label: 'Marketplace', icon: Store,            to: '/marketplace' },
-  { label: 'Settings',    icon: Settings,         to: '/settings' },
+  { label: 'Dashboard',      icon: LayoutDashboard, to: '/dashboard' },
+  { label: 'Leads',          icon: Users,            to: '/leads' },
+  { label: 'Campaigns',      icon: PlayCircle,       to: '/campaigns' },
+  { label: 'Live Calls',     icon: Radio,            to: '/monitor', live: true },
+  { label: 'Pipeline',       icon: Columns,          to: '/pipeline' },
+  { label: 'Buyers',         icon: Briefcase,        to: '/buyers' },
+  { label: 'Title Companies',icon: Building2,        to: '/title-companies' },
+  { label: 'Follow-Ups',     icon: Bell,             to: '/follow-ups' },
+  { label: 'Analytics',      icon: BarChart2,        to: '/analytics' },
+  { label: 'Dialer',         icon: Phone,            to: '/dialer' },
+  { label: 'Calculator',     icon: Calculator,       to: '/calculator' },
+  { label: 'Compliance',     icon: Shield,           to: '/compliance' },
+  { label: 'Academy',        icon: GraduationCap,    to: '/academy' },
+  { label: 'Marketplace',    icon: Store,            to: '/marketplace' },
+  { label: 'Settings',       icon: Settings,         to: '/settings' },
 ]
 
 export default function Sidebar() {
