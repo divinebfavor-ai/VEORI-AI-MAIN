@@ -48,10 +48,17 @@ router.post('/provision', async (req, res, next) => {
         timeout: 30000,
       });
       vapiNumber = vapiRes.data;
+      console.log('[Phone] Vapi provision response:', JSON.stringify(vapiNumber));
     } catch (vapiErr) {
       const msg = vapiErr.response?.data?.message || vapiErr.message;
       return res.status(502).json({ success: false, error: `Vapi error: ${msg}` });
     }
+
+    // Vapi's native provider returns sipUri instead of a PSTN number
+    const resolvedNumber = vapiNumber.number
+      || vapiNumber.phoneNumber
+      || vapiNumber.sipUri
+      || vapiNumber.id;
 
     // ── STEP 2: Assign number to this operator's Vapi assistant ─────────────────
     // Looks up operator's vapi_assistant_id from DB, falls back to env var.
@@ -85,9 +92,9 @@ router.post('/provision', async (req, res, next) => {
     const { data, error } = await supabase.from('phone_numbers').insert([{
       id: uuidv4(),
       user_id: req.user.id,
-      number: vapiNumber.number,
-      friendly_name: friendly_name || vapiNumber.number,
-      area_code: area_code || vapiNumber.number?.slice(2, 5),
+      number: resolvedNumber,
+      friendly_name: friendly_name || resolvedNumber,
+      area_code: area_code || vapiNumber.number?.replace(/\D/g, '').slice(1, 4) || null,
       vapi_phone_number_id: vapiNumber.id,
       health_status: 'healthy',
       is_active: true,
