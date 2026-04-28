@@ -23,6 +23,7 @@ import TitleCompanies from './pages/TitleCompanies'
 import ContractSigning from './pages/ContractSigning'
 import Academy from './pages/Academy'
 import Marketplace from './pages/Marketplace'
+import FollowUps from './pages/FollowUps'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="/dialer" element={<Dialer />} />
         <Route path="/deals/:id" element={<DealWorkspace />} />
         <Route path="/deals/:id/photos" element={<DealPhotoGallery />} />
+        <Route path="/follow-ups" element={<FollowUps />} />
         <Route path="/title-companies" element={<TitleCompanies />} />
         <Route path="/academy" element={<Academy />} />
         <Route path="/marketplace" element={<Marketplace />} />
