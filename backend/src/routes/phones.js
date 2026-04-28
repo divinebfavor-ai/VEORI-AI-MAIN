@@ -40,7 +40,6 @@ router.post('/provision', async (req, res, next) => {
     try {
       const vapiRes = await axios.post('https://api.vapi.ai/phone-number', {
         provider: 'vapi',
-        areaCode: area_code || '415',
         name: friendly_name || `Operator ${req.user.id} Number`,
         ...(webhookUrl ? { serverUrl: webhookUrl } : {}),
         ...(process.env.VAPI_WEBHOOK_SECRET ? { serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET } : {}),
