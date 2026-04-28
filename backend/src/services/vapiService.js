@@ -390,13 +390,16 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
     serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET,
   };
 
-  // Phone number: use VAPI_PHONE_NUMBER_ID if set, otherwise use Vapi-managed number
-  if (process.env.VAPI_PHONE_NUMBER_ID) {
-    payload.phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
-  } else if (phoneNumber?.vapi_phone_number_id) {
+  // Phone number: always use the operator's DB-provisioned number.
+  // Never fall back to a hardcoded env var — that only works for one operator.
+  if (phoneNumber?.vapi_phone_number_id) {
     payload.phoneNumberId = phoneNumber.vapi_phone_number_id;
+  } else if (phoneNumber?.vapi_phone_id) {
+    payload.phoneNumberId = phoneNumber.vapi_phone_id;
   } else if (phoneNumber?.number) {
     payload.phoneNumber = { number: phoneNumber.number };
+  } else {
+    throw new Error('No active phone number found for this operator. Go to Settings → Phone Numbers to provision one.');
   }
 
   const { data } = await vapiHttp.post('/call/phone', payload);
@@ -494,8 +497,11 @@ RULES:
     serverUrl: WEBHOOK_URL,
   };
 
-  if (process.env.VAPI_PHONE_NUMBER_ID) {
-    payload.phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
+  // Use operator's provisioned number — never a hardcoded env var
+  if (operator?.vapi_phone_number_id) {
+    payload.phoneNumberId = operator.vapi_phone_number_id;
+  } else if (operator?.activePhone?.vapi_phone_number_id) {
+    payload.phoneNumberId = operator.activePhone.vapi_phone_number_id;
   }
 
   const { data } = await vapiHttp.post('/call/phone', payload);

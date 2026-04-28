@@ -124,6 +124,8 @@ function PhoneTab({ phoneList, setPhoneList }) {
   const [syncing, setSyncing] = useState(false)
   const [provisionForm, setProvisionForm] = useState({ area_code: '', friendly_name: '' })
   const [showProvision, setShowProvision] = useState(false)
+  const [releaseTarget, setReleaseTarget] = useState(null) // phone to release
+  const [releasing, setReleasing] = useState(false)
 
   useEffect(() => {
     phones.getPlanStatus().then(r => setPlanStatus(r.data)).catch(() => {})
@@ -165,6 +167,27 @@ function PhoneTab({ phoneList, setPhoneList }) {
 
   const healthColor = s => s === 'healthy' ? 'success' : s === 'cooling' ? 'warning' : s === 'resting' ? 'info' : 'danger'
 
+  const handleRelease = async () => {
+    if (!releaseTarget) return
+    setReleasing(true)
+    try {
+      await phones.releasePhone(releaseTarget.id, 'operator_released')
+      setPhoneList(prev => prev.filter(x => x.id !== releaseTarget.id))
+      toast.success('Phone number released')
+      setReleaseTarget(null)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to release number')
+    } finally {
+      setReleasing(false)
+    }
+  }
+
+  const fmtDate = iso => {
+    if (!iso) return null
+    const d = new Date(iso)
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  }
+
   return (
     <Section title="Phone Numbers" description="Buy and manage numbers for AI calling — powered by Vapi">
       {/* Plan status bar */}
@@ -197,26 +220,44 @@ function PhoneTab({ phoneList, setPhoneList }) {
             <p className="text-[12px] text-text-muted mt-1">Get a number below to start calling leads</p>
           </div>
         )}
-        {phoneList.map(p => (
-          <div key={p.id} className="flex items-center justify-between py-3 border-b border-border-subtle last:border-0">
-            <div>
-              <p className="text-[14px] font-medium text-text-primary">{p.number}</p>
-              <p className="text-[11px] text-text-muted">
-                {p.friendly_name ? `${p.friendly_name} · ` : ''}{p.state || 'All states'} · {p.daily_calls_made || 0}/{p.daily_call_limit || 50} calls today
-                {p.vapi_phone_number_id && <span className="text-primary ml-2">· Vapi #{p.vapi_phone_number_id.slice(-6)}</span>}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge variant={healthColor(p.health_status)}>{p.health_status || 'healthy'}</Badge>
-              <span className="text-[12px] text-text-muted">Score: {p.spam_score ?? 100}</span>
-              <button
-                onClick={async () => {
-                  try { await phones.deletePhone(p.id); setPhoneList(prev => prev.filter(x => x.id !== p.id)); toast.success('Removed') } catch { toast.error('Failed to remove') }
-                }}
-                className="text-text-muted hover:text-danger transition-colors"
-              >
-                <Trash2 size={13} />
-              </button>
+        {phoneList.filter(p => !p.released_at).map(p => (
+          <div key={p.id} style={{ padding: '14px 0', borderBottom: '1px solid var(--border)' }} className="last:border-0">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>{p.number}</p>
+                  {p.is_primary && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: 'rgba(0,195,122,0.12)', color: '#00C37A', letterSpacing: '0.04em' }}>PRIMARY</span>
+                  )}
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--t4)', margin: '0 0 4px' }}>
+                  {p.friendly_name ? `${p.friendly_name} · ` : ''}{p.state || 'All states'} · {p.daily_calls_made || 0}/{p.daily_call_limit || 50} calls today
+                  {p.vapi_phone_number_id && <span style={{ color: '#00C37A' }}> · Vapi #{p.vapi_phone_number_id.slice(-6)}</span>}
+                </p>
+                <div className="flex items-center gap-3">
+                  {p.monthly_cost && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
+                      ${Number(p.monthly_cost).toFixed(2)}/mo
+                    </span>
+                  )}
+                  {p.purchased_at && (
+                    <span style={{ fontSize: 11, color: 'var(--t4)' }}>Active since {fmtDate(p.purchased_at)}</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={healthColor(p.health_status)}>{p.health_status || 'healthy'}</Badge>
+                <span style={{ fontSize: 11, color: 'var(--t4)' }}>Score: {p.spam_score ?? 100}</span>
+                <button
+                  onClick={() => setReleaseTarget(p)}
+                  title="Release number"
+                  style={{ color: 'var(--t4)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, transition: 'color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#D93030'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--t4)'}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -263,6 +304,51 @@ function PhoneTab({ phoneList, setPhoneList }) {
           <div style={{ display: 'flex', gap: 8 }}>
             <Button onClick={handleProvision} loading={provisioning}>Buy Number</Button>
             <Button variant="ghost" onClick={() => setShowProvision(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Release confirmation modal */}
+      {releaseTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'var(--card-bg)', border: '1px solid var(--border)',
+            borderRadius: 16, padding: 28, maxWidth: 420, width: '90%',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+          }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', margin: '0 0 8px' }}>Release this number?</p>
+            <p style={{ fontSize: 13, color: 'var(--t3)', margin: '0 0 6px' }}>{releaseTarget.number}</p>
+            <p style={{ fontSize: 12, color: '#D93030', margin: '0 0 20px', lineHeight: 1.5 }}>
+              This will permanently cancel the number in Vapi. Any active campaigns using this number will be interrupted. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={handleRelease}
+                disabled={releasing}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+                  background: '#D93030', color: '#fff', fontWeight: 700,
+                  fontSize: 13, cursor: releasing ? 'not-allowed' : 'pointer', opacity: releasing ? 0.6 : 1,
+                }}
+              >
+                {releasing ? 'Releasing…' : 'Yes, Release Number'}
+              </button>
+              <button
+                onClick={() => setReleaseTarget(null)}
+                disabled={releasing}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid var(--border)',
+                  background: 'var(--surface-bg)', color: 'var(--t2)', fontWeight: 600,
+                  fontSize: 13, cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

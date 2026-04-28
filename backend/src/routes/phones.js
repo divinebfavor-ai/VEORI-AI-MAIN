@@ -54,6 +54,14 @@ router.post('/provision', async (req, res, next) => {
       return res.status(502).json({ success: false, error: `Vapi error: ${msg}` });
     }
 
+    // Determine if this is the operator's first number → mark primary
+    const { count: existingCount } = await supabase
+      .from('phone_numbers')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', req.user.id)
+      .is('released_at', null);
+    const isFirstNumber = (existingCount || 0) === 0;
+
     // Save to Supabase
     const { data, error } = await supabase.from('phone_numbers').insert([{
       id: uuidv4(),
@@ -65,6 +73,9 @@ router.post('/provision', async (req, res, next) => {
       health_status: 'healthy',
       is_active: true,
       daily_call_limit: 50,
+      monthly_cost: 2.15,
+      purchased_at: new Date().toISOString(),
+      is_primary: isFirstNumber,
     }]).select().single();
     if (error) throw error;
 
@@ -206,6 +217,48 @@ router.put('/:id', async (req, res, next) => {
     const { data, error } = await supabase.from('phone_numbers').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
     if (error) throw error;
     res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
+// POST /api/phones/:id/release — soft-delete: cancel in Vapi + mark released in DB
+router.post('/:id/release', async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    const { data: phone, error: fetchErr } = await supabase
+      .from('phone_numbers')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (fetchErr || !phone) return res.status(404).json({ success: false, error: 'Phone number not found' });
+    if (phone.released_at) return res.status(400).json({ success: false, error: 'Number already released' });
+
+    // Delete from Vapi (best-effort — don't block on failure)
+    const vapiKey = process.env.VAPI_API_KEY;
+    if (phone.vapi_phone_number_id && vapiKey) {
+      await axios.delete(`https://api.vapi.ai/phone-number/${phone.vapi_phone_number_id}`, {
+        headers: { Authorization: `Bearer ${vapiKey}` },
+        timeout: 15000,
+      }).catch(e => console.warn('[Phone] Vapi release failed:', e.message));
+    }
+
+    // Soft-delete in DB
+    const { data: updated, error: updateErr } = await supabase
+      .from('phone_numbers')
+      .update({
+        is_active: false,
+        released_at: new Date().toISOString(),
+        release_reason: reason || 'operator_released',
+        health_status: 'released',
+        is_primary: false,
+      })
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
+
+    res.json({ success: true, message: 'Phone number released', data: updated });
   } catch (err) { next(err); }
 });
 
