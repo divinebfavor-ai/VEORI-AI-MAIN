@@ -147,11 +147,44 @@ async function handleCallEnded(call, event) {
     }).catch(e => console.error('[Vapi] TCPA log error:', e.message));
   }
 
+  // Auto-create deal when seller says verbal_yes or sets appointment
+  if (['verbal_yes', 'appointment'].includes(outcome) && callRec.lead_id && callRec.user_id) {
+    try {
+      const { data: lead } = await supabase.from('leads').select('*').eq('id', callRec.lead_id).single();
+      // Only create if no deal exists yet for this lead
+      const { count: existingDeals } = await supabase.from('deals')
+        .select('*', { count: 'exact', head: true })
+        .eq('lead_id', callRec.lead_id);
+      if ((existingDeals || 0) === 0 && lead) {
+        await supabase.from('deals').insert({
+          user_id:          callRec.user_id,
+          lead_id:          callRec.lead_id,
+          property_address: lead.property_address,
+          property_city:    lead.property_city,
+          property_state:   lead.property_state,
+          property_zip:     lead.property_zip,
+          seller_name:      `${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
+          seller_phone:     lead.phone,
+          seller_email:     lead.email,
+          status:           outcome === 'verbal_yes' ? 'under_contract' : 'lead',
+          estimated_value:  lead.estimated_value,
+          estimated_equity: lead.estimated_equity,
+          seller_primary_tag: lead.primary_tag,
+          created_at:       new Date().toISOString(),
+        });
+        console.log(`[Vapi] Auto-created deal for lead ${callRec.lead_id} — outcome: ${outcome}`);
+      }
+    } catch (e) {
+      console.error('[Vapi] Auto-deal creation failed:', e.message);
+    }
+  }
+
   // Enroll lead in follow-up sequence based on outcome
   const outcomeToSequence = {
     not_interested:     'not_interested',
     callback_requested: 'callback_requested',
     offer_made:         'offer_considering',
+    appointment:        'callback_requested',
     voicemail:          'not_interested',
     no_answer:          'not_interested',
   };

@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, Send, Users, Shield,
-  ChevronDown, ChevronUp, Edit2, Check, X, Wrench, Image as ImageIcon, Upload
+  ChevronDown, ChevronUp, Edit2, Check, X, Wrench, Image as ImageIcon, Upload, Zap, BookOpen
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import RepairEstimator from '../components/ui/RepairEstimator'
 import { deals as dealsApi, buyers as buyersApi, titleCompanies as titleApi, compliance as complianceApi, followUps as followUpsApi, propertyPhotos as propertyPhotosApi } from '../services/api'
+import api from '../services/api'
 
 const STAGES = ['New','Calling','Contacted','Offer Made','Negotiating','Under Contract','Buyer Search','Title','Closed']
 
@@ -273,6 +274,9 @@ export default function DealWorkspace() {
   const [schedulingFollowUp, setSchedulingFollowUp] = useState(false)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [showRepairs, setShowRepairs] = useState(false)
+  const [velocityScore, setVelocityScore] = useState(null)
+  const [dealBrief, setDealBrief] = useState(null)
+  const [loadingBrief, setLoadingBrief] = useState(false)
 
   const loadActivity = () => {
     dealsApi.getDealActivity(id).then(r => {
@@ -321,6 +325,11 @@ export default function DealWorkspace() {
     loadTitleLog()
     loadFollowUps()
     loadPhotos()
+
+    // Load velocity score
+    api.get(`/api/deals/${id}/velocity-score`).then(r => {
+      setVelocityScore(r.data?.velocity_score ?? r.data?.score ?? null)
+    }).catch(() => {})
 
     buyersApi.getBuyers().then(r => {
       const raw = r.data?.buyers ?? r.data?.data ?? r.data
@@ -907,6 +916,66 @@ export default function DealWorkspace() {
               <Button variant="primary" size="sm" style={{ width: '100%' }} loading={savingStage} onClick={saveStage}>
                 Update Stage
               </Button>
+            </div>
+
+            {/* Velocity Score + Smart Deal Brief */}
+            <div style={{ background: 'var(--s1)', border: '1px solid var(--border-rest)', borderRadius: 8, padding: '14px 16px' }}>
+              <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 10 }}>
+                Deal Intelligence
+              </p>
+
+              {/* Velocity Score */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Zap size={13} style={{ color: velocityScore >= 70 ? '#00C37A' : velocityScore >= 40 ? '#B8922A' : 'var(--t4)' }} />
+                  <span style={{ fontSize: 12, color: 'var(--t3)' }}>Velocity Score</span>
+                </div>
+                <span style={{
+                  fontSize: 18, fontWeight: 800,
+                  color: velocityScore == null ? 'var(--t4)' : velocityScore >= 70 ? '#00C37A' : velocityScore >= 40 ? '#B8922A' : '#D93030'
+                }}>
+                  {velocityScore != null ? velocityScore : '—'}
+                </span>
+              </div>
+              {velocityScore != null && (
+                <div style={{ height: 4, background: 'var(--surface-bg)', borderRadius: 4, marginBottom: 12, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${velocityScore}%`, borderRadius: 4, transition: 'width 0.5s ease', background: velocityScore >= 70 ? '#00C37A' : velocityScore >= 40 ? '#B8922A' : '#D93030' }} />
+                </div>
+              )}
+
+              {/* Smart Deal Brief */}
+              <button
+                onClick={async () => {
+                  setLoadingBrief(true)
+                  try {
+                    const r = await api.get(`/api/deals/${id}/brief`)
+                    setDealBrief(r.data?.brief || r.data?.data || null)
+                  } catch { toast.error('Brief generation failed') }
+                  finally { setLoadingBrief(false) }
+                }}
+                disabled={loadingBrief}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '8px 0', borderRadius: 7, border: '1px solid var(--border)',
+                  background: 'var(--surface-bg)', color: 'var(--t2)', fontSize: 12, fontWeight: 600,
+                  cursor: loadingBrief ? 'not-allowed' : 'pointer', opacity: loadingBrief ? 0.6 : 1,
+                  fontFamily: 'inherit', transition: 'all 0.15s ease',
+                }}
+              >
+                <BookOpen size={12} />
+                {loadingBrief ? 'Generating…' : 'Generate Deal Brief'}
+              </button>
+
+              {dealBrief && (
+                <div style={{
+                  marginTop: 10, padding: '10px 12px',
+                  background: 'rgba(0,195,122,0.04)', border: '1px solid rgba(0,195,122,0.15)',
+                  borderRadius: 7, fontSize: 12, color: 'var(--t2)', lineHeight: 1.6,
+                  maxHeight: 200, overflowY: 'auto',
+                }}>
+                  {typeof dealBrief === 'string' ? dealBrief : JSON.stringify(dealBrief, null, 2)}
+                </div>
+              )}
             </div>
 
             {/* Seller info */}

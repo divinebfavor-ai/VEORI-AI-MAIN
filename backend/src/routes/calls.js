@@ -76,6 +76,22 @@ router.post('/initiate', async (req, res, next) => {
       .select('ai_caller_name, ai_voice_id, ai_personality_tone, ai_intro_script, company_name, id')
       .eq('id', req.user.id).single();
 
+    // Send SMS disclosure before calling — TCPA best practice
+    // Fire-and-forget: don't block the call if SMS fails
+    const { getOpeningSMS } = require('../services/leadTaggingService');
+    const smsBody = getOpeningSMS(lead);
+    supabase.from('conversations').insert({
+      user_id:    req.user.id,
+      lead_id:    lead.id,
+      direction:  'outbound',
+      channel:    'sms',
+      body:       smsBody,
+      sent_at:    new Date().toISOString(),
+      status:     'sent',
+    }).then(() => {
+      console.log(`[Call] Pre-call SMS queued for lead ${lead.id}`);
+    }).catch(e => console.warn('[Call] Pre-call SMS log failed:', e.message));
+
     // Initiate Vapi call with operator persona
     const vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId, operator: operatorProfile || {} });
 

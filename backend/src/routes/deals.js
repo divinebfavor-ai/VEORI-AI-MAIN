@@ -355,6 +355,34 @@ router.patch('/:id/stage', async (req, res, next) => {
     });
 
     res.json({ success: true, deal: data });
+
+    // Auto-start buyer campaign when deal moves to under_contract
+    if (stage === 'under_contract') {
+      setImmediate(async () => {
+        try {
+          const { data: fullDeal } = await supabase.from('deals').select('*').eq('deal_id', req.params.id).single();
+          if (!fullDeal) return;
+          // Find buyers in same state that match on price
+          const { data: matchedBuyers } = await supabase.from('buyers')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .or(`preferred_states.cs.{${fullDeal.property_state}},preferred_states.is.null`)
+            .lte('max_purchase_price', (fullDeal.buyer_price || fullDeal.offer_price || 999999999) * 1.15)
+            .eq('is_active', true)
+            .limit(20);
+          console.log(`[Deal] Auto buyer match: ${matchedBuyers?.length || 0} buyers found for deal ${req.params.id}`);
+          await supabase.from('ai_command_log').insert({
+            deal_id: req.params.id,
+            action_type: 'buyer_match_auto',
+            message_sent: `Auto-matched ${matchedBuyers?.length || 0} buyers when deal moved to under_contract`,
+            outcome: 'success',
+            operator_id: req.user.id,
+          });
+        } catch (e) {
+          console.error('[Deal] Auto buyer match failed:', e.message);
+        }
+      });
+    }
   } catch (err) { next(err); }
 });
 
