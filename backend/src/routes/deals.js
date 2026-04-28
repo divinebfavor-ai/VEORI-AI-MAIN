@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
 const contractService = require('../services/contractService');
+const { recordWinningPlaybook } = require('../services/dataMotService');
 const { logActivity } = require('../services/dealActivityService');
 
 const router = express.Router();
@@ -355,6 +356,24 @@ router.patch('/:id/stage', async (req, res, next) => {
     });
 
     res.json({ success: true, deal: data });
+
+    // Record winning playbook when deal closes
+    if (stage === 'closed') {
+      setImmediate(async () => {
+        try {
+          const { data: fullDeal } = await supabase.from('deals').select('*').eq('deal_id', req.params.id).single();
+          const { data: lead } = fullDeal?.lead_id
+            ? await supabase.from('leads').select('*').eq('id', fullDeal.lead_id).single()
+            : { data: null };
+          if (fullDeal) {
+            const { count: callCount } = await supabase.from('calls').select('*', { count: 'exact', head: true }).eq('lead_id', fullDeal.lead_id);
+            const createdAt = new Date(fullDeal.created_at);
+            const daysToClose = Math.round((Date.now() - createdAt.getTime()) / 86400000);
+            await recordWinningPlaybook({ deal: fullDeal, lead, calls_to_close: callCount || 0, days_to_close: daysToClose });
+          }
+        } catch (e) { console.error('[DataMot] Playbook record failed:', e.message); }
+      });
+    }
 
     // Auto-start buyer campaign when deal moves to under_contract
     if (stage === 'under_contract') {

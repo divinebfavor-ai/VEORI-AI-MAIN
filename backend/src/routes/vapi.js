@@ -5,6 +5,7 @@ const aiService = require('../services/aiService');
 const vapiService = require('../services/vapiService');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { enrollLeadInSequence } = require('../services/sequenceEngine');
+const { recordCallIntelligence } = require('../services/dataMotService');
 
 const router = express.Router();
 
@@ -192,6 +193,19 @@ async function handleCallEnded(call, event) {
   if (seqType && callRec.lead_id && callRec.user_id) {
     enrollLeadInSequence(callRec.user_id, callRec.lead_id, seqType)
       .catch(e => console.error('[Vapi] Sequence enroll failed:', e.message));
+  }
+
+  // Write call intelligence to data moat — fires async, never blocks
+  if (callRec.lead_id) {
+    const { data: leadForMoat } = await supabase.from('leads').select('*').eq('id', callRec.lead_id).single().catch(() => ({ data: null }));
+    if (leadForMoat) {
+      recordCallIntelligence({
+        call: { ...call, id: callRec.id, duration_seconds: duration },
+        lead: { ...leadForMoat, user_id: callRec.user_id },
+        aiAnalysis,
+        operator: { id: callRec.user_id },
+      }).catch(e => console.error('[DataMot] Write failed:', e.message));
+    }
   }
 
   // Auto direct mail trigger: if 3+ no-answers, send postcard automatically

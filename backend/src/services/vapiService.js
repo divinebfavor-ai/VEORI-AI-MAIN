@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { getCallIntelligence, buildAccumulatedIntelligenceBlock } = require('./dataMotService');
 
 const VAPI_API_KEY = process.env.VAPI_API_KEY;
 const VAPI_BASE    = process.env.VAPI_BASE_URL || 'https://api.vapi.ai';
@@ -337,7 +338,16 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
   const voiceId = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
 
   // ── STEP 3: Build call payload using operator's number + tag-matched script ──
-  const systemPrompt = getScriptByLeadTag(lead, operator);
+  // Pull accumulated intelligence from every prior call — this is the data moat
+  let accumulatedIntel = '';
+  try {
+    const intel = await getCallIntelligence({ lead, operator });
+    accumulatedIntel = buildAccumulatedIntelligenceBlock({ ...intel, lead });
+  } catch (e) {
+    console.warn('[Vapi] Data moat read failed (non-blocking):', e.message);
+  }
+
+  const systemPrompt = getScriptByLeadTag(lead, operator) + accumulatedIntel;
 
   const firstMessage = operator.ai_intro_script
     ? operator.ai_intro_script
