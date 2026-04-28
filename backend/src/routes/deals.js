@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const contractService = require('../services/contractService');
 const { recordWinningPlaybook } = require('../services/dataMotService');
 const { logActivity } = require('../services/dealActivityService');
+const { autoAssignTitleCompany, sendDealPackageToTitle, scheduleTitleFollowUps } = require('../services/titleService');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -399,6 +400,27 @@ router.patch('/:id/stage', async (req, res, next) => {
           });
         } catch (e) {
           console.error('[Deal] Auto buyer match failed:', e.message);
+        }
+      });
+
+      // Auto title company workflow — assign, email deal package, schedule follow-ups
+      setImmediate(async () => {
+        try {
+          const { data: fullDeal } = await supabase.from('deals').select('*').eq('deal_id', req.params.id).single();
+          if (!fullDeal) return;
+          const dealDbId = fullDeal.id || req.params.id;
+          const userId = req.user.id;
+
+          const assigned = await autoAssignTitleCompany(dealDbId, userId);
+          if (assigned) {
+            await sendDealPackageToTitle(dealDbId, userId);
+            await scheduleTitleFollowUps(dealDbId, userId);
+            console.log(`[Title] Full automation triggered for deal ${dealDbId} → ${assigned.name}`);
+          } else {
+            console.log(`[Title] No title company found for deal ${dealDbId} — skipping auto-send`);
+          }
+        } catch (e) {
+          console.error('[Title] Auto title workflow failed:', e.message);
         }
       });
     }
