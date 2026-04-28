@@ -7,23 +7,10 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// Plan limits: max phone numbers per subscription tier
-const PLAN_LIMITS = { free: 1, starter: 3, growth: 10, professional: 25, enterprise: 100 };
-
 // POST /api/phones/provision — buy a number from Vapi, store in Veori
 router.post('/provision', async (req, res, next) => {
   try {
     const { area_code, friendly_name } = req.body;
-
-    // Check plan limit
-    const { data: userData } = await supabase.from('users').select('subscription_tier').eq('id', req.user.id).single();
-    const tier = userData?.subscription_tier || 'free';
-    const limit = PLAN_LIMITS[tier] || 1;
-
-    const { count } = await supabase.from('phone_numbers').select('*', { count: 'exact', head: true }).eq('user_id', req.user.id);
-    if ((count || 0) >= limit) {
-      return res.status(403).json({ success: false, error: `Your ${tier} plan allows up to ${limit} phone number(s). Upgrade to add more.` });
-    }
 
     // Purchase from Vapi
     const vapiKey = process.env.VAPI_API_KEY;
@@ -109,14 +96,11 @@ router.post('/provision', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/phones/plan-status — current usage vs limit
+// GET /api/phones/plan-status — beta: unlimited numbers
 router.get('/plan-status', async (req, res, next) => {
   try {
-    const { data: userData } = await supabase.from('users').select('subscription_tier').eq('id', req.user.id).single();
-    const tier = userData?.subscription_tier || 'free';
-    const limit = PLAN_LIMITS[tier] || 1;
     const { count } = await supabase.from('phone_numbers').select('*', { count: 'exact', head: true }).eq('user_id', req.user.id);
-    res.json({ success: true, tier, used: count || 0, limit, can_provision: (count || 0) < limit });
+    res.json({ success: true, tier: 'beta', used: count || 0, limit: 999, can_provision: true });
   } catch (err) { next(err); }
 });
 

@@ -1,10 +1,9 @@
 // ─── Phone Number Rotation & Health Service ───────────────────────────────────
 const supabase = require('../config/supabase');
 
-const COOLDOWN_SECONDS = 90;        // 90s between calls on same number
-const DAILY_MAX        = 50;        // hard limit per number per day
-const WEEKLY_MAX       = 200;       // triggers 24h rest
-const MIN_ANSWER_RATE  = 0.15;      // below this = flag for 48h
+const COOLDOWN_SECONDS = 5;         // beta: minimal cooldown between calls
+const DAILY_MAX        = 99999;     // beta: no daily call limit
+const WEEKLY_MAX       = 99999;     // beta: no weekly limit
 
 /**
  * Select the best available phone number for a call.
@@ -79,14 +78,7 @@ async function recordCallStart(phoneNumberId) {
   if (phone) {
     const newDaily  = (phone.daily_calls_made || 0) + 1;
     const newWeekly = (phone.weekly_calls_made || 0) + 1;
-    const updates   = { daily_calls_made: newDaily, weekly_calls_made: newWeekly };
-
-    // Rule 5: weekly rest
-    if (newWeekly >= WEEKLY_MAX) {
-      const restUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      updates.health_status = 'resting';
-      updates.cooldown_until = restUntil;
-    }
+    const updates = { daily_calls_made: newDaily, weekly_calls_made: newWeekly };
     await supabase.from('phone_numbers').update(updates).eq('id', phoneNumberId);
   }
 }
