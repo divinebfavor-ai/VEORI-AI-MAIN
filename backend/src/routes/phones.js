@@ -35,13 +35,13 @@ router.post('/provision', async (req, res, next) => {
         ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/vapi/webhook`
         : null);
 
+    // ── STEP 1: Buy the number from Vapi ────────────────────────────────────────
     let vapiNumber;
     try {
       const vapiRes = await axios.post('https://api.vapi.ai/phone-number', {
-        provider: 'twilio',
+        provider: 'vapi',
         areaCode: area_code || '415',
-        name: friendly_name || `Veori #${Date.now()}`,
-        // serverUrl wires inbound calls to our webhook so sellers calling back get Alex
+        name: friendly_name || `Operator ${req.user.id} Number`,
         ...(webhookUrl ? { serverUrl: webhookUrl } : {}),
         ...(process.env.VAPI_WEBHOOK_SECRET ? { serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET } : {}),
       }, {
@@ -52,6 +52,26 @@ router.post('/provision', async (req, res, next) => {
     } catch (vapiErr) {
       const msg = vapiErr.response?.data?.message || vapiErr.message;
       return res.status(502).json({ success: false, error: `Vapi error: ${msg}` });
+    }
+
+    // ── STEP 2: Assign number to this operator's Vapi assistant ─────────────────
+    // Looks up operator's vapi_assistant_id from DB, falls back to env var.
+    // This wires inbound callbacks to Alex for this specific operator.
+    const { data: operatorData } = await supabase
+      .from('users')
+      .select('vapi_assistant_id')
+      .eq('id', req.user.id)
+      .single();
+
+    const assistantId = operatorData?.vapi_assistant_id || process.env.VAPI_ASSISTANT_ID;
+
+    if (assistantId) {
+      await axios.patch(`https://api.vapi.ai/phone-number/${vapiNumber.id}`, {
+        assistantId,
+      }, {
+        headers: { Authorization: `Bearer ${vapiKey}`, 'Content-Type': 'application/json' },
+        timeout: 15000,
+      }).catch(e => console.warn('[Phone] Failed to assign assistant to number:', e.message));
     }
 
     // Determine if this is the operator's first number → mark primary
@@ -79,7 +99,7 @@ router.post('/provision', async (req, res, next) => {
     }]).select().single();
     if (error) throw error;
 
-    res.status(201).json({ success: true, data, vapi_id: vapiNumber.id });
+    res.status(201).json({ success: true, data, vapi_id: vapiNumber.id, number: vapiNumber.number });
   } catch (err) { next(err); }
 });
 

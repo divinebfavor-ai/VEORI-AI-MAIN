@@ -324,29 +324,49 @@ PITCH: "JV opportunity. Assign for $${fee.toLocaleString()}. ARV is $${arv.toLoc
 - ARV: $${arv.toLocaleString()} | Price: $${price.toLocaleString()} | Repairs: $${repairs.toLocaleString()} | Assignment Fee: $${fee.toLocaleString()}`;
 }
 
-// ─── Initiate outbound call ───────────────────────────────────────────────────
+// ─── Get system prompt by lead tag (Step 3 script selector) ──────────────────
+function getScriptByLeadTag(lead, operator = {}) {
+  return buildAlexPrompt({ operator, lead });
+}
+
+// ─── Initiate outbound call (Steps 1→3 of the Veori call spec) ───────────────
 async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
   if (!VAPI_API_KEY) throw new Error('VAPI_API_KEY not configured');
 
   const aiName  = operator.ai_caller_name || 'Alex';
   const voiceId = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
 
-  const systemPrompt  = buildAlexPrompt({ operator, lead });
-  const firstMessage  = operator.ai_intro_script
+  // ── STEP 3: Build call payload using operator's number + tag-matched script ──
+  const systemPrompt = getScriptByLeadTag(lead, operator);
+
+  const firstMessage = operator.ai_intro_script
     ? operator.ai_intro_script
         .replace(/{first_name}/g, lead.first_name || 'there')
         .replace(/{property_address}/g, lead.property_address || 'your property')
         .replace(/{ai_name}/g, aiName)
-    : `Hi, is this ${lead.first_name || 'there'}? Great — my name is ${aiName}. I'm a local real estate investor and I was reaching out about your property at ${lead.property_address || 'your property'}. Do you have just two or three minutes?`;
+    : `Hi, may I speak with ${lead.first_name || 'there'}? Great — my name is ${aiName}. I'm a local real estate investor reaching out about your property at ${lead.property_address || 'your property'}. Do you have just two or three minutes?`;
+
+  // phoneNumberId = operator's Vapi number ID stored in DB (never a hardcoded env var)
+  let phoneNumberId;
+  if (phoneNumber?.vapi_phone_number_id) {
+    phoneNumberId = phoneNumber.vapi_phone_number_id;
+  } else if (phoneNumber?.vapi_phone_id) {
+    phoneNumberId = phoneNumber.vapi_phone_id;
+  } else if (!phoneNumber?.number) {
+    throw new Error('No active phone number found for this operator. Go to Settings → Phone Numbers to provision one.');
+  }
 
   const payload = {
-    type: 'outboundPhoneCall',
+    // phoneNumberId tells Vapi which operator number to call FROM
+    ...(phoneNumberId ? { phoneNumberId } : { phoneNumber: { number: phoneNumber.number } }),
     customer: {
       number: lead.phone,
       name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Seller',
     },
     assistant: {
       name: aiName,
+      firstMessage,
+      firstMessageMode: 'assistant-speaks-first',
       transcriber: {
         provider: 'deepgram',
         model: 'nova-2',
@@ -365,10 +385,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
         provider: 'vapi',
         voiceId,
       },
-      firstMessage,
-      firstMessageMode: 'assistant-speaks-first',
       recordingEnabled: true,
-      hipaaEnabled: false,
       silenceTimeoutSeconds: 30,
       responseDelaySeconds: 0.4,
       llmRequestDelaySeconds: 0.1,
@@ -381,6 +398,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
         userId: operator.id,
         leadName: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
         propertyAddress: lead.property_address,
+        leadTag: lead.primary_tag,
         estimatedValue: lead.estimated_value,
         estimatedEquity: lead.estimated_equity,
         motivationScore: lead.motivation_score,
@@ -389,18 +407,6 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
     serverUrl: WEBHOOK_URL,
     serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET,
   };
-
-  // Phone number: always use the operator's DB-provisioned number.
-  // Never fall back to a hardcoded env var — that only works for one operator.
-  if (phoneNumber?.vapi_phone_number_id) {
-    payload.phoneNumberId = phoneNumber.vapi_phone_number_id;
-  } else if (phoneNumber?.vapi_phone_id) {
-    payload.phoneNumberId = phoneNumber.vapi_phone_id;
-  } else if (phoneNumber?.number) {
-    payload.phoneNumber = { number: phoneNumber.number };
-  } else {
-    throw new Error('No active phone number found for this operator. Go to Settings → Phone Numbers to provision one.');
-  }
 
   const { data } = await vapiHttp.post('/call/phone', payload);
   return data;
@@ -558,4 +564,5 @@ module.exports = {
   initiateBuyerCall,
   buildInboundAssistantConfig,
   buildAlexPrompt,
+  getScriptByLeadTag,
 };
