@@ -488,8 +488,13 @@ export default function LiveMonitor() {
   const handleListen = async (call) => {
     const callId = call.id || call.vapi_call_id
     if (listening[callId]) { disconnectListen(callId); return }
-    // listen_url is stored on the call from the Vapi webhook
-    await connectListen(callId, call.listen_url)
+    try {
+      // Fetch live listen URL from backend (Vapi monitor.listenUrl)
+      const res = await callsApi.getListenUrl(call.id)
+      await connectListen(callId, res.listen_url)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not get listen URL')
+    }
   }
 
   const handleTakeover = async (call) => {

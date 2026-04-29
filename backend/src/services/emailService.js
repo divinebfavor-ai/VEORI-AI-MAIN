@@ -50,97 +50,94 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, emailType 
 
 function noAnswerFollowUp({ firstName, address, callbackNumber, operatorName, companyName }) {
   return {
-    subject: `Regarding your property at ${address}`,
-    body: `Hi ${firstName},\n\nI tried reaching you today about your property at ${address}. I have a cash offer I would like to share with you. Would you have a few minutes this week to chat? I can work around your schedule.\n\nPlease give me a call or reply to this email at your convenience.\n\nBest regards,\n${operatorName || 'Alex'}\n${companyName || 'Veori AI Acquisitions'}\n${callbackNumber || ''}`,
+    subject: `${address}`,
+    body: `Hey ${firstName},\n\nI tried calling you earlier about your property on ${address}. I have a cash offer I think you'd like. Got a few minutes to talk this week?\n\nJust call me back or shoot me a reply.\n\n${operatorName || 'Alex'}\n${callbackNumber || ''}`,
   };
 }
 
 function callbackConfirmation({ firstName, address, scheduledDay, scheduledTime, operatorName }) {
   return {
-    subject: `Following up — ${address} — ${scheduledDay}`,
-    body: `Hi ${firstName},\n\nJust confirming our conversation for ${scheduledDay} at ${scheduledTime}. I am looking forward to discussing your property at ${address} with you.\n\nIf anything changes please feel free to reach out.\n\nBest regards,\n${operatorName || 'Alex'}`,
+    subject: `Talk ${scheduledDay}`,
+    body: `Hey ${firstName},\n\nJust locking in our call for ${scheduledDay} at ${scheduledTime} about ${address}. Looking forward to it.\n\nIf anything comes up just let me know.\n\n${operatorName || 'Alex'}`,
   };
 }
 
 function offerFollowUp({ firstName, address, offerAmount, expiryDate, operatorName }) {
-  const fmt = (n) => n ? '$' + Number(n).toLocaleString() : 'our cash offer';
+  const fmt = (n) => n ? '$' + Number(n).toLocaleString() : 'the offer';
   return {
-    subject: `Your cash offer — ${address} — expires ${expiryDate}`,
-    body: `Hi ${firstName},\n\nI wanted to follow up on the cash offer of ${fmt(offerAmount)} for your property at ${address}.\n\nThis offer is available through ${expiryDate}. After that my buying capacity moves to other properties.\n\nIs there anything I can answer to help you make a decision?\n\nBest regards,\n${operatorName || 'Alex'}`,
+    subject: `Still interested in ${address}?`,
+    body: `Hey ${firstName},\n\nJust checking back in on ${address}. The ${fmt(offerAmount)} cash offer is still on the table through ${expiryDate}.\n\nAny questions I can answer? Happy to talk through it.\n\n${operatorName || 'Alex'}`,
   };
 }
 
 function contractSent({ firstName, address, price, signingLink, operatorName }) {
-  const fmt = (n) => n ? '$' + Number(n).toLocaleString() : 'the agreed amount';
+  const fmt = (n) => n ? '$' + Number(n).toLocaleString() : 'the agreed price';
   return {
-    subject: `Your purchase agreement — ${address} — please sign`,
-    body: `Hi ${firstName},\n\nAs discussed, here is your purchase agreement for ${address} at ${fmt(price)}.\n\nPlease review and sign at your earliest convenience using the link below. Once signed we move immediately toward closing.\n\n${signingLink ? `Sign here: ${signingLink}\n\n` : ''}If you have any questions please call me directly.\n\nBest regards,\n${operatorName || 'Alex'}`,
+    subject: `Contract for ${address}`,
+    body: `Hey ${firstName},\n\nHere's the purchase agreement for ${address} at ${fmt(price)}. Take a look and sign when you're ready.\n\n${signingLink ? `Sign here: ${signingLink}\n\n` : ''}Any questions just call me.\n\n${operatorName || 'Alex'}`,
   };
 }
 
 function titleCompanyNotification({ address, sellerName, buyerName, purchasePrice, assignmentFee, closingDate, psaUrl, assignmentUrl, operatorName, wireInstructions }) {
   const fmt = (n) => n ? '$' + Number(n).toLocaleString() : 'TBD';
   return {
-    subject: `New Assignment Ready for Closing — ${address}`,
-    body: `Hi,\n\nWe have a new assignment ready for closing. Please see details below.\n\n` +
+    subject: `New file ready - ${address}`,
+    body: `Hi,\n\nWe have a new deal ready to close. Details below.\n\n` +
       `Property: ${address}\n` +
       `Seller: ${sellerName || 'TBD'}\n` +
       `Buyer: ${buyerName || 'TBD'}\n` +
       `Purchase Price: ${fmt(purchasePrice)}\n` +
       `Assignment Fee: ${fmt(assignmentFee)}\n` +
-      `Target Close Date: ${closingDate || 'TBD'}\n\n` +
-      (psaUrl ? `Purchase & Sale Agreement: ${psaUrl}\n` : '') +
-      (assignmentUrl ? `Assignment Agreement: ${assignmentUrl}\n` : '') +
+      `Target Close: ${closingDate || 'TBD'}\n\n` +
+      (psaUrl ? `PSA: ${psaUrl}\n` : '') +
+      (assignmentUrl ? `Assignment: ${assignmentUrl}\n` : '') +
       (wireInstructions ? `\nWire Instructions:\n${wireInstructions}\n` : '') +
-      `\nPlease confirm receipt and advise on next steps.\n\nBest regards,\n${operatorName || 'Alex'}\nVeori AI Acquisitions`,
+      `\nLet me know if you need anything else.\n\n${operatorName || 'Alex'}`,
   };
 }
 
 function buyerAlert({ buyerName, address, city, state, beds, baths, sqft, arv, askingPrice, repairEstimate, operatorName }) {
   const fmt = (n) => n ? '$' + Number(n).toLocaleString() : 'TBD';
-  const profit = arv && askingPrice && repairEstimate
-    ? fmt(arv - askingPrice - repairEstimate)
-    : 'TBD';
+  const profit = arv && askingPrice && repairEstimate ? fmt(arv - askingPrice - repairEstimate) : 'TBD';
   return {
-    subject: `New off-market property — ${city}, ${state} — ${beds}bd/${baths}ba — ${fmt(askingPrice)}`,
-    body: `Hi ${buyerName},\n\nI have a new off-market property that fits your buy box. Details below. Reply or call me to discuss.\n\n` +
-      `Property: ${address}\n` +
-      `Beds/Baths: ${beds || '?'} / ${baths || '?'}\n` +
-      `Square Feet: ${sqft ? sqft.toLocaleString() : 'TBD'}\n` +
+    subject: `New deal in ${city}, ${state}`,
+    body: `Hey ${buyerName},\n\nGot a new off market deal I think fits your criteria. Here are the numbers.\n\n` +
+      `${address}\n` +
+      `${beds || '?'} bed / ${baths || '?'} bath / ${sqft ? sqft.toLocaleString() + ' sqft' : ''}\n` +
       `ARV: ${fmt(arv)}\n` +
-      `Asking: ${fmt(askingPrice)}\n` +
-      `Repairs Needed: ${fmt(repairEstimate)}\n` +
-      `Potential Profit: ${profit}\n\n` +
-      `Best regards,\n${operatorName || 'Alex'}`,
+      `Price: ${fmt(askingPrice)}\n` +
+      `Repairs: ${fmt(repairEstimate)}\n` +
+      `Potential profit: ${profit}\n\n` +
+      `Call or reply if you want to move on this.\n\n${operatorName || 'Alex'}`,
   };
 }
 
 function offerExpired({ firstName, address, operatorName }) {
   return {
-    subject: `Our offer on ${address} has expired`,
-    body: `Hi ${firstName},\n\nJust a quick note — our cash offer for your property at ${address} has expired.\n\nIf your situation changes or you'd like to revisit a sale, please don't hesitate to reach out. We can often put together a new offer quickly.\n\nWishing you all the best.\n\nBest regards,\n${operatorName || 'Alex'}`,
+    subject: `${address}`,
+    body: `Hey ${firstName},\n\nOur cash offer on ${address} expired but if your situation changes just reach out. We can usually put something together pretty quickly.\n\nHope everything works out for you.\n\n${operatorName || 'Alex'}`,
   };
 }
 
 function contractSentReminder({ firstName, address, signingLink, operatorName }) {
   return {
-    subject: `Reminder — purchase agreement awaiting signature — ${address}`,
-    body: `Hi ${firstName},\n\nThis is a friendly reminder that your purchase agreement for ${address} is still awaiting your signature.\n\n${signingLink ? `Sign here: ${signingLink}\n\n` : ''}If you have any questions or concerns, I am happy to walk through the contract with you. Please feel free to call or reply to this email.\n\nBest regards,\n${operatorName || 'Alex'}`,
+    subject: `Contract still waiting on ${address}`,
+    body: `Hey ${firstName},\n\nJust a heads up the contract for ${address} is still waiting on your signature.\n\n${signingLink ? `Sign here: ${signingLink}\n\n` : ''}Any questions just call me and we can go through it together.\n\n${operatorName || 'Alex'}`,
   };
 }
 
 function marketUpdate({ firstName, address, operatorName }) {
   return {
-    subject: `Market update — properties like yours are in demand`,
-    body: `Hi ${firstName},\n\nI wanted to reach out with a quick market update for your area.\n\nProperties similar to yours at ${address} are seeing strong cash buyer interest right now. If you've been on the fence about selling, this could be a great time to get a fair offer and close on your timeline.\n\nNo pressure — just thought you'd appreciate the update. Happy to chat if you're curious.\n\nBest regards,\n${operatorName || 'Alex'}`,
+    subject: `Thought of you`,
+    body: `Hey ${firstName},\n\nCash buyers in your area are really active right now and I thought of your property on ${address}.\n\nIf you're ever open to an offer just let me know. No pressure at all.\n\n${operatorName || 'Alex'}`,
   };
 }
 
 function thankYou({ firstName, address, assignmentFee, operatorName }) {
-  const fmt = (n) => n ? '$' + Number(n).toLocaleString() : 'an amount';
+  const fmt = (n) => n ? '$' + Number(n).toLocaleString() : '';
   return {
-    subject: `Thank you — ${address} is closed!`,
-    body: `Hi ${firstName},\n\nCongratulations — the sale of ${address} is now closed! It was a pleasure working with you.\n\nYour proceeds of ${fmt(assignmentFee)} have been disbursed per the closing instructions.\n\nIf you ever have another property you'd like to sell quickly, or if you know someone in a similar situation, please think of us.\n\nThank you again for trusting us with this transaction.\n\nBest regards,\n${operatorName || 'Alex'}`,
+    subject: `We're closed!`,
+    body: `Hey ${firstName},\n\nWe're all done on ${address}${assignmentFee ? ` and your ${fmt(assignmentFee)} has been sent` : ''}. It was great working with you.\n\nIf you ever have another property or know someone who needs to sell fast, think of me.\n\nThanks again.\n\n${operatorName || 'Alex'}`,
   };
 }
 

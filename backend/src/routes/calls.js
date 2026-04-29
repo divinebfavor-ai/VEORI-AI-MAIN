@@ -146,6 +146,24 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/calls/:id/listen — get Vapi listen URL for live monitoring
+router.get('/:id/listen', async (req, res, next) => {
+  try {
+    const { data: call } = await supabase.from('calls')
+      .select('vapi_call_id, status')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (!call) return res.status(404).json({ success: false, error: 'Call not found' });
+    if (!call.vapi_call_id) return res.status(400).json({ success: false, error: 'No Vapi call ID' });
+
+    const listenUrl = await vapiService.getListenUrl(call.vapi_call_id);
+    if (!listenUrl) return res.status(404).json({ success: false, error: 'Listen URL not available yet — call may still be connecting' });
+
+    res.json({ success: true, listen_url: listenUrl });
+  } catch (err) { next(err); }
+});
+
 // POST /api/calls/:id/end — manually end a live call
 router.post('/:id/end', async (req, res, next) => {
   try {

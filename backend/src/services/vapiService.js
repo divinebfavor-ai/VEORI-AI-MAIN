@@ -442,10 +442,15 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
   return data;
 }
 
-// ─── Get live call status ─────────────────────────────────────────────────────
+// ─── Get live call status + listen URL ───────────────────────────────────────
 async function getCall(vapiCallId) {
   const { data } = await vapiHttp.get(`/call/${vapiCallId}`);
   return data;
+}
+
+async function getListenUrl(vapiCallId) {
+  const { data } = await vapiHttp.get(`/call/${vapiCallId}`);
+  return data?.monitor?.listenUrl || data?.listenUrl || null;
 }
 
 // ─── End a call ───────────────────────────────────────────────────────────────
@@ -587,6 +592,7 @@ Always be warm — they called YOU, which means they have some interest.`;
 module.exports = {
   initiateCall,
   getCall,
+  getListenUrl,
   endCall,
   muteAssistant,
   unmuteAssistant,

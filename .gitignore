@@ -11,3 +11,4 @@ coverage/
 .railway/
 *.pem
 .claude/
+.vercel

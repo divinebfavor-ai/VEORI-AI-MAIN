@@ -21,22 +21,22 @@ const telnyxHttp = axios.create({
 
 const OPENING_MESSAGES = {
   pre_foreclosure: (name, address) =>
-    `Hi ${name}, this is Alex. I saw you may be going through a tough time with your property at ${address}. I buy homes as-is for cash and can close fast — no stress, no repairs. Would you be open to a quick conversation?`,
+    `Hey ${name}, this is Alex. I came across your property on ${address} and just wanted to reach out. I buy homes cash and can close quick if that helps your situation at all. No pressure, just wanted to put it out there.`,
 
   tax_delinquent: (name, address) =>
-    `Hey ${name}, Alex here. I noticed your property at ${address} has some tax issues and wanted to reach out. I buy homes fast for cash and can help you walk away clean. Worth a quick chat?`,
+    `Hey ${name}, Alex here. I buy houses in your area and saw your property on ${address}. If you ever want to just be done with it I can make you a cash offer and close fast. Worth a quick chat?`,
 
   inherited: (name, address) =>
-    `Hi ${name}, my name is Alex. I understand you recently inherited a property at ${address} and wanted to see if you'd be open to a cash offer. No repairs needed, we handle everything. Just wanted to reach out respectfully.`,
+    `Hey ${name}, my name is Alex. I heard you may have inherited a property on ${address} and just wanted to reach out. If it's something you'd want to sell I buy as-is cash so you don't have to deal with repairs or showings. No rush at all.`,
 
   vacant: (name, address) =>
-    `Hi ${name}, this is Alex, a local investor. I came across your property at ${address} and wanted to make a cash offer. Quick and easy process — no repairs, no showings. Would you be interested?`,
+    `Hey ${name}, this is Alex. I buy properties in your area and noticed your place on ${address}. If you're open to selling I can make a fast cash offer. Real easy process. Interested?`,
 
   absentee_owner: (name, address) =>
-    `Hi ${name}, Alex here — local real estate investor. I'm interested in your property at ${address}. If you'd ever consider selling, I can make a fair cash offer and close on your timeline. Open to hearing more?`,
+    `Hey ${name}, Alex here. I'm a local buyer and I'm interested in your property on ${address}. If you'd ever think about selling I can make it simple with a cash offer on your timeline. Let me know.`,
 
   default: (name, address) =>
-    `Hi ${name}, this is Alex, a local real estate investor. I'm reaching out about your property at ${address}. I buy homes for cash, as-is, and can close fast. Would you be open to a quick conversation?`,
+    `Hey ${name}, this is Alex. I buy houses in your area and wanted to reach out about your property on ${address}. Cash offer, no repairs, close whenever works for you. Open to talking?`,
 };
 
 function getOpeningMessage(lead) {

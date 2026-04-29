@@ -72,6 +72,7 @@ export const calls = {
   endCall:        (id)         => api.post(`/api/calls/${id}/end`),
   callTakeover:   (callId)     => api.post('/api/calls/takeover', { call_id: callId }),
   returnToAI:     (callId)     => api.post('/api/calls/return-to-ai', { call_id: callId }),
+  getListenUrl:   (id)         => api.get(`/api/calls/${id}/listen`).then(r => r.data),
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
