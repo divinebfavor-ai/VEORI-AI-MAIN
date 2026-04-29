@@ -14,19 +14,21 @@ import useThemeStore from '../../store/themeStore'
 import { notifications as notifApi } from '../../services/api'
 
 const NAV = [
-  { to: '/dashboard',   icon: LayoutDashboard, label: 'Command Center' },
-  { to: '/leads',       icon: Users,           label: 'Leads' },
-  { to: '/monitor',     icon: Radio,           label: 'Live Calls',  live: true },
-  { to: '/pipeline',    icon: Columns,         label: 'Pipeline' },
-  { to: '/campaigns',   icon: Briefcase,       label: 'Campaigns' },
-  { to: '/analytics',   icon: BarChart2,       label: 'Analytics' },
-  { to: '/buyers',      icon: Building2,       label: 'Buyers' },
-  { to: '/dialer',      icon: Phone,           label: 'Dialer' },
-  { to: '/calculator',  icon: Calculator,      label: 'Calculator' },
-  { to: '/compliance',  icon: Shield,          label: 'Compliance' },
-  { to: '/academy',     icon: BookOpen,        label: 'Academy' },
-  { to: '/marketplace', icon: Store,           label: 'Marketplace' },
-  { to: '/aria',        icon: MessageSquare,   label: 'Aria AI' },
+  { to: '/dashboard',        icon: LayoutDashboard, label: 'Command Center' },
+  { to: '/leads',            icon: Users,           label: 'Leads' },
+  { to: '/monitor',          icon: Radio,           label: 'Live Calls',       live: true },
+  { to: '/pipeline',         icon: Columns,         label: 'Pipeline' },
+  { to: '/campaigns',        icon: Briefcase,       label: 'Campaigns' },
+  { to: '/buyers',           icon: Building2,       label: 'Buyers' },
+  { to: '/title-companies',  icon: Building2,       label: 'Title Companies' },
+  { to: '/follow-ups',       icon: Bell,            label: 'Follow-Ups' },
+  { to: '/analytics',        icon: BarChart2,       label: 'Analytics' },
+  { to: '/dialer',           icon: Phone,           label: 'Dialer' },
+  { to: '/calculator',       icon: Calculator,      label: 'Calculator' },
+  { to: '/compliance',       icon: Shield,          label: 'Compliance' },
+  { to: '/academy',          icon: BookOpen,        label: 'Academy' },
+  { to: '/marketplace',      icon: Store,           label: 'Marketplace' },
+  { to: '/aria',             icon: MessageSquare,   label: 'Aria AI' },
 ]
 
 // ─── Notifications dropdown ───────────────────────────────────────────────────

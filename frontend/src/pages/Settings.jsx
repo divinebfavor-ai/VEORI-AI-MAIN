@@ -221,10 +221,12 @@ function PhoneTab({ phoneList, setPhoneList }) {
           </div>
         )}
         {phoneList.filter(p => !p.released_at).map(p => {
-          const isSip = !p.number || p.number.startsWith('sip:') || !p.number.startsWith('+')
-          // Show the full number — no masking
-          const displayNumber = p.number || p.friendly_name || 'AI Calling Line'
-          const vapiId = p.vapi_phone_number_id
+          // Real E.164 number (e.g. +17045551234) — show it directly
+          // SIP URI or missing — show friendly name or state label instead
+          const isRealNumber = p.number && p.number.startsWith('+')
+          const displayNumber = isRealNumber
+            ? p.number
+            : p.friendly_name || (p.state ? `${p.state} Calling Line` : 'AI Calling Line')
           return (
           <div key={p.id} style={{ padding: '14px 0', borderBottom: '1px solid var(--border)' }} className="last:border-0">
             <div className="flex items-start justify-between">
@@ -236,13 +238,8 @@ function PhoneTab({ phoneList, setPhoneList }) {
                   )}
                 </div>
                 <p style={{ fontSize: 11, color: 'var(--t4)', margin: '0 0 3px' }}>
-                  {p.friendly_name ? `${p.friendly_name} · ` : ''}{p.state || 'All states'} · {p.daily_calls_made || 0}/{p.daily_call_limit || 50} calls today
+                  {p.state || 'All states'} · {p.daily_calls_made || 0}/{p.daily_call_limit || 50} calls today
                 </p>
-                {vapiId && (
-                  <p style={{ fontSize: 10, color: 'var(--t5)', margin: '0 0 4px', fontFamily: 'monospace' }}>
-                    ID: {vapiId.slice(0, 8)}…
-                  </p>
-                )}
                 <div className="flex items-center gap-3">
                   {p.monthly_cost && (
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
