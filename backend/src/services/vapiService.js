@@ -390,6 +390,26 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
         temperature: 0.75,
         maxTokens: 600,
         emotionRecognitionEnabled: true,
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'lookupPropertyValue',
+              description: 'Look up real comparable sales, estimated ARV, and calculate the maximum allowable offer (MAO) for a property address. Use this when the seller mentions their address or when you need real market data to make an offer.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  address: {
+                    type: 'string',
+                    description: 'Full property address including city and state, e.g. "123 Main St, Charlotte, NC 28205"',
+                  },
+                },
+                required: ['address'],
+              },
+            },
+            server: { url: `${WEBHOOK_URL}/tool-call` },
+          },
+        ],
       },
       voice: {
         provider: 'vapi',

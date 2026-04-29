@@ -6,6 +6,7 @@ const vapiService = require('../services/vapiService');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { enrollLeadInSequence } = require('../services/sequenceEngine');
 const { recordCallIntelligence } = require('../services/dataMotService');
+const { lookupPropertyValue, formatForAlex } = require('../services/compsService');
 
 const router = express.Router();
 
@@ -44,6 +45,39 @@ router.post('/webhook', async (req, res) => {
   } catch (err) {
     console.error('[Vapi Webhook Error]', err);
     res.status(500).json({ success: false });
+  }
+});
+
+// POST /api/vapi/webhook/tool-call — Alex calls this to look up comps live
+router.post('/webhook/tool-call', async (req, res) => {
+  try {
+    const { toolCallList, call } = req.body;
+    const results = [];
+
+    for (const toolCall of (toolCallList || [])) {
+      const { id, name, arguments: args } = toolCall;
+      let result = '';
+
+      if (name === 'lookupPropertyValue') {
+        try {
+          const address = args?.address || call?.customer?.number;
+          console.log(`[Vapi Tool] lookupPropertyValue for: ${address}`);
+          const data = await lookupPropertyValue(address);
+          result = formatForAlex(data);
+          console.log(`[Vapi Tool] Comps result: ARV $${data.arv?.toLocaleString()}`);
+        } catch (e) {
+          console.error('[Vapi Tool] Comps lookup failed:', e.message);
+          result = 'I was unable to pull comparable sales right now. Based on general market knowledge for this area, I can still work through the numbers with you.';
+        }
+      }
+
+      results.push({ toolCallId: id, result });
+    }
+
+    res.json({ results });
+  } catch (err) {
+    console.error('[Vapi Tool-Call Error]', err);
+    res.status(500).json({ results: [] });
   }
 });
 
