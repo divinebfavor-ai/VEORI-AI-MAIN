@@ -134,13 +134,26 @@ router.post('/bulk', async (req, res, next) => {
     // Auto-tag all imported leads async — don't block the response
     const { data: newLeads } = await supabase
       .from('leads')
-      .select('id')
+      .select('*')
       .eq('user_id', req.user.id)
       .order('created_at', { ascending: false })
       .limit(imported);
 
     if (newLeads?.length) {
       setImmediate(() => tagLeadsBulk(newLeads.map(l => l.id)));
+
+      // Fire opening SMS to every lead that has a phone number
+      const { sendOpeningSMS } = require('../services/smsService');
+      const userId = req.user.id;
+      setImmediate(async () => {
+        for (const lead of newLeads) {
+          if (lead.phone && !lead.is_on_dnc) {
+            await sendOpeningSMS(lead, userId).catch(() => {});
+            await new Promise(r => setTimeout(r, 300)); // 300ms between sends
+          }
+        }
+        console.log(`[SMS] Opening texts sent to ${newLeads.filter(l => l.phone).length} leads`);
+      });
     }
 
     res.status(201).json({
