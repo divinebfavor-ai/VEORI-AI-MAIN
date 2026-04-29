@@ -220,20 +220,32 @@ function PhoneTab({ phoneList, setPhoneList }) {
             <p className="text-[12px] text-text-muted mt-1">Get a number below to start calling leads</p>
           </div>
         )}
-        {phoneList.filter(p => !p.released_at).map(p => (
+        {phoneList.filter(p => !p.released_at).map(p => {
+          const isSip = !p.number || p.number.startsWith('sip:') || !p.number.startsWith('+')
+          const displayNumber = isSip ? null : p.number
+          const vapiId = p.vapi_phone_number_id
+          return (
           <div key={p.id} style={{ padding: '14px 0', borderBottom: '1px solid var(--border)' }} className="last:border-0">
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>{p.number}</p>
+                  {displayNumber ? (
+                    <p style={{ fontSize: 17, fontWeight: 700, color: 'var(--t1)', margin: 0, letterSpacing: '0.03em', fontFamily: 'Geist Mono, monospace' }}>{displayNumber}</p>
+                  ) : (
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t2)', margin: 0 }}>Vapi SIP Line</p>
+                  )}
                   {p.is_primary && (
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: 'rgba(0,195,122,0.12)', color: '#00C37A', letterSpacing: '0.04em' }}>PRIMARY</span>
                   )}
                 </div>
-                <p style={{ fontSize: 11, color: 'var(--t4)', margin: '0 0 4px' }}>
+                <p style={{ fontSize: 11, color: 'var(--t4)', margin: '0 0 3px' }}>
                   {p.friendly_name ? `${p.friendly_name} · ` : ''}{p.state || 'All states'} · {p.daily_calls_made || 0}/{p.daily_call_limit || 50} calls today
-                  {p.vapi_phone_number_id && <span style={{ color: '#00C37A' }}> · Vapi #{p.vapi_phone_number_id.slice(-6)}</span>}
                 </p>
+                {vapiId && (
+                  <p style={{ fontSize: 10, color: 'var(--t5)', margin: '0 0 4px', fontFamily: 'monospace' }}>
+                    Number ID: {vapiId}
+                  </p>
+                )}
                 <div className="flex items-center gap-3">
                   {p.monthly_cost && (
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px' }}>
@@ -260,7 +272,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
               </div>
             </div>
           </div>
-        ))}
+        )})}
       </div>
 
       {/* Get a Number — provisioning */}
