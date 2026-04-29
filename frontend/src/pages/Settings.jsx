@@ -290,21 +290,21 @@ function PhoneTab({ phoneList, setPhoneList }) {
         <AddPhoneForm onAdd={(num) => { setPhoneList(prev => [...prev, num]); setShowProvision(false) }} onCancel={() => setShowProvision(false)} />
       ) : (
         <div style={{ borderRadius: 12, padding: 20, background: 'rgba(0,195,122,0.04)', border: '1px solid rgba(0,195,122,0.18)' }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', marginBottom: 4 }}>Buy a Phone Number</p>
-          <p style={{ fontSize: 12, color: 'var(--t4)', marginBottom: 16 }}>Veori purchases this number from Vapi on your behalf. It is ready to use immediately.</p>
+          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', marginBottom: 4 }}>Buy a Real Phone Number</p>
+          <p style={{ fontSize: 12, color: 'var(--t4)', marginBottom: 16 }}>Enter the area code for the state you're targeting. You'll get a real local number (e.g. +17045551234) that sellers will see on their phone.</p>
           <div className="grid grid-cols-2 gap-3 mb-4">
             <Input
-              label="Area Code (optional)"
+              label="Area Code *"
               value={provisionForm.area_code}
               onChange={e => setProvisionForm(p => ({ ...p, area_code: e.target.value.replace(/\D/, '').slice(0, 3) }))}
-              placeholder="e.g. 512 for Austin TX"
+              placeholder="704 = Charlotte NC"
               maxLength={3}
             />
             <Input
               label="Label (optional)"
               value={provisionForm.friendly_name}
               onChange={e => setProvisionForm(p => ({ ...p, friendly_name: e.target.value }))}
-              placeholder="Main Outreach Line"
+              placeholder="NC Outreach Line"
             />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>

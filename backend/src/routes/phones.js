@@ -22,12 +22,17 @@ router.post('/provision', async (req, res, next) => {
         ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/vapi/webhook`
         : null);
 
-    // ── STEP 1: Buy the number from Vapi ────────────────────────────────────────
+    // ── STEP 1: Buy a real Twilio number through Vapi ───────────────────────────
+    // provider: 'twilio' gives real US phone numbers (+1XXXXXXXXXX) that can
+    // call any cell phone. Vapi handles Twilio billing — no separate account needed.
+    if (!area_code) return res.status(400).json({ success: false, error: 'area_code is required to buy a real phone number (e.g. 704 for Charlotte NC)' });
+
     let vapiNumber;
     try {
       const vapiRes = await axios.post('https://api.vapi.ai/phone-number', {
-        provider: 'vapi',
-        name: friendly_name || `Operator ${req.user.id} Number`,
+        provider: 'twilio',
+        areaCode: String(area_code),
+        name: friendly_name || `Veori Line (${area_code})`,
         ...(webhookUrl ? { serverUrl: webhookUrl } : {}),
         ...(process.env.VAPI_WEBHOOK_SECRET ? { serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET } : {}),
       }, {
@@ -37,15 +42,12 @@ router.post('/provision', async (req, res, next) => {
       vapiNumber = vapiRes.data;
       console.log('[Phone] Vapi provision response:', JSON.stringify(vapiNumber));
     } catch (vapiErr) {
-      const msg = vapiErr.response?.data?.message || vapiErr.message;
+      const msg = vapiErr.response?.data?.message || vapiErr.response?.data?.error || vapiErr.message;
       return res.status(502).json({ success: false, error: `Vapi error: ${msg}` });
     }
 
-    // Vapi's native provider returns sipUri instead of a PSTN number
-    const resolvedNumber = vapiNumber.number
-      || vapiNumber.phoneNumber
-      || vapiNumber.sipUri
-      || vapiNumber.id;
+    // Twilio numbers come back as real E.164 numbers e.g. +17045551234
+    const resolvedNumber = vapiNumber.number || vapiNumber.phoneNumber || vapiNumber.id;
 
     // ── STEP 2: Assign number to this operator's Vapi assistant ─────────────────
     // Looks up operator's vapi_assistant_id from DB, falls back to env var.
