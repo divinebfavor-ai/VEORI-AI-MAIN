@@ -222,18 +222,17 @@ function PhoneTab({ phoneList, setPhoneList }) {
         )}
         {phoneList.filter(p => !p.released_at).map(p => {
           const isSip = !p.number || p.number.startsWith('sip:') || !p.number.startsWith('+')
-          const displayNumber = isSip ? null : p.number
+          // Always show something meaningful as the main label
+          const displayNumber = isSip
+            ? (p.area_code ? `+1 (${p.area_code}) *** - ****` : p.friendly_name || 'AI Calling Line')
+            : p.number
           const vapiId = p.vapi_phone_number_id
           return (
           <div key={p.id} style={{ padding: '14px 0', borderBottom: '1px solid var(--border)' }} className="last:border-0">
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  {displayNumber ? (
-                    <p style={{ fontSize: 17, fontWeight: 700, color: 'var(--t1)', margin: 0, letterSpacing: '0.03em', fontFamily: 'Geist Mono, monospace' }}>{displayNumber}</p>
-                  ) : (
-                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t2)', margin: 0 }}>Vapi SIP Line</p>
-                  )}
+                  <p style={{ fontSize: 17, fontWeight: 700, color: 'var(--t1)', margin: 0, letterSpacing: '0.03em', fontFamily: 'Geist Mono, monospace' }}>{displayNumber}</p>
                   {p.is_primary && (
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: 'rgba(0,195,122,0.12)', color: '#00C37A', letterSpacing: '0.04em' }}>PRIMARY</span>
                   )}
@@ -243,7 +242,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
                 </p>
                 {vapiId && (
                   <p style={{ fontSize: 10, color: 'var(--t5)', margin: '0 0 4px', fontFamily: 'monospace' }}>
-                    Number ID: {vapiId}
+                    ID: {vapiId.slice(0, 8)}…
                   </p>
                 )}
                 <div className="flex items-center gap-3">
