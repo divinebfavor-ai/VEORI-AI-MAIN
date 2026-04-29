@@ -22,15 +22,15 @@ router.post('/provision', async (req, res, next) => {
         ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/vapi/webhook`
         : null);
 
-    // ── STEP 1: Buy a real Twilio number through Vapi ───────────────────────────
-    // provider: 'twilio' gives real US phone numbers (+1XXXXXXXXXX) that can
-    // call any cell phone. Vapi handles Twilio billing — no separate account needed.
+    // ── STEP 1: Buy a Free Vapi Number (real US PSTN number, no Twilio account needed)
+    // provider: 'vapi' + areaCode = Vapi provisions a free real US phone number
+    // (+1XXXXXXXXXX) that can call any cell phone. Up to 10 per account, free.
     if (!area_code) return res.status(400).json({ success: false, error: 'area_code is required to buy a real phone number (e.g. 704 for Charlotte NC)' });
 
     let vapiNumber;
     try {
       const vapiRes = await axios.post('https://api.vapi.ai/phone-number', {
-        provider: 'twilio',
+        provider: 'vapi',
         areaCode: String(area_code),
         name: friendly_name || `Veori Line (${area_code})`,
         ...(webhookUrl ? { serverUrl: webhookUrl } : {}),
