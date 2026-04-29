@@ -222,10 +222,8 @@ function PhoneTab({ phoneList, setPhoneList }) {
         )}
         {phoneList.filter(p => !p.released_at).map(p => {
           const isSip = !p.number || p.number.startsWith('sip:') || !p.number.startsWith('+')
-          // Always show something meaningful as the main label
-          const displayNumber = isSip
-            ? (p.area_code ? `+1 (${p.area_code}) *** - ****` : p.friendly_name || 'AI Calling Line')
-            : p.number
+          // Show the full number — no masking
+          const displayNumber = p.number || p.friendly_name || 'AI Calling Line'
           const vapiId = p.vapi_phone_number_id
           return (
           <div key={p.id} style={{ padding: '14px 0', borderBottom: '1px solid var(--border)' }} className="last:border-0">
