@@ -1,37 +1,17 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const supabase = require('../config/supabase');
 
-// Create transporter — uses SMTP env vars or falls back to Ethereal for dev
-async function getTransporter() {
-  if (process.env.SMTP_HOST) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
-  }
-  // Dev fallback — logs to console
-  return {
-    sendMail: async (opts) => {
-      console.log('📧 [EMAIL DEV]', JSON.stringify(opts, null, 2));
-      return { messageId: 'dev-' + Date.now() };
-    }
-  };
-}
+// Use Resend SDK directly — no SMTP/MX record required
+const resend = new Resend(process.env.SMTP_PASS || process.env.RESEND_API_KEY);
 
 async function sendEmail({ userId, leadId, dealId, to, subject, body, emailType }) {
   try {
-    const transporter = await getTransporter();
-    const from = process.env.EMAIL_FROM || '"Veori AI" <alex@veori.net>';
+    const from = process.env.EMAIL_FROM || 'Alex at Veori <alex@veori.net>';
+    const html = body.includes('<') ? body : body.replace(/\n/g, '<br>');
+    const text = body.replace(/<[^>]+>/g, '');
 
-    const info = await transporter.sendMail({
-      from,
-      to,
-      subject,
-      html: body.includes('<') ? body : body.replace(/\n/g, '<br>'),
-      text: body.replace(/<[^>]+>/g, ''),
-    });
+    const { data: info, error } = await resend.emails.send({ from, to, subject, html, text });
+    if (error) throw new Error(error.message || JSON.stringify(error));
 
     // Log to database
     if (supabase && userId) {
