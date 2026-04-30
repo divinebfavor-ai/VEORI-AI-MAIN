@@ -85,6 +85,7 @@ export const campaigns = {
   startCampaign:    (id)       => api.post(`/api/campaigns/${id}/start`),
   pauseCampaign:    (id)       => api.post(`/api/campaigns/${id}/pause`),
   stopCampaign:     (id)       => api.post(`/api/campaigns/${id}/stop`),
+  deleteCampaign:   (id)       => api.delete(`/api/campaigns/${id}`),
 }
 
 // ─── Phones ──────────────────────────────────────────────────────────────────

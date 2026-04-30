@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Play, Pause, Square, X, ChevronRight } from 'lucide-react'
+import { Plus, Play, Pause, Square, X, ChevronRight, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -13,7 +13,7 @@ function statusVariant(s) {
 // ─── Create Campaign Modal ────────────────────────────────────────────────────
 function CreateModal({ onClose, onCreated }) {
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ name:'', concurrent_lines:3, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
+  const [form, setForm] = useState({ name:'', concurrent_lines:1, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
   const [saving, setSaving] = useState(false)
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
@@ -61,6 +61,9 @@ function CreateModal({ onClose, onCreated }) {
                 <input type="range" min={1} max={5} value={form.concurrent_lines} onChange={set('concurrent_lines')}
                   className="w-full accent-primary" />
                 <div className="flex justify-between text-[11px] text-text-muted mt-1"><span>1</span><span>5</span></div>
+                {Number(form.concurrent_lines) > 2 && (
+                  <p className="text-[11px] text-amber-400 mt-2">Vapi free accounts allow 1-2 concurrent calls. Set higher only if you have reserved concurrency lines in Vapi billing.</p>
+                )}
               </div>
               <div className="flex gap-4">
                 <div className="flex-1 flex flex-col gap-1.5">
@@ -181,7 +184,10 @@ function CampaignCard({ c, onAction }) {
           </Button>
         )}
         {(c.status === 'completed' || c.status === 'stopped') && (
-          <Button variant="secondary" size="sm" className="flex-1" disabled>Completed</Button>
+          <>
+            <Button variant="secondary" size="sm" className="flex-1" disabled>Completed</Button>
+            <Button variant="danger" size="sm" onClick={() => onAction('delete', c.id)}><Trash2 size={12} /></Button>
+          </>
         )}
       </div>
     </div>
@@ -201,14 +207,15 @@ export default function Campaigns() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [])
+  useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t) }, [])
 
   const handleAction = async (action, id) => {
     try {
       if (action === 'start')  await campaigns.startCampaign(id)
       if (action === 'pause')  await campaigns.pauseCampaign(id)
       if (action === 'stop')   await campaigns.stopCampaign(id)
-      toast.success(`Campaign ${action}ed`)
+      if (action === 'delete') await campaigns.deleteCampaign(id)
+      toast.success(action === 'delete' ? 'Campaign deleted' : `Campaign ${action}ed`)
       load()
     } catch { toast.error(`Failed to ${action} campaign`) }
   }

@@ -106,14 +106,14 @@ function useListenMode() {
   const [listening, setListening] = useState({})   // callId → bool
   const [volumes, setVolumes]     = useState({})   // callId → 0-100
 
-  const connectListen = useCallback(async (callId, listenUrl) => {
-    if (!listenUrl) {
-      toast.error('Listen URL not available — call must be active with Vapi integration')
-      return
-    }
-
+  const connectListen = useCallback(async (callId, dbCallId) => {
     try {
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ]
+      })
 
       pc.ontrack = (event) => {
         const audio = new Audio()
@@ -127,13 +127,22 @@ function useListenMode() {
       const offer = await pc.createOffer({ offerToReceiveAudio: true })
       await pc.setLocalDescription(offer)
 
-      const res = await fetch(listenUrl, {
+      // Proxy through backend to avoid CORS
+      const token = localStorage.getItem('veori_token')
+      const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+      const res   = await fetch(`${BASE}/api/calls/${dbCallId}/listen-join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/sdp' },
-        body: offer.sdp,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sdp: offer.sdp }),
       })
 
-      if (!res.ok) throw new Error(`Listen connect failed: ${res.status}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Connection failed (${res.status})`)
+      }
 
       const answerSdp = await res.text()
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
@@ -141,10 +150,10 @@ function useListenMode() {
       peerRefs.current[callId] = pc
       setListening(l => ({ ...l, [callId]: true }))
       setVolumes(v => ({ ...v, [callId]: v[callId] ?? 100 }))
-      toast.success('Connected — you can hear the call. Seller cannot hear you.')
+      toast.success('Connected — listening live. Seller cannot hear you.')
     } catch (err) {
       console.error('Listen connect error:', err)
-      toast.error('Failed to connect audio stream. Check Vapi integration.')
+      toast.error(err.message || 'Could not connect to call audio.')
     }
   }, [volumes])
 
@@ -488,13 +497,8 @@ export default function LiveMonitor() {
   const handleListen = async (call) => {
     const callId = call.id || call.vapi_call_id
     if (listening[callId]) { disconnectListen(callId); return }
-    try {
-      // Fetch live listen URL from backend (Vapi monitor.listenUrl)
-      const res = await callsApi.getListenUrl(call.id)
-      await connectListen(callId, res.listen_url)
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not get listen URL')
-    }
+    // connectListen now proxies SDP through backend — just pass the DB call id
+    await connectListen(callId, call.id)
   }
 
   const handleTakeover = async (call) => {
