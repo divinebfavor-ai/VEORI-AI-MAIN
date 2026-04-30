@@ -83,8 +83,32 @@ async function dialerTick(campaignId) {
       const callId = uuidv4();
       await supabase.from('calls').insert([{ id: callId, user_id: userId, lead_id: lead.id, phone_number_id: phoneNum.id, status: 'initiated', started_at: new Date().toISOString() }]);
 
-      // Start Vapi call
-      const vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId });
+      // Stagger calls — wait 1.5s between each to avoid Vapi rate limits
+      if (i > 0) await new Promise(r => setTimeout(r, 1500));
+
+      // Start Vapi call — retry once on rate limit
+      let vapiCall;
+      try {
+        vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId });
+      } catch (vapiErr) {
+        const msg = vapiErr?.response?.data?.message || vapiErr.message || '';
+        if (msg.toLowerCase().includes('rate limit')) {
+          console.warn(`[Campaign] Rate limited — waiting 5s then retrying lead ${lead.id}`);
+          await new Promise(r => setTimeout(r, 5000));
+          try {
+            vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId });
+          } catch (retryErr) {
+            console.error(`[Campaign] Retry also failed for lead ${lead.id}:`, retryErr?.response?.data || retryErr.message);
+            await supabase.from('calls').update({ status: 'failed', ended_at: new Date().toISOString() }).eq('id', callId);
+            leadQueue.unshift(lead); // put back at front of queue
+            continue;
+          }
+        } else {
+          console.error(`[Campaign] Vapi call FAILED for lead ${lead.id} (${lead.phone}):`, vapiErr?.response?.data || vapiErr.message);
+          await supabase.from('calls').update({ status: 'failed', ended_at: new Date().toISOString() }).eq('id', callId);
+          continue;
+        }
+      }
       await supabase.from('calls').update({ vapi_call_id: vapiCall.id, status: 'ringing' }).eq('id', callId);
       await phoneRotation.recordCallStart(phoneNum.id);
 

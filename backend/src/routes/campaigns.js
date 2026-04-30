@@ -108,4 +108,13 @@ router.post('/:id/stop', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// DELETE /api/campaigns/:id
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const { error } = await supabase.from('campaigns').delete().eq('id', req.params.id).eq('user_id', req.user.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

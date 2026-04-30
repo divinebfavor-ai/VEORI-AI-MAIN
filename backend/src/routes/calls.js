@@ -29,10 +29,17 @@ router.get('/', async (req, res, next) => {
 // GET /api/calls/live — all active calls
 router.get('/live', async (req, res, next) => {
   try {
-    const { data, error } = await supabase.from('calls').select('*, leads(first_name, last_name, phone, property_address), phone_numbers(number)')
+    const { data, error } = await supabase.from('calls').select('*, leads(first_name, last_name, phone, property_address, motivation_score, primary_tag), phone_numbers(number)')
       .eq('user_id', req.user.id).in('status', ['initiated', 'ringing', 'in-progress']);
     if (error) throw error;
-    res.json({ success: true, data });
+    const flat = (data || []).map(c => ({
+      ...c,
+      lead_name: c.leads ? `${c.leads.first_name || ''} ${c.leads.last_name || ''}`.trim() || 'Unknown Seller' : 'Unknown Seller',
+      property_address: c.leads?.property_address || c.property_address || 'Address unknown',
+      motivation_score: c.leads?.motivation_score ?? c.motivation_score,
+      primary_tag: c.leads?.primary_tag || c.primary_tag,
+    }));
+    res.json({ success: true, data: flat });
   } catch (err) { next(err); }
 });
 
@@ -162,6 +169,40 @@ router.get('/:id/listen', async (req, res, next) => {
 
     res.json({ success: true, listen_url: listenUrl });
   } catch (err) { next(err); }
+});
+
+// POST /api/calls/:id/listen-join — proxy WebRTC SDP offer to Vapi (avoids browser CORS)
+router.post('/:id/listen-join', async (req, res, next) => {
+  try {
+    const { sdp } = req.body;
+    if (!sdp) return res.status(400).json({ success: false, error: 'SDP offer required' });
+
+    const { data: call } = await supabase.from('calls')
+      .select('vapi_call_id')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (!call?.vapi_call_id) return res.status(404).json({ success: false, error: 'Call not found or no Vapi ID' });
+
+    const listenUrl = await vapiService.getListenUrl(call.vapi_call_id);
+    if (!listenUrl) return res.status(404).json({ success: false, error: 'Listen URL not available yet' });
+
+    // Proxy SDP exchange to Vapi on behalf of browser (no CORS issues)
+    const axios = require('axios');
+    const response = await axios.post(listenUrl, sdp, {
+      headers: { 'Content-Type': 'application/sdp' },
+      responseType: 'text',
+      timeout: 10000,
+    });
+
+    res.set('Content-Type', 'application/sdp');
+    res.send(response.data);
+  } catch (err) {
+    if (err.response) {
+      return res.status(err.response.status).json({ success: false, error: `Vapi listen failed: ${err.response.status}` });
+    }
+    next(err);
+  }
 });
 
 // POST /api/calls/:id/end — manually end a live call

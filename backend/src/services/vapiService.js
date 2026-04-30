@@ -330,6 +330,15 @@ function getScriptByLeadTag(lead, operator = {}) {
   return buildAlexPrompt({ operator, lead });
 }
 
+// ─── Normalize phone to E.164 (+1XXXXXXXXXX) ─────────────────────────────────
+function toE164(phone) {
+  if (!phone) return phone;
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits[0] === '1') return `+${digits}`;
+  return phone.startsWith('+') ? phone : `+${digits}`;
+}
+
 // ─── Initiate outbound call (Steps 1→3 of the Veori call spec) ───────────────
 async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
   if (!VAPI_API_KEY) throw new Error('VAPI_API_KEY not configured');
@@ -370,7 +379,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
     // phoneNumberId tells Vapi which operator number to call FROM
     ...(phoneNumberId ? { phoneNumberId } : { phoneNumber: { number: phoneNumber.number } }),
     customer: {
-      number: lead.phone,
+      number: toE164(lead.phone),
       name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Seller',
     },
     assistant: {
@@ -437,6 +446,10 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
     serverUrl: WEBHOOK_URL,
     serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET,
   };
+
+  // Remove top-level serverUrl — it's already set on the phone number in Vapi
+  delete payload.serverUrl;
+  delete payload.serverUrlSecret;
 
   const { data } = await vapiHttp.post('/call/phone', payload);
   return data;
@@ -524,7 +537,7 @@ RULES:
 
   const payload = {
     type: 'outboundPhoneCall',
-    customer: { number: buyer.phone, name: buyer.name },
+    customer: { number: toE164(buyer.phone), name: buyer.name },
     assistant: {
       name: aiName,
       transcriber: { provider: 'deepgram', model: 'nova-2' },
