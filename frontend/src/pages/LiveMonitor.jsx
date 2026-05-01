@@ -194,304 +194,171 @@ function useListenMode() {
   return { listening, volumes, connectListen, disconnectListen, setVolume }
 }
 
-// ─── Call Mission Card ─────────────────────────────────────────────────────────
+// ─── Call Row — compact, expandable ──────────────────────────────────────────
 function CallCard({ call, takeover, listening, volume, onListen, onStopListen, onSetVolume, onTakeover, onReturn, onEnd }) {
+  const [expanded, setExpanded] = useState(false)
   const [transcript, setTranscript] = useState([])
-  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now())
-  const [transcriptActive, setTranscriptActive] = useState(true)
+  const [speaker, setSpeaker] = useState('idle') // 'ai' | 'seller' | 'idle'
   const txRef = useRef(null)
 
   useEffect(() => {
     if (!call.transcript) return
     const lines = call.transcript.split('\n').filter(Boolean).map(l => {
       const isAI = /^(alex|agent):/i.test(l)
-      return { speaker: isAI ? 'AI' : 'Seller', text: l.replace(/^(alex|agent|seller):\s*/i, '') }
+      return { speaker: isAI ? 'ai' : 'seller', text: l.replace(/^(alex|agent|seller):\s*/i, '') }
     })
-    setTranscript(lines.slice(-8))
-    setLastUpdateTime(Date.now())
+    setTranscript(lines.slice(-20))
+    if (lines.length > 0) setSpeaker(lines[lines.length - 1].speaker)
   }, [call.transcript])
-
-  // Detect silence — if no transcript update in 3s, flatten waveform
-  useEffect(() => {
-    const t = setInterval(() => {
-      setTranscriptActive(Date.now() - lastUpdateTime < 3000)
-    }, 500)
-    return () => clearInterval(t)
-  }, [lastUpdateTime])
 
   useEffect(() => {
     txRef.current?.scrollTo({ top: 9999, behavior: 'smooth' })
   }, [transcript])
 
+  const speakerColor = speaker === 'ai' ? '#00C37A' : speaker === 'seller' ? '#4D9EFF' : 'rgba(255,255,255,0.15)'
+  const initials = (call.lead_name || 'UN').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
   return (
-    <div className="glass-elevated glass-refraction" style={{
-      borderRadius: 20,
-      padding: 24,
-      display: 'flex', flexDirection: 'column', gap: 18,
-      border: takeover
-        ? '1px solid rgba(0,195,122,0.40)'
-        : listening
-        ? '1px solid rgba(255,255,255,0.18)'
-        : '1px solid rgba(255,255,255,0.10)',
-      boxShadow: takeover
-        ? '0 0 0 0.5px rgba(255,255,255,0.08) inset, 0 16px 48px rgba(0,0,0,0.5), 0 0 40px rgba(0,195,122,0.12)'
-        : '0 0 0 0.5px rgba(255,255,255,0.08) inset, 0 16px 48px rgba(0,0,0,0.5)',
-      animation: takeover ? 'pulse-slow 3s ease-in-out infinite' : 'none',
+    <div style={{
+      borderRadius: 12,
+      border: `1px solid ${takeover ? 'rgba(0,195,122,0.40)' : speakerColor === 'rgba(255,255,255,0.15)' ? 'rgba(255,255,255,0.08)' : speakerColor + '44'}`,
+      background: 'rgba(255,255,255,0.03)',
+      overflow: 'hidden',
+      transition: 'border-color 0.4s ease',
     }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
-            background: 'rgba(0,195,122,0.10)', border: '1px solid rgba(0,195,122,0.22)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 700, color: '#00C37A',
-          }}>
-            {(call.lead_name || 'UN').slice(0, 2).toUpperCase()}
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span className="live-dot" />
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#FFFFFF', margin: 0 }}>
-                {call.lead_name || 'Unknown Seller'}
-              </p>
-              {takeover && <Badge variant="green" dot>You&apos;re Live</Badge>}
-              {listening && !takeover && <Badge variant="white">Listening</Badge>}
-            </div>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.40)', margin: 0 }}>
-              {call.property_address || 'Address unknown'}
-            </p>
-            {call.phone_number && (
-              <span style={{
-                display: 'inline-block', marginTop: 4,
-                fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,0.30)',
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 4, padding: '2px 6px',
-                fontFamily: 'Geist Mono, monospace',
-              }}>
-                {call.phone_number}
-              </span>
-            )}
-          </div>
-        </div>
-        <Duration startedAt={call.started_at} />
-      </div>
-
-      {/* Waveforms */}
-      <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em', color: '#00C37A', width: 40, flexShrink: 0, textTransform: 'uppercase' }}>AI</span>
-          <Waveform color="rgba(0,195,122,0.80)" bars={22} active={transcriptActive} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.10em', color: 'rgba(255,255,255,0.35)', width: 40, flexShrink: 0, textTransform: 'uppercase' }}>Seller</span>
-          <Waveform color="rgba(255,255,255,0.35)" bars={22} active={transcriptActive} />
-        </div>
-      </div>
-
-      {/* Transcript */}
-      <div ref={txRef} style={{
-        background: 'rgba(0,0,0,0.30)', borderRadius: 10, padding: '12px 14px',
-        maxHeight: 148, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6,
-      }}>
-        {transcript.length === 0 ? (
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontStyle: 'italic', fontFamily: 'Geist Mono, monospace' }}>
-            Waiting for transcript…
-          </p>
-        ) : transcript.map((line, i) => {
-          const isAI    = line.speaker === 'AI'
-          const isLast  = i === transcript.length - 1
-          return (
-            <div key={i} style={{
-              display: 'flex', gap: 8, alignItems: 'flex-start',
-              paddingLeft: 8,
-              borderLeft: `2px solid ${isAI ? '#00C37A' : 'rgba(255,255,255,0.25)'}`,
-              background: isLast ? 'rgba(255,255,255,0.03)' : 'transparent',
-              borderRadius: '0 4px 4px 0',
-              padding: '2px 6px',
-              transition: 'background 0.3s ease',
-            }}>
-              <span style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                color: isAI ? '#00C37A' : 'rgba(255,255,255,0.35)',
-                flexShrink: 0, marginTop: 2, width: 34,
-                fontFamily: 'Geist Mono, monospace',
-              }}>
-                {isAI ? 'Alex' : 'Seller'}
-              </span>
-              <p style={{
-                fontSize: 12, color: isAI ? 'rgba(255,255,255,0.70)' : '#FFFFFF',
-                lineHeight: 1.5, margin: 0, flex: 1,
-              }}>
-                {line.text}
-              </p>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Score + signals + offer */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <p className="label-caps" style={{ marginBottom: 10 }}>Motivation Score</p>
-          <ScoreRing score={call.motivation_score} />
-          {(call.key_signals || []).length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10 }}>
-              {call.key_signals.map(s => (
-                <span key={s} style={{
-                  fontSize: 10, fontWeight: 500,
-                  background: 'rgba(0,195,122,0.08)', color: '#00C37A',
-                  border: '1px solid rgba(0,195,122,0.20)',
-                  padding: '3px 6px', borderRadius: 4,
-                }}>
-                  {s}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        {call.offer_made && (
-          <div style={{ textAlign: 'right' }}>
-            <p className="label-caps" style={{ marginBottom: 8 }}>Calculated Offer</p>
-            <p style={{
-              fontSize: 26, fontWeight: 700, color: '#C9A84C', margin: 0,
-              fontFamily: 'Geist Mono, monospace', letterSpacing: '-0.02em',
-              filter: 'drop-shadow(0 0 12px rgba(201,168,76,0.3))',
-            }}>
-              ${Number(call.offer_made).toLocaleString()}
-            </p>
-            <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.30)', marginTop: 3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>MAO</p>
-          </div>
-        )}
-      </div>
-
-      {/* Takeover coaching */}
-      {takeover && (
+      {/* ── Compact row ── */}
+      <div
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+          cursor: 'pointer', userSelect: 'none',
+        }}
+      >
+        {/* Speaker indicator dot */}
         <div style={{
-          background: 'rgba(0,195,122,0.04)',
-          border: '1px solid rgba(0,195,122,0.18)',
-          borderRadius: 10, padding: '14px 16px',
+          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+          background: speakerColor,
+          boxShadow: speaker !== 'idle' ? `0 0 8px ${speakerColor}` : 'none',
+          transition: 'background 0.3s ease, box-shadow 0.3s ease',
+        }} />
+
+        {/* Avatar */}
+        <div style={{
+          width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+          background: 'rgba(255,255,255,0.06)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)',
         }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#00C37A', marginBottom: 8 }}>
-            AI Coaching
-          </p>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.70)', lineHeight: 1.7, marginBottom: 10 }}>
-            Seller seems motivated. Acknowledge their situation first, then anchor at your MAO and give them space to respond.
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            {['Anchor offer', 'Build rapport', 'Address objection', 'Request decision'].map(s => (
-              <span key={s} style={{
-                fontSize: 10, cursor: 'pointer',
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)',
-                color: 'rgba(255,255,255,0.55)', padding: '4px 8px', borderRadius: 5,
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(0,195,122,0.4)'; e.currentTarget.style.color = '#00C37A' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)' }}
-              >
-                {s}
-              </span>
-            ))}
-          </div>
+          {initials}
         </div>
-      )}
 
-      {/* Listen volume slider */}
-      {listening && !takeover && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Volume2 size={12} style={{ color: 'rgba(255,255,255,0.40)', flexShrink: 0 }} />
-          <input
-            type="range" min={0} max={100} value={volume ?? 100}
-            onChange={e => onSetVolume(Number(e.target.value))}
-            style={{ flex: 1, height: 3, accentColor: '#00C37A' }}
-          />
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', width: 28, textAlign: 'right', fontFamily: 'Geist Mono, monospace' }}>
-            {volume ?? 100}%
-          </span>
+        {/* Name + address */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {call.lead_name || 'Unknown Seller'}
+          </p>
+          <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {call.property_address || 'Address unknown'}
+          </p>
         </div>
-      )}
 
-      {/* Control buttons */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        {!listening ? (
-          <button
-            onClick={onListen}
-            style={{
-              flex: 1, height: 38, borderRadius: 8,
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)',
-              color: 'rgba(255,255,255,0.70)', fontSize: 13, fontWeight: 500,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              transition: 'all 0.18s ease', fontFamily: 'inherit',
-              backdropFilter: 'blur(12px)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; e.currentTarget.style.color = '#FFFFFF' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = 'rgba(255,255,255,0.70)' }}
-          >
-            <Headphones size={13} strokeWidth={1.8} /> Listen
-          </button>
-        ) : (
-          <button
-            onClick={onStopListen}
-            style={{
-              flex: 1, height: 38, borderRadius: 8,
-              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.22)',
-              color: '#FFFFFF', fontSize: 13, fontWeight: 500,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              fontFamily: 'inherit',
-            }}
-          >
-            <Headphones size={13} strokeWidth={1.8} /> Listening
-          </button>
-        )}
+        {/* Speaker label */}
+        <span style={{
+          fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase',
+          color: speakerColor, minWidth: 44, textAlign: 'center',
+        }}>
+          {speaker === 'ai' ? 'Alex' : speaker === 'seller' ? 'Seller' : 'Ringing'}
+        </span>
 
-        {!takeover ? (
-          <button
-            onClick={onTakeover}
-            style={{
-              flex: 1, height: 38, borderRadius: 8,
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)',
-              color: 'rgba(255,255,255,0.70)', fontSize: 13, fontWeight: 500,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              transition: 'all 0.18s ease', fontFamily: 'inherit',
-              backdropFilter: 'blur(12px)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,68,68,0.10)'; e.currentTarget.style.borderColor = 'rgba(255,68,68,0.30)'; e.currentTarget.style.color = '#FF4444' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = 'rgba(255,255,255,0.70)' }}
-          >
-            <Mic size={13} strokeWidth={1.8} /> Takeover
-          </button>
-        ) : (
-          <button
-            onClick={onReturn}
-            style={{
-              flex: 1, height: 38, borderRadius: 8,
-              background: 'rgba(255,149,0,0.10)', border: '1px solid rgba(255,149,0,0.30)',
-              color: '#FF9500', fontSize: 13, fontWeight: 500,
-              cursor: 'pointer', fontFamily: 'inherit',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            Return to AI
-          </button>
-        )}
+        {/* Mini waveform */}
+        <Waveform color={speakerColor} bars={10} active={speaker !== 'idle'} />
 
+        {/* Duration */}
+        <Duration startedAt={call.started_at} />
+
+        {/* End button always visible */}
         <button
-          onClick={onEnd}
+          onClick={e => { e.stopPropagation(); onEnd() }}
           style={{
-            width: 38, height: 38, borderRadius: 8, flexShrink: 0,
-            background: 'rgba(255,68,68,0.10)', border: '1px solid rgba(255,68,68,0.22)',
+            width: 30, height: 30, borderRadius: 6, flexShrink: 0,
+            background: 'rgba(255,68,68,0.12)', border: '1px solid rgba(255,68,68,0.25)',
             color: '#FF4444', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.15s ease',
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,68,68,0.20)'; e.currentTarget.style.borderColor = 'rgba(255,68,68,0.40)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,68,68,0.10)'; e.currentTarget.style.borderColor = 'rgba(255,68,68,0.22)' }}
         >
-          <X size={14} strokeWidth={2} />
+          <X size={12} />
         </button>
       </div>
+
+      {/* ── Expanded panel ── */}
+      {expanded && (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '16px 16px 14px' }}>
+
+          {/* Transcript */}
+          <div ref={txRef} style={{
+            background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: '10px 12px',
+            maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5,
+            marginBottom: 12,
+          }}>
+            {transcript.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontStyle: 'italic', margin: 0 }}>Waiting for transcript...</p>
+            ) : transcript.map((line, i) => {
+              const isAI = line.speaker === 'ai'
+              return (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: isAI ? '#00C37A' : '#4D9EFF', flexShrink: 0, width: 34, marginTop: 2 }}>
+                    {isAI ? 'Alex' : 'Seller'}
+                  </span>
+                  <p style={{ margin: 0, fontSize: 12, color: isAI ? 'rgba(255,255,255,0.65)' : '#fff', lineHeight: 1.5 }}>
+                    {line.text}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Controls */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={listening ? onStopListen : onListen}
+              style={{
+                flex: 1, height: 34, borderRadius: 7, fontSize: 12, fontWeight: 500,
+                background: listening ? 'rgba(0,195,122,0.12)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${listening ? 'rgba(0,195,122,0.35)' : 'rgba(255,255,255,0.10)'}`,
+                color: listening ? '#00C37A' : 'rgba(255,255,255,0.65)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                fontFamily: 'inherit',
+              }}
+            >
+              <Headphones size={12} /> {listening ? 'Listening' : 'Listen'}
+            </button>
+
+            {listening && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                <Volume2 size={11} style={{ color: 'rgba(255,255,255,0.4)', flexShrink: 0 }} />
+                <input type="range" min={0} max={100} value={volume ?? 100}
+                  onChange={e => onSetVolume(Number(e.target.value))}
+                  style={{ flex: 1, accentColor: '#00C37A' }} />
+              </div>
+            )}
+
+            <button
+              onClick={takeover ? onReturn : onTakeover}
+              style={{
+                flex: 1, height: 34, borderRadius: 7, fontSize: 12, fontWeight: 500,
+                background: takeover ? 'rgba(255,149,0,0.12)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${takeover ? 'rgba(255,149,0,0.35)' : 'rgba(255,255,255,0.10)'}`,
+                color: takeover ? '#FF9500' : 'rgba(255,255,255,0.65)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                fontFamily: 'inherit',
+              }}
+            >
+              <Mic size={12} /> {takeover ? 'Return to AI' : 'Takeover'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -632,11 +499,8 @@ export default function LiveMonitor() {
         ) : (
           /* ── Call cards ── */
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: liveCalls.length === 1 ? '1fr' : 'repeat(2, 1fr)',
-            gap: 20,
-            maxWidth: liveCalls.length === 1 ? 700 : 'none',
-            margin: liveCalls.length === 1 ? '0 auto' : 0,
+            display: 'flex', flexDirection: 'column', gap: 8,
+            maxWidth: 760, margin: '0 auto', width: '100%',
           }}>
             {liveCalls.map(call => {
               const callId = call.id || call.vapi_call_id
