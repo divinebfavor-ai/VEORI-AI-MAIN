@@ -39,7 +39,7 @@ function NavItem({ to, icon: Icon, label, liveBadge }) {
           border: isActive ? '1px solid rgba(0,195,122,0.20)' : '1px solid transparent',
           transition: 'all 0.15s ease', cursor: 'pointer', position: 'relative',
         }}
-          onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+          onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--surface-bg-2)' }}
           onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
         >
           {/* Active bar */}
@@ -49,14 +49,14 @@ function NavItem({ to, icon: Icon, label, liveBadge }) {
           <Icon
             size={16} strokeWidth={isActive ? 2 : 1.6}
             style={{
-              color: isActive ? '#00C37A' : 'rgba(255,255,255,0.35)',
+              color: isActive ? '#00C37A' : 'var(--t3)',
               filter: isActive ? 'drop-shadow(0 0 5px rgba(0,195,122,0.5))' : 'none',
               transition: 'all 0.15s', flexShrink: 0,
             }}
           />
           <span style={{
             fontSize: 13, fontWeight: isActive ? 600 : 400,
-            color: isActive ? '#00C37A' : 'rgba(255,255,255,0.50)',
+            color: isActive ? '#00C37A' : 'var(--t2)',
             transition: 'color 0.15s', flex: 1,
           }}>
             {label}
@@ -174,10 +174,10 @@ export default function CommandRail() {
           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
           {theme === 'dark'
-            ? <Sun size={16} strokeWidth={1.6} style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }} />
-            : <Moon size={16} strokeWidth={1.6} style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }} />
+            ? <Sun size={16} strokeWidth={1.6} style={{ color: 'var(--t3)', flexShrink: 0 }} />
+            : <Moon size={16} strokeWidth={1.6} style={{ color: 'var(--t3)', flexShrink: 0 }} />
           }
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.40)' }}>
+          <span style={{ fontSize: 13, color: 'var(--t3)' }}>
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
           </span>
         </button>

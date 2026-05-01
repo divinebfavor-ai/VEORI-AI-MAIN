@@ -198,6 +198,15 @@ body {
    CINEMATIC BACKGROUND SYSTEM
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Hide cinema layer entirely in light mode */
+[data-theme="light"] .cinema-base,
+[data-theme="light"] .cinema-orb,
+[data-theme="light"] .cinema-orb-1,
+[data-theme="light"] .cinema-orb-2,
+[data-theme="light"] .cinema-orb-3,
+[data-theme="light"] .cinema-orb-4,
+[data-theme="light"] .cinema-noise { display: none !important; }
+
 .cinema-base {
   position: absolute; inset: 0;
   background:
