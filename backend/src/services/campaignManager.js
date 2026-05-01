@@ -79,9 +79,9 @@ async function dialerTick(campaignId) {
       const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, inUseIds);
       if (!phoneNum) { console.log('[Campaign] No healthy numbers — waiting...'); break; }
 
-      // Create call record
+      // Create call record — campaign_id required for stats to update in webhook
       const callId = uuidv4();
-      await supabase.from('calls').insert([{ id: callId, user_id: userId, lead_id: lead.id, phone_number_id: phoneNum.id, status: 'initiated', started_at: new Date().toISOString() }]);
+      await supabase.from('calls').insert([{ id: callId, user_id: userId, campaign_id: campaignId, lead_id: lead.id, phone_number_id: phoneNum.id, status: 'initiated', started_at: new Date().toISOString() }]);
 
       // Stagger calls — wait 1.5s between each to avoid Vapi rate limits
       if (i > 0) await new Promise(r => setTimeout(r, 1500));
@@ -117,8 +117,7 @@ async function dialerTick(campaignId) {
 
       activeCalls.set(callId, { vapiCallId: vapiCall.id, leadId: lead.id, phoneNumberId: phoneNum.id, startedAt: Date.now() });
 
-      // Increment campaign counter
-      await supabase.from('campaigns').update({ leads_called: (campaign.leads_called || 0) + 1 }).eq('id', campaignId);
+      // Track locally for slot management (webhook handles the DB counter)
       campaign.leads_called = (campaign.leads_called || 0) + 1;
 
       // Poll call status and remove from active when done
