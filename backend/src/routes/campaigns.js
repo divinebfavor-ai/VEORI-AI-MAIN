@@ -55,8 +55,8 @@ router.get('/:id/stats', async (req, res, next) => {
 // POST /api/campaigns
 router.post('/', async (req, res, next) => {
   try {
-    const { name, concurrent_lines = 3, daily_limit_per_number = 50, calling_hours_start = '09:00',
-      calling_hours_end = '20:00', retry_attempts = 3, call_delay_seconds = 3,
+    const { name, concurrent_lines = 1, daily_limit_per_number = 50, calling_hours_start = '09:00',
+      calling_hours_end = '20:00', retry_attempts = 3, call_delay_seconds = 8,
       daily_spend_limit, lead_filter = {}, phone_number_ids = [] } = req.body;
 
     if (!name) return res.status(400).json({ success: false, error: 'name required' });

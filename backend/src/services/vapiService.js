@@ -431,6 +431,15 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
       maxDurationSeconds: 1800,
       backgroundDenoisingEnabled: true,
       modelOutputInMessagesEnabled: true,
+      voicemailDetection: {
+        provider: 'twilio',
+        voicemailDetectionTypes: ['machine_end_beep', 'machine_end_silence'],
+        enabled: true,
+        machineDetectionTimeout: 30,
+        machineDetectionSpeechThreshold: 3500,
+        machineDetectionSpeechEndThreshold: 2500,
+        machineDetectionSilenceTimeout: 5000,
+      },
       metadata: {
         callId,
         leadId: lead.id,
