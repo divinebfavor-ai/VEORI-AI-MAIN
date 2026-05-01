@@ -161,6 +161,13 @@ function CampaignCard({ c, onAction }) {
         ))}
       </div>
 
+      {/* Error banner */}
+      {c.error_message && (
+        <div className="mb-4 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/20 text-[11px] text-red-400 leading-snug">
+          ⚠ {c.error_message}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex gap-2">
         {c.status === 'draft' && (
