@@ -55,7 +55,7 @@ export default function SystemStatusBar() {
       display: 'flex',
       alignItems: 'center',
       gap: 8,
-      paddingLeft: 'calc(240px + 16px)',
+      paddingLeft: 16,
       paddingRight: 16,
       background: 'var(--surface-bg)',
       backdropFilter: 'blur(12px)',
