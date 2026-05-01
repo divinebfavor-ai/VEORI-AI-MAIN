@@ -13,7 +13,8 @@ const router = express.Router();
 // POST /api/vapi/webhook — Vapi sends all call events here
 router.post('/webhook', async (req, res) => {
   try {
-    const event = req.body;
+    // Vapi wraps payload in a "message" envelope
+    const event = req.body?.message || req.body;
     const { type, call } = event;
 
     console.log(`[Vapi Webhook] Event: ${type}`, call?.id);

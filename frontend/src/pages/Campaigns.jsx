@@ -200,14 +200,18 @@ export default function Campaigns() {
   const [loading, setLoading] = useState(true)
   const [showModal, setModal] = useState(false)
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (showSpinner = false) => {
+    if (showSpinner) setLoading(true)
     try { const r = await campaigns.getCampaigns(); const raw = r.data?.campaigns ?? r.data?.data ?? r.data; setList(Array.isArray(raw) ? raw : []) }
     catch { setList([]) }
-    finally { setLoading(false) }
+    finally { if (showSpinner) setLoading(false) }
   }
 
-  useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t) }, [])
+  useEffect(() => {
+    load(true)
+    const t = setInterval(() => load(false), 15000)
+    return () => clearInterval(t)
+  }, [])
 
   const handleAction = async (action, id) => {
     try {
