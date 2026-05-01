@@ -99,83 +99,96 @@ function ScoreRing({ score }) {
   )
 }
 
-// ─── WebRTC Listen Mode ────────────────────────────────────────────────────────
+// ─── WebSocket Listen Mode (Vapi listenUrl is wss://) ─────────────────────────
 function useListenMode() {
-  const peerRefs = useRef({})    // callId → RTCPeerConnection
-  const audioRefs = useRef({})   // callId → HTMLAudioElement
-  const [listening, setListening] = useState({})   // callId → bool
-  const [volumes, setVolumes]     = useState({})   // callId → 0-100
+  const wsRefs      = useRef({})   // callId → WebSocket
+  const ctxRefs     = useRef({})   // callId → AudioContext
+  const gainRefs    = useRef({})   // callId → GainNode
+  const nextTimeRef = useRef({})   // callId → next scheduled time
+  const [listening, setListening] = useState({})
+  const [volumes, setVolumes]     = useState({})
 
   const connectListen = useCallback(async (callId, dbCallId) => {
     try {
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ]
-      })
-
-      pc.ontrack = (event) => {
-        const audio = new Audio()
-        audio.srcObject = event.streams[0]
-        audio.autoplay  = true
-        audio.volume    = (volumes[callId] ?? 100) / 100
-        document.body.appendChild(audio)
-        audioRefs.current[callId] = audio
-      }
-
-      const offer = await pc.createOffer({ offerToReceiveAudio: true })
-      await pc.setLocalDescription(offer)
-
-      // Proxy through backend to avoid CORS
+      // Fetch the wss:// listen URL from backend
       const token = localStorage.getItem('veori_token')
       const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-      const res   = await fetch(`${BASE}/api/calls/${dbCallId}/listen-join`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ sdp: offer.sdp }),
+      const r     = await fetch(`${BASE}/api/calls/${dbCallId}/listen`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        throw new Error(e.error || 'Could not get listen URL')
+      }
+      const { listen_url } = await r.json()
+      if (!listen_url) throw new Error('Listen URL not ready — call may still be connecting')
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `Connection failed (${res.status})`)
+      // Set up Web Audio
+      const ctx  = new AudioContext({ sampleRate: 16000 })
+      const gain = ctx.createGain()
+      gain.gain.value = (volumes[callId] ?? 100) / 100
+      gain.connect(ctx.destination)
+      ctxRefs.current[callId]    = ctx
+      gainRefs.current[callId]   = gain
+      nextTimeRef.current[callId] = ctx.currentTime
+
+      // Connect WebSocket directly to Vapi's wss endpoint
+      const ws = new WebSocket(listen_url)
+      ws.binaryType = 'arraybuffer'
+
+      ws.onopen = () => {
+        setListening(l => ({ ...l, [callId]: true }))
+        setVolumes(v => ({ ...v, [callId]: v[callId] ?? 100 }))
+        toast.success('Listening live — seller cannot hear you.')
       }
 
-      const answerSdp = await res.text()
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+      ws.onmessage = (event) => {
+        try {
+          // Vapi sends raw PCM-16 mono @ 16kHz
+          const int16 = new Int16Array(event.data)
+          const float32 = new Float32Array(int16.length)
+          for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768
+          const buf = ctx.createBuffer(1, float32.length, 16000)
+          buf.getChannelData(0).set(float32)
+          const src = ctx.createBufferSource()
+          src.buffer = buf
+          src.connect(gain)
+          const when = Math.max(nextTimeRef.current[callId], ctx.currentTime + 0.05)
+          src.start(when)
+          nextTimeRef.current[callId] = when + buf.duration
+        } catch { /* ignore decode errors */ }
+      }
 
-      peerRefs.current[callId] = pc
-      setListening(l => ({ ...l, [callId]: true }))
-      setVolumes(v => ({ ...v, [callId]: v[callId] ?? 100 }))
-      toast.success('Connected — listening live. Seller cannot hear you.')
+      ws.onerror = () => toast.error('Audio stream error — call may have ended.')
+      ws.onclose = () => {
+        setListening(l => { const n = { ...l }; delete n[callId]; return n })
+      }
+
+      wsRefs.current[callId] = ws
     } catch (err) {
-      console.error('Listen connect error:', err)
+      console.error('Listen error:', err)
       toast.error(err.message || 'Could not connect to call audio.')
     }
   }, [volumes])
 
   const disconnectListen = useCallback((callId) => {
-    const pc    = peerRefs.current[callId]
-    const audio = audioRefs.current[callId]
-    if (pc)    { pc.close(); delete peerRefs.current[callId] }
-    if (audio) { audio.pause(); audio.srcObject = null; audio.remove(); delete audioRefs.current[callId] }
+    const ws  = wsRefs.current[callId]
+    const ctx = ctxRefs.current[callId]
+    if (ws)  { ws.close(); delete wsRefs.current[callId] }
+    if (ctx) { ctx.close(); delete ctxRefs.current[callId] }
+    delete gainRefs.current[callId]
+    delete nextTimeRef.current[callId]
     setListening(l => { const n = { ...l }; delete n[callId]; return n })
   }, [])
 
   const setVolume = useCallback((callId, vol) => {
-    const audio = audioRefs.current[callId]
-    if (audio) audio.volume = vol / 100
+    const gain = gainRefs.current[callId]
+    if (gain) gain.gain.value = vol / 100
     setVolumes(v => ({ ...v, [callId]: vol }))
   }, [])
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      Object.keys(peerRefs.current).forEach(id => disconnectListen(id))
-    }
+    return () => Object.keys(wsRefs.current).forEach(id => disconnectListen(id))
   }, [disconnectListen])
 
   return { listening, volumes, connectListen, disconnectListen, setVolume }
@@ -497,7 +510,6 @@ export default function LiveMonitor() {
   const handleListen = async (call) => {
     const callId = call.id || call.vapi_call_id
     if (listening[callId]) { disconnectListen(callId); return }
-    // connectListen now proxies SDP through backend — just pass the DB call id
     await connectListen(callId, call.id)
   }
 
@@ -517,8 +529,11 @@ export default function LiveMonitor() {
     } catch { toast.error('Failed to return to AI') }
   }
 
-  const handleEnd = async () => {
-    toast.info('End call — requires Vapi integration')
+  const handleEnd = async (call) => {
+    try {
+      await callsApi.endCall(call.id)
+      toast.success('Call ended')
+    } catch { toast.error('Failed to end call') }
   }
 
   const listeningCount = Object.keys(listening).length
