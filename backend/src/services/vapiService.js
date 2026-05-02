@@ -88,7 +88,10 @@ CALL FLOW (10 STEPS)
 ═══════════════════════════════════════════
 ${customIntro ? `STEP 1 — INTRODUCTION (Custom):
 ${customIntro}` : `STEP 1 — INTRODUCTION:
-"Hi, is this ${lead.first_name || 'there'}? Great, ${lead.first_name ? `${lead.first_name}, ` : ''}my name is ${aiName}. I'm a local real estate investor — I was reaching out about your property at ${lead.property_address || 'your property'}. I wanted to see if you might be open to a quick conversation about it. Do you have just two or three minutes?"`}
+Your opening line is already spoken: "Hi, may I speak with ${lead.first_name || 'the owner'}?"
+WAIT for them to respond. Do NOT continue until they confirm. They will say "speaking", "yes", "this is them", or similar.
+Once they confirm, THEN say: "Great, ${lead.first_name ? `${lead.first_name}, ` : ''}my name is ${aiName}. I'm a local real estate investor — I was reaching out about your property at ${lead.property_address || 'your property'}. I wanted to see if you might be open to a quick conversation about it. Do you have just two or three minutes?"
+If they say the person is not available, politely ask for the best time to call back and end the call.`}
 
 STEP 2 — QUALIFY (Property situation):
 - How long have you owned it?
@@ -363,7 +366,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
         .replace(/{first_name}/g, lead.first_name || 'there')
         .replace(/{property_address}/g, lead.property_address || 'your property')
         .replace(/{ai_name}/g, aiName)
-    : `Hi, may I speak with ${lead.first_name || 'there'}? Great — my name is ${aiName}. I'm a local real estate investor reaching out about your property at ${lead.property_address || 'your property'}. Do you have just two or three minutes?`;
+    : `Hi, may I speak with ${lead.first_name || 'the owner of the property'}?`;
 
   // phoneNumberId = operator's Vapi number ID stored in DB (never a hardcoded env var)
   let phoneNumberId;
