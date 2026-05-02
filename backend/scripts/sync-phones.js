@@ -14,10 +14,19 @@ async function sync() {
   const numbers = Array.isArray(vapiNumbers) ? vapiNumbers : (vapiNumbers?.results || []);
   console.log(`Found ${numbers.length} numbers in Vapi`);
 
-  const { data: users } = await supabase.from('users').select('id, email').limit(1);
-  const userId = users?.[0]?.id;
-  if (!userId) { console.error('No user found'); process.exit(1); }
-  console.log(`Syncing to user: ${users[0].email}`);
+  let userId, userEmail;
+  // Try public users table first
+  const { data: pubUsers } = await supabase.from('users').select('id, email').limit(1);
+  if (pubUsers?.[0]?.id) {
+    userId = pubUsers[0].id; userEmail = pubUsers[0].email;
+  } else {
+    // Fall back to auth.users
+    const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1 });
+    const authUser = authData?.users?.[0];
+    if (!authUser) { console.error('No user found in users or auth.users'); process.exit(1); }
+    userId = authUser.id; userEmail = authUser.email;
+  }
+  console.log(`Syncing to user: ${userEmail} (${userId})`);
 
   const { data: existing } = await supabase.from('phone_numbers').select('vapi_phone_number_id').eq('user_id', userId);
   const existingIds = new Set((existing || []).map(p => p.vapi_phone_number_id).filter(Boolean));
@@ -27,7 +36,7 @@ async function sync() {
   await supabase.from('phone_numbers').update({ daily_calls_made: 0, last_reset_date: new Date().toISOString().split('T')[0] }).eq('user_id', userId);
   console.log('Daily counts reset.');
 
-  const toImport = numbers.filter(n => n.id && !existingIds.has(n.id));
+  const toImport = numbers.filter(n => n.id && n.number && !existingIds.has(n.id));
   if (!toImport.length) {
     console.log('All numbers already synced.');
     const { data: all } = await supabase.from('phone_numbers').select('number, vapi_phone_number_id, health_status, is_active').eq('user_id', userId);
