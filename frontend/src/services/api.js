@@ -236,4 +236,19 @@ export const analyticsExtended = {
   aiInsights:         ()       => api.get('/api/analytics/ai-insights'),
 }
 
+// ─── Wealth Playbook ──────────────────────────────────────────────────────────
+export const wealth = {
+  checkAssessment:    ()           => api.get('/api/wealth/assessment/check'),
+  submitAssessment:   (data)       => api.post('/api/wealth/assessment', data),
+  getPlaybook:        (userId)     => api.get(`/api/wealth/playbook/${userId}`),
+  regeneratePlaybook: (userId)     => api.post(`/api/wealth/regenerate/${userId}`),
+  getStrategies:      ()           => api.get('/api/wealth/strategies'),
+  getStrategy:        (id)         => api.get(`/api/wealth/strategy/${id}`),
+  getScore:           (userId)     => api.get(`/api/wealth/score/${userId}`),
+  updateScore:        (actionType) => api.post('/api/wealth/score/update', { action_type: actionType }),
+  calculate:          (data)       => api.post('/api/wealth/calculator', data),
+  getFeed:            ()           => api.get('/api/wealth/feed'),
+  updateProgress:     (data)       => api.post('/api/wealth/strategy/progress', data),
+}
+
 export default api

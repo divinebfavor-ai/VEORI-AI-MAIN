@@ -35,6 +35,7 @@ const academyRouter          = require('./routes/academy');
 const waitlistRouter         = require('./routes/waitlist');
 const notificationsRouter    = require('./routes/notifications');
 const smsRouter              = require('./routes/sms');
+const wealthRouter           = require('./routes/wealth');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -108,6 +109,7 @@ app.use('/api/academy',         academyRouter);
 app.use('/api/waitlist',        waitlistRouter);
 app.use('/api/notifications',   notificationsRouter);
 app.use('/api/sms',             smsRouter);
+app.use('/api/wealth',          wealthRouter);
 
 // ─── BullMQ Job Queue (replaces all setInterval business logic) ───────────────
 const { initWorkers } = require('./services/queueService');

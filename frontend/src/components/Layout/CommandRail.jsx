@@ -5,7 +5,7 @@ import {
   Columns, Briefcase, BarChart2, Settings, LogOut,
   Calculator, Shield, Phone, Building2,
   Sun, Moon, MessageSquare, BookOpen, Store, Bell,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Compass,
 } from 'lucide-react'
 import VeoriLogo from '../VeoriLogo'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -27,6 +27,7 @@ const NAV = [
   { to: '/calculator',       icon: Calculator,      label: 'Calculator' },
   { to: '/compliance',       icon: Shield,          label: 'Compliance' },
   { to: '/academy',          icon: BookOpen,        label: 'Academy' },
+  { to: '/wealth',           icon: Compass,         label: 'Wealth Playbook' },
   { to: '/marketplace',      icon: Store,           label: 'Marketplace' },
   { to: '/aria',             icon: MessageSquare,   label: 'Aria AI' },
 ]

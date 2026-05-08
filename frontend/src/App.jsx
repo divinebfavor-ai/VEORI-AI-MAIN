@@ -24,6 +24,9 @@ import ContractSigning from './pages/ContractSigning'
 import Academy from './pages/Academy'
 import Marketplace from './pages/Marketplace'
 import FollowUps from './pages/FollowUps'
+import WealthPlaybook from './pages/WealthPlaybook'
+import WealthStrategy from './pages/WealthStrategy'
+import WealthCalculatorPage from './pages/WealthCalculatorPage'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -69,6 +72,9 @@ export default function App() {
         <Route path="/follow-ups" element={<FollowUps />} />
         <Route path="/title-companies" element={<TitleCompanies />} />
         <Route path="/academy" element={<Academy />} />
+        <Route path="/wealth" element={<WealthPlaybook />} />
+        <Route path="/wealth/strategy/:id" element={<WealthStrategy />} />
+        <Route path="/wealth/calculator" element={<WealthCalculatorPage />} />
         <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
