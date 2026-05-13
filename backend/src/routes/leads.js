@@ -126,9 +126,22 @@ router.post('/bulk', async (req, res, next) => {
     const chunkSize = 500;
     for (let i = 0; i < unique.length; i += chunkSize) {
       const chunk = unique.slice(i, i + chunkSize);
-      const { data, error } = await supabase.from('leads').insert(chunk).select('id').onConflict?.('phone,user_id') || await supabase.from('leads').insert(chunk).select('id');
-      if (!error) imported += data?.length || chunk.length;
-      else duplicates += chunk.length;
+      // Use upsert so duplicate phone+user_id rows are ignored instead of erroring
+      const { data, error } = await supabase
+        .from('leads')
+        .upsert(chunk, { onConflict: 'phone,user_id', ignoreDuplicates: true })
+        .select('id');
+      if (!error) {
+        imported += data?.length || chunk.length;
+      } else {
+        // Upsert failed (e.g. no unique constraint) — fall back to plain insert
+        const { data: ins, error: insErr } = await supabase.from('leads').insert(chunk).select('id');
+        if (!insErr) imported += ins?.length || chunk.length;
+        else {
+          console.warn('[Leads import] Insert error:', insErr.message);
+          duplicates += chunk.length;
+        }
+      }
     }
 
     // Auto-tag all imported leads async — don't block the response

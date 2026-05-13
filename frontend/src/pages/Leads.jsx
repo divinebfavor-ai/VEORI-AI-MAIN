@@ -624,23 +624,53 @@ export default function Leads() {
     const file = e.target.files?.[0]
     if (!file) return
     setImporting(true)
+
+    // Normalize a value — trim whitespace, return empty string if falsy
+    const v = (row, ...keys) => {
+      for (const k of keys) {
+        const val = row[k] || row[k?.toLowerCase()] || row[k?.toUpperCase()]
+        if (val && String(val).trim()) return String(val).trim()
+      }
+      return ''
+    }
+
     Papa.parse(file, {
       header: true, skipEmptyLines: true,
       complete: async ({ data }) => {
         try {
+          if (!data?.length) { toast.error('CSV appears to be empty'); setImporting(false); return }
+
           const mapped = data.map(r => ({
-            first_name: r.first_name || r['First Name'] || r.FirstName || '',
-            last_name:  r.last_name  || r['Last Name']  || r.LastName  || '',
-            phone:      r.phone      || r.Phone         || r.phone_number || '',
-            email:      r.email      || r.Email         || '',
-            property_address: r.property_address || r.Address || r.address || '',
-            property_city:    r.city  || r.City  || '',
-            property_state:   r.state || r.State || '',
+            first_name: v(r, 'first_name', 'First Name', 'FirstName', 'fname', 'Owner First Name', 'Contact First Name'),
+            last_name:  v(r, 'last_name',  'Last Name',  'LastName',  'lname', 'Owner Last Name',  'Contact Last Name'),
+            phone:      v(r, 'phone', 'Phone', 'phone_number', 'Phone Number', 'PhoneNumber', 'Mobile', 'Cell', 'cell_phone', 'mobile_phone', 'Contact Phone', 'Owner Phone', 'Primary Phone'),
+            email:      v(r, 'email', 'Email', 'Email Address', 'EmailAddress', 'Contact Email'),
+            property_address: v(r, 'property_address', 'Property Address', 'Address', 'address', 'Mailing Address', 'Street Address', 'Street'),
+            property_city:    v(r, 'property_city', 'city', 'City', 'Mailing City', 'Property City'),
+            property_state:   v(r, 'property_state', 'state', 'State', 'Mailing State', 'Property State'),
+            property_zip:     v(r, 'property_zip', 'zip', 'Zip', 'ZIP', 'Zip Code', 'Postal Code'),
+            estimated_value:  v(r, 'estimated_value', 'Estimated Value', 'AVM', 'Property Value', 'Market Value'),
+            estimated_equity: v(r, 'estimated_equity', 'Estimated Equity', 'Equity', 'equity'),
           })).filter(r => r.phone)
-          await leads.bulkImportLeads(mapped)
-          toast.success(`Imported ${mapped.length} leads`)
+
+          if (!mapped.length) {
+            toast.error('No leads found with a phone number. Check your CSV column headers.')
+            setImporting(false)
+            return
+          }
+
+          const res = await leads.bulkImportLeads(mapped)
+          const { imported = mapped.length, duplicates_skipped = 0, dnc_flagged = 0 } = res.data || {}
+
+          let msg = `${imported} leads imported`
+          if (duplicates_skipped > 0) msg += ` · ${duplicates_skipped} duplicates skipped`
+          if (dnc_flagged > 0) msg += ` · ${dnc_flagged} DNC flagged`
+          toast.success(msg)
           load()
-        } catch { toast.error('Import failed') }
+        } catch (err) {
+          const msg = err?.response?.data?.error || err?.message || 'Import failed'
+          toast.error(msg)
+        }
         finally { setImporting(false) }
       },
     })
