@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Radio, Headphones, HeadphonesOff, Mic, X, Volume2, PhoneCall, PhoneOff, PhoneIncoming, Clock, CheckCircle, AlertCircle, ChevronRight, Search, Plus, UserCircle } from 'lucide-react'
+import { Radio, Headphones, Mic, X, Volume2, VolumeX, PhoneCall, PhoneOff, PhoneIncoming, Clock, CheckCircle, AlertCircle, ChevronRight, Search, Plus, UserCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { calls as callsApi, leads as leadsApi } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
@@ -211,7 +211,7 @@ function LiveCallCard({ call, isListening, volume, takeover, onListen, onStopLis
           onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
           onMouseLeave={e => e.currentTarget.style.opacity = '1'}
         >
-          {isListening ? <HeadphonesOff size={13} /> : <Headphones size={13} />}
+          {isListening ? <VolumeX size={13} /> : <Headphones size={13} />}
           {isListening ? 'Stop' : 'Listen Live'}
         </button>
 

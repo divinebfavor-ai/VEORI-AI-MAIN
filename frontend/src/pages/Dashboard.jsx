@@ -117,7 +117,7 @@ function OnboardingChecklist({ onDismiss }) {
             <button
               onClick={() => setChecked(p => ({ ...p, [item.key]: !p[item.key] }))}
               style={{
-                width: 18, height: 18, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0,
+                width: 18, height: 18, borderRadius: '50%', cursor: 'pointer', flexShrink: 0,
                 background: checked[item.key] ? '#00C37A' : 'var(--surface-bg-3)',
                 border: `1px solid ${checked[item.key] ? '#00C37A' : 'var(--border)'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease',
