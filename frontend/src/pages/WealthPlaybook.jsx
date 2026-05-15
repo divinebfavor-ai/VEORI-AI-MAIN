@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, ChevronRight, ChevronLeft, CheckCircle, TrendingUp, Zap, Shield, Clock, DollarSign, Star, RefreshCw, ArrowRight, AlertCircle } from 'lucide-react'
+import { BookOpen, ChevronRight, ChevronLeft, CheckCircle, TrendingUp, Zap, Clock, DollarSign, Star, RefreshCw, ArrowRight } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { wealth as wealthApi } from '../services/api'
 
