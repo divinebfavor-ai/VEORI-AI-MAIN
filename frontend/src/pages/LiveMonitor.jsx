@@ -81,11 +81,14 @@ function useListenMode() {
   const [listening, setListening] = useState({})
   const [volumes, setVolumes]     = useState({})
 
-  const connectListen = useCallback(async (callId, dbCallId) => {
+  const connectListen = useCallback(async (callId, dbCallId, vapiCallId) => {
     try {
       const token = localStorage.getItem('veori_token')
       const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-      const r     = await fetch(`${BASE}/api/calls/${dbCallId}/listen`, {
+      // Pass vapi_call_id as query param so the backend skips the DB lookup
+      // (avoids "No Vapi call ID" when DB record was created before vapi_call_id was saved)
+      const qs  = vapiCallId ? `?vapi_call_id=${encodeURIComponent(vapiCallId)}` : ''
+      const r   = await fetch(`${BASE}/api/calls/${dbCallId}/listen${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!r.ok) {
@@ -530,7 +533,8 @@ export default function LiveMonitor() {
   const handleListen = async (call) => {
     const callId = call.id || call.vapi_call_id
     if (listening[callId]) { disconnectListen(callId); return }
-    await connectListen(callId, call.id)
+    // Pass vapi_call_id so the backend can skip the DB lookup
+    await connectListen(callId, call.id, call.vapi_call_id)
   }
 
   const handleTakeover = async (call) => {

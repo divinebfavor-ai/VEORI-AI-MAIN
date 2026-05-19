@@ -472,7 +472,14 @@ async function getCall(vapiCallId) {
 
 async function getListenUrl(vapiCallId) {
   const { data } = await vapiHttp.get(`/call/${vapiCallId}`);
-  return data?.monitor?.listenUrl || data?.listenUrl || null;
+  // Vapi puts the listen URL in various places depending on call type/version
+  const url = data?.monitor?.listenUrl
+    || data?.monitor?.listen_url
+    || data?.listenUrl
+    || data?.listen_url
+    || null;
+  console.log(`[Vapi] getListenUrl for ${vapiCallId} → ${url || 'null (call may be ended)'}`);
+  return url;
 }
 
 // ─── End a call ───────────────────────────────────────────────────────────────
