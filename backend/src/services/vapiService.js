@@ -456,13 +456,10 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
       },
     },
     serverUrl: WEBHOOK_URL,
-    serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET,
+    serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET || undefined,
   };
 
-  // Remove top-level serverUrl — it's already set on the phone number in Vapi
-  delete payload.serverUrl;
-  delete payload.serverUrlSecret;
-
+  console.log(`[Vapi] Initiating call — webhookUrl=${WEBHOOK_URL}`);
   const { data } = await vapiHttp.post('/call/phone', payload);
   return data;
 }

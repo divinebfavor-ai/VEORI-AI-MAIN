@@ -36,6 +36,7 @@ const SCORE_OPTIONS = [
 function LeadPanel({ lead, onClose, onNavigate }) {
   const [tab, setTab]             = useState('overview')
   const [callLog, setCallLog]     = useState([])
+  const [syncing, setSyncing]     = useState(false)
   const [notes, setNotes]         = useState(lead.notes || '')
   const [saving, setSaving]       = useState(false)
   const [dialing, setDialing]     = useState(false)
@@ -50,14 +51,27 @@ function LeadPanel({ lead, onClose, onNavigate }) {
     setCallLog([])
   }, [lead.id])
 
+  const loadCallLog = () => {
+    callsApi.getCalls({ lead_id: lead.id, limit: 50 }).then(r => {
+      const raw = r.data?.data ?? r.data?.calls ?? r.data
+      setCallLog(Array.isArray(raw) ? raw : [])
+    }).catch(() => {})
+  }
+
   useEffect(() => {
-    if (tab === 'calls') {
-      callsApi.getCalls({ lead_id: lead.id }).then(r => {
-        const raw = r.data?.data ?? r.data?.calls ?? r.data
-        setCallLog(Array.isArray(raw) ? raw : [])
-      }).catch(() => {})
-    }
+    if (tab === 'calls') loadCallLog()
   }, [tab, lead.id])
+
+  const syncCalls = async () => {
+    setSyncing(true)
+    try {
+      const r = await callsApi.syncFromVapi()
+      const { synced = 0 } = r.data || {}
+      toast.success(synced > 0 ? `Synced ${synced} calls from Vapi` : 'Already up to date')
+      loadCallLog()
+    } catch { toast.error('Sync failed') }
+    finally { setSyncing(false) }
+  }
 
   const saveNotes = async () => {
     setSaving(true)
@@ -369,40 +383,106 @@ function LeadPanel({ lead, onClose, onNavigate }) {
 
           {tab === 'calls' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Sync bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--t4)' }}>{callLog.length} call{callLog.length !== 1 ? 's' : ''}</span>
+                <button
+                  onClick={syncCalls}
+                  disabled={syncing}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    background: 'none', border: '1px solid var(--border)',
+                    borderRadius: 6, padding: '4px 10px',
+                    fontSize: 11, color: syncing ? 'var(--t4)' : '#00C37A',
+                    cursor: syncing ? 'default' : 'pointer',
+                  }}
+                >
+                  <Zap size={10} /> {syncing ? 'Syncing…' : 'Sync from Vapi'}
+                </button>
+              </div>
+
               {callLog.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t4)' }}>
                   <Phone size={22} style={{ margin: '0 auto 10px', display: 'block' }} strokeWidth={1.5} />
-                  <p style={{ fontSize: 13 }}>No calls recorded yet</p>
+                  <p style={{ fontSize: 13, marginBottom: 8 }}>No calls recorded yet</p>
+                  <p style={{ fontSize: 11, color: 'var(--t4)' }}>Hit "Sync from Vapi" to pull any existing call data</p>
                 </div>
-              ) : callLog.map(c => (
-                <div key={c.id} style={{
-                  background: 'var(--surface-bg)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 10, padding: '12px 14px',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: c.ai_summary ? 6 : 0 }}>
-                    <span style={{ fontSize: 12, color: 'var(--t2)', fontWeight: 500 }}>
-                      {c.started_at ? formatDistanceToNow(new Date(c.started_at), { addSuffix: true }) : '—'}
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {c.duration_seconds && (
-                        <span style={{ fontSize: 11, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>
-                          {Math.floor(c.duration_seconds / 60)}:{String(c.duration_seconds % 60).padStart(2, '0')}
+              ) : callLog.map(c => {
+                const fmtDur = c.duration_seconds != null
+                  ? `${Math.floor(c.duration_seconds / 60)}:${String(c.duration_seconds % 60).padStart(2, '0')}`
+                  : null
+                const outcomeLabel = (c.outcome || '').replace(/_/g, ' ') || 'no answer'
+                const outcomeColor = {
+                  appointment: '#00C37A', verbal_yes: '#00C37A', offer_made: '#00C37A',
+                  callback_requested: '#4D9EFF', voicemail: '#FF9500', no_answer: '#FF9500',
+                  not_home: '#FF9500', not_interested: '#FF4444',
+                }[c.outcome] || 'var(--t4)'
+                const [showTx, setShowTx] = React.useState(false)
+
+                return (
+                  <div key={c.id} style={{
+                    background: 'var(--surface-bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10, padding: '12px 14px',
+                  }}>
+                    {/* Row 1 — time + outcome + score + duration */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 500 }}>
+                        {c.started_at ? formatDistanceToNow(new Date(c.started_at), { addSuffix: true }) : '—'}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {fmtDur && (
+                          <span style={{ fontSize: 11, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>{fmtDur}</span>
+                        )}
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+                          color: outcomeColor, background: `${outcomeColor}18`,
+                          border: `1px solid ${outcomeColor}30`, borderRadius: 5, padding: '2px 7px',
+                        }}>
+                          {outcomeLabel}
                         </span>
-                      )}
-                      <Badge variant={statusBadge(c.outcome)}>{c.outcome || 'no answer'}</Badge>
-                      {c.motivation_score != null && (
-                        <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor(c.motivation_score), fontVariantNumeric: 'tabular-nums' }}>
-                          {c.motivation_score}
-                        </span>
-                      )}
+                        {c.motivation_score != null && (
+                          <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor(c.motivation_score), fontVariantNumeric: 'tabular-nums' }}>
+                            {c.motivation_score}
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* AI Summary */}
+                    {c.ai_summary && (
+                      <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.5, marginBottom: c.transcript ? 6 : 0 }}>
+                        {c.ai_summary}
+                      </p>
+                    )}
+
+                    {/* Transcript toggle */}
+                    {c.transcript && (
+                      <>
+                        <button
+                          onClick={() => setShowTx(v => !v)}
+                          style={{
+                            fontSize: 10, color: '#00C37A', background: 'none', border: 'none',
+                            cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4,
+                          }}
+                        >
+                          <FileText size={9} /> {showTx ? 'Hide' : 'View'} transcript
+                        </button>
+                        {showTx && (
+                          <pre style={{
+                            marginTop: 8, fontSize: 10, color: 'var(--t3)', lineHeight: 1.6,
+                            background: 'var(--surface-bg-2)', borderRadius: 6, padding: '8px 10px',
+                            whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflowY: 'auto',
+                            fontFamily: 'inherit',
+                          }}>
+                            {c.transcript}
+                          </pre>
+                        )}
+                      </>
+                    )}
                   </div>
-                  {c.ai_summary && (
-                    <p style={{ fontSize: 11, color: 'var(--t4)', lineHeight: 1.5 }}>{c.ai_summary}</p>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 

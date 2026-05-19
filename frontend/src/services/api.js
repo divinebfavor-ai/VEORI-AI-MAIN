@@ -74,6 +74,7 @@ export const calls = {
   callTakeover:   (callId)     => api.post('/api/calls/takeover', { call_id: callId }),
   returnToAI:     (callId)     => api.post('/api/calls/return-to-ai', { call_id: callId }),
   getListenUrl:   (id)         => api.get(`/api/calls/${id}/listen`).then(r => r.data),
+  syncFromVapi:   ()           => api.post('/api/vapi/sync-calls'),
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────

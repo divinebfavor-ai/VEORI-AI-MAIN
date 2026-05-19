@@ -31,9 +31,14 @@ router.post('/webhook', async (req, res) => {
       case 'transcript-update':
         await handleTranscript(event);
         break;
+
+      // end-of-call-report is what Vapi ACTUALLY sends when a call ends.
+      // call-ended is kept as a fallback alias for older integrations.
+      case 'end-of-call-report':
       case 'call-ended':
         await handleCallEnded(call, event);
         break;
+
       case 'speech-update':
       case 'status-update':
         await handleStatusUpdate(call);
@@ -120,37 +125,68 @@ async function handleTranscript(event) {
 async function handleCallEnded(call, event) {
   if (!call?.id) return;
 
+  console.log(`[Vapi] handleCallEnded fired — vapiCallId=${call.id} endedReason=${event.endedReason}`);
+
   const { data: callRec } = await supabase.from('calls').select('*, leads(*)').eq('vapi_call_id', call.id).single();
-  if (!callRec) return;
-
-  const now = new Date();
-  const duration = call.endedAt && call.startedAt
-    ? Math.round((new Date(call.endedAt) - new Date(call.startedAt)) / 1000)
-    : callRec.duration_seconds;
-
-  // Run full AI analysis
-  let aiAnalysis = {};
-  if (callRec.transcript) {
-    try {
-      aiAnalysis = await aiService.analyzeCallTranscript(callRec.transcript, callRec.leads);
-    } catch (e) { console.error('[Vapi] AI analysis error:', e.message); }
+  if (!callRec) {
+    console.warn(`[Vapi] No call record found for vapiCallId=${call.id} — skipping end handler`);
+    return;
   }
 
-  const outcome = aiAnalysis.outcome || callRec.outcome;
+  const now = new Date();
+
+  // ── Duration ──
+  // In end-of-call-report the timestamps may live on call OR at event root
+  const startedAt = call.startedAt || event.startedAt || callRec.started_at;
+  const endedAt   = call.endedAt   || event.endedAt   || now.toISOString();
+  const duration  = startedAt
+    ? Math.max(0, Math.round((new Date(endedAt) - new Date(startedAt)) / 1000))
+    : callRec.duration_seconds;
+
+  // ── Transcript ──
+  // end-of-call-report puts the full formatted transcript at event.transcript
+  // (NOT call.transcript which is usually undefined at this level)
+  const vapiTranscript = event.transcript
+    || event.artifact?.transcript
+    || call.transcript
+    || null;
+  const finalTranscript = vapiTranscript || callRec.transcript;
+
+  // ── Voicemail / no-answer detection from endedReason ──
+  const endedReason = event.endedReason || call.endedReason || '';
+  let inferredOutcome = null;
+  if (/voicemail/i.test(endedReason))        inferredOutcome = 'voicemail';
+  else if (/no.?answer|did.not.answer/i.test(endedReason)) inferredOutcome = 'no_answer';
+  else if (/customer.ended/i.test(endedReason))            inferredOutcome = 'not_interested';
+  else if (/assistant.ended|end.call.phrase/i.test(endedReason)) inferredOutcome = 'not_home';
+
+  // ── Run full AI analysis on the transcript ──
+  let aiAnalysis = {};
+  if (finalTranscript) {
+    try {
+      aiAnalysis = await aiService.analyzeCallTranscript(finalTranscript, callRec.leads);
+      console.log(`[Vapi] AI analysis done — outcome=${aiAnalysis.outcome} score=${aiAnalysis.motivation_score}`);
+    } catch (e) { console.error('[Vapi] AI analysis error:', e.message); }
+  } else {
+    console.warn(`[Vapi] No transcript available for call ${call.id} — skipping AI analysis`);
+  }
+
+  const outcome = aiAnalysis.outcome || inferredOutcome || callRec.outcome || 'no_answer';
+  console.log(`[Vapi] Final outcome=${outcome} duration=${duration}s`);
 
   await supabase.from('calls').update({
     status: 'ended',
-    ended_at: now.toISOString(),
+    ended_at: endedAt,
     duration_seconds: duration,
-    recording_url: call.recordingUrl || null,
-    transcript: call.transcript || callRec.transcript,
-    motivation_score: aiAnalysis.motivation_score,
-    seller_personality: aiAnalysis.seller_personality,
-    key_signals: aiAnalysis.key_signals,
-    objections: aiAnalysis.objections,
+    recording_url: call.recordingUrl || event.artifact?.recordingUrl || null,
+    transcript: finalTranscript,
+    motivation_score: aiAnalysis.motivation_score ?? null,
+    seller_personality: aiAnalysis.seller_personality ?? null,
+    key_signals: aiAnalysis.key_signals ?? null,
+    objections: aiAnalysis.objections ?? null,
     outcome,
-    ai_summary: aiAnalysis.ai_summary,
-    offer_made: aiAnalysis.offer_made,
+    ai_summary: aiAnalysis.ai_summary ?? (inferredOutcome === 'voicemail' ? 'Call went to voicemail.' : inferredOutcome === 'no_answer' ? 'No answer.' : null),
+    offer_made: aiAnalysis.offer_made ?? false,
   }).eq('vapi_call_id', call.id);
 
   // Always update lead status when call ends — never leave a lead stuck on "calling"
@@ -413,6 +449,117 @@ router.post('/aria', optionalAuth, async (req, res, next) => {
     const reply = await aiService.ariaChatbot(message, conversation_history);
     res.json({ success: true, reply });
   } catch (err) { next(err); }
+});
+
+// POST /api/vapi/sync-calls — pull recent calls from Vapi API and backfill DB
+// Fixes any calls where the webhook was missed (network issues, wrong URL, etc.)
+router.post('/sync-calls', requireAuth, async (req, res, next) => {
+  try {
+    const axios = require('axios');
+    const VAPI_API_KEY = process.env.VAPI_API_KEY;
+    if (!VAPI_API_KEY) return res.status(500).json({ success: false, error: 'VAPI_API_KEY not set' });
+
+    // Fetch last 100 calls from Vapi
+    const { data: vapiResp } = await axios.get('https://api.vapi.ai/call', {
+      headers: { Authorization: `Bearer ${VAPI_API_KEY}` },
+      params: { limit: 100 },
+      timeout: 15000,
+    });
+
+    const vapiCalls = Array.isArray(vapiResp) ? vapiResp : (vapiResp?.calls || vapiResp?.data || []);
+    let synced = 0, skipped = 0;
+
+    for (const vc of vapiCalls) {
+      if (!vc.id) { skipped++; continue; }
+
+      // Find matching record in our DB
+      const { data: existing } = await supabase.from('calls')
+        .select('id, status, transcript, lead_id, user_id, phone_number_id, campaign_id, outcome, started_at')
+        .eq('vapi_call_id', vc.id)
+        .eq('user_id', req.user.id)
+        .single();
+
+      if (!existing) { skipped++; continue; } // Not ours — skip
+
+      // Only update calls that are still showing as active or have no transcript
+      if (existing.status === 'ended' && existing.transcript) { skipped++; continue; }
+
+      const startedAt = vc.startedAt || existing.started_at;
+      const endedAt   = vc.endedAt || null;
+      const duration  = startedAt && endedAt
+        ? Math.max(0, Math.round((new Date(endedAt) - new Date(startedAt)) / 1000))
+        : existing.duration_seconds;
+
+      // Build full transcript from messages if Vapi gives us structured messages
+      let transcript = vc.transcript || null;
+      if (!transcript && Array.isArray(vc.messages)) {
+        transcript = vc.messages
+          .filter(m => m.role && m.message)
+          .map(m => `${m.role === 'assistant' ? 'Alex' : 'Seller'}: ${m.message}`)
+          .join('\n');
+      }
+      const finalTranscript = transcript || existing.transcript;
+
+      // Detect outcome from endedReason
+      const endedReason = vc.endedReason || '';
+      let inferredOutcome = existing.outcome;
+      if (!inferredOutcome) {
+        if (/voicemail/i.test(endedReason))        inferredOutcome = 'voicemail';
+        else if (/no.?answer/i.test(endedReason))  inferredOutcome = 'no_answer';
+        else if (/customer.ended/i.test(endedReason)) inferredOutcome = 'not_interested';
+        else if (vc.status === 'ended')            inferredOutcome = 'no_answer';
+      }
+
+      // Run AI on transcript if we didn't have one before
+      let aiAnalysis = {};
+      if (finalTranscript && (!existing.transcript || existing.status !== 'ended')) {
+        try {
+          const { data: lead } = await supabase.from('leads').select('*').eq('id', existing.lead_id).single();
+          aiAnalysis = await aiService.analyzeCallTranscript(finalTranscript, lead);
+        } catch (e) { /* non-fatal */ }
+      }
+
+      const outcome = aiAnalysis.outcome || inferredOutcome || 'no_answer';
+
+      const updateFields = {
+        status: vc.status === 'ended' ? 'ended' : existing.status,
+        ended_at: endedAt,
+        duration_seconds: duration,
+        recording_url: vc.recordingUrl || null,
+        transcript: finalTranscript,
+        outcome,
+        ai_summary: aiAnalysis.ai_summary || (inferredOutcome === 'voicemail' ? 'Call went to voicemail.' : inferredOutcome === 'no_answer' ? 'No answer.' : null),
+      };
+      if (aiAnalysis.motivation_score) {
+        updateFields.motivation_score   = aiAnalysis.motivation_score;
+        updateFields.seller_personality = aiAnalysis.seller_personality;
+      }
+
+      await supabase.from('calls').update(updateFields).eq('id', existing.id);
+
+      // Fix lead status if still stuck on calling
+      if (existing.lead_id && vc.status === 'ended') {
+        const { data: lead } = await supabase.from('leads').select('status').eq('id', existing.lead_id).single();
+        if (lead?.status === 'calling') {
+          const newStatus = { voicemail: 'contacted', no_answer: 'new', not_interested: 'contacted' }[outcome] || 'contacted';
+          await supabase.from('leads').update({
+            status: newStatus,
+            last_call_date: endedAt || new Date().toISOString(),
+            last_call_outcome: outcome,
+            ...(aiAnalysis.motivation_score ? { motivation_score: aiAnalysis.motivation_score } : {}),
+          }).eq('id', existing.lead_id);
+        }
+      }
+
+      synced++;
+    }
+
+    console.log(`[Vapi Sync] synced=${synced} skipped=${skipped} total=${vapiCalls.length}`);
+    res.json({ success: true, synced, skipped, total: vapiCalls.length });
+  } catch (err) {
+    console.error('[Vapi Sync Error]', err.message);
+    next(err);
+  }
 });
 
 module.exports = router;
