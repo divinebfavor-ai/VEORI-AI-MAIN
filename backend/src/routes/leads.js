@@ -34,6 +34,25 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/leads/reset-stale-calling — reset any leads stuck in "calling" with no active call
+router.post('/reset-stale-calling', async (req, res, next) => {
+  try {
+    // Find leads with status "calling" that have no in-progress call
+    const { data: activeCalls } = await supabase.from('calls')
+      .select('lead_id').eq('user_id', req.user.id)
+      .in('status', ['initiated', 'ringing', 'in-progress']);
+    const activeLeadIds = (activeCalls || []).map(c => c.lead_id).filter(Boolean);
+
+    let q = supabase.from('leads').update({ status: 'contacted' })
+      .eq('user_id', req.user.id).eq('status', 'calling');
+    if (activeLeadIds.length > 0) q = q.not('id', 'in', `(${activeLeadIds.join(',')})`);
+
+    const { count } = await q.select('id', { count: 'exact', head: true });
+    await q;
+    res.json({ success: true, reset: count || 0 });
+  } catch (err) { next(err); }
+});
+
 // GET /api/leads/:id — full lead with call history
 router.get('/:id', async (req, res, next) => {
   try {

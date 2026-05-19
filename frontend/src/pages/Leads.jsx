@@ -11,7 +11,7 @@ import useIntelStore from '../store/intelStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function scoreColor(s) {
-  if (s == null) return 'rgba(255,255,255,0.25)'
+  if (s == null) return 'var(--t4)'
   if (s >= 70) return '#00C37A'
   if (s >= 40) return '#FF9500'
   return '#FF4444'
@@ -473,17 +473,19 @@ function LeadRow({ lead, selected, onClick }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <div style={{
           width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-          background: `rgba(${score >= 70 ? '0,195,122' : score >= 40 ? '255,149,0' : score != null ? '255,68,68' : '255,255,255'},0.09)`,
-          border: `1px solid ${score != null ? color + '33' : 'rgba(255,255,255,0.08)'}`,
+          background: score != null
+            ? `rgba(${score >= 70 ? '0,195,122' : score >= 40 ? '255,149,0' : '255,68,68'},0.09)`
+            : 'var(--surface-bg-3)',
+          border: `1px solid ${score != null ? color + '33' : 'var(--border)'}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: score != null ? color : 'rgba(255,255,255,0.40)', letterSpacing: '-0.01em' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: score != null ? color : 'var(--t3)', letterSpacing: '-0.01em' }}>
             {initials(lead.first_name, lead.last_name)}
           </span>
         </div>
         <div style={{ minWidth: 0 }}>
           <p style={{
-            fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.90)',
+            fontSize: 13, fontWeight: 500, color: 'var(--t1)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2,
           }}>
             {lead.first_name} {lead.last_name}
@@ -492,7 +494,7 @@ function LeadRow({ lead, selected, onClick }) {
             )}
           </p>
           {lead.phone && (
-            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)', fontVariantNumeric: 'tabular-nums' }}>{lead.phone}</p>
+            <p style={{ fontSize: 10, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>{lead.phone}</p>
           )}
         </div>
       </div>
@@ -501,13 +503,13 @@ function LeadRow({ lead, selected, onClick }) {
       <div style={{ minWidth: 0 }}>
         {lead.property_address ? (
           <p style={{
-            fontSize: 12, color: 'rgba(255,255,255,0.45)',
+            fontSize: 12, color: 'var(--t3)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {lead.property_address}
           </p>
         ) : (
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.18)' }}>—</span>
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
         )}
       </div>
 
@@ -522,12 +524,12 @@ function LeadRow({ lead, selected, onClick }) {
             }}>
               {score}
             </span>
-            <div style={{ width: 36, height: 2.5, background: 'rgba(255,255,255,0.07)', borderRadius: 2, marginLeft: 'auto', overflow: 'hidden' }}>
+            <div style={{ width: 36, height: 2.5, background: 'var(--border)', borderRadius: 2, marginLeft: 'auto', overflow: 'hidden' }}>
               <div style={{ width: `${score}%`, height: '100%', background: color, borderRadius: 2 }} />
             </div>
           </div>
         ) : (
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.18)' }}>—</span>
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
         )}
       </div>
 
@@ -538,7 +540,7 @@ function LeadRow({ lead, selected, onClick }) {
 
       {/* Last call */}
       <div style={{ textAlign: 'right' }}>
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)' }}>
+        <span style={{ fontSize: 11, color: 'var(--t4)' }}>
           {lead.last_call_date
             ? formatDistanceToNow(new Date(lead.last_call_date), { addSuffix: true })
             : 'Never'}
@@ -559,16 +561,16 @@ function SkeletonRow() {
       borderBottom: '1px solid rgba(255,255,255,0.03)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', animation: 'skeleton-pulse 1.4s ease infinite' }} />
+        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--surface-bg-2)', animation: 'skeleton-pulse 1.4s ease infinite' }} />
         <div>
-          <div style={{ width: 110, height: 12, borderRadius: 4, background: 'rgba(255,255,255,0.05)', marginBottom: 5, animation: 'skeleton-pulse 1.4s ease infinite' }} />
-          <div style={{ width: 72, height: 9, borderRadius: 4, background: 'rgba(255,255,255,0.03)', animation: 'skeleton-pulse 1.4s ease infinite 0.1s' }} />
+          <div style={{ width: 110, height: 12, borderRadius: 4, background: 'var(--surface-bg-2)', marginBottom: 5, animation: 'skeleton-pulse 1.4s ease infinite' }} />
+          <div style={{ width: 72, height: 9, borderRadius: 4, background: 'var(--surface-bg)', animation: 'skeleton-pulse 1.4s ease infinite 0.1s' }} />
         </div>
       </div>
-      <div style={{ width: 120, height: 10, borderRadius: 4, background: 'rgba(255,255,255,0.04)', animation: 'skeleton-pulse 1.4s ease infinite 0.05s' }} />
-      <div style={{ width: 28, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.05)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.1s' }} />
-      <div style={{ width: 56, height: 18, borderRadius: 5, background: 'rgba(255,255,255,0.04)', margin: '0 auto', animation: 'skeleton-pulse 1.4s ease infinite 0.15s' }} />
-      <div style={{ width: 50, height: 10, borderRadius: 4, background: 'rgba(255,255,255,0.03)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.2s' }} />
+      <div style={{ width: 120, height: 10, borderRadius: 4, background: 'var(--surface-bg)', animation: 'skeleton-pulse 1.4s ease infinite 0.05s' }} />
+      <div style={{ width: 28, height: 14, borderRadius: 4, background: 'var(--surface-bg-2)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.1s' }} />
+      <div style={{ width: 56, height: 18, borderRadius: 5, background: 'var(--surface-bg)', margin: '0 auto', animation: 'skeleton-pulse 1.4s ease infinite 0.15s' }} />
+      <div style={{ width: 50, height: 10, borderRadius: 4, background: 'var(--surface-bg)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.2s' }} />
     </div>
   )
 }
@@ -591,6 +593,8 @@ export default function Leads() {
   const load = async () => {
     setLoading(true)
     try {
+      // Silently fix any leads stuck in "calling" with no active call
+      leads.resetStaleCallingStatus().catch(() => {})
       const r = await leads.getLeads({ limit: 500 })
       const raw = r.data?.leads ?? r.data?.data ?? r.data
       setAllLeads(Array.isArray(raw) ? raw : [])

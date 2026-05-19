@@ -153,15 +153,19 @@ async function handleCallEnded(call, event) {
     offer_made: aiAnalysis.offer_made,
   }).eq('vapi_call_id', call.id);
 
-  // Update lead with final data
-  if (callRec.lead_id && aiAnalysis.motivation_score) {
-    await supabase.from('leads').update({
-      motivation_score: aiAnalysis.motivation_score,
-      seller_personality: aiAnalysis.seller_personality,
+  // Always update lead status when call ends — never leave a lead stuck on "calling"
+  if (callRec.lead_id) {
+    const leadUpdate = {
       status: mapOutcomeToStatus(outcome),
       last_call_date: now.toISOString(),
       last_call_outcome: outcome,
-    }).eq('id', callRec.lead_id);
+    };
+    // Only add AI fields if we got them
+    if (aiAnalysis.motivation_score) {
+      leadUpdate.motivation_score  = aiAnalysis.motivation_score;
+      leadUpdate.seller_personality = aiAnalysis.seller_personality;
+    }
+    await supabase.from('leads').update(leadUpdate).eq('id', callRec.lead_id);
   }
 
   // Log TCPA audit record
