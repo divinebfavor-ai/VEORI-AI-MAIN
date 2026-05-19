@@ -62,13 +62,13 @@ function KpiCard({ label, value, prefix = '', suffix = '', trend, sparkData, acc
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={sparkData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
               <defs>
-                <linearGradient id={`spark-${accent}`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={`spark-${label.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'')}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={sparkColor} stopOpacity={0.3} />
                   <stop offset="95%" stopColor={sparkColor} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <Area type="monotone" dataKey="v" stroke={sparkColor} strokeWidth={1.5}
-                fill={`url(#spark-${accent})`} dot={false} />
+                fill={`url(#spark-${label.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'')})`} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

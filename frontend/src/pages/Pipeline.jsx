@@ -223,7 +223,7 @@ function StageModal({ deal, onClose, onSaved }) {
               appearance: 'none',
             }}
           >
-            {STAGES.map(s => <option key={s} value={s.toLowerCase()} style={{ background: '#0a101a' }}>{s}</option>)}
+            {STAGES.map(s => <option key={s} value={s.toLowerCase()} style={{ background: 'var(--card-bg)', color: 'var(--t1)' }}>{s}</option>)}
           </select>
         </div>
 
@@ -355,11 +355,11 @@ export default function Pipeline() {
               const count = stageCounts[s] || 0
               if (count === 0) return null
               const pct = (count / allDeals.length) * 100
-              const colorMap = { New: 'rgba(255,255,255,0.15)', Calling: '#FF9500', Contacted: '#FF9500', 'Offer Made': '#C9A84C', Negotiating: '#C9A84C', 'Under Contract': '#00C37A', 'Buyer Search': '#00C37A', Title: '#00C37A', Closed: '#00C37A' }
+              const colorMap = { New: 'var(--surface-bg-3)', Calling: '#FF9500', Contacted: '#FF9500', 'Offer Made': '#C9A84C', Negotiating: '#C9A84C', 'Under Contract': '#00C37A', 'Buyer Search': '#00C37A', Title: '#00C37A', Closed: '#00C37A' }
               return (
                 <div
                   key={s}
-                  style={{ flex: pct, background: colorMap[s] || 'rgba(255,255,255,0.15)', borderRadius: 2 }}
+                  style={{ flex: pct, background: colorMap[s] || 'var(--surface-bg-3)', borderRadius: 2 }}
                   title={`${s}: ${count}`}
                 />
               )
@@ -383,7 +383,7 @@ export default function Pipeline() {
                   background: active ? 'rgba(0,195,122,0.08)' : 'var(--border)',
                   fontSize: 11,
                   fontWeight: active ? 600 : 400,
-                  color: active ? '#00C37A' : 'rgba(255,255,255,0.40)',
+                  color: active ? '#00C37A' : 'var(--t3)',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   transition: 'all 0.15s ease',
@@ -420,7 +420,7 @@ export default function Pipeline() {
         borderBottom: '1px solid var(--surface-bg-2)',
         marginTop: 10,
         flexShrink: 0,
-        background: 'rgba(255,255,255,0.015)',
+        background: 'var(--surface-bg)',
       }}>
         {[
           { label: 'Property', align: 'left' },
@@ -432,7 +432,7 @@ export default function Pipeline() {
         ].map(h => (
           <span key={h.label} style={{
             fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
-            textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)',
+            textTransform: 'uppercase', color: 'var(--t4)',
             textAlign: h.align,
           }}>
             {h.label}
@@ -455,10 +455,10 @@ export default function Pipeline() {
             }}>
               <BarChart3 size={22} strokeWidth={1.5} color="#C9A84C" />
             </div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.60)', marginBottom: 6 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t2)', marginBottom: 6 }}>
               {stageFilter !== 'All' ? `No deals in ${stageFilter}` : 'No deals yet'}
             </p>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.28)' }}>
+            <p style={{ fontSize: 12, color: 'var(--t4)' }}>
               Create deals from lead profiles to track your pipeline
             </p>
           </div>

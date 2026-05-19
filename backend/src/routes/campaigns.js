@@ -62,9 +62,12 @@ router.post('/', async (req, res, next) => {
     if (!name) return res.status(400).json({ success: false, error: 'name required' });
 
     const { data, error } = await supabase.from('campaigns').insert([{
-      id: uuidv4(), user_id: req.user.id, name, concurrent_lines, daily_limit_per_number,
-      calling_hours_start, calling_hours_end, retry_attempts, call_delay_seconds,
-      daily_spend_limit, lead_filter, phone_number_ids, status: 'draft'
+      id: uuidv4(),
+      user_id: req.user.id,
+      name,
+      status: 'draft',
+      max_calls_concurrent: concurrent_lines,
+      leads_per_day: daily_limit_per_number,
     }]).select().single();
 
     if (error) throw error;
@@ -75,7 +78,7 @@ router.post('/', async (req, res, next) => {
 // PUT /api/campaigns/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['name','concurrent_lines','daily_limit_per_number','calling_hours_start','calling_hours_end','retry_attempts','call_delay_seconds','daily_spend_limit','lead_filter','phone_number_ids'];
+    const allowed = ['name','max_calls_concurrent','leads_per_day','status'];
     const updates = { updated_at: new Date().toISOString() };
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     const { data, error } = await supabase.from('campaigns').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();

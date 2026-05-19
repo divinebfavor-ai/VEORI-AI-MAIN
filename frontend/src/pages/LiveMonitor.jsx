@@ -441,7 +441,7 @@ function InitiateCallModal({ onClose }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
       onClick={onClose}>
-      <div style={{ width: 440, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}
+      <div style={{ width: 440, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}
         onClick={e => e.stopPropagation()}>
         <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--t1)' }}>Call a Lead</p>
@@ -525,10 +525,10 @@ export default function LiveMonitor() {
   // Refresh history every 15s
   useEffect(() => { const t = setInterval(loadHistory, 15000); return () => clearInterval(t) }, [loadHistory])
 
-  // Auto-select first live call
+  // Auto-select first live call (only when no call is selected yet)
   useEffect(() => {
     if (liveCalls.length > 0 && !selected) setSelected(liveCalls[0])
-  }, [liveCalls])
+  }, [liveCalls, selected])
 
   const handleListen = async (call) => {
     const callId = call.id || call.vapi_call_id

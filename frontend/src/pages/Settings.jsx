@@ -21,7 +21,7 @@ function Section({ title, description, children }) {
   return (
     <div className="bg-card border border-border-subtle rounded-lg overflow-hidden">
       <div className="px-6 py-5 border-b border-border-subtle">
-        <h3 className="text-[15px] font-medium text-white">{title}</h3>
+        <h3 className="text-[15px] font-medium text-text-primary">{title}</h3>
         {description && <p className="text-[12px] text-text-muted mt-0.5">{description}</p>}
       </div>
       <div className="p-6">{children}</div>
@@ -397,7 +397,7 @@ function AddBankAccountForm({ onSave, onCancel }) {
 
   return (
     <div className="space-y-3 border border-primary/20 rounded-lg p-4 bg-primary/5">
-      <p className="text-[13px] font-medium text-white mb-3">New Bank Account</p>
+      <p className="text-[13px] font-medium text-text-primary mb-3">New Bank Account</p>
       <div className="grid grid-cols-2 gap-3">
         <Input label="Account Label" value={form.label} onChange={set('label')} placeholder="Primary" />
         <Input label="Bank Name" value={form.bank_name} onChange={set('bank_name')} placeholder="Chase, Wells Fargo..." />
@@ -446,6 +446,16 @@ export default function Settings() {
   const [tab, setTab]             = useState('profile')
   const [phoneList, setPhoneList] = useState([])
   const [loading, setLoading]     = useState(false)
+  const [alertToggles, setAlertToggles] = useState({
+    'Inbound call received': true,
+    'High motivation score': true,
+    'Offer accepted verbally': true,
+    'Contract ready to send': true,
+    'Campaign completed': false,
+    'Deal velocity dropped': true,
+    'Market hotspot alert': false,
+    'Title confirmation overdue': true,
+  })
   const [persona, setPersona]     = useState({})
   const [bankAccounts, setBankAccounts] = useState([])
   const [showAddBank, setShowAddBank]   = useState(false)
@@ -573,7 +583,7 @@ export default function Settings() {
   return (
     <div className="p-8 max-w-[900px] mx-auto">
       <div className="mb-8">
-        <h1 className="text-[28px] font-medium text-white">Settings</h1>
+        <h1 className="text-[28px] font-medium text-text-primary">Settings</h1>
         <p className="text-[13px] text-text-muted mt-1">Manage your account, phone numbers, and integrations</p>
       </div>
 
@@ -640,7 +650,7 @@ export default function Settings() {
               <Section title="Subscription" description="Your current plan and usage">
                 <div className="flex items-center justify-between py-2">
                   <div>
-                    <p className="text-[14px] font-medium text-white capitalize">{user?.plan || 'Hustle'} Plan</p>
+                    <p className="text-[14px] font-medium text-text-primary capitalize">{user?.plan || 'Hustle'} Plan</p>
                     <p className="text-[12px] text-text-muted mt-0.5">{user?.calls_used || 0} / {user?.calls_limit || '∞'} calls used this month</p>
                   </div>
                   <Badge variant="green">{user?.plan || 'Hustle'}</Badge>
@@ -710,17 +720,27 @@ export default function Settings() {
                 { label: 'Deal velocity dropped', desc: 'When a deal velocity score drops below 40%' },
                 { label: 'Market hotspot alert', desc: 'When a market motivation score rises 15%+ month-over-month' },
                 { label: 'Title confirmation overdue', desc: 'When title company has not confirmed in 5+ days' },
-              ].map(({ label, desc }) => (
-                <div key={label} className="flex items-center justify-between py-3 border-b border-border-subtle last:border-0">
-                  <div>
-                    <p className="text-[14px] text-text-primary">{label}</p>
-                    <p className="text-[11px] text-text-muted mt-0.5">{desc}</p>
+              ].map(({ label, desc }) => {
+                const on = alertToggles[label] ?? true
+                return (
+                  <div key={label} className="flex items-center justify-between py-3 border-b border-border-subtle last:border-0">
+                    <div>
+                      <p className="text-[14px] text-text-primary">{label}</p>
+                      <p className="text-[11px] text-text-muted mt-0.5">{desc}</p>
+                    </div>
+                    <button
+                      onClick={() => setAlertToggles(prev => ({ ...prev, [label]: !prev[label] }))}
+                      className={`w-10 h-6 rounded-full flex-shrink-0 relative transition-colors ${on ? 'bg-primary' : 'bg-surface'}`}
+                      style={{ border: on ? 'none' : '1px solid var(--border)' }}
+                    >
+                      <span
+                        className="absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform"
+                        style={{ transform: on ? 'translateX(18px)' : 'translateX(2px)' }}
+                      />
+                    </button>
                   </div>
-                  <button className="w-10 h-6 rounded-full bg-primary flex-shrink-0 relative transition-colors">
-                    <span className="absolute right-1 top-1 w-4 h-4 bg-black rounded-full shadow transition-transform" />
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </Section>
           )}
 

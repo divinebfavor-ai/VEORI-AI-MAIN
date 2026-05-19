@@ -389,6 +389,7 @@ async function handleAssistantRequest(event) {
       const { data: callRec } = await supabase.from('calls').insert({
         user_id: operator.id,
         lead_id: existingLead?.id || null,
+        vapi_call_id: call?.id || null,
         status: 'ringing',
         direction: 'inbound',
         started_at: new Date().toISOString(),

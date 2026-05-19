@@ -322,41 +322,18 @@ router.post('/ingest', async (req, res, next) => {
     const first_name = nameParts[0] || '';
     const last_name  = nameParts.slice(1).join(' ') || '';
 
-    const { data: seller, error } = await supabase.from('sellers').insert({
-      name: name || `${first_name} ${last_name}`.trim(),
-      phone,
-      email: email || null,
-      property_address: property_address || target_area || null,
-      motivation_type: motivation_type || 'other',
-      price_range_min: price_range_min || null,
-      price_range_max: price_range_max || null,
-      timeline: timeline || null,
-      contact_preference: contact_preference || 'sms',
-      lead_source: lead_source || 'manual',
-      operator_id: req.user.id,
-    }).select().single();
-
-    if (error) throw error;
-
-    // Also create a lead record
-    await supabase.from('leads').insert({
+    // Insert into leads table (no sellers table in schema)
+    const { data: seller, error } = await supabase.from('leads').insert({
       id: uuidv4(),
       user_id: req.user.id,
       first_name, last_name, phone, email: email || null,
       property_address: property_address || target_area || null,
       source: lead_source || 'ingest',
       status: 'new',
-      motivation_type: motivation_type || 'other',
-    });
+      notes: notes || null,
+    }).select().single();
 
-    // Log the ingestion
-    await supabase.from('ai_command_log').insert({
-      contact_name: name,
-      action_type: 'lead_ingested',
-      message_sent: `New ${motivation_type || 'other'} seller lead ingested: ${property_address || phone}`,
-      outcome: 'success',
-      operator_id: req.user.id,
-    });
+    if (error) throw error;
 
     res.status(201).json({ success: true, seller });
   } catch (err) { next(err); }
@@ -401,18 +378,18 @@ router.post('/qualify', async (req, res, next) => {
     // Auto-escalate to pipeline if score >= 60
     if (result.motivation_score >= 60 && result.recommended_action === 'escalate_to_pipeline') {
       const { data: deal } = await supabase.from('deals').insert({
+        id: require('uuid').v4(),
+        user_id: req.user.id,
+        lead_id: lead.id,
         property_address: lead.property_address,
-        state: lead.property_state || '',
-        stage: 'contacted',
-        seller_id: lead.id,
-        operator_id: req.user.id,
-        status: 'active',
+        property_state: lead.property_state || null,
+        status: 'new',
       }).select().single();
 
-      await supabase.from('leads').update({ status: 'offer_made', deal_id: deal?.deal_id }).eq('id', lead_id);
+      await supabase.from('leads').update({ status: 'interested', deal_id: deal?.id }).eq('id', lead_id);
 
       await supabase.from('ai_command_log').insert({
-        deal_id: deal?.deal_id,
+        deal_id: deal?.id,
         contact_name: `${lead.first_name} ${lead.last_name}`.trim(),
         action_type: 'escalated_to_pipeline',
         message_sent: `Score: ${result.motivation_score}/100 — auto-escalated to deal pipeline`,

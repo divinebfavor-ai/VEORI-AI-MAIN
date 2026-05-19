@@ -329,7 +329,7 @@ export default function Dashboard() {
               const count = pipelineMap[stage.toLowerCase()] || pipelineMap[stage] || 0
               if (!count) return null
               const pct = ((count / total) * 100).toFixed(1)
-              const colors = ['rgba(255,255,255,0.15)','rgba(255,149,0,0.5)','rgba(255,149,0,0.5)','rgba(201,168,76,0.8)','rgba(255,149,0,0.6)','rgba(0,195,122,0.8)','rgba(0,195,122,0.5)','rgba(0,195,122,1)']
+              const colors = ['var(--border)','rgba(255,149,0,0.5)','rgba(255,149,0,0.5)','rgba(201,168,76,0.8)','rgba(255,149,0,0.6)','rgba(0,195,122,0.8)','rgba(0,195,122,0.5)','rgba(0,195,122,1)']
               return <div key={stage} style={{ flex: `0 0 ${pct}%`, background: colors[i % colors.length], borderRadius: 2 }} title={`${stage}: ${count}`} />
             })}
           </div>

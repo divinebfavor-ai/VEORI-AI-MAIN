@@ -279,55 +279,40 @@ router.get('/:id/title-log', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/deals/create — alias for POST /api/deals
+// POST /api/deals/create — alias for POST /api/deals (schema-aligned)
 router.post('/create', async (req, res, next) => {
-  const { property_address, state, deal_type, arv, repair_costs, offer_price, seller_id, buyer_id, title_company_id } = req.body;
-  if (!property_address || !state) return res.status(400).json({ success: false, error: 'property_address and state required' });
-
-  const arv_n = parseFloat(arv) || 0;
-  const repair_n = parseFloat(repair_costs) || 0;
-  const mao = arv_n > 0 ? (arv_n * 0.70) - repair_n : null;
-
   try {
+    const { property_address, property_city, property_state, deal_type, arv, repair_estimate, offer_price, lead_id, title_company_id } = req.body;
+    if (!property_address) return res.status(400).json({ success: false, error: 'property_address required' });
+
+    const arv_n = parseFloat(arv) || 0;
+    const repair_n = parseFloat(repair_estimate) || 0;
+    const mao = arv_n > 0 ? Math.round((arv_n * 0.70) - repair_n) : null;
+
     const { data, error } = await supabase.from('deals').insert({
+      id: require('uuid').v4(),
+      user_id: req.user.id,
+      lead_id: lead_id || null,
       deal_type: deal_type || 'assignment',
-      state,
       property_address,
+      property_city: property_city || null,
+      property_state: property_state || null,
       arv: arv_n || null,
-      repair_costs: repair_n || null,
+      repair_estimate: repair_n || null,
       mao,
       offer_price: parseFloat(offer_price) || null,
-      seller_id: seller_id || null,
-      buyer_id: buyer_id || null,
       title_company_id: title_company_id || null,
-      operator_id: req.user.id,
-      stage: 'lead',
-      stage_changed_at: new Date().toISOString(),
-      status: 'active',
+      status: 'new',
     }).select().single();
     if (error) throw error;
 
-    // Double-close alert
-    if (deal_type === 'double_close') {
-      await supabase.from('notifications').insert({
-        operator_id: req.user.id,
-        type: 'double_close_alert',
-        title: 'Transactional Funding Required',
-        message: `Deal at ${property_address} is a double-close. Please confirm your funding source before proceeding.`,
-        deal_id: data.deal_id,
-        is_read: false,
-      });
-    }
-
-    await supabase.from('ai_command_log').insert({
-      deal_id: data.deal_id,
-      action_type: 'deal_created',
-      message_sent: `Deal created: ${property_address}`,
-      outcome: 'success',
-      operator_id: req.user.id,
+    await logActivity({
+      userId: req.user.id, dealId: data.id, leadId: data.lead_id,
+      activityType: 'deal_created', message: `Deal created for ${property_address}`,
+      metadata: { status: data.status, deal_type: data.deal_type },
     });
 
-    res.status(201).json({ success: true, deal: data });
+    res.status(201).json({ success: true, deal: data, data });
   } catch (err) { next(err); }
 });
 
@@ -338,20 +323,19 @@ router.patch('/:id/stage', async (req, res, next) => {
     const { stage } = req.body;
     if (!VALID_STAGES.includes(stage)) return res.status(400).json({ success: false, error: 'Invalid stage' });
 
-    const { data: deal } = await supabase.from('deals').select('stage, ai_paused, operator_id').eq('deal_id', req.params.id).single();
-    if (!deal || deal.operator_id !== req.user.id) return res.status(404).json({ success: false, error: 'Deal not found' });
+    const { data: deal } = await supabase.from('deals').select('status, ai_paused, user_id').eq('id', req.params.id).single();
+    if (!deal || deal.user_id !== req.user.id) return res.status(404).json({ success: false, error: 'Deal not found' });
 
     const { data, error } = await supabase.from('deals').update({
-      stage,
-      stage_changed_at: new Date().toISOString(),
+      status: stage,
       updated_at: new Date().toISOString(),
-    }).eq('deal_id', req.params.id).select().single();
+    }).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
     if (error) throw error;
 
     await supabase.from('ai_command_log').insert({
       deal_id: req.params.id,
       action_type: 'stage_changed',
-      message_sent: `Stage changed from ${deal.stage} → ${stage}`,
+      message_sent: `Stage changed from ${deal.status} → ${stage}`,
       outcome: 'success',
       operator_id: req.user.id,
     });
@@ -362,7 +346,7 @@ router.patch('/:id/stage', async (req, res, next) => {
     if (stage === 'closed') {
       setImmediate(async () => {
         try {
-          const { data: fullDeal } = await supabase.from('deals').select('*').eq('deal_id', req.params.id).single();
+          const { data: fullDeal } = await supabase.from('deals').select('*').eq('id', req.params.id).single();
           const { data: lead } = fullDeal?.lead_id
             ? await supabase.from('leads').select('*').eq('id', fullDeal.lead_id).single()
             : { data: null };
@@ -380,7 +364,7 @@ router.patch('/:id/stage', async (req, res, next) => {
     if (stage === 'under_contract') {
       setImmediate(async () => {
         try {
-          const { data: fullDeal } = await supabase.from('deals').select('*').eq('deal_id', req.params.id).single();
+          const { data: fullDeal } = await supabase.from('deals').select('*').eq('id', req.params.id).single();
           if (!fullDeal) return;
           // Find buyers in same state that match on price
           const { data: matchedBuyers } = await supabase.from('buyers')
@@ -406,7 +390,7 @@ router.patch('/:id/stage', async (req, res, next) => {
       // Auto title company workflow — assign, email deal package, schedule follow-ups
       setImmediate(async () => {
         try {
-          const { data: fullDeal } = await supabase.from('deals').select('*').eq('deal_id', req.params.id).single();
+          const { data: fullDeal } = await supabase.from('deals').select('*').eq('id', req.params.id).single();
           if (!fullDeal) return;
           const dealDbId = fullDeal.id || req.params.id;
           const userId = req.user.id;
@@ -431,11 +415,11 @@ router.patch('/:id/stage', async (req, res, next) => {
 router.patch('/:id/pause-ai', async (req, res, next) => {
   try {
     const { paused } = req.body;
-    const { data: deal } = await supabase.from('deals').select('operator_id, ai_paused').eq('deal_id', req.params.id).single();
-    if (!deal || deal.operator_id !== req.user.id) return res.status(404).json({ success: false, error: 'Deal not found' });
+    const { data: deal } = await supabase.from('deals').select('user_id, ai_paused').eq('id', req.params.id).single();
+    if (!deal || deal.user_id !== req.user.id) return res.status(404).json({ success: false, error: 'Deal not found' });
 
     const newState = paused !== undefined ? !!paused : !deal.ai_paused;
-    const { data, error } = await supabase.from('deals').update({ ai_paused: newState, updated_at: new Date().toISOString() }).eq('deal_id', req.params.id).select().single();
+    const { data, error } = await supabase.from('deals').update({ ai_paused: newState, updated_at: new Date().toISOString() }).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
     if (error) throw error;
 
     await supabase.from('ai_command_log').insert({
@@ -453,25 +437,25 @@ router.patch('/:id/pause-ai', async (req, res, next) => {
 // GET /api/deals/:id/velocity-score — compute Deal Velocity Score
 router.get('/:id/velocity-score', async (req, res, next) => {
   try {
-    const { data: deal } = await supabase.from('deals').select('*').eq('deal_id', req.params.id).single();
-    if (!deal || deal.operator_id !== req.user.id) return res.status(404).json({ success: false, error: 'Deal not found' });
+    const { data: deal } = await supabase.from('deals').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
 
     // Count AI touches (conversations/actions)
     const { count: touchCount } = await supabase.from('ai_command_log').select('*', { count: 'exact', head: true }).eq('deal_id', req.params.id);
-    const daysSinceContact = deal.stage_changed_at ? Math.floor((Date.now() - new Date(deal.stage_changed_at).getTime()) / 86400000) : 30;
+    const daysSinceContact = deal.updated_at ? Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / 86400000) : 30;
 
     // Weighted scoring formula
     const motivationScore   = (deal.motivation_score || 50) * 0.35;
     const recencyScore      = Math.max(0, 100 - (daysSinceContact * 3)) * 0.20;
     const touchScore        = Math.min(100, (touchCount || 0) * 10) * 0.15;
-    const stageScore        = (['offer_sent','under_contract'].includes(deal.stage) ? 80 : 40) * 0.15;
+    const stageScore        = (['offer made','under_contract','sent_to_title'].includes(deal.status) ? 80 : 40) * 0.15;
     const buyerDepthScore   = 50 * 0.10; // default — update with buyer pool query if needed
     const complianceScore   = 70 * 0.05; // default
 
     const velocity = Math.min(100, Math.round(motivationScore + recencyScore + touchScore + stageScore + buyerDepthScore + complianceScore));
 
     // Persist velocity score
-    await supabase.from('deals').update({ deal_velocity_score: velocity }).eq('deal_id', req.params.id);
+    await supabase.from('deals').update({ deal_velocity_score: velocity }).eq('id', req.params.id).eq('user_id', req.user.id);
 
     const label = velocity >= 70 ? 'High probability' : velocity >= 40 ? 'Needs attention' : 'At risk';
     const color = velocity >= 70 ? 'green' : velocity >= 40 ? 'yellow' : 'red';
@@ -483,25 +467,23 @@ router.get('/:id/velocity-score', async (req, res, next) => {
 // GET /api/deals/:id/brief — Smart Deal Brief (Claude Sonnet 4.6)
 router.get('/:id/brief', async (req, res, next) => {
   try {
-    const { data: deal } = await supabase.from('deals').select('*').eq('deal_id', req.params.id).single();
-    if (!deal || deal.operator_id !== req.user.id) return res.status(404).json({ success: false, error: 'Deal not found' });
+    const { data: deal } = await supabase.from('deals').select('*, leads(first_name, last_name)').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
 
     const { data: lastLog } = await supabase.from('ai_command_log')
       .select('action_type, message_sent, created_at')
       .eq('deal_id', req.params.id)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    const { data: seller } = deal.seller_id
-      ? await supabase.from('sellers').select('name').eq('seller_id', deal.seller_id).single()
-      : { data: null };
+    const sellerName = deal.leads ? `${deal.leads.first_name || ''} ${deal.leads.last_name || ''}`.trim() || null : null;
 
     const { generateDealBrief } = require('../services/dualAIService');
     const result = await generateDealBrief({
       deal,
       lastAiAction: lastLog ? `${lastLog.action_type} — ${new Date(lastLog.created_at).toLocaleDateString()}` : null,
-      sellerName: seller?.name || null,
+      sellerName,
       nextRecommendedStep: null,
     });
 
@@ -519,7 +501,7 @@ router.post('/:id/start-buyer-campaign', async (req, res, next) => {
     const { data: buyers } = await supabase.from('buyers')
       .select('*').eq('user_id', req.user.id).eq('is_active', true)
       .or(`buy_box_states.cs.{"${deal.property_state}"},buy_box_states.eq.{}`)
-      .lte('max_price', deal.buyer_price || deal.offer_price * 1.1);
+      .lte('max_price', deal.buyer_price || (deal.offer_price ? Math.round(deal.offer_price * 1.1) : 9999999));
 
     // Log in deals table that buyer search is active
     await supabase.from('deals').update({ status: 'buyer search', updated_at: new Date().toISOString() })

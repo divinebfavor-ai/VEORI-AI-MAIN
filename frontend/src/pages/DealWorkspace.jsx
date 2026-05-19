@@ -95,7 +95,7 @@ function Section({ title, icon: Icon, children, defaultOpen = true }) {
 }
 
 // ─── Inline Editable Field ────────────────────────────────────────────────────
-function EditableField({ label, value, onSave, type = 'text', prefix = '', highlight }) {
+function EditableField({ label, value, onSave, type = 'text', prefix = '', highlight, readOnly = false }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft]     = useState(value || '')
   const [hov, setHov]         = useState(false)
@@ -156,7 +156,7 @@ function EditableField({ label, value, onSave, type = 'text', prefix = '', highl
           }}>
             {displayVal}
           </span>
-          {hov && (
+          {hov && !readOnly && (
             <button
               onClick={() => setEditing(true)}
               style={{ background: 'none', border: 'none', color: 'var(--t4)', cursor: 'pointer', lineHeight: 1, padding: 0 }}
@@ -488,7 +488,7 @@ export default function DealWorkspace() {
   const arv       = deal.arv || 0
   const repairs   = deal.repair_estimate || 0
   const mao       = Math.round(arv * 0.70 - repairs)
-  const assignFee = Math.max(0, (deal.buyer_price || 0) - (deal.seller_agreed_price || deal.offer_price || 0))
+  const assignFee = Math.max(0, (Number(deal.buyer_price) || 0) - (Number(deal.seller_agreed_price) || Number(deal.offer_price) || 0))
 
   const matchedBuyers = buyers.filter(b => {
     if (!b.buy_box_states?.length) return true

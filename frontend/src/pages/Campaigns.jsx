@@ -40,7 +40,7 @@ function CreateModal({ onClose, onCreated }) {
 
         {step === 1 && (
           <div>
-            <h2 className="text-[22px] font-medium text-white mb-1">Name your campaign</h2>
+            <h2 className="text-[22px] font-medium text-text-primary mb-1">Name your campaign</h2>
             <p className="text-[13px] text-text-muted mb-6">Give it a descriptive name so you can track it later</p>
             <div className="flex flex-col gap-1.5">
               <label className="label-caps">Campaign Name</label>
@@ -53,11 +53,11 @@ function CreateModal({ onClose, onCreated }) {
 
         {step === 2 && (
           <div>
-            <h2 className="text-[22px] font-medium text-white mb-1">Calling settings</h2>
+            <h2 className="text-[22px] font-medium text-text-primary mb-1">Calling settings</h2>
             <p className="text-[13px] text-text-muted mb-6">Configure how Alex will dial</p>
             <div className="space-y-5">
               <div>
-                <label className="label-caps block mb-3">Concurrent Lines: <span className="text-white">{form.concurrent_lines}</span></label>
+                <label className="label-caps block mb-3">Concurrent Lines: <span className="text-text-primary">{form.concurrent_lines}</span></label>
                 <input type="range" min={1} max={5} value={form.concurrent_lines} onChange={set('concurrent_lines')}
                   className="w-full accent-primary" />
                 <div className="flex justify-between text-[11px] text-text-muted mt-1"><span>1</span><span>5</span></div>
@@ -93,7 +93,7 @@ function CreateModal({ onClose, onCreated }) {
 
         {step === 3 && (
           <div>
-            <h2 className="text-[22px] font-medium text-white mb-1">Review & Launch</h2>
+            <h2 className="text-[22px] font-medium text-text-primary mb-1">Review & Launch</h2>
             <p className="text-[13px] text-text-muted mb-6">Confirm your campaign settings before launching</p>
             <div className="space-y-1">
               {[
@@ -134,7 +134,7 @@ function CampaignCard({ c, onAction }) {
     <div className={`bg-card border rounded-lg p-6 transition-colors ${isActive ? 'border-primary' : 'border-border-subtle hover:border-border-default'}`}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1 min-w-0">
-          <h3 className="text-[16px] font-medium text-white truncate">{c.name}</h3>
+          <h3 className="text-[16px] font-medium text-text-primary truncate">{c.name}</h3>
           <p className="text-[12px] text-text-muted mt-0.5">{c.concurrent_lines || 3} concurrent lines · {c.calling_hours_start || '09:00'}–{c.calling_hours_end || '20:00'}</p>
         </div>
         <Badge variant={statusVariant(c.status)}>{c.status || 'draft'}</Badge>
@@ -235,7 +235,7 @@ export default function Campaigns() {
     <div className="p-8 max-w-[1200px] mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-[28px] font-medium text-white">Campaigns</h1>
+          <h1 className="text-[28px] font-medium text-text-primary">Campaigns</h1>
           <p className="text-[13px] text-text-muted mt-1">{list.length} campaign{list.length !== 1 ? 's' : ''}</p>
         </div>
         <Button onClick={() => setModal(true)}><Plus size={14} /> Create Campaign</Button>
