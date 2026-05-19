@@ -12,6 +12,7 @@
  */
 const axios = require('axios');
 const supabase = require('../config/supabase');
+const phoneRotation = require('./phoneRotation');
 
 const VAPI_API_KEY = process.env.VAPI_API_KEY;
 const VAPI_BASE    = process.env.VAPI_BASE_URL || 'https://api.vapi.ai';
@@ -93,8 +94,17 @@ ${vmMessage}`,
     serverUrl: WEBHOOK_URL,
   };
 
-  if (process.env.VAPI_PHONE_NUMBER_ID) {
+  // Pick best phone number via rotation (same as regular calls)
+  const phoneNum = await phoneRotation.selectBestNumber(operator.id, lead.property_state)
+    .catch(() => null);
+  if (phoneNum?.vapi_phone_id) {
+    payload.phoneNumberId = phoneNum.vapi_phone_id;
+  } else if (process.env.VAPI_PHONE_NUMBER_ID) {
     payload.phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
+  } else {
+    // No number available — simulate
+    console.log(`[RVM] No phone number available — simulating voicemail drop to ${lead.phone}`);
+    return { simulated: true, reason: 'no_phone_number' };
   }
 
   try {

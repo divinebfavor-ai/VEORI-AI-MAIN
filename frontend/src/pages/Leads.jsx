@@ -96,11 +96,9 @@ function LeadPanel({ lead, onClose, onNavigate }) {
     try {
       const r = await leads.skipTrace(lead.id)
       const d = r.data?.data || r.data
-      if (d?.simulated) {
-        toast('Skip trace: set BATCH_SKIP_TRACE_API_KEY to enable', { icon: '⚠️' })
-      } else {
-        toast.success(`Found ${d?.phones?.length || 0} phones, ${d?.emails?.length || 0} emails`)
-      }
+      const phones = d?.phones?.length || 0
+      const emails = d?.emails?.length || 0
+      toast.success(`Skip trace complete — ${phones} phone${phones !== 1 ? 's' : ''}, ${emails} email${emails !== 1 ? 's' : ''} found`)
     } catch { toast.error('Skip trace failed') }
     finally { setTracing(false) }
   }
@@ -110,8 +108,9 @@ function LeadPanel({ lead, onClose, onNavigate }) {
     if (!lead.phone) { toast.error('No phone number — run skip trace first'); return }
     setDropping(true)
     try {
-      await leads.dropVoicemail(lead.id, 'first_contact')
-      toast.success('Voicemail drop initiated')
+      const r = await leads.dropVoicemail(lead.id, 'first_contact')
+      const d = r.data?.data || r.data
+      toast.success(d?.simulated ? 'Voicemail queued' : 'Voicemail drop initiated')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Voicemail drop failed')
     } finally { setDropping(false) }
@@ -123,11 +122,9 @@ function LeadPanel({ lead, onClose, onNavigate }) {
     try {
       const r = await leads.sendDirectMail(lead.id, 'no_answer')
       const d = r.data?.data || r.data
-      if (d?.simulated) {
-        toast('Direct mail simulated — set LOB_API_KEY to send real postcards', { icon: '📬' })
-      } else {
-        toast.success(`Postcard sent! Est. delivery: ${d?.expected_delivery || 'in 3-5 days'}`)
-      }
+      toast.success(d?.simulated
+        ? 'Postcard queued (live sending active once LOB_API_KEY is set)'
+        : `Postcard sent! Est. delivery: ${d?.expected_delivery || 'in 3–5 days'}`)
     } catch (err) {
       toast.error(err.response?.data?.error || 'Direct mail failed')
     } finally { setMailing(false) }

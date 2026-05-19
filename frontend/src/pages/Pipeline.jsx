@@ -25,7 +25,7 @@ function Signal({ days }) {
     </span>
   )
   if (days <= 5) return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 500 }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--t3)', fontWeight: 500 }}>
       <Minus size={10} strokeWidth={2} /> {days}d
     </span>
   )
@@ -63,9 +63,9 @@ function DealRow({ deal, selected, onClick, onOpen }) {
         cursor: 'pointer',
         background: selected
           ? 'rgba(0,195,122,0.06)'
-          : hov ? 'rgba(255,255,255,0.025)' : 'transparent',
+          : hov ? 'var(--surface-bg-2)' : 'transparent',
         borderLeft: `2px solid ${selected ? '#00C37A' : 'transparent'}`,
-        borderBottom: '1px solid rgba(255,255,255,0.03)',
+        borderBottom: '1px solid var(--border)',
         transition: 'all 0.15s ease',
         transform: hov && !selected ? 'translateY(-0.5px)' : 'none',
       }}
@@ -73,7 +73,7 @@ function DealRow({ deal, selected, onClick, onOpen }) {
       {/* Address + lead */}
       <div style={{ minWidth: 0 }}>
         <p style={{
-          fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.90)',
+          fontSize: 13, fontWeight: 500, color: 'var(--t1)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2,
         }}>
@@ -81,7 +81,7 @@ function DealRow({ deal, selected, onClick, onOpen }) {
           {deal.property_address || 'Address unknown'}
         </p>
         {deal.lead_name && (
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.30)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <p style={{ fontSize: 11, color: 'var(--t3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {deal.lead_name}
           </p>
         )}
@@ -99,7 +99,7 @@ function DealRow({ deal, selected, onClick, onOpen }) {
             {fmt$(deal.offer_price)}
           </span>
         ) : (
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.18)' }}>—</span>
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
         )}
       </div>
 
@@ -110,7 +110,7 @@ function DealRow({ deal, selected, onClick, onOpen }) {
             {fmt$(deal.assignment_fee)}
           </span>
         ) : (
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.18)' }}>—</span>
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
         )}
       </div>
 
@@ -124,7 +124,7 @@ function DealRow({ deal, selected, onClick, onOpen }) {
         onClick={e => { e.stopPropagation(); onOpen(deal.id) }}
         style={{
           background: 'none', border: 'none',
-          color: hov ? '#00C37A' : 'rgba(255,255,255,0.25)',
+          color: hov ? '#00C37A' : 'var(--t4)',
           cursor: 'pointer', display: 'flex', alignItems: 'center',
           padding: 4, borderRadius: 5,
           transition: 'color 0.15s ease',
@@ -163,10 +163,10 @@ function StageModal({ deal, onClose, onSaved }) {
     }}>
       <div style={{
         width: 440,
-        background: 'rgba(10,16,26,0.96)',
+        background: 'var(--card-bg)',
         backdropFilter: 'blur(32px) saturate(160%)',
         WebkitBackdropFilter: 'blur(32px) saturate(160%)',
-        border: '1px solid rgba(255,255,255,0.10)',
+        border: '1px solid var(--border)',
         borderRadius: 16,
         padding: 28,
         boxShadow: '0 24px 80px rgba(0,0,0,0.60)',
@@ -174,10 +174,10 @@ function StageModal({ deal, onClose, onSaved }) {
         {/* Top accent */}
         <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, rgba(0,195,122,0.40), transparent)', margin: '-28px -28px 24px' }} />
 
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 4 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.02em', marginBottom: 4 }}>
           {deal.property_address || 'Deal'}
         </h2>
-        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 22 }}>
+        <p style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 22 }}>
           {[deal.property_city, deal.property_state].filter(Boolean).join(', ')}
         </p>
 
@@ -194,12 +194,12 @@ function StageModal({ deal, onClose, onSaved }) {
             <div key={k} style={{
               display: 'flex', justifyContent: 'space-between',
               padding: '8px 0',
-              borderBottom: '1px solid rgba(255,255,255,0.05)',
+              borderBottom: '1px solid var(--surface-bg-2)',
             }}>
-              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)' }}>{k}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)' }}>{k}</span>
               <span style={{
                 fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
-                color: k.includes('Fee') ? '#C9A84C' : k.includes('Offer') || k.includes('Buyer') ? '#00C37A' : 'rgba(255,255,255,0.80)',
+                color: k.includes('Fee') ? '#C9A84C' : k.includes('Offer') || k.includes('Buyer') ? '#00C37A' : 'var(--t1)',
               }}>{v}</span>
             </div>
           ))}
@@ -207,7 +207,7 @@ function StageModal({ deal, onClose, onSaved }) {
 
         {/* Stage selector */}
         <div style={{ marginBottom: 22 }}>
-          <label style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)', display: 'block', marginBottom: 8 }}>
+          <label style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)', display: 'block', marginBottom: 8 }}>
             Pipeline Stage
           </label>
           <select
@@ -215,10 +215,10 @@ function StageModal({ deal, onClose, onSaved }) {
             onChange={e => setStage(e.target.value)}
             style={{
               width: '100%', height: 44,
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.10)',
+              background: 'var(--surface-bg-2)',
+              border: '1px solid var(--border)',
               borderRadius: 8, padding: '0 12px',
-              fontSize: 13, color: 'rgba(255,255,255,0.85)',
+              fontSize: 13, color: 'var(--t1)',
               outline: 'none', fontFamily: 'inherit', cursor: 'pointer',
               appearance: 'none',
             }}
@@ -244,17 +244,17 @@ function SkeletonRow() {
       gridTemplateColumns: '1fr 130px 110px 90px 90px 34px',
       alignItems: 'center',
       height: 52, padding: '0 20px',
-      borderBottom: '1px solid rgba(255,255,255,0.03)',
+      borderBottom: '1px solid var(--border)',
     }}>
       <div>
-        <div style={{ width: 140, height: 12, borderRadius: 4, background: 'rgba(255,255,255,0.05)', marginBottom: 5, animation: 'skeleton-pulse 1.4s ease infinite' }} />
-        <div style={{ width: 80, height: 9, borderRadius: 4, background: 'rgba(255,255,255,0.03)', animation: 'skeleton-pulse 1.4s ease infinite 0.1s' }} />
+        <div style={{ width: 140, height: 12, borderRadius: 4, background: 'var(--surface-bg-2)', marginBottom: 5, animation: 'skeleton-pulse 1.4s ease infinite' }} />
+        <div style={{ width: 80, height: 9, borderRadius: 4, background: 'var(--border)', animation: 'skeleton-pulse 1.4s ease infinite 0.1s' }} />
       </div>
-      <div style={{ width: 60, height: 18, borderRadius: 5, background: 'rgba(255,255,255,0.04)', animation: 'skeleton-pulse 1.4s ease infinite 0.05s' }} />
-      <div style={{ width: 60, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.05)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.1s' }} />
-      <div style={{ width: 50, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.04)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.15s' }} />
-      <div style={{ width: 36, height: 10, borderRadius: 4, background: 'rgba(255,255,255,0.03)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.2s' }} />
-      <div style={{ width: 14, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.03)', animation: 'skeleton-pulse 1.4s ease infinite 0.25s' }} />
+      <div style={{ width: 60, height: 18, borderRadius: 5, background: 'var(--surface-bg)', animation: 'skeleton-pulse 1.4s ease infinite 0.05s' }} />
+      <div style={{ width: 60, height: 14, borderRadius: 4, background: 'var(--surface-bg-2)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.1s' }} />
+      <div style={{ width: 50, height: 14, borderRadius: 4, background: 'var(--surface-bg)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.15s' }} />
+      <div style={{ width: 36, height: 10, borderRadius: 4, background: 'var(--border)', marginLeft: 'auto', animation: 'skeleton-pulse 1.4s ease infinite 0.2s' }} />
+      <div style={{ width: 14, height: 14, borderRadius: 4, background: 'var(--border)', animation: 'skeleton-pulse 1.4s ease infinite 0.25s' }} />
     </div>
   )
 }
@@ -308,7 +308,7 @@ export default function Pipeline() {
 
   // Pipeline velocity bar data
   const stageColors = {
-    New: '#rgba(255,255,255,0.20)',
+    New: 'var(--surface-bg-3)',
     Calling: '#FF9500',
     Contacted: '#FF9500',
     'Offer Made': '#C9A84C',
@@ -326,11 +326,11 @@ export default function Pipeline() {
       <div style={{ padding: '22px 24px 0', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.03em', marginBottom: 4 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.03em', marginBottom: 4 }}>
               Velocity Board
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{allDeals.length} deals</span>
+              <span style={{ fontSize: 12, color: 'var(--t3)' }}>{allDeals.length} deals</span>
               {totalValue > 0 && (
                 <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                   {fmt$(totalValue)} in pipeline
@@ -379,8 +379,8 @@ export default function Pipeline() {
                 style={{
                   height: 26, padding: '0 10px',
                   borderRadius: 13,
-                  border: `1px solid ${active ? 'rgba(0,195,122,0.40)' : 'rgba(255,255,255,0.08)'}`,
-                  background: active ? 'rgba(0,195,122,0.08)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${active ? 'rgba(0,195,122,0.40)' : 'var(--border)'}`,
+                  background: active ? 'rgba(0,195,122,0.08)' : 'var(--border)',
                   fontSize: 11,
                   fontWeight: active ? 600 : 400,
                   color: active ? '#00C37A' : 'rgba(255,255,255,0.40)',
@@ -396,7 +396,7 @@ export default function Pipeline() {
                 {count > 0 && (
                   <span style={{
                     fontSize: 9, fontWeight: 700,
-                    color: active ? '#00C37A' : 'rgba(255,255,255,0.25)',
+                    color: active ? '#00C37A' : 'var(--t4)',
                     minWidth: 14, textAlign: 'center',
                     fontVariantNumeric: 'tabular-nums',
                   }}>
@@ -416,8 +416,8 @@ export default function Pipeline() {
         alignItems: 'center',
         height: 30,
         padding: '0 20px',
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        borderTop: '1px solid var(--surface-bg-2)',
+        borderBottom: '1px solid var(--surface-bg-2)',
         marginTop: 10,
         flexShrink: 0,
         background: 'rgba(255,255,255,0.015)',

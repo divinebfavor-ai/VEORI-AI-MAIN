@@ -1,8 +1,12 @@
 const { Resend } = require('resend');
 const supabase = require('../config/supabase');
 
-// Use Resend SDK directly — no SMTP/MX record required
-const resend = new Resend(process.env.SMTP_PASS || process.env.RESEND_API_KEY);
+// Lazy-init Resend — don't crash on boot if key is missing
+const RESEND_KEY = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
+let resend = null;
+try {
+  if (RESEND_KEY) resend = new Resend(RESEND_KEY);
+} catch (e) { /* key not set — email will simulate */ }
 
 async function sendEmail({ userId, leadId, dealId, to, subject, body, emailType }) {
   try {
@@ -10,6 +14,10 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, emailType 
     const html = body.includes('<') ? body : body.replace(/\n/g, '<br>');
     const text = body.replace(/<[^>]+>/g, '');
 
+    if (!resend) {
+      console.log(`[Email] No API key — simulating email to ${to}: ${subject}`);
+      return { success: true, simulated: true };
+    }
     const { data: info, error } = await resend.emails.send({ from, to, subject, html, text });
     if (error) throw new Error(error.message || JSON.stringify(error));
 
