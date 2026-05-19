@@ -32,6 +32,84 @@ const SCORE_OPTIONS = [
   { label: 'Cold (<40)', min: 0, max: 39 },
 ]
 
+// ─── Call Card (extracted to avoid hook-in-loop violation) ───────────────────
+function CallCard({ call: c }) {
+  const [showTx, setShowTx] = useState(false)
+  const fmtDur = c.duration_seconds != null
+    ? `${Math.floor(c.duration_seconds / 60)}:${String(c.duration_seconds % 60).padStart(2, '0')}`
+    : null
+  const outcomeLabel = (c.outcome || '').replace(/_/g, ' ') || 'no answer'
+  const outcomeColor = {
+    appointment: '#00C37A', verbal_yes: '#00C37A', offer_made: '#00C37A',
+    callback_requested: '#4D9EFF', voicemail: '#FF9500', no_answer: '#FF9500',
+    not_home: '#FF9500', not_interested: '#FF4444',
+  }[c.outcome] || 'var(--t4)'
+
+  return (
+    <div style={{
+      background: 'var(--surface-bg)',
+      border: '1px solid var(--border)',
+      borderRadius: 10, padding: '12px 14px',
+    }}>
+      {/* Row 1 — time + outcome + score + duration */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 500 }}>
+          {c.started_at ? formatDistanceToNow(new Date(c.started_at), { addSuffix: true }) : '—'}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {fmtDur && (
+            <span style={{ fontSize: 11, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>{fmtDur}</span>
+          )}
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+            color: outcomeColor, background: `${outcomeColor}18`,
+            border: `1px solid ${outcomeColor}30`, borderRadius: 5, padding: '2px 7px',
+          }}>
+            {outcomeLabel}
+          </span>
+          {c.motivation_score != null && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor(c.motivation_score), fontVariantNumeric: 'tabular-nums' }}>
+              {c.motivation_score}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* AI Summary */}
+      {c.ai_summary && (
+        <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.5, marginBottom: c.transcript ? 6 : 0 }}>
+          {c.ai_summary}
+        </p>
+      )}
+
+      {/* Transcript toggle */}
+      {c.transcript && (
+        <>
+          <button
+            onClick={() => setShowTx(v => !v)}
+            style={{
+              fontSize: 10, color: '#00C37A', background: 'none', border: 'none',
+              cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <FileText size={9} /> {showTx ? 'Hide' : 'View'} transcript
+          </button>
+          {showTx && (
+            <pre style={{
+              marginTop: 8, fontSize: 10, color: 'var(--t3)', lineHeight: 1.6,
+              background: 'var(--surface-bg-2)', borderRadius: 6, padding: '8px 10px',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflowY: 'auto',
+              fontFamily: 'inherit',
+            }}>
+              {c.transcript}
+            </pre>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Lead Detail Panel ────────────────────────────────────────────────────────
 function LeadPanel({ lead, onClose, onNavigate }) {
   const [tab, setTab]             = useState('overview')
@@ -404,82 +482,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
                   <p style={{ fontSize: 13, marginBottom: 8 }}>No calls recorded yet</p>
                   <p style={{ fontSize: 11, color: 'var(--t4)' }}>Hit "Sync from Vapi" to pull any existing call data</p>
                 </div>
-              ) : callLog.map(c => {
-                const fmtDur = c.duration_seconds != null
-                  ? `${Math.floor(c.duration_seconds / 60)}:${String(c.duration_seconds % 60).padStart(2, '0')}`
-                  : null
-                const outcomeLabel = (c.outcome || '').replace(/_/g, ' ') || 'no answer'
-                const outcomeColor = {
-                  appointment: '#00C37A', verbal_yes: '#00C37A', offer_made: '#00C37A',
-                  callback_requested: '#4D9EFF', voicemail: '#FF9500', no_answer: '#FF9500',
-                  not_home: '#FF9500', not_interested: '#FF4444',
-                }[c.outcome] || 'var(--t4)'
-                const [showTx, setShowTx] = React.useState(false)
-
-                return (
-                  <div key={c.id} style={{
-                    background: 'var(--surface-bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 10, padding: '12px 14px',
-                  }}>
-                    {/* Row 1 — time + outcome + score + duration */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 500 }}>
-                        {c.started_at ? formatDistanceToNow(new Date(c.started_at), { addSuffix: true }) : '—'}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {fmtDur && (
-                          <span style={{ fontSize: 11, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>{fmtDur}</span>
-                        )}
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-                          color: outcomeColor, background: `${outcomeColor}18`,
-                          border: `1px solid ${outcomeColor}30`, borderRadius: 5, padding: '2px 7px',
-                        }}>
-                          {outcomeLabel}
-                        </span>
-                        {c.motivation_score != null && (
-                          <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor(c.motivation_score), fontVariantNumeric: 'tabular-nums' }}>
-                            {c.motivation_score}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* AI Summary */}
-                    {c.ai_summary && (
-                      <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.5, marginBottom: c.transcript ? 6 : 0 }}>
-                        {c.ai_summary}
-                      </p>
-                    )}
-
-                    {/* Transcript toggle */}
-                    {c.transcript && (
-                      <>
-                        <button
-                          onClick={() => setShowTx(v => !v)}
-                          style={{
-                            fontSize: 10, color: '#00C37A', background: 'none', border: 'none',
-                            cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4,
-                          }}
-                        >
-                          <FileText size={9} /> {showTx ? 'Hide' : 'View'} transcript
-                        </button>
-                        {showTx && (
-                          <pre style={{
-                            marginTop: 8, fontSize: 10, color: 'var(--t3)', lineHeight: 1.6,
-                            background: 'var(--surface-bg-2)', borderRadius: 6, padding: '8px 10px',
-                            whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflowY: 'auto',
-                            fontFamily: 'inherit',
-                          }}>
-                            {c.transcript}
-                          </pre>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )
-              })}
+              ) : callLog.map(c => <CallCard key={c.id} call={c} />)}
             </div>
           )}
 

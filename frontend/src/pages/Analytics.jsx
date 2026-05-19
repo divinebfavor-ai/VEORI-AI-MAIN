@@ -278,9 +278,6 @@ function AIInsightsPanel({ insights, loading }) {
       <div className="flex items-center gap-2 mb-5">
         <Zap size={14} className="text-gold" />
         <h2 className="text-[14px] font-semibold text-text-primary">AI Market Intelligence</h2>
-        <span className="ml-auto text-[10px] text-text-muted px-2 py-0.5 rounded-full bg-surface border border-border-subtle">
-          Claude Sonnet 4.6
-        </span>
       </div>
 
       {loading ? (
