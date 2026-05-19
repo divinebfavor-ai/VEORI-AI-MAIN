@@ -383,6 +383,7 @@ export default function Analytics() {
   useEffect(() => { fetchAll() }, [period])
   useEffect(() => { fetchInsights() }, [])
 
+  // kpis state holds backend response { success, data: { deals_closed, total_revenue, ... } }
   const kpiData = kpis?.data || kpis || {}
 
   // Build sparklines from deal flow
@@ -490,11 +491,11 @@ export default function Analytics() {
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={flowChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="month" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="month" tick={{ fill: 'var(--t3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--t3)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }} />
+                <Legend wrapperStyle={{ fontSize: '11px', color: 'var(--t4)' }} />
                 <Line type="monotone" dataKey="New Leads" stroke="#4C9EFF" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Closed" stroke="#00C37A" strokeWidth={2.5} dot={{ fill: '#00C37A', r: 3 }} />
               </LineChart>
@@ -632,12 +633,12 @@ export default function Analytics() {
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={regional} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="region" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="region" tick={{ fill: 'var(--t3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--t3)', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <Tooltip content={<ChartTooltip />} />
                   <Bar dataKey="deals_closed" name="Closed" fill="#00C37A" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="deals_attempted" name="Attempted" fill="rgba(255,255,255,0.08)" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="leads" name="Leads" fill="var(--surface-bg-3)" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
