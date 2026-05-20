@@ -12,12 +12,13 @@ const supabase = createClient(
 // Auth middleware (same as other routes)
 const auth = require('../middleware/auth');
 
-// ─── Price IDs (set these in your Railway env vars after creating products in Stripe) ──
+// ─── Price IDs ────────────────────────────────────────────────────────────────
 const PRICES = {
-  founding:  process.env.STRIPE_PRICE_FOUNDING,  // $197/mo recurring
-  standard:  process.env.STRIPE_PRICE_STANDARD,  // $297/mo recurring
-  growth:    process.env.STRIPE_PRICE_GROWTH,     // $697/mo recurring
-  empire:    process.env.STRIPE_PRICE_EMPIRE,     // $1,497/mo recurring
+  founding: process.env.STRIPE_PRICE_FOUNDING || 'price_1TZ9MLAW61xZuN5ng4kHx2GV',
+  standard: process.env.STRIPE_PRICE_STANDARD || 'price_1TZ9MOAW61xZuN5nR0VJkUxf',
+  grind:    process.env.STRIPE_PRICE_GRIND    || 'price_1TZ9MRAW61xZuN5npF0FyrrP',
+  empire:   process.env.STRIPE_PRICE_EMPIRE   || 'price_1TZ9MUAW61xZuN5nAWUSJY1J',
+  dynasty:  process.env.STRIPE_PRICE_DYNASTY  || 'price_1TZ9MYAW61xZuN5nAFcPdRmx',
 };
 
 // ─── POST /api/billing/checkout ──────────────────────────────────────────────
