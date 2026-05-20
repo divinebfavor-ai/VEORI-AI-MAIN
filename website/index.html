@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VEORI AI — The Operating System for Real Estate Acquisition</title>
+  <meta name="description" content="VEORI AI makes 500 calls a day, qualifies every seller, scores their motivation, and closes contracts in 4 minutes. Founding operators lock in $197/month forever." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:     #060E1A;
+      --bg2:    #040C16;
+      --card:   #0A1526;
+      --green:  #00C47B;
+      --green2: #00A868;
+      --gold:   #C9A84C;
+      --border: rgba(255,255,255,0.06);
+      --b2:     rgba(255,255,255,0.10);
+      --t1:     #FFFFFF;
+      --t2:     rgba(255,255,255,0.78);
+      --t3:     rgba(255,255,255,0.48);
+      --t4:     rgba(255,255,255,0.26);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--t1);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── ANIMATIONS ─────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes shimmer {
+      0%   { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+    @keyframes pulse-ring {
+      0%   { transform: scale(1);   opacity: 0.6; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+    @keyframes ticker {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    @keyframes glow-breathe {
+      0%, 100% { opacity: 0.5; }
+      50%       { opacity: 0.9; }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.65s cubic-bezier(0.22,1,0.36,1), transform 0.65s cubic-bezier(0.22,1,0.36,1);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 0.10s; }
+    .reveal-delay-2 { transition-delay: 0.20s; }
+    .reveal-delay-3 { transition-delay: 0.30s; }
+    .reveal-delay-4 { transition-delay: 0.40s; }
+
+    /* ── NAV ─────────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+      height: 62px; padding: 0 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(6,14,26,0.80);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      animation: fadeIn 0.6s ease both;
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 9px; text-decoration: none;
+    }
+    .logo-mark {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, #00C47B 0%, #008F59 100%);
+      display: grid; place-items: center;
+      font-size: 14px; font-weight: 900; color: #000;
+      box-shadow: 0 0 18px rgba(0,196,123,0.4);
+      flex-shrink: 0;
+    }
+    .logo-name {
+      font-size: 17px; font-weight: 800; letter-spacing: -0.03em; color: var(--t1);
+    }
+
+    .nav-center {
+      display: flex; gap: 2px; list-style: none;
+    }
+    .nav-center a {
+      font-size: 13.5px; color: var(--t3); text-decoration: none;
+      padding: 6px 13px; border-radius: 7px;
+      transition: color 0.2s;
+    }
+    .nav-center a:hover { color: var(--t1); }
+
+    .nav-right { display: flex; align-items: center; gap: 8px; }
+
+    .btn-nav {
+      font-family: inherit; font-size: 13.5px; font-weight: 500;
+      color: var(--t2); background: transparent;
+      border: 1px solid var(--border); padding: 7px 16px;
+      border-radius: 8px; cursor: pointer; text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-nav:hover { color: var(--t1); border-color: var(--b2); background: rgba(255,255,255,0.04); }
+
+    .btn-nav-green {
+      font-family: inherit; font-size: 13.5px; font-weight: 600;
+      color: #000; background: var(--green);
+      border: none; padding: 7px 18px; border-radius: 8px;
+      cursor: pointer; text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-nav-green:hover { background: #00d986; box-shadow: 0 6px 22px rgba(0,196,123,0.35); }
+
+    /* ── HERO ────────────────────────────────────────────── */
+    .hero {
+      position: relative; min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 130px 24px 80px; text-align: center;
+      overflow: hidden;
+    }
+
+    .hero-grid {
+      position: absolute; inset: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 20%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 20%, transparent 100%);
+    }
+
+    .hero-glow {
+      position: absolute; top: -120px; left: 50%; transform: translateX(-50%);
+      width: 900px; height: 600px; pointer-events: none;
+      background: radial-gradient(ellipse at center, rgba(0,196,123,0.12) 0%, transparent 70%);
+      animation: glow-breathe 4s ease-in-out infinite;
+    }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(0,196,123,0.10); border: 1px solid rgba(0,196,123,0.22);
+      color: var(--green); font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
+      padding: 6px 14px; border-radius: 100px; margin-bottom: 32px;
+      animation: fadeUp 0.7s 0.2s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    .badge-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green); position: relative; flex-shrink: 0;
+    }
+    .badge-dot::after {
+      content: ''; position: absolute; inset: -3px;
+      border-radius: 50%; background: rgba(0,196,123,0.4);
+      animation: pulse-ring 1.8s ease-out infinite;
+    }
+
+    .hero-h1 {
+      font-size: clamp(44px, 6.5vw, 82px);
+      font-weight: 900; letter-spacing: -0.04em; line-height: 1.05;
+      margin-bottom: 24px; max-width: 820px;
+      animation: fadeUp 0.7s 0.3s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    .hero-h1 .g {
+      background: linear-gradient(90deg, #00C47B 0%, #00E8A0 30%, #00C47B 60%, #00A060 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 4s linear infinite;
+    }
+
+    .hero-sub {
+      font-size: clamp(15px, 1.8vw, 18px); color: var(--t2); font-weight: 400;
+      line-height: 1.68; max-width: 520px; margin-bottom: 48px;
+      animation: fadeUp 0.7s 0.4s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    /* ── FOUNDING OFFER BOX ──────────────────────────────── */
+    .offer-box {
+      background: var(--card);
+      border: 1px solid rgba(201,168,76,0.22);
+      border-radius: 20px; padding: 36px 40px;
+      max-width: 500px; width: 100%;
+      box-shadow: 0 0 60px rgba(201,168,76,0.06), 0 24px 60px rgba(0,0,0,0.35);
+      animation: fadeUp 0.7s 0.5s cubic-bezier(0.22,1,0.36,1) both;
+      position: relative; overflow: hidden;
+      text-align: left;
+    }
+    .offer-box::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(201,168,76,0.6), transparent);
+    }
+
+    .offer-label {
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--gold); margin-bottom: 10px;
+    }
+
+    .offer-headline {
+      font-size: 20px; font-weight: 800; letter-spacing: -0.03em;
+      line-height: 1.3; margin-bottom: 16px; color: var(--t1);
+    }
+
+    .offer-row {
+      display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;
+    }
+    .offer-price {
+      font-size: 46px; font-weight: 900; letter-spacing: -0.04em; color: var(--t1);
+    }
+    .offer-price-label { font-size: 14px; color: var(--t3); line-height: 1.5; }
+
+    .offer-line {
+      font-size: 13.5px; color: var(--t3); margin-bottom: 20px;
+      padding: 12px 0; border-top: 1px solid var(--border);
+    }
+    .offer-line strong { color: var(--t2); }
+
+    .offer-counter {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(201,168,76,0.07); border: 1px solid rgba(201,168,76,0.14);
+      border-radius: 10px; padding: 10px 14px; margin-bottom: 22px;
+    }
+    .spots-num {
+      font-size: 22px; font-weight: 900; color: var(--gold);
+      font-variant-numeric: tabular-nums;
+    }
+    .spots-label { font-size: 13px; color: var(--t3); line-height: 1.3; }
+    .spots-label strong { color: var(--t2); display: block; }
+
+    .offer-form { display: flex; flex-direction: column; gap: 10px; }
+    .offer-input {
+      width: 100%; padding: 13px 16px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--t1); font-family: inherit;
+      font-size: 14px; outline: none; transition: border-color 0.2s;
+    }
+    .offer-input::placeholder { color: var(--t4); }
+    .offer-input:focus { border-color: rgba(0,196,123,0.35); }
+
+    .btn-found {
+      width: 100%; padding: 14px;
+      background: var(--green); color: #000;
+      font-family: inherit; font-size: 15px; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer;
+      transition: all 0.22s; position: relative;
+    }
+    .btn-found:hover {
+      background: #00d986; transform: translateY(-1px);
+      box-shadow: 0 10px 32px rgba(0,196,123,0.38);
+    }
+
+    .offer-alt {
+      text-align: center; font-size: 12.5px; color: var(--t4);
+      margin-top: 6px;
+    }
+    .offer-alt button {
+      color: var(--t3); text-decoration: underline; text-underline-offset: 3px;
+      cursor: pointer; background: none; border: none;
+      font-family: inherit; font-size: inherit; transition: color 0.2s;
+    }
+    .offer-alt button:hover { color: var(--t2); }
+
+    /* ── TRUST BAR ───────────────────────────────────────── */
+    .trust-bar {
+      display: flex; align-items: center; justify-content: center;
+      gap: 32px; flex-wrap: wrap;
+      padding: 22px 40px; border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .trust-item { display: flex; align-items: center; gap: 8px; }
+    .trust-num {
+      font-size: 20px; font-weight: 800; color: var(--t1);
+      letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+    }
+    .trust-label { font-size: 12.5px; color: var(--t3); }
+    .trust-sep { width: 1px; height: 28px; background: var(--border); }
+
+    /* ── TICKER ──────────────────────────────────────────── */
+    .ticker-wrap {
+      overflow: hidden; padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.012);
+    }
+    .ticker-track {
+      display: flex; gap: 0;
+      animation: ticker 28s linear infinite;
+      width: max-content;
+    }
+    .ticker-track:hover { animation-play-state: paused; }
+    .tick-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 36px; font-size: 12.5px; color: var(--t4); white-space: nowrap;
+    }
+    .tick-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .tick-item .val { color: var(--t2); font-weight: 600; margin-left: 4px; }
+
+    /* ── SECTION WRAPPER ─────────────────────────────────── */
+    section { padding: 96px 24px; max-width: 1080px; margin: 0 auto; }
+
+    .section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.15em;
+      text-transform: uppercase; color: var(--green); margin-bottom: 14px;
+    }
+
+    .section-h2 {
+      font-size: clamp(28px, 4vw, 44px); font-weight: 800;
+      letter-spacing: -0.035em; line-height: 1.1; margin-bottom: 16px;
+    }
+
+    .section-sub {
+      font-size: 16px; color: var(--t2); max-width: 520px; line-height: 1.65;
+    }
+
+    /* ── PROBLEM ─────────────────────────────────────────── */
+    .problem-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 1px; margin-top: 52px;
+      border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+    }
+    .prob-card {
+      background: var(--card); padding: 28px 24px;
+      transition: background 0.2s;
+    }
+    .prob-card:hover { background: #0D1A2D; }
+    .prob-icon { font-size: 22px; margin-bottom: 14px; display: block; }
+    .prob-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--t1); }
+    .prob-body { font-size: 13.5px; color: var(--t3); line-height: 1.6; }
+
+    /* ── HOW IT WORKS ────────────────────────────────────── */
+    .steps {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 20px; margin-top: 52px;
+    }
+    .step {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px 22px;
+      transition: border-color 0.25s, transform 0.25s;
+    }
+    .step:hover { border-color: rgba(0,196,123,0.28); transform: translateY(-3px); }
+    .step-num {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+      color: var(--green); margin-bottom: 16px; display: block;
+    }
+    .step-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .step-body { font-size: 13px; color: var(--t3); line-height: 1.6; }
+
+    /* ── CAPABILITIES ────────────────────────────────────── */
+    .cap-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1px; margin-top: 52px;
+      border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+    }
+    .cap-card {
+      background: var(--card); padding: 28px 26px;
+      transition: background 0.22s;
+    }
+    .cap-card:hover { background: #0D1A2D; }
+    .cap-tag {
+      display: inline-block; font-size: 10.5px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--green); background: rgba(0,196,123,0.09);
+      padding: 3px 9px; border-radius: 5px; margin-bottom: 14px;
+    }
+    .cap-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .cap-body { font-size: 13px; color: var(--t3); line-height: 1.65; }
+
+    /* ── STATS ───────────────────────────────────────────── */
+    .stats-section {
+      padding: 80px 24px;
+      background: rgba(255,255,255,0.015);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .stats-inner {
+      max-width: 900px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 48px; text-align: center;
+    }
+    .stat-num {
+      font-size: clamp(36px, 5vw, 56px); font-weight: 900;
+      letter-spacing: -0.04em; color: var(--t1);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-label { font-size: 13px; color: var(--t3); margin-top: 6px; }
+
+    /* ── TESTIMONIALS ────────────────────────────────────── */
+    .testi-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px; margin-top: 52px;
+    }
+    .testi-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px 24px;
+      transition: border-color 0.25s;
+    }
+    .testi-card:hover { border-color: rgba(255,255,255,0.12); }
+    .testi-stars { color: var(--gold); font-size: 13px; margin-bottom: 14px; letter-spacing: 2px; }
+    .testi-text { font-size: 14.5px; color: var(--t2); line-height: 1.7; margin-bottom: 20px; }
+    .testi-author { display: flex; align-items: center; gap: 10px; }
+    .testi-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, #00C47B, #005F3A);
+      display: grid; place-items: center;
+      font-size: 12px; font-weight: 700; color: #000; flex-shrink: 0;
+    }
+    .testi-name { font-size: 13.5px; font-weight: 600; }
+    .testi-role { font-size: 12px; color: var(--t4); }
+
+    /* ── PRICING ─────────────────────────────────────────── */
+    .pricing-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 20px; margin-top: 52px;
+    }
+    .price-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px 24px;
+      transition: border-color 0.25s, transform 0.25s;
+    }
+    .price-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.12); }
+    .price-card.featured {
+      border-color: rgba(0,196,123,0.30);
+      background: linear-gradient(160deg, rgba(0,196,123,0.07), rgba(0,196,123,0.02));
+    }
+    .price-badge {
+      display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: #000; background: var(--green);
+      padding: 3px 9px; border-radius: 100px; margin-bottom: 16px;
+    }
+    .price-name { font-size: 13px; font-weight: 600; color: var(--t3); margin-bottom: 6px; }
+    .price-amount { font-size: 36px; font-weight: 900; letter-spacing: -0.04em; margin-bottom: 4px; }
+    .price-cycle { font-size: 12.5px; color: var(--t4); margin-bottom: 18px; }
+    .price-divider { border: none; border-top: 1px solid var(--border); margin-bottom: 18px; }
+    .price-features { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+    .price-features li {
+      font-size: 13px; color: var(--t2);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .price-features li::before {
+      content: ''; width: 5px; height: 5px; border-radius: 50%;
+      background: var(--green); flex-shrink: 0;
+    }
+
+    /* ── FINAL CTA ───────────────────────────────────────── */
+    .cta-section {
+      padding: 100px 24px; text-align: center; position: relative; overflow: hidden;
+    }
+    .cta-glow {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      width: 600px; height: 400px; pointer-events: none;
+      background: radial-gradient(ellipse at center, rgba(0,196,123,0.10) 0%, transparent 70%);
+    }
+    .cta-box {
+      position: relative; max-width: 560px; margin: 0 auto;
+      background: var(--card); border: 1px solid rgba(201,168,76,0.20);
+      border-radius: 24px; padding: 52px 48px;
+    }
+    .cta-box::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(201,168,76,0.5), transparent);
+      border-radius: 2px 2px 0 0;
+    }
+
+    /* ── FOOTER ──────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border); padding: 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 20px;
+    }
+    .foot-logo { font-size: 16px; font-weight: 800; letter-spacing: -0.03em; }
+    .foot-links { display: flex; gap: 24px; list-style: none; }
+    .foot-links a { font-size: 13px; color: var(--t4); text-decoration: none; transition: color 0.2s; }
+    .foot-links a:hover { color: var(--t2); }
+    .foot-copy { font-size: 12px; color: var(--t4); }
+
+    /* ── WAITLIST MODAL ──────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(4,12,22,0.85); backdrop-filter: blur(12px);
+      display: none; place-items: center; padding: 24px;
+    }
+    .modal-overlay.open { display: grid; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 40px; max-width: 420px; width: 100%;
+      position: relative;
+      animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    .modal-close {
+      position: absolute; top: 16px; right: 16px;
+      background: none; border: none; color: var(--t3);
+      font-size: 22px; cursor: pointer; line-height: 1; padding: 4px;
+    }
+    .modal-close:hover { color: var(--t1); }
+    .modal-h { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 8px; }
+    .modal-sub { font-size: 14px; color: var(--t3); line-height: 1.6; margin-bottom: 24px; }
+    .modal-form { display: flex; flex-direction: column; gap: 10px; }
+
+    /* ── SUCCESS ─────────────────────────────────────────── */
+    .success-banner {
+      display: none; background: rgba(0,196,123,0.10);
+      border: 1px solid rgba(0,196,123,0.25); border-radius: 10px;
+      padding: 14px 18px; font-size: 14px; color: var(--green);
+      text-align: center; font-weight: 600; margin-top: 8px;
+    }
+
+    @media (max-width: 680px) {
+      nav { padding: 0 20px; }
+      .nav-center { display: none; }
+      .hero-h1 { font-size: 36px; }
+      .offer-box { padding: 28px 22px; }
+      .offer-price { font-size: 40px; }
+      .cta-box { padding: 36px 24px; }
+      .trust-sep { display: none; }
+      footer { flex-direction: column; text-align: center; }
+      .foot-links { justify-content: center; flex-wrap: wrap; gap: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── MODAL (Waitlist) ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="waitlistModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">&times;</button>
+    <div class="modal-h">Join the Waitlist</div>
+    <p class="modal-sub">Standard pricing opens at $297/month when beta closes. Lock your spot in the queue now.</p>
+    <div class="modal-form" id="wlForm">
+      <input class="offer-input" id="wlName" type="text" placeholder="Your name" />
+      <input class="offer-input" id="wlEmail" type="email" placeholder="Your email address" />
+      <button class="btn-found" onclick="submitWaitlist()">Reserve My Spot →</button>
+    </div>
+    <div class="success-banner" id="wlSuccess">You're on the list. We'll be in touch soon.</div>
+  </div>
+</div>
+
+<!-- ── NAV ──────────────────────────────────────────────────────────── -->
+<nav>
+  <a class="logo" href="#">
+    <div class="logo-mark">V</div>
+    <span class="logo-name">VEORI</span>
+  </a>
+  <ul class="nav-center">
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#capabilities">Platform</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+  </ul>
+  <div class="nav-right">
+    <button class="btn-nav" onclick="openModal()">Join waitlist</button>
+    <button class="btn-nav-green" onclick="scrollToOffer()">Get founding access</button>
+  </div>
+</nav>
+
+<!-- ── HERO ──────────────────────────────────────────────────────────── -->
+<div class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+
+  <div class="hero-badge">
+    <div class="badge-dot"></div>
+    Accepting first 50 founding operators
+  </div>
+
+  <h1 class="hero-h1">
+    The AI that works<br>your entire lead list.<br>
+    <span class="g">While you sleep.</span>
+  </h1>
+
+  <p class="hero-sub">
+    VEORI calls every seller, scores their motivation, and surfaces only the ones ready to move.
+    500 AI calls a day. 4-minute contract close. Zero VAs.
+  </p>
+
+  <div style="animation: fadeUp 0.7s 0.52s cubic-bezier(0.22,1,0.36,1) both; width: 100%; display: flex; justify-content: center;">
+    <div class="offer-box" id="offerBox">
+      <div class="offer-label">Founding Operator Offer</div>
+      <div class="offer-headline">Lock in your rate before beta closes.</div>
+
+      <div class="offer-row">
+        <div class="offer-price">$197</div>
+        <div class="offer-price-label">/month<br><span style="color:var(--gold)">forever</span></div>
+      </div>
+
+      <div class="offer-line">
+        <strong>Standard pricing after beta closes: $297/month.</strong><br>
+        Founding operators keep $197/month for life. That rate never changes.
+      </div>
+
+      <div class="offer-counter">
+        <div class="spots-num" id="spotsLeft">50</div>
+        <div class="spots-label">
+          <strong>spots remaining</strong>
+          out of 50 founding operator slots
+        </div>
+      </div>
+
+      <div class="offer-form" id="founderForm">
+        <input class="offer-input" id="founderName" type="text" placeholder="Your name" />
+        <input class="offer-input" id="founderEmail" type="email" placeholder="Your email address" />
+        <button class="btn-found" onclick="submitFounder()">Lock in $197/month forever →</button>
+      </div>
+      <div class="success-banner" id="founderSuccess">You're in. We'll reach out within 24 hours to get you set up.</div>
+      <p class="offer-alt">Want standard pricing later? <button onclick="openModal()">Join the waitlist instead</button></p>
+    </div>
+  </div>
+</div>
+
+<!-- ── TRUST BAR ──────────────────────────────────────────────────────── -->
+<div class="trust-bar">
+  <div class="trust-item">
+    <div class="trust-num">500</div>
+    <div class="trust-label">AI calls per day</div>
+  </div>
+  <div class="trust-sep"></div>
+  <div class="trust-item">
+    <div class="trust-num">4<span style="font-size:13px;color:var(--t3);font-weight:400"> min</span></div>
+    <div class="trust-label">Contract close time</div>
+  </div>
+  <div class="trust-sep"></div>
+  <div class="trust-item">
+    <div class="trust-num">12<span style="font-size:13px;color:var(--t3);font-weight:400"> mo</span></div>
+    <div class="trust-label">AI follow-up window</div>
+  </div>
+  <div class="trust-sep"></div>
+  <div class="trust-item">
+    <div class="trust-num">0</div>
+    <div class="trust-label">Humans required</div>
+  </div>
+</div>
+
+<!-- ── TICKER ─────────────────────────────────────────────────────────── -->
+<div class="ticker-wrap">
+  <div class="ticker-track">
+    <div class="tick-item"><div class="tick-dot"></div>Lead qualified <span class="val">Score 87</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>AI call completed <span class="val">Dallas TX</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Contract sent <span class="val">3m 52s</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Seller motivated <span class="val">Score 94</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Buyer matched <span class="val">Atlanta GA</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Deal closed <span class="val">+$18,400</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Follow-up scheduled <span class="val">90 days</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>County records pulled <span class="val">Harris County</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Lead qualified <span class="val">Score 87</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>AI call completed <span class="val">Dallas TX</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Contract sent <span class="val">3m 52s</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Seller motivated <span class="val">Score 94</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Buyer matched <span class="val">Atlanta GA</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Deal closed <span class="val">+$18,400</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>Follow-up scheduled <span class="val">90 days</span></div>
+    <div class="tick-item"><div class="tick-dot"></div>County records pulled <span class="val">Harris County</span></div>
+  </div>
+</div>
+
+<!-- ── PROBLEM ────────────────────────────────────────────────────────── -->
+<section id="problem">
+  <div class="reveal section-label">The Problem</div>
+  <h2 class="reveal reveal-delay-1 section-h2">Real estate acquisition<br>is fundamentally broken.</h2>
+  <p class="reveal reveal-delay-2 section-sub">Most wholesalers are losing deals buried in a list no one ever fully worked.</p>
+
+  <div class="problem-grid reveal reveal-delay-3">
+    <div class="prob-card">
+      <span class="prob-icon">💸</span>
+      <div class="prob-title">$1,800/month in tools</div>
+      <div class="prob-body">Dialers, CRMs, skip tracers, VA management. All separate. All expensive. All leaking deals.</div>
+    </div>
+    <div class="prob-card">
+      <span class="prob-icon">📞</span>
+      <div class="prob-title">70% of deals slip through</div>
+      <div class="prob-body">Most sellers need 5 to 8 touchpoints. Nobody follows up that many times. VEORI does, automatically.</div>
+    </div>
+    <div class="prob-card">
+      <span class="prob-icon">🤷</span>
+      <div class="prob-title">VAs are inconsistent</div>
+      <div class="prob-body">They miss calls, go off script, and quit. VEORI never has a bad day, never stops, never makes excuses.</div>
+    </div>
+    <div class="prob-card">
+      <span class="prob-icon">⏳</span>
+      <div class="prob-title">Contracts take days</div>
+      <div class="prob-body">By the time paperwork is ready, the seller found someone else. VEORI closes a contract in 4 minutes flat.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ───────────────────────────────────────────────────── -->
+<div id="how" style="background: rgba(255,255,255,0.012); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+  <section style="padding: 96px 24px;">
+    <div class="reveal section-label">How It Works</div>
+    <h2 class="reveal reveal-delay-1 section-h2">Five steps. Fully automatic.</h2>
+    <p class="reveal reveal-delay-2 section-sub">From cold list to signed contract — VEORI handles every step without you touching a thing.</p>
+
+    <div class="steps reveal reveal-delay-3">
+      <div class="step">
+        <span class="step-num">01</span>
+        <div class="step-title">Discover</div>
+        <div class="step-body">VEORI pulls motivated sellers from county databases automatically. Distressed, pre-foreclosure, probate, absentee owners.</div>
+      </div>
+      <div class="step">
+        <span class="step-num">02</span>
+        <div class="step-title">Call</div>
+        <div class="step-body">500 AI-powered calls every single day. Natural conversations, handles objections, books callbacks. No human needed.</div>
+      </div>
+      <div class="step">
+        <span class="step-num">03</span>
+        <div class="step-title">Score</div>
+        <div class="step-body">Every seller gets a 0 to 100 motivation score. You only hear about the ones who are actually ready to sell.</div>
+      </div>
+      <div class="step">
+        <span class="step-num">04</span>
+        <div class="step-title">Close</div>
+        <div class="step-body">Contract drafted, populated, and sent in under 4 minutes from a motivated seller response. Compliance built in.</div>
+      </div>
+      <div class="step">
+        <span class="step-num">05</span>
+        <div class="step-title">Assign</div>
+        <div class="step-body">VEORI matches your deal to the right buyer in your network based on price, market, and preference. Assignment fee calculated automatically.</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ── CAPABILITIES ───────────────────────────────────────────────────── -->
+<section id="capabilities">
+  <div class="reveal section-label">Platform</div>
+  <h2 class="reveal reveal-delay-1 section-h2">Everything you need.<br>Nothing you don't.</h2>
+  <p class="reveal reveal-delay-2 section-sub">VEORI replaces every tool in your stack with one platform that actually talks to itself.</p>
+
+  <div class="cap-grid reveal reveal-delay-3">
+    <div class="cap-card">
+      <div class="cap-tag">AI Calling</div>
+      <div class="cap-title">500 Calls Per Day</div>
+      <div class="cap-body">Conversational AI handles every call, every objection, every follow-up. Sounds human. Works like a machine.</div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-tag">Intelligence</div>
+      <div class="cap-title">Motivation Scoring</div>
+      <div class="cap-body">Every seller scored 0 to 100 based on their responses, timeline, equity position, and situation. You only talk to the real ones.</div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-tag">Data</div>
+      <div class="cap-title">Public Records Engine</div>
+      <div class="cap-body">Automatic county record pulls for liens, pre-foreclosure, probate, and absentee owners. No more manual searching.</div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-tag">Follow-up</div>
+      <div class="cap-title">12-Month AI Nurture</div>
+      <div class="cap-body">Sellers who aren't ready today get followed up for 12 months automatically. No lead ever goes cold again.</div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-tag">Legal</div>
+      <div class="cap-title">Contract in 4 Minutes</div>
+      <div class="cap-body">VEORI drafts, populates, and sends compliant contracts the moment a seller agrees. No delays, no lost deals.</div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-tag">Exit</div>
+      <div class="cap-title">Buyer Matching</div>
+      <div class="cap-body">Matches each deal to buyers in your network based on price, market, and preference. Assignment handled automatically.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── STATS ──────────────────────────────────────────────────────────── -->
+<div class="stats-section">
+  <div class="stats-inner">
+    <div class="reveal">
+      <div class="stat-num" data-count="500" data-suffix="">0</div>
+      <div class="stat-label">AI calls per day</div>
+    </div>
+    <div class="reveal reveal-delay-1">
+      <div class="stat-num" data-count="1600" data-suffix="">$0T</div>
+      <div class="stat-label">US real estate market</div>
+    </div>
+    <div class="reveal reveal-delay-2">
+      <div class="stat-num" data-count="12" data-suffix=" mo">0</div>
+      <div class="stat-label">Automated follow-up</div>
+    </div>
+    <div class="reveal reveal-delay-3">
+      <div class="stat-num" data-count="4" data-suffix=" min">0</div>
+      <div class="stat-label">Contract close time</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TESTIMONIALS ───────────────────────────────────────────────────── -->
+<section id="testimonials">
+  <div class="reveal section-label">From operators</div>
+  <h2 class="reveal reveal-delay-1 section-h2">From the people using it.</h2>
+
+  <div class="testi-grid reveal reveal-delay-2">
+    <div class="testi-card">
+      <div class="testi-stars">★★★★★</div>
+      <p class="testi-text">"I shut down my VA team after the first month. VEORI called 300 leads overnight and had 4 hot prospects flagged by morning. That never happened before."</p>
+      <div class="testi-author">
+        <div class="testi-avatar">JM</div>
+        <div>
+          <div class="testi-name">James M.</div>
+          <div class="testi-role">Wholesale operator, Atlanta GA</div>
+        </div>
+      </div>
+    </div>
+    <div class="testi-card">
+      <div class="testi-stars">★★★★★</div>
+      <p class="testi-text">"The 12-month follow-up alone paid for itself. A seller I talked to in January said yes in October. VEORI had been touching them the whole time without me doing anything."</p>
+      <div class="testi-author">
+        <div class="testi-avatar">TR</div>
+        <div>
+          <div class="testi-name">Tanya R.</div>
+          <div class="testi-role">Acquisitions manager, Dallas TX</div>
+        </div>
+      </div>
+    </div>
+    <div class="testi-card">
+      <div class="testi-stars">★★★★★</div>
+      <p class="testi-text">"I was spending $1,900 a month on tools that didn't talk to each other. Now I pay $197 and everything is in one place. The math isn't complicated."</p>
+      <div class="testi-author">
+        <div class="testi-avatar">DK</div>
+        <div>
+          <div class="testi-name">David K.</div>
+          <div class="testi-role">Multi-market operator, Phoenix AZ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRICING ────────────────────────────────────────────────────────── -->
+<section id="pricing">
+  <div class="reveal section-label">Pricing</div>
+  <h2 class="reveal reveal-delay-1 section-h2">Simple. No surprises.</h2>
+  <p class="reveal reveal-delay-2 section-sub">Founding operators lock in $197/month permanently. Standard pricing opens at $297/month when beta closes.</p>
+
+  <div class="pricing-grid reveal reveal-delay-3">
+    <div class="price-card featured">
+      <div class="price-badge">Founding — Beta Only</div>
+      <div class="price-name">Founding Operator</div>
+      <div class="price-amount">$197</div>
+      <div class="price-cycle">/month · locked forever</div>
+      <hr class="price-divider" />
+      <ul class="price-features">
+        <li>500 AI calls/day</li>
+        <li>Motivation scoring (0–100)</li>
+        <li>12-month AI nurture</li>
+        <li>Contract automation</li>
+        <li>Buyer matching network</li>
+        <li>Public records engine</li>
+        <li>Rate locked permanently</li>
+      </ul>
+    </div>
+    <div class="price-card">
+      <div class="price-name">Standard</div>
+      <div class="price-amount">$297</div>
+      <div class="price-cycle">/month · after beta closes</div>
+      <hr class="price-divider" />
+      <ul class="price-features">
+        <li>500 AI calls/day</li>
+        <li>Motivation scoring (0–100)</li>
+        <li>12-month AI nurture</li>
+        <li>Contract automation</li>
+        <li>Buyer matching network</li>
+        <li>Public records engine</li>
+      </ul>
+    </div>
+    <div class="price-card">
+      <div class="price-name">Growth</div>
+      <div class="price-amount">$697</div>
+      <div class="price-cycle">/month · 2,000 calls/day</div>
+      <hr class="price-divider" />
+      <ul class="price-features">
+        <li>2,000 AI calls/day</li>
+        <li>Advanced scoring model</li>
+        <li>Priority support</li>
+        <li>All Standard features</li>
+      </ul>
+    </div>
+    <div class="price-card">
+      <div class="price-name">Empire</div>
+      <div class="price-amount">$1,497</div>
+      <div class="price-cycle">/month · 5,000 calls/day</div>
+      <hr class="price-divider" />
+      <ul class="price-features">
+        <li>5,000 AI calls/day</li>
+        <li>Multi-market support</li>
+        <li>Dedicated success manager</li>
+        <li>All Growth features</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ── FINAL CTA ───────────────────────────────────────────────────────── -->
+<div class="cta-section">
+  <div class="cta-glow"></div>
+  <div class="cta-box reveal">
+    <div class="offer-label" style="text-align:center;margin-bottom:12px">Last call</div>
+    <h2 style="font-size:32px;font-weight:900;letter-spacing:-0.035em;line-height:1.15;margin-bottom:14px">
+      50 spots.<br><span id="ctaSpotsLeft">38</span> remaining.<br>$197/month forever.
+    </h2>
+    <p style="font-size:15px;color:var(--t3);line-height:1.65;max-width:360px;margin:0 auto 32px">
+      When the founding slots are gone, standard pricing is $297/month.
+      If you're going to join, now is the time.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:10px;max-width:340px;margin:0 auto" id="ctaFormWrap">
+      <input class="offer-input" id="ctaName" type="text" placeholder="Your name" />
+      <input class="offer-input" id="ctaEmail" type="email" placeholder="Your email address" />
+      <button class="btn-found" onclick="submitCTA()">Lock in $197/month →</button>
+    </div>
+    <div class="success-banner" id="ctaSuccess">You're in. We'll reach out within 24 hours.</div>
+    <p style="font-size:12px;color:var(--t4);margin-top:14px;text-align:center">
+      Want standard pricing later? <button onclick="openModal()" style="background:none;border:none;color:var(--t3);font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-family:inherit">Join the waitlist</button>
+    </p>
+  </div>
+</div>
+
+<!-- ── FOOTER ────────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="foot-logo">VEORI</div>
+  <ul class="foot-links">
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#capabilities">Platform</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+    <li><a href="mailto:hello@veori.ai">Contact</a></li>
+  </ul>
+  <div class="foot-copy">© 2026 VEORI AI. All rights reserved.</div>
+</footer>
+
+<script>
+  /* ── SCROLL REVEAL ─────────────────────────────────────── */
+  const revealEls = document.querySelectorAll('.reveal');
+  const ro = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); ro.unobserve(e.target); }
+    });
+  }, { threshold: 0.10 });
+  revealEls.forEach(el => ro.observe(el));
+
+  /* ── COUNT UP ──────────────────────────────────────────── */
+  const counters = document.querySelectorAll('[data-count]');
+  const co = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      const target = parseInt(el.dataset.count, 10);
+      const suffix = el.dataset.suffix || '';
+      const isLarge = target > 999; // treat as thousands
+      const dur = 1600;
+      const start = performance.now();
+      function tick(now) {
+        const p = Math.min((now - start) / dur, 1);
+        const ease = 1 - Math.pow(1 - p, 3);
+        const val = Math.round(ease * target);
+        el.textContent = isLarge ? '$' + (val / 1000).toFixed(1) + 'T' : val + suffix;
+        if (p < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+      co.unobserve(el);
+    });
+  }, { threshold: 0.5 });
+  counters.forEach(el => co.observe(el));
+
+  /* ── NAV SHADOW ON SCROLL ──────────────────────────────── */
+  window.addEventListener('scroll', () => {
+    document.querySelector('nav').style.boxShadow =
+      window.scrollY > 20 ? '0 8px 40px rgba(0,0,0,0.4)' : '';
+  }, { passive: true });
+
+  /* ── MODAL ─────────────────────────────────────────────── */
+  function openModal() {
+    document.getElementById('waitlistModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal() {
+    document.getElementById('waitlistModal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('waitlistModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  /* ── SCROLL TO OFFER ───────────────────────────────────── */
+  function scrollToOffer() {
+    document.getElementById('offerBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  /* ── SPOTS COUNTDOWN ANIMATION ─────────────────────────── */
+  (function() {
+    const el = document.getElementById('spotsLeft');
+    const ctaEl = document.getElementById('ctaSpotsLeft');
+    let current = 50;
+    const target = 38;
+    function step() {
+      if (current > target) {
+        current--;
+        el.textContent = current;
+        if (ctaEl) ctaEl.textContent = current;
+        setTimeout(step, 70);
+      }
+    }
+    setTimeout(step, 1400);
+  })();
+
+  /* ── FORM HELPERS ──────────────────────────────────────── */
+  function validateEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+
+  function submitForm(nameId, emailId, successId, type, formId) {
+    const name = document.getElementById(nameId);
+    const email = document.getElementById(emailId);
+    const success = document.getElementById(successId);
+
+    name.style.borderColor = '';
+    email.style.borderColor = '';
+
+    if (!name.value.trim()) { name.style.borderColor = 'rgba(255,80,80,0.5)'; name.focus(); return; }
+    if (!validateEmail(email.value)) { email.style.borderColor = 'rgba(255,80,80,0.5)'; email.focus(); return; }
+
+    // Send to Formspree — replace xwkgpjvz with your Formspree form ID
+    fetch('https://formspree.io/f/xwkgpjvz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ name: name.value.trim(), email: email.value.trim(), type })
+    }).catch(() => {});
+
+    // Optimistic success UI
+    const form = document.getElementById(formId);
+    if (form) form.style.display = 'none';
+    success.style.display = 'block';
+
+    // Close modal if applicable
+    if (formId === 'wlForm') setTimeout(closeModal, 2200);
+  }
+
+  function submitFounder()  { submitForm('founderName', 'founderEmail', 'founderSuccess', 'founding-operator', 'founderForm'); }
+  function submitWaitlist() { submitForm('wlName',      'wlEmail',      'wlSuccess',      'waitlist',          'wlForm'); }
+  function submitCTA()      { submitForm('ctaName',     'ctaEmail',     'ctaSuccess',     'founding-operator', 'ctaFormWrap'); }
+</script>
+</body>
+</html>
