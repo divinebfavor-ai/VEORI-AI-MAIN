@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-bg:        #060E1A;
+  --color-surface:   #0A1526;
+  --color-surface2:  #0F1E33;
+  --color-green:     #00C47B;
+  --color-gold:      #C9A84C;
+  --color-t1:        #FFFFFF;
+  --color-t2:        rgba(255,255,255,0.78);
+  --color-t3:        rgba(255,255,255,0.48);
+  --color-t4:        rgba(255,255,255,0.26);
+  --font-sans: 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+body { background: #060E1A; color: #fff; font-family: 'Inter', -apple-system, sans-serif; overflow-x: hidden; }
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: #060E1A; }
+::-webkit-scrollbar-thumb { background: rgba(0,196,123,0.35); border-radius: 2px; }
+
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(0,196,123,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,196,123,0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+.text-shimmer {
+  background: linear-gradient(90deg, #00C47B 0%, #00E8A0 30%, #C9A84C 55%, #00C47B 80%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 5s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes glow-breathe {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 0.85; }
+}
+
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-track { animation: ticker 32s linear infinite; }
+.ticker-track:hover { animation-play-state: paused; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-7px); }
+}
+
+@keyframes line-draw {
+  from { scaleY: 0; }
+  to   { scaleY: 1; }
+}
