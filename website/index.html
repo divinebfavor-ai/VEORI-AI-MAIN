@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VEORI AI — The Operating System for Real Estate Acquisition</title>
+  <title>VEORI AI: The Operating System for Real Estate Acquisition</title>
   <meta name="description" content="VEORI AI makes 500 calls a day, qualifies every seller, scores their motivation, and closes contracts in 4 minutes. Founding operators lock in $197/month forever." />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2300C47B'/%3E%3Ctext x='16' y='24' font-family='Inter,system-ui,sans-serif' font-size='22' font-weight='900' fill='%23000' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&display=swap" rel="stylesheet" />
@@ -91,15 +92,10 @@
       display: flex; align-items: center; gap: 9px; text-decoration: none;
     }
     .logo-mark {
-      width: 32px; height: 32px; border-radius: 8px;
-      background: linear-gradient(135deg, #00C47B 0%, #008F59 100%);
-      display: grid; place-items: center;
-      font-size: 14px; font-weight: 900; color: #000;
-      box-shadow: 0 0 18px rgba(0,196,123,0.4);
-      flex-shrink: 0;
+      width: 34px; height: 34px; flex-shrink: 0;
     }
     .logo-name {
-      font-size: 17px; font-weight: 800; letter-spacing: -0.03em; color: var(--t1);
+      font-size: 18px; font-weight: 900; letter-spacing: -0.04em; color: var(--t1);
     }
 
     .nav-center {
@@ -559,7 +555,20 @@
 <!-- ── NAV ──────────────────────────────────────────────────────────── -->
 <nav>
   <a class="logo" href="#">
-    <div class="logo-mark">V</div>
+    <svg class="logo-mark" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="34" height="34" rx="9" fill="url(#lg)"/>
+      <text x="17" y="25" font-family="Inter,system-ui,sans-serif" font-size="18" font-weight="900" fill="#000" text-anchor="middle">V</text>
+      <defs>
+        <linearGradient id="lg" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#00E090"/>
+          <stop offset="100%" stop-color="#009E61"/>
+        </linearGradient>
+      </defs>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </svg>
     <span class="logo-name">VEORI</span>
   </a>
   <ul class="nav-center">
@@ -568,7 +577,7 @@
     <li><a href="#pricing">Pricing</a></li>
   </ul>
   <div class="nav-right">
-    <button class="btn-nav" onclick="openModal()">Join waitlist</button>
+    <a class="btn-nav" data-app-link="/login" href="#">Log in</a>
     <button class="btn-nav-green" onclick="scrollToOffer()">Get founding access</button>
   </div>
 </nav>
@@ -621,7 +630,7 @@
         <li style="font-size:13px;color:var(--t2);display:flex;align-items:center;gap:8px;"><span style="color:var(--green);">✓</span> Voice AI calling (natural conversation)</li>
         <li style="font-size:13px;color:var(--t2);display:flex;align-items:center;gap:8px;"><span style="color:var(--green);">✓</span> Real-time motivation scoring (0–100)</li>
         <li style="font-size:13px;color:var(--t2);display:flex;align-items:center;gap:8px;"><span style="color:var(--green);">✓</span> Automated offers</li>
-        <li style="font-size:13px;color:var(--t2);display:flex;align-items:center;gap:8px;"><span style="color:var(--green);">✓</span> Live dashboard — 24/7</li>
+        <li style="font-size:13px;color:var(--t2);display:flex;align-items:center;gap:8px;"><span style="color:var(--green);">✓</span> Live dashboard, 24/7</li>
         <li style="font-size:13px;color:var(--gold);display:flex;align-items:center;gap:8px;"><span>★</span> Every future feature, free forever</li>
       </ul>
 
@@ -756,7 +765,7 @@
   <section style="padding: 96px 24px;">
     <div class="reveal section-label">How It Works</div>
     <h2 class="reveal reveal-delay-1 section-h2">You pay today.<br>Leads get called tonight.</h2>
-    <p class="reveal reveal-delay-2 section-sub">Five steps from signup to your first scored lead — most of it happens automatically.</p>
+    <p class="reveal reveal-delay-2 section-sub">Five steps from signup to your first scored lead. Most of it happens automatically.</p>
 
     <div class="steps reveal reveal-delay-3">
       <div class="step">
@@ -767,7 +776,7 @@
       <div class="step">
         <span class="step-num">Step 02</span>
         <div class="step-title">Account activates</div>
-        <div class="step-body">Your VEORI account goes live within 48 hours. You'll get login credentials and a quick setup walkthrough.</div>
+        <div class="step-body">Your VEORI account goes live within 48 hours. You create your own login and get set up inside the platform.</div>
       </div>
       <div class="step">
         <span class="step-num">Step 03</span>
@@ -792,7 +801,7 @@
 <section id="capabilities">
   <div class="reveal section-label">What You Get Today</div>
   <h2 class="reveal reveal-delay-1 section-h2">Live. Working. Ready<br>to call your list tonight.</h2>
-  <p class="reveal reveal-delay-2 section-sub">These are the features available to founding operators right now. More are coming — all included at no extra cost.</p>
+  <p class="reveal reveal-delay-2 section-sub">These are the features available to founding operators right now. More are comingall included at no extra cost.</p>
 
   <div class="cap-grid reveal reveal-delay-3">
     <div class="cap-card">
@@ -828,7 +837,7 @@
     <div class="cap-card" style="border: 1px solid rgba(201,168,76,0.18); background: rgba(201,168,76,0.04);">
       <div class="cap-tag" style="color:var(--gold);background:rgba(201,168,76,0.10)">Coming Soon</div>
       <div class="cap-title">Expired Listing Auto-Contact</div>
-      <div class="cap-body">VEORI detects expired MLS listings and reaches out within 60 minutes — before any other investor gets there.</div>
+      <div class="cap-body">VEORI detects expired MLS listings and reaches out within 60 minutes. Before any other investor gets there.</div>
     </div>
     <div class="cap-card" style="border: 1px solid rgba(201,168,76,0.18); background: rgba(201,168,76,0.04);">
       <div class="cap-tag" style="color:var(--gold);background:rgba(201,168,76,0.10)">Coming Soon</div>
@@ -848,7 +857,7 @@
     <div class="cap-card" style="border: 1px solid rgba(201,168,76,0.18); background: rgba(201,168,76,0.04);">
       <div class="cap-tag" style="color:var(--gold);background:rgba(201,168,76,0.10)">Coming Soon</div>
       <div class="cap-title">Seller Personality Engine</div>
-      <div class="cap-body">AI adapts its communication style per seller — aggressive, motivated, hesitant. The right tone on every call.</div>
+      <div class="cap-body">AI adapts its communication style to each seller. Aggressive, motivated, hesitant. The right tone on every call.</div>
     </div>
   </div>
 
@@ -932,7 +941,7 @@
     <!-- FOUNDING -->
     <div class="price-card featured" style="position:relative;overflow:hidden;">
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,196,123,0.7),transparent);"></div>
-      <div class="price-badge">Founding — Beta Only</div>
+      <div class="price-badge">Founding · Beta Only</div>
       <div class="price-name">Founding Operator</div>
       <div class="price-amount">$197</div>
       <div class="price-cycle">/month · <span style="color:var(--green)">locked forever</span></div>
@@ -1055,6 +1064,7 @@
     <li><a href="#how">How it works</a></li>
     <li><a href="#capabilities">Platform</a></li>
     <li><a href="#pricing">Pricing</a></li>
+    <li><a data-app-link="/login" href="#">Log in</a></li>
     <li><a href="mailto:hello@veori.ai">Contact</a></li>
   </ul>
   <div class="foot-copy">© 2026 VEORI AI. All rights reserved.</div>
@@ -1137,8 +1147,13 @@
   })();
 
   /* ── CONFIG ────────────────────────────────────────────── */
-  // Update this to your Railway backend URL once deployed
-  const API = (window.VEORI_API_URL || 'https://veori-ai-main.up.railway.app') + '/api/billing';
+  const APP_URL = 'https://veori-ai-main.up.railway.app'; // your app login/signup
+  const API     = APP_URL + '/api/billing';
+
+  // Wire up any static "open app" links
+  document.querySelectorAll('[data-app-link]').forEach(el => {
+    el.href = APP_URL + (el.dataset.appLink || '/register');
+  });
 
   /* ── FORM HELPERS ──────────────────────────────────────── */
   function validateEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
