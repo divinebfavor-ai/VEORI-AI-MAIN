@@ -150,7 +150,7 @@ export default function Hero() {
                 onMouseEnter={e => { if (!loading) { e.target.style.background = '#00d986'; e.target.style.transform = 'translateY(-1px)'; e.target.style.boxShadow = '0 12px 36px rgba(0,196,123,0.40)'; }}}
                 onMouseLeave={e => { e.target.style.background = '#00C47B'; e.target.style.transform = ''; e.target.style.boxShadow = ''; }}
               >
-                {loading ? 'Redirecting to checkout...' : `Join Beta — $197/mo Locked Forever →`}
+                {loading ? 'Redirecting to checkout...' : 'Join Beta at $197/mo Locked Forever →'}
               </button>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 12.5, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', display: 'inline-block' }} />

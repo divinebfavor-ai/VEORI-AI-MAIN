@@ -15,7 +15,7 @@ const foundingIncluded = [
   'Full CRM dashboard with recordings',
   '24/7 automated operation',
   'Rate locked permanently',
-  'All future features — no upgrade fees',
+  'All future features, no upgrade fees',
 ]
 
 const otherPlans = [
@@ -324,7 +324,7 @@ export default function Pricing() {
         {/* Other plans grid */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', textAlign: 'center', marginBottom: 20 }}>
-            Other plans — join the waitlist
+            Other plans, join the waitlist
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
             {otherPlans.map((plan, i) => (

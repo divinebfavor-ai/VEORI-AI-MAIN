@@ -71,7 +71,7 @@ const features = [
       </svg>
     ),
     title: '24/7 Operation',
-    body: 'Works while you sleep. No time zones, no weekends off, no sick days. Calls happen around the clock across your full pipeline — sellers, buyers, and title — without you touching it.',
+    body: 'Works while you sleep. No time zones, no weekends off, no sick days. Calls happen around the clock across your full pipeline: sellers, buyers, and title. Without you touching it.',
   },
   {
     icon: (
@@ -82,7 +82,7 @@ const features = [
       </svg>
     ),
     title: 'Full Deal CRM',
-    body: 'Every call recording, motivation score, transcript, photo, contract, and status update lives in one dashboard. Your entire pipeline — from first contact to closing — visible in one place.',
+    body: 'Every call recording, motivation score, transcript, photo, contract, and status update lives in one dashboard. Your entire pipeline from first contact to closing, visible in one place.',
   },
 ]
 
@@ -130,7 +130,7 @@ export default function WhatYouGet() {
             From first call to closed deal.<br />All of it. Automated.
           </h2>
           <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.52)', maxWidth: 560, lineHeight: 1.65, marginBottom: 56 }}>
-            VEORI doesn't just call sellers. It works both sides of every deal — sellers, buyers, agents, and title companies — from first contact to closing.
+            VEORI doesn't just call sellers. It works both sides of every deal: sellers, buyers, agents, and title companies. From first contact to closing.
           </p>
         </motion.div>
 
