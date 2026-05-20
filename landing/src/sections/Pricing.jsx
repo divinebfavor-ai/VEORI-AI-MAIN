@@ -5,21 +5,24 @@ import { useState } from 'react'
 const API_URL = 'https://veori-ai-main.up.railway.app/api/billing'
 
 const included = [
-  '500 AI calls per month',
+  '500 AI calls per month (sellers and buyers)',
   'Real-time motivation scoring (0–100)',
-  '24/7 automated operation',
+  'Automated offer delivery to sellers',
+  'Buyer list calling and qualification',
+  'E-sign and automatic agent delivery',
+  'Title company booking and follow-up',
+  'Property photo requests',
   'Full CRM dashboard with recordings',
-  'Automated offer delivery',
-  'Lead scoring and prioritization',
+  '24/7 automated operation',
   'Rate locked permanently',
   'All future features — no upgrade fees',
 ]
 
 const comingSoon = [
-  'Expired listing auto-contact (60 min)',
-  'Contract generation under 4 minutes',
-  'Buyer matching and deal automation',
-  'Automatic public records lead sourcing',
+  'Automatic lead sourcing from public records',
+  'Expired listing auto-contact within 60 minutes',
+  'AI buyer matching from your criteria',
+  'Multi-market campaign management',
 ]
 
 export default function Pricing() {

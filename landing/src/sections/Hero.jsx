@@ -119,7 +119,7 @@ export default function Hero() {
           transition={{ duration: 0.75, delay: 0.42, ease: [0.22,1,0.36,1] }}
           style={{ fontSize: 'clamp(16px,1.8vw,19px)', color: 'rgba(255,255,255,0.72)', lineHeight: 1.68, maxWidth: 600, margin: '0 auto 48px' }}
         >
-          VEORI calls your leads, qualifies sellers, and makes offers automatically. 24/7. No sick days, no training, no inconsistency.
+          VEORI calls your sellers, qualifies them, makes offers, calls your buyers, sends contracts for e-sign, coordinates your title company, and closes the deal. All automatically. 24/7.
           Beta founding operators lock in <strong style={{ color: '#C9A84C' }}>$197/month forever.</strong>
         </motion.p>
 
@@ -172,11 +172,11 @@ export default function Hero() {
           transition={{ duration: 1, delay: 0.9 }}
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 40, flexWrap: 'wrap', marginTop: 56, padding: '20px 32px', borderRadius: 14, background: 'rgba(10,21,38,0.70)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', maxWidth: 640, margin: '56px auto 0' }}
         >
-          <LiveMetric label="Calls / day" value="500" color="#00C47B" />
+          <LiveMetric label="AI calls / day" value="500" color="#00C47B" />
           <div style={{ width: 1, height: 36, background: 'rgba(255,255,255,0.06)' }} />
-          <LiveMetric label="Contract time" value="4 min" />
+          <LiveMetric label="Seller to e-sign" value="4 min" />
           <div style={{ width: 1, height: 36, background: 'rgba(255,255,255,0.06)' }} />
-          <LiveMetric label="Follow-up window" value="12 mo" />
+          <LiveMetric label="Sides worked" value="Both" color="#C9A84C" />
           <div style={{ width: 1, height: 36, background: 'rgba(255,255,255,0.06)' }} />
           <LiveMetric label="Human required" value="Zero" />
         </motion.div>
