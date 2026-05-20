@@ -26,6 +26,7 @@
     "nodemailer": "^6.10.1",
     "openai": "^6.34.0",
     "resend": "^6.12.2",
+    "stripe": "^22.1.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

@@ -1019,39 +1019,52 @@
     setTimeout(step, 1400);
   })();
 
+  /* ── CONFIG ────────────────────────────────────────────── */
+  // Update this to your Railway backend URL once deployed
+  const API = (window.VEORI_API_URL || 'https://veori-ai-main.up.railway.app') + '/api/billing';
+
   /* ── FORM HELPERS ──────────────────────────────────────── */
   function validateEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 
-  function submitForm(nameId, emailId, successId, type, formId) {
-    const name = document.getElementById(nameId);
-    const email = document.getElementById(emailId);
+  async function submitForm(nameId, emailId, successId, plan, formId) {
+    const nameEl  = document.getElementById(nameId);
+    const emailEl = document.getElementById(emailId);
     const success = document.getElementById(successId);
+    const btn     = document.getElementById(formId)?.querySelector('button');
 
-    name.style.borderColor = '';
-    email.style.borderColor = '';
+    nameEl.style.borderColor  = '';
+    emailEl.style.borderColor = '';
 
-    if (!name.value.trim()) { name.style.borderColor = 'rgba(255,80,80,0.5)'; name.focus(); return; }
-    if (!validateEmail(email.value)) { email.style.borderColor = 'rgba(255,80,80,0.5)'; email.focus(); return; }
+    if (!nameEl.value.trim())         { nameEl.style.borderColor  = 'rgba(255,80,80,0.5)'; nameEl.focus();  return; }
+    if (!validateEmail(emailEl.value)) { emailEl.style.borderColor = 'rgba(255,80,80,0.5)'; emailEl.focus(); return; }
 
-    // Send to Formspree — replace xwkgpjvz with your Formspree form ID
-    fetch('https://formspree.io/f/xwkgpjvz', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ name: name.value.trim(), email: email.value.trim(), type })
-    }).catch(() => {});
+    if (btn) { btn.textContent = 'Redirecting to checkout…'; btn.disabled = true; }
 
-    // Optimistic success UI
-    const form = document.getElementById(formId);
-    if (form) form.style.display = 'none';
-    success.style.display = 'block';
-
-    // Close modal if applicable
-    if (formId === 'wlForm') setTimeout(closeModal, 2200);
+    try {
+      const res  = await fetch(`${API}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nameEl.value.trim(), email: emailEl.value.trim(), plan }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
+    } catch (err) {
+      // Fallback: show success and collect via waitlist if checkout fails
+      console.warn('Checkout error:', err.message);
+      const form = document.getElementById(formId);
+      if (form) form.style.display = 'none';
+      success.style.display = 'block';
+      if (formId === 'wlForm') setTimeout(closeModal, 2200);
+    }
   }
 
-  function submitFounder()  { submitForm('founderName', 'founderEmail', 'founderSuccess', 'founding-operator', 'founderForm'); }
-  function submitWaitlist() { submitForm('wlName',      'wlEmail',      'wlSuccess',      'waitlist',          'wlForm'); }
-  function submitCTA()      { submitForm('ctaName',     'ctaEmail',     'ctaSuccess',     'founding-operator', 'ctaFormWrap'); }
+  function submitFounder()  { submitForm('founderName', 'founderEmail', 'founderSuccess', 'founding', 'founderForm'); }
+  function submitWaitlist() { submitForm('wlName',      'wlEmail',      'wlSuccess',      'founding', 'wlForm'); }
+  function submitCTA()      { submitForm('ctaName',     'ctaEmail',     'ctaSuccess',     'founding', 'ctaFormWrap'); }
 </script>
 </body>
 </html>

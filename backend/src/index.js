@@ -36,12 +36,17 @@ const waitlistRouter         = require('./routes/waitlist');
 const notificationsRouter    = require('./routes/notifications');
 const smsRouter              = require('./routes/sms');
 const wealthRouter           = require('./routes/wealth');
+const billingRouter          = require('./routes/billing');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
 // ─── Security ─────────────────────────────────────────────────────────────────
 app.use(helmet());
+
+// Stripe webhook needs raw body — mount BEFORE express.json()
+app.use('/api/billing/webhook', require('./routes/billing'));
+
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
@@ -110,6 +115,7 @@ app.use('/api/waitlist',        waitlistRouter);
 app.use('/api/notifications',   notificationsRouter);
 app.use('/api/sms',             smsRouter);
 app.use('/api/wealth',          wealthRouter);
+app.use('/api/billing',         billingRouter);
 
 // ─── BullMQ Job Queue (replaces all setInterval business logic) ───────────────
 const { initWorkers } = require('./services/queueService');
