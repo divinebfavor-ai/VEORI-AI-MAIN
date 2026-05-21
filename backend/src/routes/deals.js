@@ -38,22 +38,50 @@ router.get('/:id', async (req, res, next) => {
 // POST /api/deals
 router.post('/', async (req, res, next) => {
   try {
-    const { lead_id, property_address, property_city, property_state, arv, repair_estimate, offer_price } = req.body;
+    const {
+      lead_id, property_address, property_city, property_state, property_zip,
+      arv, repair_estimate, offer_price, status,
+      seller_name, seller_phone, seller_email, seller_primary_tag,
+      estimated_value, estimated_equity,
+    } = req.body;
     const mao = arv && repair_estimate ? (arv * 0.70) - repair_estimate : null;
+
+    // If lead_id provided, pull seller info from lead for auto-fill
+    let sellerInfo = {};
+    if (lead_id) {
+      const { data: lead } = await supabase.from('leads').select('first_name,last_name,phone,email,primary_tag,estimated_value,estimated_equity').eq('id', lead_id).single().catch(() => ({ data: null }));
+      if (lead) {
+        sellerInfo = {
+          seller_name:        seller_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || null,
+          seller_phone:       seller_phone || lead.phone || null,
+          seller_email:       seller_email || lead.email || null,
+          seller_primary_tag: seller_primary_tag || lead.primary_tag || null,
+          estimated_value:    estimated_value || lead.estimated_value || null,
+          estimated_equity:   estimated_equity || lead.estimated_equity || null,
+        };
+      }
+    }
+
     const { data, error } = await supabase.from('deals').insert([{
-      id: uuidv4(), user_id: req.user.id, lead_id, property_address, property_city, property_state,
-      arv, repair_estimate, mao, offer_price, status: 'new'
+      id: uuidv4(), user_id: req.user.id, lead_id,
+      property_address, property_city, property_state, property_zip,
+      arv, repair_estimate, mao, offer_price,
+      status: status || 'new',
+      ...sellerInfo,
     }]).select().single();
     if (error) throw error;
-    await logActivity({
+
+    // logActivity is non-fatal — deal creation must succeed even if activity log fails
+    logActivity({
       userId: req.user.id,
       dealId: data.id,
       leadId: data.lead_id,
       activityType: 'deal_created',
       message: `Deal created for ${data.property_address || 'property'}`,
       metadata: { status: data.status, offer_price: data.offer_price, mao: data.mao },
-    });
-    res.status(201).json({ success: true, data });
+    }).catch(e => console.warn('[Deal] Activity log failed (non-fatal):', e.message));
+
+    res.status(201).json({ success: true, data, deal: data });
   } catch (err) { next(err); }
 });
 
@@ -105,13 +133,13 @@ router.put('/:id', async (req, res, next) => {
     }
 
     for (const entry of activityMessages) {
-      await logActivity({
+      logActivity({
         userId: req.user.id,
         dealId: data.id,
         leadId: data.lead_id,
         titleCompanyId: updates.title_company_id || existing.title_company_id,
         ...entry,
-      });
+      }).catch(e => console.warn('[Deal] Activity log failed (non-fatal):', e.message));
     }
 
     res.json({ success: true, data });
@@ -152,14 +180,14 @@ router.post('/:id/send-contract', async (req, res, next) => {
     if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
     const { data: dealWithBuyer } = await supabase.from('deals').select('*, leads(*), buyers(*)').eq('id', req.params.id).eq('user_id', req.user.id).single();
     const result = await contractService.send(dealWithBuyer || deal, type, { phone: recipient_phone, email: recipient_email, userId: req.user.id });
-    await logActivity({
+    logActivity({
       userId: req.user.id,
       dealId: deal.id,
       leadId: deal.lead_id,
       activityType: 'contract_sent',
       message: `${type.toUpperCase()} contract sent`,
       metadata: { type, recipient_phone, recipient_email, signing_url: result.signing_url || null },
-    });
+    }).catch(e => console.warn('[Deal] Activity log failed:', e.message));
     await supabase.from('deals').update({ contract_status: 'sent', updated_at: new Date().toISOString() }).eq('id', deal.id).eq('user_id', req.user.id);
     res.json({ success: true, data: result });
   } catch (err) { next(err); }
@@ -247,7 +275,7 @@ router.post('/:id/send-to-title', async (req, res, next) => {
       .single();
     if (updateDealError) throw updateDealError;
 
-    await logActivity({
+    logActivity({
       userId: req.user.id,
       dealId: deal.id,
       leadId: deal.lead_id,
@@ -259,7 +287,7 @@ router.post('/:id/send-to-title', async (req, res, next) => {
         title_company_name: titleCompany.name,
         closing_date: titlePayload.closing_date,
       },
-    });
+    }).catch(e => console.warn('[Deal] Activity log failed:', e.message));
 
     res.json({ success: true, data: { deal: updatedDeal, title_log: titleLog, title_company: titleCompany } });
   } catch (err) { next(err); }
@@ -306,11 +334,11 @@ router.post('/create', async (req, res, next) => {
     }).select().single();
     if (error) throw error;
 
-    await logActivity({
+    logActivity({
       userId: req.user.id, dealId: data.id, leadId: data.lead_id,
       activityType: 'deal_created', message: `Deal created for ${property_address}`,
       metadata: { status: data.status, deal_type: data.deal_type },
-    });
+    }).catch(e => console.warn('[Deal] Activity log failed:', e.message));
 
     res.status(201).json({ success: true, deal: data, data });
   } catch (err) { next(err); }
@@ -332,13 +360,13 @@ router.patch('/:id/stage', async (req, res, next) => {
     }).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
     if (error) throw error;
 
-    await supabase.from('ai_command_log').insert({
+    supabase.from('ai_command_log').insert({
       deal_id: req.params.id,
       action_type: 'stage_changed',
       message_sent: `Stage changed from ${deal.status} → ${stage}`,
       outcome: 'success',
       operator_id: req.user.id,
-    });
+    }).catch(() => {});
 
     res.json({ success: true, deal: data });
 

@@ -329,9 +329,23 @@ async function handleCallEnded(call, event) {
 
 async function handleStatusUpdate(call) {
   if (!call?.id) return;
-  const statusMap = { queued: 'ringing', ringing: 'ringing', 'in-progress': 'in-progress' };
+  const statusMap = {
+    queued:       'ringing',
+    ringing:      'ringing',
+    'in-progress': 'in-progress',
+    failed:       'failed',
+    busy:         'failed',
+    'no-answer':  'failed',
+  };
   if (statusMap[call.status]) {
     await supabase.from('calls').update({ status: statusMap[call.status] }).eq('vapi_call_id', call.id);
+    // If failed, un-stuck the lead status
+    if (call.status === 'failed') {
+      const { data: callRec } = await supabase.from('calls').select('lead_id').eq('vapi_call_id', call.id).single();
+      if (callRec?.lead_id) {
+        await supabase.from('leads').update({ status: 'new', last_call_outcome: 'failed' }).eq('id', callRec.lead_id).eq('status', 'calling');
+      }
+    }
   }
 }
 

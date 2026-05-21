@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
 import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users } from 'lucide-react'
@@ -668,6 +668,7 @@ export default function Leads() {
   const [searchFocused, setSearchFocused] = useState(false)
   const fileRef  = useRef()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const setIntel = useIntelStore(s => s.setIntel)
 
   const load = async () => {
@@ -678,11 +679,21 @@ export default function Leads() {
       const r = await leads.getLeads({ limit: 500 })
       const raw = r.data?.leads ?? r.data?.data ?? r.data
       setAllLeads(Array.isArray(raw) ? raw : [])
-    } catch { setAllLeads([]) }
+      return Array.isArray(raw) ? raw : []
+    } catch { setAllLeads([]); return [] }
     finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load().then(allLoaded => {
+      // Auto-open lead profile when navigated from Live Monitor (?highlight=id)
+      const highlightId = searchParams.get('highlight')
+      if (highlightId && allLoaded.length) {
+        const target = allLoaded.find(l => l.id === highlightId)
+        if (target) { setSelected(target); setIntel('lead', target) }
+      }
+    })
+  }, [])
 
   // Filter
   const filtered = allLeads.filter(l => {

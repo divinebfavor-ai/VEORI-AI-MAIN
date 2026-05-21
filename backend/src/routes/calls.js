@@ -100,7 +100,16 @@ router.post('/initiate', async (req, res, next) => {
     }).catch(e => console.warn('[Call] Pre-call SMS log failed:', e.message));
 
     // Initiate Vapi call with operator persona
-    const vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId, operator: operatorProfile || {} });
+    let vapiCall;
+    try {
+      vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId, operator: operatorProfile || {} });
+    } catch (vapiErr) {
+      // Mark the call record as failed so it shows correctly in the UI
+      await supabase.from('calls').update({ status: 'failed', ended_at: new Date().toISOString() }).eq('id', callId);
+      const vapiMsg = vapiErr.response?.data?.message || vapiErr.response?.data?.error || vapiErr.message || 'VAPI call failed';
+      console.error(`[Call] VAPI initiate failed for lead ${lead_id}:`, vapiMsg);
+      return res.status(502).json({ success: false, error: vapiMsg });
+    }
 
     // Update call with Vapi ID
     await supabase.from('calls').update({ vapi_call_id: vapiCall.id, status: 'ringing' }).eq('id', callId);
