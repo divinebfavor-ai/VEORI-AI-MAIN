@@ -10,6 +10,11 @@ const { autoAssignTitleCompany, sendDealPackageToTitle, scheduleTitleFollowUps }
 const router = express.Router();
 router.use(requireAuth);
 
+// Helper — true if the table simply doesn't exist yet
+function isTableMissing(err) {
+  return err?.code === 'PGRST205' || (err?.message || '').includes('Could not find the table');
+}
+
 // GET /api/deals
 router.get('/', async (req, res, next) => {
   try {
@@ -19,7 +24,10 @@ router.get('/', async (req, res, next) => {
       .range(Number(offset), Number(offset) + Number(limit) - 1);
     if (status) q = q.eq('status', status);
     const { data, error, count } = await q;
-    if (error) throw error;
+    if (error) {
+      if (isTableMissing(error)) return res.json({ success: true, data: [], total: 0 });
+      throw error;
+    }
     res.json({ success: true, data, total: count });
   } catch (err) { next(err); }
 });

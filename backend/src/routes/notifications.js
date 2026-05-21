@@ -5,6 +5,11 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
+// Helper: check if error is "table not found" — return empty instead of 500
+function isTableMissing(err) {
+  return err?.code === 'PGRST205' || err?.message?.includes('Could not find the table');
+}
+
 // GET /api/notifications
 router.get('/', async (req, res, next) => {
   try {
@@ -14,7 +19,10 @@ router.get('/', async (req, res, next) => {
       .eq('operator_id', req.user.id)
       .order('created_at', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
-    if (error) throw error;
+    if (error) {
+      if (isTableMissing(error)) return res.json({ success: true, notifications: [], total: 0 });
+      throw error;
+    }
     res.json({ success: true, notifications: data || [], total: count });
   } catch (err) { next(err); }
 });
@@ -26,7 +34,10 @@ router.get('/unread-count', async (req, res, next) => {
       .select('*', { count: 'exact', head: true })
       .eq('operator_id', req.user.id)
       .eq('is_read', false);
-    if (error) throw error;
+    if (error) {
+      if (isTableMissing(error)) return res.json({ success: true, count: 0 });
+      throw error;
+    }
     res.json({ success: true, count: count || 0 });
   } catch (err) { next(err); }
 });
@@ -38,7 +49,7 @@ router.put('/read-all', async (req, res, next) => {
       .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('operator_id', req.user.id)
       .eq('is_read', false);
-    if (error) throw error;
+    if (error && !isTableMissing(error)) throw error;
     res.json({ success: true });
   } catch (err) { next(err); }
 });
@@ -50,7 +61,7 @@ router.put('/:id/read', async (req, res, next) => {
       .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('notification_id', req.params.id)
       .eq('operator_id', req.user.id);
-    if (error) throw error;
+    if (error && !isTableMissing(error)) throw error;
     res.json({ success: true });
   } catch (err) { next(err); }
 });
@@ -70,7 +81,10 @@ router.post('/', async (req, res, next) => {
       link: link || null,
       is_read: false,
     }).select().single();
-    if (error) throw error;
+    if (error) {
+      if (isTableMissing(error)) return res.status(503).json({ success: false, error: 'Notifications table not yet created — run DB migration' });
+      throw error;
+    }
 
     res.status(201).json({ success: true, notification: data });
   } catch (err) { next(err); }
