@@ -314,6 +314,73 @@ function CallRow({ call, isSelected, onClick }) {
   )
 }
 
+// ─── Audio Player ─────────────────────────────────────────────────────────────
+function AudioPlayer({ src }) {
+  const ref = useRef(null)
+  const [playing, setPlaying]   = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [duration, setDuration] = useState(0)
+
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+  const togglePlay = () => {
+    const el = ref.current
+    if (!el) return
+    if (playing) { el.pause(); setPlaying(false) }
+    else { el.play().catch(() => {}); setPlaying(true) }
+  }
+
+  const seek = (e) => {
+    const val = Number(e.target.value)
+    if (ref.current) { ref.current.currentTime = val; setProgress(val) }
+  }
+
+  return (
+    <div style={{ background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+      <p style={{ margin: '0 0 10px', fontSize: 10, color: BLUE, fontWeight: 600, letterSpacing: '0.06em' }}>RECORDING</p>
+      <audio
+        ref={ref}
+        src={src}
+        onTimeUpdate={() => setProgress(ref.current?.currentTime || 0)}
+        onLoadedMetadata={() => setDuration(ref.current?.duration || 0)}
+        onEnded={() => setPlaying(false)}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          onClick={togglePlay}
+          style={{
+            width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+            background: BLUE, border: 'none', color: '#fff',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13,
+          }}
+        >
+          {playing ? '⏸' : '▶'}
+        </button>
+        <input
+          type="range" min={0} max={duration || 1} step={0.1} value={progress}
+          onChange={seek}
+          style={{ flex: 1, accentColor: BLUE, height: 3, cursor: 'pointer' }}
+        />
+        <span style={{ fontSize: 11, color: 'var(--t3)', fontFamily: 'Geist Mono, monospace', flexShrink: 0, minWidth: 70, textAlign: 'right' }}>
+          {fmt(progress)} / {fmt(duration)}
+        </span>
+        <a
+          href={src}
+          download
+          target="_blank"
+          rel="noreferrer"
+          title="Download recording"
+          style={{ color: 'var(--t4)', display: 'flex', alignItems: 'center' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <Mic size={13} />
+        </a>
+      </div>
+    </div>
+  )
+}
+
 // ─── Call Detail Panel ────────────────────────────────────────────────────────
 function CallDetailPanel({ call }) {
   const navigate = useNavigate()
@@ -365,6 +432,9 @@ function CallDetailPanel({ call }) {
           </div>
         ))}
       </div>
+
+      {/* Recording audio player */}
+      {call.recording_url && <AudioPlayer src={call.recording_url} />}
 
       {/* AI Summary */}
       {call.ai_summary && (

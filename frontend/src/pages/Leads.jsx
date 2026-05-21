@@ -35,6 +35,11 @@ const SCORE_OPTIONS = [
 // ─── Call Card (extracted to avoid hook-in-loop violation) ───────────────────
 function CallCard({ call: c }) {
   const [showTx, setShowTx] = useState(false)
+  const audioRef = useRef(null)
+  const [playing, setPlaying]   = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [duration, setDuration] = useState(0)
+
   const fmtDur = c.duration_seconds != null
     ? `${Math.floor(c.duration_seconds / 60)}:${String(c.duration_seconds % 60).padStart(2, '0')}`
     : null
@@ -45,28 +50,30 @@ function CallCard({ call: c }) {
     not_home: '#FF9500', not_interested: '#FF4444',
   }[c.outcome] || 'var(--t4)'
 
+  const togglePlay = () => {
+    const el = audioRef.current
+    if (!el) return
+    if (playing) { el.pause(); setPlaying(false) }
+    else { el.play(); setPlaying(true) }
+  }
+
+  const fmtTime = (s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`
+
   return (
-    <div style={{
-      background: 'var(--surface-bg)',
-      border: '1px solid var(--border)',
-      borderRadius: 10, padding: '12px 14px',
-    }}>
+    <div style={{ background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+
       {/* Row 1 — time + outcome + score + duration */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 500 }}>
           {c.started_at ? formatDistanceToNow(new Date(c.started_at), { addSuffix: true }) : '—'}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {fmtDur && (
-            <span style={{ fontSize: 11, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>{fmtDur}</span>
-          )}
+          {fmtDur && <span style={{ fontSize: 11, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>{fmtDur}</span>}
           <span style={{
             fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
             color: outcomeColor, background: `${outcomeColor}18`,
             border: `1px solid ${outcomeColor}30`, borderRadius: 5, padding: '2px 7px',
-          }}>
-            {outcomeLabel}
-          </span>
+          }}>{outcomeLabel}</span>
           {c.motivation_score != null && (
             <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor(c.motivation_score), fontVariantNumeric: 'tabular-nums' }}>
               {c.motivation_score}
@@ -77,9 +84,53 @@ function CallCard({ call: c }) {
 
       {/* AI Summary */}
       {c.ai_summary && (
-        <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.5, marginBottom: c.transcript ? 6 : 0 }}>
-          {c.ai_summary}
-        </p>
+        <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.5, marginBottom: 8 }}>{c.ai_summary}</p>
+      )}
+
+      {/* Audio player */}
+      {c.recording_url && (
+        <div style={{
+          background: 'var(--surface-bg-2)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '8px 10px', marginBottom: 8,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <audio
+            ref={audioRef}
+            src={c.recording_url}
+            onTimeUpdate={() => setProgress(audioRef.current?.currentTime || 0)}
+            onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
+            onEnded={() => setPlaying(false)}
+          />
+          <button
+            onClick={togglePlay}
+            style={{
+              width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+              background: '#00C37A', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000',
+            }}
+          >
+            {playing
+              ? <span style={{ fontSize: 8 }}>&#9646;&#9646;</span>
+              : <span style={{ fontSize: 10, marginLeft: 2 }}>&#9654;</span>
+            }
+          </button>
+          <input
+            type="range" min={0} max={duration || 1} step={0.1} value={progress}
+            onChange={e => { if (audioRef.current) { audioRef.current.currentTime = Number(e.target.value); setProgress(Number(e.target.value)) } }}
+            style={{ flex: 1, accentColor: '#00C37A', height: 3 }}
+          />
+          <span style={{ fontSize: 10, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+            {fmtTime(progress)} / {fmtTime(duration)}
+          </span>
+          <a
+            href={c.recording_url}
+            download
+            title="Download recording"
+            style={{ color: 'var(--t4)', display: 'flex', alignItems: 'center' }}
+          >
+            <Mic size={11} />
+          </a>
+        </div>
       )}
 
       {/* Transcript toggle */}
@@ -95,14 +146,26 @@ function CallCard({ call: c }) {
             <FileText size={9} /> {showTx ? 'Hide' : 'View'} transcript
           </button>
           {showTx && (
-            <pre style={{
-              marginTop: 8, fontSize: 10, color: 'var(--t3)', lineHeight: 1.6,
-              background: 'var(--surface-bg-2)', borderRadius: 6, padding: '8px 10px',
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflowY: 'auto',
-              fontFamily: 'inherit',
+            <div style={{
+              marginTop: 8, fontSize: 11, color: 'var(--t3)', lineHeight: 1.65,
+              background: 'var(--surface-bg-2)', borderRadius: 6, padding: '10px 12px',
+              maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6,
             }}>
-              {c.transcript}
-            </pre>
+              {c.transcript.split('\n').filter(Boolean).map((line, i) => {
+                const isAlex = /^(alex|agent):/i.test(line)
+                return (
+                  <div key={i} style={{ display: 'flex', gap: 8 }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, flexShrink: 0, width: 36, marginTop: 2,
+                      color: isAlex ? '#00C37A' : '#4D9EFF', letterSpacing: '0.06em',
+                    }}>{isAlex ? 'ALEX' : 'SELL'}</span>
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--t2)', lineHeight: 1.5 }}>
+                      {line.replace(/^(alex|agent|seller):\s*/i, '')}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </>
       )}
