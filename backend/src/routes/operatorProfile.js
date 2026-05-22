@@ -19,7 +19,7 @@ router.get('/profile', requireAuth, async (req, res, next) => {
 // PUT /api/operator/profile
 router.put('/profile', requireAuth, async (req, res, next) => {
   try {
-    const allowed = ['full_name','company_name','phone','ai_caller_name','ai_voice_id','ai_personality_tone','ai_intro_script','ai_voicemail_script','legal_name','entity_name','entity_type','ein','re_license_number','re_license_state','business_phone','business_email','website','buyer_name_on_contract','earnest_money_default','closing_period_default','inspection_period_default','include_assignment_fee_disclosure','custom_contract_addendum','target_states','target_cities','property_types_preferred','min_property_value','max_property_value'];
+    const allowed = ['full_name','company_name','phone','email_from_name','email_reply_to','ai_caller_name','ai_voice_id','ai_personality_tone','ai_intro_script','ai_voicemail_script','legal_name','entity_name','entity_type','ein','re_license_number','re_license_state','business_phone','business_email','website','buyer_name_on_contract','earnest_money_default','closing_period_default','inspection_period_default','include_assignment_fee_disclosure','custom_contract_addendum','target_states','target_cities','property_types_preferred','min_property_value','max_property_value'];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];

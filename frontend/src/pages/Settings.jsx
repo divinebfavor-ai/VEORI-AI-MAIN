@@ -459,7 +459,7 @@ export default function Settings() {
   const [persona, setPersona]     = useState({})
   const [bankAccounts, setBankAccounts] = useState([])
   const [showAddBank, setShowAddBank]   = useState(false)
-  const [profileForm, setProfileForm] = useState({ full_name: '', company_name: '', email: '', phone: '' })
+  const [profileForm, setProfileForm] = useState({ full_name: '', company_name: '', email: '', phone: '', email_from_name: '', email_reply_to: '' })
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' })
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false })
   const user = useAuthStore(s => s.user)
@@ -474,6 +474,8 @@ export default function Settings() {
       company_name: user?.company_name || '',
       email: user?.email || '',
       phone: user?.phone || '',
+      email_from_name: user?.email_from_name || '',
+      email_reply_to: user?.email_reply_to || '',
     })
   }, [user])
 
@@ -512,6 +514,8 @@ export default function Settings() {
         full_name: profileForm.full_name.trim(),
         company_name: profileForm.company_name.trim(),
         phone: profileForm.phone.trim(),
+        email_from_name: profileForm.email_from_name.trim(),
+        email_reply_to: profileForm.email_reply_to.trim(),
       })
       updateUser({ ...data?.profile, email: profileForm.email.trim() })
       toast.success('Profile saved')
@@ -627,6 +631,29 @@ export default function Settings() {
                   <Input label="Phone" type="tel" value={profileForm.phone} onChange={e => setProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+1 (555) 000-0000" />
                   <div className="pt-2">
                     <Button onClick={saveProfile} loading={loading}>Save Changes</Button>
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Email Settings" description="Control how your emails appear to sellers. Emails are sent from Veori's verified domain but show your name.">
+                <div className="space-y-4">
+                  <Input
+                    label="Sender Name"
+                    value={profileForm.email_from_name}
+                    onChange={e => setProfileForm(p => ({...p, email_from_name: e.target.value}))}
+                    placeholder={`${profileForm.full_name || 'Alex'} at ${profileForm.company_name || 'My Company'}`}
+                    hint='Name sellers see in their inbox, e.g. "John at ABC Investments"'
+                  />
+                  <Input
+                    label="Reply-To Email"
+                    type="email"
+                    value={profileForm.email_reply_to}
+                    onChange={e => setProfileForm(p => ({...p, email_reply_to: e.target.value}))}
+                    placeholder="you@yourcompany.com"
+                    hint="When sellers reply to an email, it goes to this address instead of the shared inbox."
+                  />
+                  <div className="pt-2">
+                    <Button onClick={saveProfile} loading={loading}>Save Email Settings</Button>
                   </div>
                 </div>
               </Section>

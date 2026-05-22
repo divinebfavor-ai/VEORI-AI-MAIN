@@ -10,7 +10,21 @@ try {
 
 async function sendEmail({ userId, leadId, dealId, to, subject, body, emailType }) {
   try {
-    const from = process.env.EMAIL_FROM || 'Alex at Veori <alex@veori.net>';
+    // Look up operator's custom email settings (from_name, reply_to)
+    let fromName = 'Alex at Veori';
+    let replyTo  = null;
+    if (userId && supabase) {
+      const { data: u } = await supabase.from('users').select('email_from_name, email_reply_to, full_name, company_name').eq('id', userId).single();
+      if (u) {
+        const name    = u.email_from_name || (u.full_name ? `${u.full_name}` : null) || 'Alex at Veori';
+        const company = u.company_name ? ` at ${u.company_name}` : '';
+        fromName  = u.email_from_name || `${name}${company}`;
+        replyTo   = u.email_reply_to  || null;
+      }
+    }
+    const defaultFrom = process.env.EMAIL_FROM || 'alex@veori.net';
+    // Resend requires "from" to be a verified domain — keep domain but use operator's name
+    const from = `${fromName} <${defaultFrom}>`;
     const html = body.includes('<') ? body : body.replace(/\n/g, '<br>');
     const text = body.replace(/<[^>]+>/g, '');
 
@@ -18,7 +32,9 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, emailType 
       console.log(`[Email] No API key — simulating email to ${to}: ${subject}`);
       return { success: true, simulated: true };
     }
-    const { data: info, error } = await resend.emails.send({ from, to, subject, html, text });
+    const emailPayload = { from, to, subject, html, text };
+    if (replyTo) emailPayload.reply_to = replyTo;
+    const { data: info, error } = await resend.emails.send(emailPayload);
     if (error) throw new Error(error.message || JSON.stringify(error));
 
     // Log to database
