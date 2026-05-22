@@ -89,11 +89,19 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/campaigns/:id/start
+// POST /api/campaigns/:id/start  (also handles resume)
 router.post('/:id/start', async (req, res, next) => {
   try {
-    const result = await campaignManager.start(req.params.id, req.user.id);
-    res.json({ success: true, data: result });
+    const session = campaignManager.activeCampaigns.get(req.params.id);
+    if (session && session.paused) {
+      // Session still in memory — just unpause
+      await campaignManager.resume(req.params.id);
+      res.json({ success: true, data: { status: 'resumed' } });
+    } else {
+      // Fresh start (or server restarted — will skip already-called leads)
+      const result = await campaignManager.start(req.params.id, req.user.id);
+      res.json({ success: true, data: result });
+    }
   } catch (err) { next(err); }
 });
 

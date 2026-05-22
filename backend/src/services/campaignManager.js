@@ -165,6 +165,12 @@ async function dialerTick(campaignId) {
       activeCalls.set(callId, { vapiCallId: vapiCall.id, leadId: lead.id, phoneNumberId: phoneNum.id, startedAt: Date.now() });
       campaign.leads_called = (campaign.leads_called || 0) + 1;
 
+      // Persist counter to DB so campaign card stays accurate
+      await supabase.from('campaigns').update({
+        leads_called: campaign.leads_called,
+        updated_at: new Date().toISOString(),
+      }).eq('id', campaignId);
+
       pollCallStatus(campaignId, callId, vapiCall.id);
 
       console.log(`[Campaign ${campaignId}] ✅ Call initiated → ${lead.first_name} ${lead.last_name} | ${phoneNum.number} → ${lead.phone}`);
@@ -217,7 +223,11 @@ async function pauseWithError(campaignId, errorMessage) {
 
 async function pause(campaignId) {
   const session = activeCampaigns.get(campaignId);
-  if (session) session.paused = true;
+  if (session) {
+    session.paused = true;
+    // Keep session alive (preserves queue position) but stop the tick timer
+    if (session.interval) { clearInterval(session.interval); session.interval = null; }
+  }
   await supabase.from('campaigns').update({ status: 'paused', updated_at: new Date().toISOString() }).eq('id', campaignId);
 }
 
@@ -225,8 +235,14 @@ async function resume(campaignId) {
   const session = activeCampaigns.get(campaignId);
   if (session) {
     session.paused = false;
+    session.stopped = false;
     session.consecutiveFailures = 0;
     session.lastVapiError = null;
+    // Restart the tick timer
+    const tickMs = Math.max((session.campaign.call_delay_seconds || 8), 5) * 1000;
+    if (!session.interval) {
+      session.interval = setInterval(() => dialerTick(campaignId), tickMs);
+    }
     await dialerTick(campaignId);
   }
   await supabase.from('campaigns').update({ status: 'active', error_message: null, updated_at: new Date().toISOString() }).eq('id', campaignId);
@@ -254,15 +270,26 @@ function isWithinCallingHours(campaign) {
 }
 
 async function buildLeadQueue(campaignId, userId, filter = {}) {
+  // Exclude leads already successfully called in THIS campaign (avoid re-calling on resume/restart)
+  const { data: calledRows } = await supabase
+    .from('calls')
+    .select('lead_id')
+    .eq('campaign_id', campaignId)
+    .neq('status', 'failed')   // failed calls are ok to retry
+    .not('lead_id', 'is', null);
+
+  const calledLeadIds = [...new Set((calledRows || []).map(r => r.lead_id).filter(Boolean))];
+
   let q = supabase.from('leads').select('*').eq('user_id', userId)
     .in('status', ['new', 'contacted']).eq('is_on_dnc', false)
     .order('motivation_score', { ascending: false, nullsFirst: false })
     .limit(10000);
 
-  if (filter.state)     q = q.eq('property_state', filter.state);
-  if (filter.min_score) q = q.gte('motivation_score', filter.min_score);
-  if (filter.max_score) q = q.lte('motivation_score', filter.max_score);
-  if (filter.source)    q = q.eq('source', filter.source);
+  if (calledLeadIds.length > 0) q = q.not('id', 'in', `(${calledLeadIds.join(',')})`);
+  if (filter.state)              q = q.eq('property_state', filter.state);
+  if (filter.min_score)          q = q.gte('motivation_score', filter.min_score);
+  if (filter.max_score)          q = q.lte('motivation_score', filter.max_score);
+  if (filter.source)             q = q.eq('source', filter.source);
 
   const { data } = await q;
   return data || [];
