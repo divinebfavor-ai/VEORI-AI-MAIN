@@ -9,6 +9,53 @@ const campaignManager = require('../services/campaignManager');
 const router = express.Router();
 router.use(requireAuth);
 
+// ─── TCPA helpers ─────────────────────────────────────────────────────────────
+// State-to-timezone mapping (Eastern is default if unknown)
+const STATE_TZ = {
+  AK: 'America/Anchorage', HI: 'Pacific/Honolulu',
+  WA: 'America/Los_Angeles', OR: 'America/Los_Angeles', CA: 'America/Los_Angeles', NV: 'America/Los_Angeles',
+  MT: 'America/Denver', ID: 'America/Denver', WY: 'America/Denver', CO: 'America/Denver', UT: 'America/Denver', AZ: 'America/Phoenix', NM: 'America/Denver',
+  ND: 'America/Chicago', SD: 'America/Chicago', NE: 'America/Chicago', KS: 'America/Chicago',
+  MN: 'America/Chicago', IA: 'America/Chicago', MO: 'America/Chicago', WI: 'America/Chicago', IL: 'America/Chicago',
+  MI: 'America/Detroit', IN: 'America/Indiana/Indianapolis',
+  OK: 'America/Chicago', TX: 'America/Chicago', AR: 'America/Chicago', LA: 'America/Chicago', MS: 'America/Chicago',
+  AL: 'America/Chicago', TN: 'America/Chicago',
+};
+
+function getTcpaHourInState(stateCode) {
+  const tz = STATE_TZ[(stateCode || '').toUpperCase()] || 'America/New_York';
+  const now = new Date();
+  const localHour = Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(now));
+  return localHour;
+}
+
+function isTcpaAllowed(stateCode) {
+  const hour = getTcpaHourInState(stateCode);
+  const day  = new Date().getDay(); // 0=Sun
+  // TCPA federal rule: 8 AM - 9 PM local time, no restrictions by day
+  if (hour < 8 || hour >= 21) return { allowed: false, reason: `Calling not allowed at this time. TCPA prohibits calls before 8 AM or after 9 PM local time in ${stateCode || 'this state'} (current hour: ${hour}:00).` };
+  // Sunday morning — many state regulations restrict before noon
+  if (day === 0 && hour < 12) return { allowed: false, reason: 'Calls to this state are restricted before noon on Sundays.' };
+  return { allowed: true };
+}
+
+async function logTcpa(userId, leadId, phone, action, reason) {
+  try {
+    const withinHours = action === 'call_initiated';
+    await supabase.from('tcpa_log').insert({
+      user_id: userId,
+      lead_id: leadId || null,
+      phone_number: phone || '',
+      called_at_utc: new Date().toISOString(),
+      within_calling_hours: withinHours,
+      dnc_result: action === 'blocked_dnc' ? 'blocked' : action === 'call_initiated' ? 'clear' : 'unknown',
+      consent_status: action === 'call_initiated' ? 'compliant' : 'blocked',
+      // Store action + reason in local_time field as a simple audit note (no dedicated column)
+      local_time: `${action}: ${reason}`,
+    });
+  } catch { /* non-fatal */ }
+}
+
 // GET /api/calls — list with filters
 router.get('/', async (req, res, next) => {
   try {
@@ -62,7 +109,19 @@ router.post('/initiate', async (req, res, next) => {
 
     const { data: lead } = await supabase.from('leads').select('*').eq('id', lead_id).eq('user_id', req.user.id).single();
     if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
-    if (lead.is_on_dnc) return res.status(400).json({ success: false, error: 'Lead is on DNC list' });
+
+    // TCPA: DNC check
+    if (lead.is_on_dnc) {
+      await logTcpa(req.user.id, lead.id, lead.phone, 'blocked_dnc', 'Lead is on Do Not Call list');
+      return res.status(400).json({ success: false, error: 'Lead is on DNC list — call blocked for TCPA compliance' });
+    }
+
+    // TCPA: calling hours enforcement (8 AM - 9 PM local time in lead's state)
+    const tcpa = isTcpaAllowed(lead.property_state);
+    if (!tcpa.allowed) {
+      await logTcpa(req.user.id, lead.id, lead.phone, 'blocked_hours', tcpa.reason);
+      return res.status(400).json({ success: false, error: tcpa.reason });
+    }
 
     // Select best phone number if not specified
     const phoneNum = phone_number_id
@@ -115,6 +174,9 @@ router.post('/initiate', async (req, res, next) => {
     await supabase.from('calls').update({ vapi_call_id: vapiCall.id, status: 'ringing' }).eq('id', callId);
     await phoneRotation.recordCallStart(phoneNum.id);
     await supabase.from('leads').update({ call_count: (lead.call_count || 0) + 1, last_call_date: new Date().toISOString(), status: 'calling' }).eq('id', lead_id);
+
+    // TCPA audit log — call was initiated within compliant hours, not on DNC
+    await logTcpa(req.user.id, lead.id, lead.phone, 'call_initiated', `Call placed to ${lead.property_state || 'unknown state'} within TCPA hours. Call ID: ${callId}`);
 
     res.json({ success: true, data: { ...callRecord, vapi_call_id: vapiCall.id } });
   } catch (err) { next(err); }
