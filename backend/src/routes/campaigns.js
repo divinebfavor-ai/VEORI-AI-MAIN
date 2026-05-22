@@ -66,8 +66,10 @@ router.post('/', async (req, res, next) => {
       user_id: req.user.id,
       name,
       status: 'draft',
-      max_calls_concurrent: concurrent_lines,
-      leads_per_day: daily_limit_per_number,
+      concurrent_lines,
+      daily_limit_per_number,
+      calling_hours_start,
+      calling_hours_end,
     }]).select().single();
 
     if (error) throw error;
@@ -78,7 +80,7 @@ router.post('/', async (req, res, next) => {
 // PUT /api/campaigns/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['name','max_calls_concurrent','leads_per_day','status'];
+    const allowed = ['name','concurrent_lines','daily_limit_per_number','calling_hours_start','calling_hours_end','status'];
     const updates = { updated_at: new Date().toISOString() };
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     const { data, error } = await supabase.from('campaigns').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
