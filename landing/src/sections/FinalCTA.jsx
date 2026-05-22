@@ -3,7 +3,7 @@ import { useReveal } from '../components/useReveal'
 import { useState } from 'react'
 
 const WAVE_BG = 'https://d8j0ntlcm91z4.cloudfront.net/user_3Dh2N4HpfmHr3sqVUsWx08TjMB3/hf_20260520_153328_75be9237-41b1-40b5-a52e-6b75731a7c61.png'
-const API_URL = 'https://veori-ai-main.up.railway.app/api/billing'
+const API_URL = 'https://veori-ai-production.up.railway.app/api/billing'
 
 export default function FinalCTA() {
   const { ref, visible } = useReveal()

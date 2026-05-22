@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import { useReveal } from '../components/useReveal'
 import { useState } from 'react'
 
-const API_URL = 'https://veori-ai-main.up.railway.app/api/billing'
+const API_URL = 'https://veori-ai-production.up.railway.app/api/billing'
 
 const foundingIncluded = [
   '500 AI calls/month (sellers and buyers)',

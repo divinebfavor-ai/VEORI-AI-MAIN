@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 
-const APP_URL = 'https://veori-ai-main.up.railway.app'
+const APP_URL = 'https://veori-ai-frontend-veori-ai.vercel.app'
 
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false)
