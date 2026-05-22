@@ -5,6 +5,8 @@ import useAuthStore from './store/authStore'
 
 import Login from './pages/Login'
 import Register from './pages/Register'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import Aria from './pages/Aria'
 import Dashboard from './pages/Dashboard'
 import Leads from './pages/Leads'
@@ -27,6 +29,7 @@ import FollowUps from './pages/FollowUps'
 import WealthPlaybook from './pages/WealthPlaybook'
 import WealthStrategy from './pages/WealthStrategy'
 import WealthCalculatorPage from './pages/WealthCalculatorPage'
+import LandingPage from './pages/LandingPage'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -39,12 +42,22 @@ function RequireAuth({ children }) {
   return children
 }
 
+function HomeRoute() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const hydrated        = useAuthStore((s) => s.hydrated)
+  if (!hydrated) return null
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  return <LandingPage />
+}
+
 export default function App() {
   return (
     <Routes>
       {/* Public */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/aria" element={<Aria />} />
       <Route path="/sign/:token" element={<ContractSigning />} />
 
@@ -79,9 +92,9 @@ export default function App() {
         <Route path="/settings" element={<Settings />} />
       </Route>
 
-      {/* Default */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* Home — landing for guests, dashboard for logged-in users */}
+      <Route path="/" element={<HomeRoute />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

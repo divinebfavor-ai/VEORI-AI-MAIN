@@ -10,6 +10,7 @@ import {
 import VeoriLogo from '../VeoriLogo'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
 import useAuthStore from '../../store/authStore'
+import { useAuth } from '../../hooks/useAuth'
 import useThemeStore from '../../store/themeStore'
 import { notifications as notifApi } from '../../services/api'
 
@@ -163,7 +164,8 @@ function NavItem({ to, icon: Icon, label, liveBadge, collapsed }) {
 export default function CommandRail() {
   const { calls: liveCalls } = useLiveCalls()
   const { theme, toggleTheme } = useThemeStore()
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
+  const { logout } = useAuth()
   const navigate = useNavigate()
   const [notifOpen, setNotifOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -191,7 +193,7 @@ export default function CommandRail() {
     ? user.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : 'OP'
 
-  const handleLogout = () => { logout(); navigate('/login') }
+  const handleLogout = () => { logout() }
 
   return (
     <div className="glass-sidebar" style={{

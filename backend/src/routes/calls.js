@@ -107,6 +107,16 @@ router.post('/initiate', async (req, res, next) => {
     const { lead_id, phone_number_id } = req.body;
     if (!lead_id) return res.status(400).json({ success: false, error: 'lead_id required' });
 
+    // Check call quota for this operator
+    const { data: opUser } = await supabase.from('users').select('calls_used, calls_limit, subscription_status, trial_ends_at').eq('id', req.user.id).single();
+    if (opUser) {
+      const isTrialExpired = opUser.subscription_status === 'trial' && opUser.trial_ends_at && new Date(opUser.trial_ends_at) < new Date();
+      if (isTrialExpired) return res.status(403).json({ success: false, error: 'Your trial has ended. Upgrade your plan to keep calling.' });
+      if (opUser.calls_limit && (opUser.calls_used || 0) >= opUser.calls_limit) {
+        return res.status(403).json({ success: false, error: `Monthly call limit reached (${opUser.calls_limit} calls). Upgrade your plan for more.` });
+      }
+    }
+
     const { data: lead } = await supabase.from('leads').select('*').eq('id', lead_id).eq('user_id', req.user.id).single();
     if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
 
@@ -174,6 +184,9 @@ router.post('/initiate', async (req, res, next) => {
     await supabase.from('calls').update({ vapi_call_id: vapiCall.id, status: 'ringing' }).eq('id', callId);
     await phoneRotation.recordCallStart(phoneNum.id);
     await supabase.from('leads').update({ call_count: (lead.call_count || 0) + 1, last_call_date: new Date().toISOString(), status: 'calling' }).eq('id', lead_id);
+
+    // Increment calls_used counter for quota tracking
+    supabase.from('users').update({ calls_used: (opUser?.calls_used || 0) + 1 }).eq('id', req.user.id).catch(() => {});
 
     // TCPA audit log — call was initiated within compliant hours, not on DNC
     await logTcpa(req.user.id, lead.id, lead.phone, 'call_initiated', `Call placed to ${lead.property_state || 'unknown state'} within TCPA hours. Call ID: ${callId}`);

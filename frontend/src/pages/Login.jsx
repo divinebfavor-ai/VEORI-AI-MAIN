@@ -142,13 +142,13 @@ export default function Login() {
 
           {/* Forgot */}
           <div style={{ textAlign: 'right', marginBottom: 24 }}>
-            <button type="button"
-              style={{ background: 'none', border: 'none', fontSize: 12, color: 'rgba(255,255,255,0.30)', cursor: 'pointer', padding: 0, fontFamily: 'inherit', transition: 'color 0.2s ease' }}
+            <Link to="/forgot-password"
+              style={{ background: 'none', border: 'none', fontSize: 12, color: 'rgba(255,255,255,0.30)', cursor: 'pointer', padding: 0, fontFamily: 'inherit', textDecoration: 'none', transition: 'color 0.2s ease' }}
               onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
               onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.30)'}
             >
               Forgot password?
-            </button>
+            </Link>
           </div>
 
           {/* Sign In */}

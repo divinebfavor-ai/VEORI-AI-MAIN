@@ -13,6 +13,16 @@ const router = express.Router();
 // POST /api/vapi/webhook — Vapi sends all call events here
 router.post('/webhook', async (req, res) => {
   try {
+    // Verify VAPI webhook secret if configured
+    const VAPI_WEBHOOK_SECRET = process.env.VAPI_WEBHOOK_SECRET;
+    if (VAPI_WEBHOOK_SECRET) {
+      const signature = req.headers['x-vapi-signature'] || req.headers['x-webhook-secret'];
+      if (!signature || signature !== VAPI_WEBHOOK_SECRET) {
+        console.warn('[Vapi Webhook] Rejected — invalid signature');
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+    }
+
     // Vapi wraps payload in a "message" envelope
     const event = req.body?.message || req.body;
     const { type, call } = event;

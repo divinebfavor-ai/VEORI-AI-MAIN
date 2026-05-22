@@ -55,8 +55,8 @@ app.use(helmet());
 // Stripe webhook needs raw body — mount BEFORE express.json()
 app.use('/api/billing/webhook', require('./routes/billing'));
 
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -79,7 +79,17 @@ app.use(
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
-app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, standardHeaders: true, legacyHeaders: false }));
+// General API limit — 300 req per 15 min per IP
+app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false, message: { success: false, error: 'Too many requests. Please slow down.' } }));
+
+// Strict auth limit — 10 attempts per 15 min per IP (brute force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10,
+  standardHeaders: true, legacyHeaders: false,
+  message: { success: false, error: 'Too many attempts. Try again in 15 minutes.' },
+  skipSuccessfulRequests: true, // only count failed requests
+});
+// Applied per-route below after route imports
 
 // ─── Health check (no auth, no rate limit) ────────────────────────────────────
 app.get('/health', (_req, res) =>
@@ -100,6 +110,11 @@ app.get('/', (_req, res) =>
 );
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
+// Auth routes get strict brute-force limiter
+app.use('/api/auth/login',           authLimiter);
+app.use('/api/auth/register',        authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password',  authLimiter);
 app.use('/api/auth',      authRouter);
 app.use('/api/leads',     leadsRouter);
 app.use('/api/calls',     callsRouter);

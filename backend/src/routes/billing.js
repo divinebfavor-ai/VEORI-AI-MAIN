@@ -3,14 +3,20 @@ const router   = express.Router();
 const Stripe   = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 
-const stripe  = Stripe(process.env.STRIPE_SECRET_KEY);
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Lazy init — avoids crashing the server at startup if env vars aren't loaded yet
+let _stripe = null;
+let _supabase = null;
+function getStripe() {
+  if (!_stripe) _stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+  return _stripe;
+}
+function getSupabase() {
+  if (!_supabase) _supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return _supabase;
+}
 
 // Auth middleware (same as other routes)
-const auth = require('../middleware/auth');
+const { requireAuth: auth } = require('../middleware/auth');
 
 // ─── Price IDs ────────────────────────────────────────────────────────────────
 const PRICES = {
@@ -41,7 +47,7 @@ router.post('/checkout', async (req, res) => {
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const siteUrl = process.env.SITE_URL || appUrl;
 
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       customer_email: email,
@@ -72,7 +78,7 @@ router.post('/portal', auth, async (req, res) => {
     const userId = req.user.id;
 
     // Get the Stripe customer ID we stored on the user's profile
-    const { data: profile, error } = await supabase
+    const { data: profile, error } = await getSupabase()
       .from('users')
       .select('stripe_customer_id')
       .eq('id', userId)
@@ -84,7 +90,7 @@ router.post('/portal', auth, async (req, res) => {
 
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
 
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await getStripe().billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${appUrl}/settings`,
     });
@@ -100,7 +106,7 @@ router.post('/portal', auth, async (req, res) => {
 // Auth-protected — returns the current user's subscription plan and status.
 router.get('/status', auth, async (req, res) => {
   try {
-    const { data: profile } = await supabase
+    const { data: profile } = await getSupabase()
       .from('users')
       .select('stripe_customer_id, stripe_subscription_id, subscription_plan, subscription_status, subscription_current_period_end')
       .eq('id', req.user.id)
@@ -131,7 +137,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
   let event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, secret);
+    event = getStripe().webhooks.constructEvent(req.body, sig, secret);
   } catch (err) {
     console.error('[billing/webhook] signature error:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -149,14 +155,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const name     = session.metadata?.name || '';
 
         // Look up or create the user in Supabase
-        const { data: existing } = await supabase
+        const { data: existing } = await getSupabase()
           .from('users')
           .select('id')
           .eq('email', email)
           .maybeSingle();
 
         if (existing) {
-          await supabase.from('users').update({
+          await getSupabase().from('users').update({
             stripe_customer_id:     custId,
             stripe_subscription_id: subId,
             subscription_plan:      plan,
@@ -164,7 +170,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           }).eq('id', existing.id);
         } else {
           // Create a stub user — they'll set a password on first login
-          await supabase.from('users').insert({
+          await getSupabase().from('users').insert({
             email,
             full_name:              name,
             stripe_customer_id:     custId,
@@ -185,7 +191,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           ? new Date(sub.current_period_end * 1000).toISOString()
           : null;
 
-        await supabase.from('users').update({
+        await getSupabase().from('users').update({
           subscription_status:              status,
           subscription_current_period_end:  periodEnd,
         }).eq('stripe_customer_id', custId);
@@ -194,7 +200,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
       case 'invoice.payment_failed': {
         const custId = event.data.object.customer;
-        await supabase.from('users').update({ subscription_status: 'past_due' })
+        await getSupabase().from('users').update({ subscription_status: 'past_due' })
           .eq('stripe_customer_id', custId);
         break;
       }

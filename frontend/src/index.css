@@ -687,3 +687,69 @@ h1, h2, h3, h4 { font-family: 'Geist', 'Inter', sans-serif; color: var(--t1); }
   animation: wave 0.8s ease-in-out infinite;
   transform-origin: bottom;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LANDING PAGE — classes used by LandingPage.jsx
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+.lp-body {
+  background: #060E1A;
+  color: #fff;
+  font-family: 'Inter', -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Override the app-level body overflow:hidden so the landing page can scroll */
+body:has(.lp-body) {
+  overflow: auto !important;
+}
+
+#root:has(.lp-body) {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.lp-grid {
+  background-image:
+    linear-gradient(rgba(0,196,123,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,196,123,0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.lp-shimmer {
+  background: linear-gradient(90deg, #00C47B 0%, #00E8A0 30%, #C9A84C 55%, #00C47B 80%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: lp-shimmer-kf 5s linear infinite;
+}
+
+@keyframes lp-shimmer-kf {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes lp-pulse-ring {
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes lp-glow {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 0.85; }
+}
+
+@keyframes lp-ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.lp-ticker { animation: lp-ticker 32s linear infinite; }
+.lp-ticker:hover { animation-play-state: paused; }
+
+@keyframes lp-float {
+  0%, 100% { transform: translateX(-50%) translateY(0px); }
+  50%       { transform: translateX(-50%) translateY(-7px); }
+}

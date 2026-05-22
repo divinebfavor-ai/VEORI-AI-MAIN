@@ -36,11 +36,13 @@ api.interceptors.response.use(
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export const auth = {
-  login:    (email, password) => api.post('/api/auth/login', { email, password }),
-  register: (data)            => api.post('/api/auth/register', data),
-  getMe:    ()                => api.get('/api/auth/me'),
-  changePassword: (data)      => api.put('/api/auth/password', data),
-  logout:   ()                => api.post('/api/auth/logout'),
+  login:          (email, password) => api.post('/api/auth/login', { email, password }),
+  register:       (data)            => api.post('/api/auth/register', data),
+  getMe:          ()                => api.get('/api/auth/me'),
+  changePassword: (data)            => api.put('/api/auth/password', data),
+  forgotPassword: (email)           => api.post('/api/auth/forgot-password', { email }),
+  resetPassword:  (token, new_password) => api.post('/api/auth/reset-password', { token, new_password }),
+  logout:         ()                => api.post('/api/auth/logout'),
 }
 
 // ─── Leads ───────────────────────────────────────────────────────────────────
