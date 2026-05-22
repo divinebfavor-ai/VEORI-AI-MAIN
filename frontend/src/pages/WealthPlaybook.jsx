@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen, ChevronRight, ChevronLeft, CheckCircle, TrendingUp, Zap, Clock, DollarSign, Star, RefreshCw, ArrowRight } from 'lucide-react'
+import toast from 'react-hot-toast'
 import useAuthStore from '../store/authStore'
 import { wealth as wealthApi } from '../services/api'
 
@@ -227,10 +228,17 @@ function AssessmentScreen({ onComplete }) {
       setLoading(true)
       try {
         const res = await wealthApi.submitAssessment(newAnswers)
-        if (res.data?.playbook) onComplete(res.data.playbook)
+        const playbook = res.data?.playbook
+        if (playbook) {
+          onComplete(playbook)
+        } else {
+          toast.error('Could not generate your playbook. Please try again.')
+          setLoading(false)
+        }
       } catch (err) {
         console.error('Assessment submit error:', err)
-      } finally {
+        const msg = err?.response?.data?.error || 'Something went wrong. Please try again.'
+        toast.error(msg)
         setLoading(false)
       }
     }

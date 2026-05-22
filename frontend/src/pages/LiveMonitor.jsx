@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Radio, Headphones, Mic, X, Volume2, VolumeX, PhoneCall, PhoneOff, PhoneIncoming, Clock, CheckCircle, AlertCircle, ChevronRight, Search, Plus, UserCircle } from 'lucide-react'
+import { Radio, Headphones, Mic, X, Volume2, VolumeX, PhoneCall, PhoneOff, PhoneIncoming, Clock, CheckCircle, AlertCircle, ChevronRight, Search, Plus, UserCircle, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { calls as callsApi, leads as leadsApi } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
@@ -259,8 +259,10 @@ function LiveCallCard({ call, isListening, volume, takeover, onListen, onStopLis
 }
 
 // ─── Call History Row ─────────────────────────────────────────────────────────
-function CallRow({ call, isSelected, onClick }) {
-  const isLive = ['initiated','ringing','in-progress'].includes(call.status)
+function CallRow({ call, isSelected, onClick, onDelete }) {
+  const [hovered, setHovered] = useState(false)
+  const isLive   = ['initiated','ringing','in-progress'].includes(call.status)
+  const isFailed = call.status === 'failed'
   const { label, color, icon: Icon } = statusMeta(call.status, call.outcome)
   const name = call.leads
     ? `${call.leads.first_name || ''} ${call.leads.last_name || ''}`.trim() || 'Unknown'
@@ -269,14 +271,14 @@ function CallRow({ call, isSelected, onClick }) {
   return (
     <div
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px',
         borderBottom: '1px solid var(--border)',
-        background: isSelected ? 'var(--surface-bg-2)' : 'transparent',
+        background: isSelected ? 'var(--surface-bg-2)' : hovered ? 'var(--surface-bg)' : 'transparent',
         cursor: 'pointer', transition: 'background 0.12s ease',
       }}
-      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--surface-bg)' }}
-      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
     >
       {/* Status dot */}
       <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0,
@@ -306,10 +308,24 @@ function CallRow({ call, isSelected, onClick }) {
         borderRadius: 5, padding: '2px 6px', flexShrink: 0,
       }}>{label}</span>
 
-      {/* Time */}
-      <span style={{ fontSize: 10, color: 'var(--t4)', flexShrink: 0, minWidth: 52, textAlign: 'right' }}>
-        {timeAgo(call.started_at || call.created_at)}
-      </span>
+      {/* Delete icon for failed calls — shown on hover */}
+      {isFailed && hovered ? (
+        <button
+          onClick={e => { e.stopPropagation(); onDelete && onDelete(call) }}
+          title="Delete failed call"
+          style={{
+            width: 26, height: 26, borderRadius: 6, flexShrink: 0,
+            background: 'rgba(255,68,68,0.10)', border: '1px solid rgba(255,68,68,0.22)',
+            color: RED, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Trash2 size={11} />
+        </button>
+      ) : (
+        <span style={{ fontSize: 10, color: 'var(--t4)', flexShrink: 0, minWidth: 52, textAlign: 'right' }}>
+          {timeAgo(call.started_at || call.created_at)}
+        </span>
+      )}
     </div>
   )
 }
@@ -631,6 +647,15 @@ export default function LiveMonitor() {
     } catch { toast.error('Failed to end call') }
   }
 
+  const handleDelete = async (call) => {
+    try {
+      await callsApi.deleteCall(call.id)
+      if (selected?.id === call.id) setSelected(null)
+      setHistory(h => h.filter(c => c.id !== call.id))
+      toast.success('Call log removed')
+    } catch { toast.error('Failed to delete call') }
+  }
+
   // Merge live calls with history for the list (live calls at top)
   const liveIds  = new Set(liveCalls.map(c => c.id))
   const combined = [
@@ -724,6 +749,7 @@ export default function LiveMonitor() {
                   call={call}
                   isSelected={selected?.id === call.id}
                   onClick={() => setSelected(call)}
+                  onDelete={handleDelete}
                 />
               ))}
             </>

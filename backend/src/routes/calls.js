@@ -223,6 +223,19 @@ router.post('/campaign/stop', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// DELETE /api/calls/:id — remove a failed call log
+router.delete('/:id', async (req, res, next) => {
+  try {
+    // Only allow deletion of failed calls (not active or completed ones with data)
+    const { data: call } = await supabase.from('calls').select('status').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (!call) return res.status(404).json({ success: false, error: 'Call not found' });
+    if (call.status !== 'failed') return res.status(400).json({ success: false, error: 'Only failed calls can be deleted' });
+    const { error } = await supabase.from('calls').delete().eq('id', req.params.id).eq('user_id', req.user.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
 // PUT /api/calls/:id — update outcome, notes, score after manual call
 router.put('/:id', async (req, res, next) => {
   try {

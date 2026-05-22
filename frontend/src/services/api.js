@@ -77,6 +77,7 @@ export const calls = {
   returnToAI:     (callId)     => api.post('/api/calls/return-to-ai', { call_id: callId }),
   getListenUrl:   (id)         => api.get(`/api/calls/${id}/listen`).then(r => r.data),
   syncFromVapi:   ()           => api.post('/api/vapi/sync-calls'),
+  deleteCall:     (id)         => api.delete(`/api/calls/${id}`),
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
