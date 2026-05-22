@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 
-const APP_URL = 'https://veori-ai-frontend-veori-ai.vercel.app'
+const APP_URL = 'https://veori.net'
 
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false)
@@ -29,16 +29,7 @@ export default function Nav() {
     >
       {/* Logo */}
       <a href="#" className="flex items-center gap-2.5 no-underline">
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-          <defs>
-            <linearGradient id="nav-lg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#00E090" />
-              <stop offset="100%" stopColor="#009E61" />
-            </linearGradient>
-          </defs>
-          <rect width="32" height="32" rx="8" fill="url(#nav-lg)" />
-          <text x="16" y="23" fontFamily="Inter,system-ui,sans-serif" fontSize="16" fontWeight="900" fill="#000" textAnchor="middle">V</text>
-        </svg>
+        <img src="/favicon.svg" alt="VEORI" width="32" height="32" style={{ display: 'block' }} />
         <span style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff' }}>VEORI</span>
       </a>
 

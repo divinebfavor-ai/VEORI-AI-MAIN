@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { auth } from '../services/api'
+import VeoriLogo from '../components/VeoriLogo'
 
 export default function ForgotPassword() {
   const [email,   setEmail]   = useState('')
@@ -56,12 +57,9 @@ export default function ForgotPassword() {
 
       {/* Logo */}
       <div style={{ textAlign: 'center', marginBottom: 28, position: 'relative', zIndex: 10 }}>
-        <div style={{
-          width: 52, height: 52, borderRadius: 14,
-          background: 'linear-gradient(135deg, #00E090, #009E61)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 12px', fontSize: 24, fontWeight: 900, color: '#000',
-        }}>V</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+          <VeoriLogo size={52} />
+        </div>
         <span style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff' }}>VEORI</span>
       </div>
 

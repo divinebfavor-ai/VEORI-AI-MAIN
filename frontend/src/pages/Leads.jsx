@@ -729,6 +729,7 @@ export default function Leads() {
   const [page, setPage]           = useState(1)
   const [importing, setImporting] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
+  const [showAddLead, setShowAddLead] = useState(false)
   const fileRef  = useRef()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -877,7 +878,7 @@ export default function Leads() {
             <Button variant="secondary" size="sm" loading={importing} onClick={() => fileRef.current?.click()}>
               <Upload size={13} /> Import CSV
             </Button>
-            <Button variant="primary" size="sm" onClick={() => toast.info('Manual lead entry coming soon')}>
+            <Button variant="primary" size="sm" onClick={() => setShowAddLead(true)}>
               <Plus size={13} /> Add Lead
             </Button>
           </div>
@@ -1054,6 +1055,97 @@ export default function Leads() {
           onNavigate={(path) => { setSelected(null); navigate(path) }}
         />
       )}
+
+      {/* ── Add Lead Modal ────────────────────────────────────────────────────── */}
+      {showAddLead && <AddLeadModal onClose={() => setShowAddLead(false)} onSaved={(lead) => { setShowAddLead(false); load().then(() => setSelected(lead)) }} />}
+    </div>
+  )
+}
+
+// ─── Add Lead Modal ───────────────────────────────────────────────────────────
+function AddLeadModal({ onClose, onSaved }) {
+  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', email: '', property_address: '', property_city: '', property_state: '', property_zip: '' })
+  const [saving, setSaving] = useState(false)
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const save = async () => {
+    if (!form.first_name || !form.phone) { toast.error('First name and phone are required'); return }
+    setSaving(true)
+    try {
+      const { data } = await leads.createLead(form)
+      toast.success('Lead added')
+      onSaved(data?.lead || data?.data || form)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to add lead')
+    } finally { setSaving(false) }
+  }
+
+  const inp = {
+    width: '100%', padding: '9px 12px', background: 'var(--input-bg)',
+    border: '1px solid var(--input-border)', borderRadius: 8, fontSize: 13,
+    color: 'var(--input-text)', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.60)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={onClose}>
+      <div style={{ width: 480, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--t1)' }}>Add New Lead</p>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t4)', padding: 0 }}>
+            <X size={16} />
+          </button>
+        </div>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--t4)', marginBottom: 5, fontWeight: 600, letterSpacing: '0.06em' }}>FIRST NAME *</label>
+              <input style={inp} value={form.first_name} onChange={set('first_name')} placeholder="John" autoFocus />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--t4)', marginBottom: 5, fontWeight: 600, letterSpacing: '0.06em' }}>LAST NAME</label>
+              <input style={inp} value={form.last_name} onChange={set('last_name')} placeholder="Smith" />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--t4)', marginBottom: 5, fontWeight: 600, letterSpacing: '0.06em' }}>PHONE *</label>
+              <input style={inp} value={form.phone} onChange={set('phone')} placeholder="+1 (704) 555-0000" type="tel" />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--t4)', marginBottom: 5, fontWeight: 600, letterSpacing: '0.06em' }}>EMAIL</label>
+              <input style={inp} value={form.email} onChange={set('email')} placeholder="john@email.com" type="email" />
+            </div>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, color: 'var(--t4)', marginBottom: 5, fontWeight: 600, letterSpacing: '0.06em' }}>PROPERTY ADDRESS</label>
+            <input style={inp} value={form.property_address} onChange={set('property_address')} placeholder="123 Main St" />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--t4)', marginBottom: 5, fontWeight: 600, letterSpacing: '0.06em' }}>CITY</label>
+              <input style={inp} value={form.property_city} onChange={set('property_city')} placeholder="Charlotte" />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--t4)', marginBottom: 5, fontWeight: 600, letterSpacing: '0.06em' }}>STATE</label>
+              <input style={inp} value={form.property_state} onChange={set('property_state')} placeholder="NC" maxLength={2} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--t4)', marginBottom: 5, fontWeight: 600, letterSpacing: '0.06em' }}>ZIP</label>
+              <input style={inp} value={form.property_zip} onChange={set('property_zip')} placeholder="28202" />
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: '0 20px 20px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 8, background: 'var(--surface-bg)', border: '1px solid var(--border)', color: 'var(--t3)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Cancel
+          </button>
+          <button onClick={save} disabled={saving} style={{ padding: '9px 22px', borderRadius: 8, background: '#00C37A', border: 'none', color: '#000', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'Saving...' : 'Add Lead'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

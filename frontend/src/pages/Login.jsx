@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import VeoriLogo from '../components/VeoriLogo'
 
 // ─── Google Icon ──────────────────────────────────────────────────────────────
 function GoogleIcon() {
@@ -56,19 +57,11 @@ export default function Login() {
 
       {/* Logo */}
       <div style={{ textAlign: 'center', marginBottom: 32, position: 'relative', zIndex: 10 }}>
-        <div style={{
-          width: 52, height: 52, borderRadius: 14,
-          background: 'rgba(0,195,122,0.10)',
-          border: '1px solid rgba(0,195,122,0.30)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 16px',
-          backdropFilter: 'blur(10px)',
-          boxShadow: '0 0 30px rgba(0,195,122,0.15)',
-        }}>
-          <span style={{ fontSize: 26, fontWeight: 700, color: '#00C37A', letterSpacing: '-0.02em' }}>V</span>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+          <VeoriLogo size={56} />
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 500, color: '#FFFFFF', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-          Veori
+          VEORI
         </h1>
         <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
           Built to Achieve
