@@ -72,88 +72,100 @@ function Waveform({ active = true, color = GREEN, bars = 16 }) {
   )
 }
 
-// ─── WebSocket Listen Mode ────────────────────────────────────────────────────
+// ─── WebRTC Listen Mode ────────────────────────────────────────────────────────
 function useListenMode() {
-  const wsRefs      = useRef({})
-  const ctxRefs     = useRef({})
-  const gainRefs    = useRef({})
-  const nextTimeRef = useRef({})
+  const pcRefs    = useRef({})    // RTCPeerConnection per callId
+  const audioRefs = useRef({})    // Audio element per callId
   const [listening, setListening] = useState({})
-  const [volumes, setVolumes]     = useState({})
+  const [volumes,   setVolumes]   = useState({})
 
-  const connectListen = useCallback(async (callId, dbCallId, vapiCallId) => {
-    if (!vapiCallId) { toast.error('Call not connected yet — try again in a moment'); return }
+  const connectListen = useCallback(async (callId, dbCallId) => {
+    if (!dbCallId) { toast.error('Call not ready yet — try again in a moment'); return }
     try {
-      const token  = localStorage.getItem('veori_token')
-      const BASE   = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-      const WS_BASE = BASE.replace(/^http/, 'ws')
-      const wsUrl  = `${WS_BASE}/api/calls/audio?vapiCallId=${encodeURIComponent(vapiCallId)}&token=${encodeURIComponent(token)}`
+      const token = localStorage.getItem('veori_token')
+      const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-      const ctx  = new AudioContext({ sampleRate: 16000 })
-      const gain = ctx.createGain()
-      gain.gain.value = (volumes[callId] ?? 100) / 100
-      gain.connect(ctx.destination)
-      ctxRefs.current[callId]     = ctx
-      gainRefs.current[callId]    = gain
-      nextTimeRef.current[callId] = ctx.currentTime
+      // Build a WebRTC peer connection — receive audio only
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      })
 
-      const ws = new WebSocket(wsUrl)
-      ws.binaryType = 'arraybuffer'
+      // When Vapi sends the audio track, play it
+      const audioEl = new Audio()
+      audioEl.autoplay = true
+      audioEl.volume   = (volumes[callId] ?? 100) / 100
+      audioRefs.current[callId] = audioEl
 
-      ws.onopen = () => {}
+      pc.ontrack = (event) => {
+        audioEl.srcObject = event.streams[0]
+        audioEl.play().catch(() => {})
+        setListening(l => ({ ...l, [callId]: true }))
+        toast.success('Listening live — seller cannot hear you')
+      }
 
-      ws.onmessage = (ev) => {
-        // Backend sends a JSON ready message first, then binary PCM audio
-        if (typeof ev.data === 'string') {
-          try {
-            const msg = JSON.parse(ev.data)
-            if (msg.type === 'ready') {
-              setListening(l => ({ ...l, [callId]: true }))
-              toast.success('Listening — seller cannot hear you')
-            }
-          } catch { }
-          return
+      // Receive-only audio
+      pc.addTransceiver('audio', { direction: 'recvonly' })
+
+      // Create offer
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+
+      // Wait for ICE gathering (max 4 seconds)
+      await new Promise((resolve) => {
+        if (pc.iceGatheringState === 'complete') { resolve(); return }
+        const onState = () => { if (pc.iceGatheringState === 'complete') resolve() }
+        pc.addEventListener('icegatheringstatechange', onState)
+        setTimeout(resolve, 4000)
+      })
+
+      // Send SDP offer to our backend, which proxies to Vapi
+      const res = await fetch(`${BASE}/api/calls/${dbCallId}/listen-join`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sdp: pc.localDescription.sdp }),
+      })
+
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        pc.close()
+        throw new Error(e.error || 'Audio not available — call may still be ringing')
+      }
+
+      // Vapi returns the SDP answer (text/plain or application/sdp)
+      const answerSdp = await res.text()
+      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+
+      pcRefs.current[callId] = pc
+
+      pc.onconnectionstatechange = () => {
+        if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+          setListening(l => { const n = { ...l }; delete n[callId]; return n })
         }
-        try {
-          const int16 = new Int16Array(ev.data)
-          const f32   = new Float32Array(int16.length)
-          for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 32768
-          const buf = ctx.createBuffer(1, f32.length, 16000)
-          buf.getChannelData(0).set(f32)
-          const src = ctx.createBufferSource()
-          src.buffer = buf; src.connect(gain)
-          const when = Math.max(nextTimeRef.current[callId], ctx.currentTime + 0.05)
-          src.start(when)
-          nextTimeRef.current[callId] = when + buf.duration
-        } catch { }
       }
-
-      ws.onerror = () => toast.error('Could not connect to call audio — try again')
-      ws.onclose = (e) => {
-        setListening(l => { const n = { ...l }; delete n[callId]; return n })
-        if (e.code === 4004) toast.error('Audio not ready — call may still be ringing')
-        else if (e.code === 4003) toast.error('Session expired — please refresh')
-      }
-      wsRefs.current[callId] = ws
     } catch (err) {
       toast.error(err.message || 'Could not connect to call audio')
     }
   }, [volumes])
 
   const disconnectListen = useCallback((callId) => {
-    wsRefs.current[callId]?.close()
-    ctxRefs.current[callId]?.close()
-    delete wsRefs.current[callId]; delete ctxRefs.current[callId]
-    delete gainRefs.current[callId]; delete nextTimeRef.current[callId]
+    pcRefs.current[callId]?.close()
+    if (audioRefs.current[callId]) {
+      audioRefs.current[callId].srcObject = null
+    }
+    delete pcRefs.current[callId]
+    delete audioRefs.current[callId]
     setListening(l => { const n = { ...l }; delete n[callId]; return n })
   }, [])
 
   const setVolume = useCallback((callId, vol) => {
-    if (gainRefs.current[callId]) gainRefs.current[callId].gain.value = vol / 100
+    if (audioRefs.current[callId]) audioRefs.current[callId].volume = vol / 100
     setVolumes(v => ({ ...v, [callId]: vol }))
   }, [])
 
-  useEffect(() => () => Object.keys(wsRefs.current).forEach(disconnectListen), [disconnectListen])
+  useEffect(() => () => Object.keys(pcRefs.current).forEach(disconnectListen), [disconnectListen])
   return { listening, volumes, connectListen, disconnectListen, setVolume }
 }
 
@@ -419,9 +431,39 @@ function AudioPlayer({ src }) {
   )
 }
 
+// ─── Live transcript poller ────────────────────────────────────────────────────
+function useLiveTranscript(call) {
+  const [liveTranscript, setLiveTranscript] = useState(call?.transcript || '')
+  const isLive = call && ['initiated','ringing','in-progress'].includes(call.status)
+
+  useEffect(() => {
+    setLiveTranscript(call?.transcript || '')
+    if (!isLive || !call?.id) return
+    const poll = async () => {
+      try {
+        const token = localStorage.getItem('veori_token')
+        const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+        const r = await fetch(`${BASE}/api/calls/${call.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (r.ok) {
+          const d = await r.json()
+          setLiveTranscript(d.data?.transcript || '')
+        }
+      } catch { }
+    }
+    poll()
+    const t = setInterval(poll, 2000)
+    return () => clearInterval(t)
+  }, [call?.id, isLive])
+
+  return liveTranscript
+}
+
 // ─── Call Detail Panel ────────────────────────────────────────────────────────
 function CallDetailPanel({ call }) {
   const navigate = useNavigate()
+  const liveTranscript = useLiveTranscript(call)
   if (!call) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
@@ -432,7 +474,7 @@ function CallDetailPanel({ call }) {
   }
 
   const { label, color } = statusMeta(call.status, call.outcome)
-  const name = call.leads
+  const name   = call.leads
     ? `${call.leads.first_name || ''} ${call.leads.last_name || ''}`.trim() || 'Unknown'
     : call.lead_name || 'Unknown Seller'
   const isLive = ['initiated','ringing','in-progress'].includes(call.status)
@@ -482,20 +524,44 @@ function CallDetailPanel({ call }) {
         </div>
       )}
 
-      {/* Transcript */}
-      {call.transcript && (
+      {/* Live / completed transcript */}
+      {(liveTranscript || isLive) && (
         <div style={{ marginBottom: 14 }}>
-          <p style={{ margin: '0 0 8px', fontSize: 10, color: 'var(--t4)', fontWeight: 600, letterSpacing: '0.06em' }}>TRANSCRIPT</p>
-          <div style={{ background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {call.transcript.split('\n').filter(Boolean).map((line, i) => {
-              const isAI = /^(alex|agent):/i.test(line)
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 8px' }}>
+            <p style={{ margin: 0, fontSize: 10, color: 'var(--t4)', fontWeight: 600, letterSpacing: '0.06em' }}>TRANSCRIPT</p>
+            {isLive && (
+              <span style={{ fontSize: 9, fontWeight: 700, color: GREEN, background: 'rgba(0,195,122,0.12)', border: '1px solid rgba(0,195,122,0.2)', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.06em' }}>
+                LIVE
+              </span>
+            )}
+          </div>
+          <div
+            ref={el => { if (el) el.scrollTop = el.scrollHeight }}
+            style={{ background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}
+          >
+            {liveTranscript ? liveTranscript.split('\n').filter(Boolean).map((line, i) => {
+              const isAI     = /^(alex|agent|ai|assistant):/i.test(line)
+              const isSeller = /^(seller|user|customer|human):/i.test(line)
+              const color    = isAI ? GREEN : BLUE
+              const label    = isAI ? 'ALEX' : 'SELL'
               return (
-                <div key={i} style={{ display: 'flex', gap: 8 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: isAI ? GREEN : BLUE, flexShrink: 0, width: 36, letterSpacing: '0.06em', marginTop: 2 }}>{isAI ? 'ALEX' : 'SELL'}</span>
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--t2)', lineHeight: 1.5 }}>{line.replace(/^(alex|agent|seller):\s*/i, '')}</p>
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, color, flexShrink: 0,
+                    width: 32, letterSpacing: '0.06em', marginTop: 3,
+                    background: `${color}15`, borderRadius: 3, padding: '1px 3px', textAlign: 'center',
+                  }}>{label}</span>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--t2)', lineHeight: 1.6 }}>
+                    {line.replace(/^(alex|agent|ai|assistant|seller|user|customer|human):\s*/i, '')}
+                  </p>
                 </div>
               )
-            })}
+            }) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: GREEN, animation: 'pulse-live 1.5s ease-in-out infinite' }} />
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--t4)' }}>Waiting for conversation to start...</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -647,10 +713,9 @@ export default function LiveMonitor() {
   }, [liveCalls, selected])
 
   const handleListen = async (call) => {
-    const callId = call.id || call.vapi_call_id
+    const callId = call.id
     if (listening[callId]) { disconnectListen(callId); return }
-    // Pass vapi_call_id so the backend can skip the DB lookup
-    await connectListen(callId, call.id, call.vapi_call_id)
+    await connectListen(callId, call.id)
   }
 
   const handleTakeover = async (call) => {
@@ -734,14 +799,14 @@ export default function LiveMonitor() {
                 <LiveCallCard
                   key={callId}
                   call={call}
-                  isListening={!!listening[callId]}
-                  volume={volumes[callId]}
+                  isListening={!!listening[call.id]}
+                  volume={volumes[call.id]}
                   takeover={!!takeovers[call.id]}
                   isSelected={selected?.id === call.id}
                   onClick={() => setSelected(call)}
                   onListen={() => handleListen(call)}
-                  onStopListen={() => disconnectListen(callId)}
-                  onSetVolume={vol => setVolume(callId, vol)}
+                  onStopListen={() => disconnectListen(call.id)}
+                  onSetVolume={vol => setVolume(call.id, vol)}
                   onTakeover={() => handleTakeover(call)}
                   onReturn={() => handleReturn(call)}
                   onEnd={() => handleEnd(call)}
