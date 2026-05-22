@@ -82,21 +82,12 @@ function useListenMode() {
   const [volumes, setVolumes]     = useState({})
 
   const connectListen = useCallback(async (callId, dbCallId, vapiCallId) => {
+    if (!vapiCallId) { toast.error('Call not connected yet — try again in a moment'); return }
     try {
-      const token = localStorage.getItem('veori_token')
-      const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-      // Pass vapi_call_id as query param so the backend skips the DB lookup
-      // (avoids "No Vapi call ID" when DB record was created before vapi_call_id was saved)
-      const qs  = vapiCallId ? `?vapi_call_id=${encodeURIComponent(vapiCallId)}` : ''
-      const r   = await fetch(`${BASE}/api/calls/${dbCallId}/listen${qs}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!r.ok) {
-        const e = await r.json().catch(() => ({}))
-        throw new Error(e.error || 'Could not get listen URL')
-      }
-      const { listen_url } = await r.json()
-      if (!listen_url) throw new Error('Listen URL not ready — call may still be connecting')
+      const token  = localStorage.getItem('veori_token')
+      const BASE   = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+      const WS_BASE = BASE.replace(/^http/, 'ws')
+      const wsUrl  = `${WS_BASE}/api/calls/audio?vapiCallId=${encodeURIComponent(vapiCallId)}&token=${encodeURIComponent(token)}`
 
       const ctx  = new AudioContext({ sampleRate: 16000 })
       const gain = ctx.createGain()
@@ -106,28 +97,43 @@ function useListenMode() {
       gainRefs.current[callId]    = gain
       nextTimeRef.current[callId] = ctx.currentTime
 
-      const ws = new WebSocket(listen_url)
+      const ws = new WebSocket(wsUrl)
       ws.binaryType = 'arraybuffer'
-      ws.onopen = () => {
-        setListening(l => ({ ...l, [callId]: true }))
-        toast.success('Listening — seller cannot hear you')
-      }
+
+      ws.onopen = () => {}
+
       ws.onmessage = (ev) => {
+        // Backend sends a JSON ready message first, then binary PCM audio
+        if (typeof ev.data === 'string') {
+          try {
+            const msg = JSON.parse(ev.data)
+            if (msg.type === 'ready') {
+              setListening(l => ({ ...l, [callId]: true }))
+              toast.success('Listening — seller cannot hear you')
+            }
+          } catch { }
+          return
+        }
         try {
-          const int16  = new Int16Array(ev.data)
-          const f32    = new Float32Array(int16.length)
+          const int16 = new Int16Array(ev.data)
+          const f32   = new Float32Array(int16.length)
           for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 32768
           const buf = ctx.createBuffer(1, f32.length, 16000)
           buf.getChannelData(0).set(f32)
-          const src  = ctx.createBufferSource()
+          const src = ctx.createBufferSource()
           src.buffer = buf; src.connect(gain)
           const when = Math.max(nextTimeRef.current[callId], ctx.currentTime + 0.05)
           src.start(when)
           nextTimeRef.current[callId] = when + buf.duration
         } catch { }
       }
-      ws.onerror = () => toast.error('Audio stream error')
-      ws.onclose = () => setListening(l => { const n = { ...l }; delete n[callId]; return n })
+
+      ws.onerror = () => toast.error('Could not connect to call audio — try again')
+      ws.onclose = (e) => {
+        setListening(l => { const n = { ...l }; delete n[callId]; return n })
+        if (e.code === 4004) toast.error('Audio not ready — call may still be ringing')
+        else if (e.code === 4003) toast.error('Session expired — please refresh')
+      }
       wsRefs.current[callId] = ws
     } catch (err) {
       toast.error(err.message || 'Could not connect to call audio')
@@ -152,34 +158,45 @@ function useListenMode() {
 }
 
 // ─── Live Call Card ───────────────────────────────────────────────────────────
+// ─── Call sub-status label ─────────────────────────────────────────────────────
+function callSubStatus(status) {
+  if (status === 'initiated') return { label: 'Connecting...', color: AMBER, pulse: true }
+  if (status === 'ringing')   return { label: 'Ringing...', color: BLUE, pulse: true }
+  if (status === 'in-progress') return { label: 'Connected', color: GREEN, pulse: false }
+  return { label: 'Live', color: GREEN, pulse: true }
+}
+
 function LiveCallCard({ call, isListening, volume, takeover, onListen, onStopListen, onSetVolume, onTakeover, onReturn, onEnd, isSelected, onClick }) {
-  const initials = (call.lead_name || 'UN').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const initials  = (call.lead_name || 'UN').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const subStatus = callSubStatus(call.status)
+  const isConnected = call.status === 'in-progress'
+
   return (
     <div
       onClick={onClick}
       style={{
         borderRadius: 14,
-        border: `1px solid ${isSelected ? 'rgba(0,195,122,0.40)' : 'rgba(0,195,122,0.15)'}`,
-        background: isSelected ? 'rgba(0,195,122,0.06)' : 'rgba(0,195,122,0.03)',
+        border: `1px solid ${isSelected ? `${subStatus.color}55` : `${subStatus.color}22`}`,
+        background: isSelected ? `${subStatus.color}08` : `${subStatus.color}03`,
         padding: '16px 18px',
         cursor: 'pointer',
         transition: 'all 0.15s ease',
       }}
     >
       {/* Top row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <div style={{
             width: 42, height: 42, borderRadius: '50%',
-            background: 'rgba(0,195,122,0.12)', border: '1.5px solid rgba(0,195,122,0.25)',
+            background: `${subStatus.color}18`, border: `1.5px solid ${subStatus.color}40`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, fontWeight: 700, color: GREEN,
+            fontSize: 14, fontWeight: 700, color: subStatus.color,
           }}>{initials}</div>
           <span style={{
             position: 'absolute', bottom: 0, right: -2,
             width: 10, height: 10, borderRadius: '50%',
-            background: GREEN, border: '2px solid var(--card-bg)',
-            animation: 'pulse-live 2s ease-in-out infinite',
+            background: subStatus.color, border: '2px solid var(--card-bg)',
+            animation: subStatus.pulse ? 'pulse-live 1.5s ease-in-out infinite' : 'none',
           }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -190,12 +207,17 @@ function LiveCallCard({ call, isListening, volume, takeover, onListen, onStopLis
             {call.property_address || 'Address unknown'}
           </p>
         </div>
-        <Duration startedAt={call.started_at} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+          <Duration startedAt={call.started_at} />
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: subStatus.color }}>
+            {subStatus.label.toUpperCase()}
+          </span>
+        </div>
       </div>
 
-      {/* Waveform */}
+      {/* Waveform — only show when actually connected */}
       <div style={{ marginBottom: 14 }}>
-        <Waveform active bars={18} color={isListening ? BLUE : GREEN} />
+        <Waveform active={isConnected} bars={18} color={isListening ? BLUE : subStatus.color} />
       </div>
 
       {/* Action buttons — always visible */}
@@ -608,8 +630,16 @@ export default function LiveMonitor() {
   }, [])
 
   useEffect(() => { loadHistory() }, [loadHistory])
-  // Refresh history every 15s
-  useEffect(() => { const t = setInterval(loadHistory, 15000); return () => clearInterval(t) }, [loadHistory])
+  // Refresh history every 8s, and whenever live calls change (catches ended calls moving to history)
+  useEffect(() => { const t = setInterval(loadHistory, 8000); return () => clearInterval(t) }, [loadHistory])
+  const prevLiveCount = useRef(0)
+  useEffect(() => {
+    if (prevLiveCount.current > 0 && liveCalls.length < prevLiveCount.current) {
+      // A call just ended — reload history immediately so it appears there
+      setTimeout(loadHistory, 1000)
+    }
+    prevLiveCount.current = liveCalls.length
+  }, [liveCalls.length, loadHistory])
 
   // Auto-select first live call (only when no call is selected yet)
   useEffect(() => {

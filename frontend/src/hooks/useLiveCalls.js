@@ -22,7 +22,7 @@ export function useLiveCalls() {
     }
 
     fetchLive()
-    const interval = setInterval(fetchLive, 3000)
+    const interval = setInterval(fetchLive, 1500)
 
     return () => {
       mounted = false

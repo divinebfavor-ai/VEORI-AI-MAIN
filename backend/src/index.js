@@ -12,11 +12,14 @@ process.on('unhandledRejection', (reason) => {
   console.error('[FATAL] unhandledRejection — keeping process alive:', reason);
 });
 
+const http    = require('http');
 const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
 const morgan  = require('morgan');
 const rateLimit = require('express-rate-limit');
+const WebSocket = require('ws');
+const jwt       = require('jsonwebtoken');
 
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
@@ -232,8 +235,47 @@ setInterval(autoSyncVapiCalls, 5 * 60 * 1000);
 app.use(notFound);
 app.use(errorHandler);
 
+// ─── HTTP Server + WebSocket Audio Proxy ──────────────────────────────────────
+const server = http.createServer(app);
+const vapiService = require('./services/vapiService');
+
+const wss = new WebSocket.Server({ server, path: '/api/calls/audio' });
+
+wss.on('connection', async (clientWs, req) => {
+  try {
+    const url       = new URL(req.url, 'http://localhost');
+    const token     = url.searchParams.get('token');
+    const vapiCallId = url.searchParams.get('vapiCallId');
+
+    // Verify JWT
+    if (!token || !vapiCallId) { clientWs.close(4001, 'Missing params'); return; }
+    try { jwt.verify(token, process.env.JWT_SECRET || 'veori-secret-key'); }
+    catch { clientWs.close(4003, 'Unauthorized'); return; }
+
+    // Fetch Vapi listen URL from server side (has API key)
+    const listenUrl = await vapiService.getListenUrl(vapiCallId).catch(() => null);
+    if (!listenUrl) { clientWs.close(4004, 'Listen URL not ready'); return; }
+
+    // Connect to Vapi's listen WebSocket from the server
+    const vapiWs = new WebSocket(listenUrl, {
+      headers: { Authorization: `Bearer ${process.env.VAPI_API_KEY}` },
+    });
+
+    vapiWs.on('open',    ()    => { clientWs.send(JSON.stringify({ type: 'ready' })); });
+    vapiWs.on('message', (data) => { if (clientWs.readyState === WebSocket.OPEN) clientWs.send(data); });
+    vapiWs.on('close',   ()    => { clientWs.close(); });
+    vapiWs.on('error',   (e)   => { console.error('[AudioProxy] Vapi WS error:', e.message); clientWs.close(); });
+
+    clientWs.on('close', () => { vapiWs.terminate(); });
+    clientWs.on('error', () => { vapiWs.terminate(); });
+  } catch (err) {
+    console.error('[AudioProxy] Error:', err.message);
+    clientWs.close();
+  }
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`
 ╔══════════════════════════════════════════╗
 ║         VEORI AI Backend v1.0            ║
