@@ -91,7 +91,6 @@ ${vmMessage}`,
       maxDurationSeconds: 60, // Short — voicemail only
       metadata: { callId, leadId: lead.id, type: 'voicemail_drop', template: templateKey },
     },
-    serverUrl: WEBHOOK_URL,
   };
 
   // Pick best phone number via rotation (same as regular calls)

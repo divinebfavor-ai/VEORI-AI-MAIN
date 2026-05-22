@@ -455,8 +455,6 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
         motivationScore: lead.motivation_score,
       },
     },
-    serverUrl: WEBHOOK_URL,
-    serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET || undefined,
   };
 
   console.log(`[Vapi] Initiating call — webhookUrl=${WEBHOOK_URL}`);
@@ -564,7 +562,6 @@ RULES:
       maxDurationSeconds: 600,
       metadata: { callId, buyerId: buyer.id, dealId: deal.id, type: 'buyer_outreach' },
     },
-    serverUrl: WEBHOOK_URL,
   };
 
   // Use operator's provisioned number — never a hardcoded env var
