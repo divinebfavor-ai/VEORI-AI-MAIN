@@ -314,7 +314,7 @@ function AssessmentScreen({ onComplete }) {
 }
 
 // ─── Playbook Dashboard ───────────────────────────────────────────────────────
-function PlaybookDashboard({ playbook, score, feed, onRefresh, refreshing }) {
+function PlaybookDashboard({ playbook, score, feed, onRefresh, refreshing, onRetake }) {
   const navigate    = useNavigate()
   const [actionDone, setActionDone] = useState(false)
   const primary = playbook?.strategies?.find(s => s.id === playbook.primary_strategy) || playbook?.strategies?.[0]
@@ -344,6 +344,12 @@ function PlaybookDashboard({ playbook, score, feed, onRefresh, refreshing }) {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <WealthGauge score={score} size={120} />
           <span style={{ fontSize: 12, fontWeight: 600, color: tierColor }}>{tier}</span>
+          <button
+            onClick={onRetake}
+            style={{ fontSize: 11, color: 'var(--t4)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            Start Over
+          </button>
           <button
             onClick={onRefresh}
             disabled={refreshing}
@@ -547,6 +553,11 @@ export default function WealthPlaybook() {
     setPhase('dashboard')
   }
 
+  const handleRetake = () => {
+    setPlaybook(null)
+    setPhase('assessment')
+  }
+
   const handleRefresh = async () => {
     if (!user?.id || refreshing) return
     setRefreshing(true)
@@ -578,6 +589,7 @@ export default function WealthPlaybook() {
       feed={feed}
       onRefresh={handleRefresh}
       refreshing={refreshing}
+      onRetake={handleRetake}
     />
   )
 }
