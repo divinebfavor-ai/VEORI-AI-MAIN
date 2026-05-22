@@ -1,12 +1,79 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { Link } from 'react-router-dom'
-import { Phone, Flame, Briefcase, DollarSign, ArrowRight, Clock3, FileSignature, AlertTriangle, Zap, CheckCircle, X } from 'lucide-react'
+import { Phone, Flame, Briefcase, DollarSign, ArrowRight, Clock3, FileSignature, AlertTriangle, Zap, CheckCircle, X, Sparkles } from 'lucide-react'
 import Badge from '../components/ui/Badge'
-import { analytics, preferences as prefsApi } from '../services/api'
+import { analytics, preferences as prefsApi, auth as authApi } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
 import useAuthStore from '../store/authStore'
 import useIntelStore from '../store/intelStore'
+
+// ─── Trial / Quota Banner ─────────────────────────────────────────────────────
+function SubscriptionBanner({ user }) {
+  const [dismissed, setDismissed] = useState(false)
+  if (!user || dismissed) return null
+
+  const status     = user.subscription_status || 'trial'
+  const trialEnd   = user.trial_ends_at ? new Date(user.trial_ends_at) : null
+  const now        = new Date()
+  const isExpired  = status === 'trial' && trialEnd && trialEnd < now
+  const daysLeft   = trialEnd && !isExpired ? Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)) : 0
+  const callsUsed  = user.calls_used  || 0
+  const callsLimit = user.calls_limit || 0
+  const nearLimit  = callsLimit > 0 && callsUsed >= callsLimit * 0.85
+
+  if (status === 'active' && !nearLimit) return null
+
+  let bg, border, color, icon, message, action
+  if (isExpired) {
+    bg = 'rgba(255,68,68,0.08)'; border = 'rgba(255,68,68,0.25)'; color = '#FF4444'
+    icon = '🔒'
+    message = 'Your trial has ended. Upgrade your plan to keep making calls.'
+    action = 'Upgrade Now'
+  } else if (nearLimit && callsLimit > 0) {
+    bg = 'rgba(255,149,0,0.08)'; border = 'rgba(255,149,0,0.25)'; color = '#FF9500'
+    icon = '⚡'
+    message = `${callsUsed} of ${callsLimit} calls used this month. You're approaching your limit.`
+    action = 'Upgrade Plan'
+  } else if (status === 'trial' && daysLeft <= 7) {
+    bg = 'rgba(255,149,0,0.08)'; border = 'rgba(255,149,0,0.25)'; color = '#FF9500'
+    icon = '⏳'
+    message = `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left on your trial.`
+    action = 'Upgrade Now'
+  } else if (status === 'trial') {
+    bg = 'rgba(0,195,122,0.06)'; border = 'rgba(0,195,122,0.18)'; color = '#00C37A'
+    icon = '✨'
+    message = `Trial active — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining. ${callsLimit ? `${callsUsed}/${callsLimit} calls used.` : ''}`
+    action = 'View Plans'
+  } else return null
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      background: bg, border: `1px solid ${border}`,
+      borderRadius: 12, padding: '10px 16px', marginBottom: 20, gap: 12,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+        <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+        <p style={{ margin: 0, fontSize: 13, color, fontWeight: 500 }}>{message}</p>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <Link to="/settings" style={{
+          fontSize: 12, fontWeight: 700, color,
+          background: `${color}15`, border: `1px solid ${color}30`,
+          borderRadius: 7, padding: '5px 12px', textDecoration: 'none',
+          whiteSpace: 'nowrap',
+        }}>{action}</Link>
+        {status === 'trial' && !isExpired && (
+          <button onClick={() => setDismissed(true)} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--t4)', padding: 2, display: 'flex', alignItems: 'center',
+          }}><X size={14} /></button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function fmt$(n) { if (!n) return '$0'; return '$' + Number(n).toLocaleString() }
 
@@ -271,6 +338,13 @@ export default function Dashboard() {
     }).finally(() => setLoading(false))
   }, [])
 
+  const updateUser = useAuthStore(s => s.updateUser)
+
+  // Refresh user data (subscription, call counts) from server on mount
+  useEffect(() => {
+    authApi.getMe().then(r => { if (r.data?.user) updateUser(r.data.user) }).catch(() => {})
+  }, [updateUser])
+
   const hasLive = liveCalls.length > 0
 
   const pipelineMap = {}
@@ -311,6 +385,9 @@ export default function Dashboard() {
           </span>
         </div>
       </div>
+
+      {/* ── Trial / Quota Banner ────────────────────────────────────────── */}
+      <SubscriptionBanner user={user} />
 
       {/* ── Stat Cards ──────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }} className="stagger">
