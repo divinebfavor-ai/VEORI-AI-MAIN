@@ -12,14 +12,22 @@ export default function Register() {
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
+  const pwRules = [
+    { label: '12+ characters', ok: form.password.length >= 12 },
+    { label: 'Uppercase letter', ok: /[A-Z]/.test(form.password) },
+    { label: 'Number', ok: /[0-9]/.test(form.password) },
+    { label: 'Special character', ok: /[^A-Za-z0-9]/.test(form.password) },
+  ]
+  const pwValid = pwRules.every(r => r.ok)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.full_name || !form.email || !form.password) {
       toast.error('Please fill in all required fields')
       return
     }
-    if (form.password.length < 8) {
-      toast.error('Password must be at least 8 characters')
+    if (!pwValid) {
+      toast.error('Password does not meet the requirements below')
       return
     }
     setLoading(true)
@@ -86,7 +94,7 @@ export default function Register() {
             { key: 'full_name',    label: 'Full Name',    type: 'text',     ph: 'John Smith',            ac: 'name' },
             { key: 'company_name', label: 'Company Name', type: 'text',     ph: 'Smith Acquisitions',    ac: 'organization' },
             { key: 'email',        label: 'Email Address',type: 'email',    ph: 'you@company.com',       ac: 'email' },
-            { key: 'password',     label: 'Password',     type: 'password', ph: 'Minimum 8 characters',  ac: 'new-password' },
+            { key: 'password',     label: 'Password',     type: 'password', ph: 'At least 12 characters', ac: 'new-password' },
           ].map(f => (
             <div key={f.key}>
               <label style={{ display: 'block', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)', marginBottom: 8 }}>
@@ -100,6 +108,18 @@ export default function Register() {
               />
             </div>
           ))}
+
+          {/* Password strength rules */}
+          {form.password.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px', marginTop: -4 }}>
+              {pwRules.map(r => (
+                <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+                  <span style={{ color: r.ok ? '#00C37A' : 'rgba(255,255,255,0.3)', fontWeight: 700 }}>{r.ok ? '✓' : '○'}</span>
+                  <span style={{ color: r.ok ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.30)' }}>{r.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <button type="submit" disabled={loading}
             style={{
