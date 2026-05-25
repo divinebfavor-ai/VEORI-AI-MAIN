@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 function VeoriLogo({ size = 28 }) {
@@ -28,8 +28,21 @@ function VeoriLogo({ size = 28 }) {
 
 export default function Privacy() {
   const navigate = useNavigate()
+
+  useEffect(() => {
+    document.body.style.overflow = 'auto'
+    document.documentElement.style.overflow = 'auto'
+    document.getElementById('root').style.height = 'auto'
+    document.getElementById('root').style.overflow = 'auto'
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+      document.getElementById('root').style.height = ''
+      document.getElementById('root').style.overflow = ''
+    }
+  }, [])
   const s = {
-    page: { minHeight: '100vh', background: '#000', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif' },
+    page: { minHeight: '100vh', background: '#000', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif', overflowY: 'auto' },
     nav: { display: 'flex', alignItems: 'center', gap: 10, padding: '24px 48px', borderBottom: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' },
     logo: { display: 'flex', alignItems: 'center', gap: 9 },
     logoText: { fontSize: 18, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff' },
