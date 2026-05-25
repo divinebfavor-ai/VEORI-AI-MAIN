@@ -55,6 +55,7 @@ app.use(helmet());
 
 // Stripe webhook needs raw body — mount BEFORE express.json()
 app.use('/api/billing/webhook', require('./routes/billing'));
+app.use('/api/stripe/webhook',  require('./routes/billing'));
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
@@ -140,6 +141,7 @@ app.use('/api/notifications',   notificationsRouter);
 app.use('/api/sms',             smsRouter);
 app.use('/api/wealth',          wealthRouter);
 app.use('/api/billing',         billingRouter);
+app.use('/api/stripe',          billingRouter); // alias — /api/stripe/webhook, /api/stripe/create-checkout-session
 
 // ─── BullMQ Job Queue (replaces all setInterval business logic) ───────────────
 const { initWorkers } = require('./services/queueService');
