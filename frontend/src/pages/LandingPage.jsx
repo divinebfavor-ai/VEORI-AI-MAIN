@@ -1,5 +1,5 @@
 import { motion, useScroll, useTransform } from 'framer-motion'
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useId } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const HERO_BG   = 'https://d8j0ntlcm91z4.cloudfront.net/user_3Dh2N4HpfmHr3sqVUsWx08TjMB3/hf_20260520_150728_06f1619c-4b3c-49f4-bd6b-511027068f8b.png'
@@ -31,7 +31,7 @@ function PulseDot() {
 }
 
 function VeoriLogo({ size = 32 }) {
-  const id = React.useId().replace(/:/g, '')
+  const id = useId().replace(/:/g, '')
   const cx = size / 2
   const cy = size / 2
   const rectSize = size * 0.74
