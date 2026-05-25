@@ -159,6 +159,42 @@ app.use('/api/deal-prediction',   dealPredictionRouter);
 app.use('/api/heatmap',           heatmapRouter);
 app.use('/api/briefing',          dailyBriefingRouter);
 
+// ─── Advanced Acquisition Routes (Features 13-21) ─────────────────────────────
+const smartListRouter       = require('./routes/smartList');
+const dfdRouter             = require('./routes/drivingForDollars');
+const callAnalyticsRouter   = require('./routes/callAnalytics');
+const callerReputationRouter = require('./routes/callerReputation');
+const rehabEstimatorRouter  = require('./routes/rehabEstimator');
+const sellerTrustRouter     = require('./routes/sellerTrustScore');
+const directMailRouter      = require('./routes/directMail');
+const profitCalcRouter      = require('./routes/profitCalc');
+app.use('/api/smart-list',         smartListRouter);
+app.use('/api/dfd',                dfdRouter);
+app.use('/api/call-analytics',     callAnalyticsRouter);
+app.use('/api/caller-reputation',  callerReputationRouter);
+app.use('/api/rehab',              rehabEstimatorRouter);
+app.use('/api/seller-trust',       sellerTrustRouter);
+app.use('/api/direct-mail',        directMailRouter);
+app.use('/api/profit-calc',        profitCalcRouter);
+
+// ─── Disposition Engine Routes (Features 22-27) ───────────────────────────────
+const listingsRouter     = require('./routes/listings');
+const dealPackageRouter  = require('./routes/dealPackage');
+app.use('/api/listings',       listingsRouter);
+app.use('/api/deal-package',   dealPackageRouter);
+
+// ─── Content + Social Routes (Features 28-33) ────────────────────────────────
+const socialConnectionsRouter = require('./routes/socialConnections');
+const contentEngineRouter     = require('./routes/contentEngine');
+app.use('/api/social-connections', socialConnectionsRouter);
+app.use('/api/content',            contentEngineRouter);
+
+// ─── Virtual Tours Routes (Features 34-38) ───────────────────────────────────
+const virtualToursRouter = require('./routes/virtualTours');
+const publicTourRouter   = require('./routes/publicTour');
+app.use('/api/tours', virtualToursRouter);
+app.use('/api/tour',  publicTourRouter);
+
 // ─── BullMQ Job Queue (replaces all setInterval business logic) ───────────────
 const { initWorkers } = require('./services/queueService');
 try {

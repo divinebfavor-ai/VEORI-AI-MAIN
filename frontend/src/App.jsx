@@ -38,6 +38,21 @@ import HotLeads from './pages/HotLeads'
 import WeeklyFocus from './pages/WeeklyFocus'
 import HeatMap from './pages/HeatMap'
 import DailyBriefing from './pages/DailyBriefing'
+// ── Advanced Acquisition (Features 13-21) ─────────────────────────────────────
+import SmartList from './pages/SmartList'
+import DrivingForDollars from './pages/DrivingForDollars'
+import CallAnalyticsDashboard from './pages/CallAnalyticsDashboard'
+import CallerReputation from './pages/CallerReputation'
+import RehabEstimator from './pages/RehabEstimator'
+import DirectMailDashboard from './pages/DirectMailDashboard'
+import ProfitCalculator from './pages/ProfitCalculator'
+// ── Disposition Engine (Features 22-27) ──────────────────────────────────────
+import Listings from './pages/Listings'
+// ── Content + Social Engine (Features 28-33) ─────────────────────────────────
+import ContentStudio from './pages/ContentStudio'
+// ── Virtual Tours (Features 34-38) ───────────────────────────────────────────
+import VirtualTourStudio from './pages/VirtualTourStudio'
+import TourViewer from './pages/TourViewer'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -106,7 +121,24 @@ export default function App() {
         <Route path="/weekly-focus" element={<WeeklyFocus />} />
         <Route path="/heatmap" element={<HeatMap />} />
         <Route path="/briefing" element={<DailyBriefing />} />
+        {/* ── Advanced Acquisition (Features 13-21) ────────────────────── */}
+        <Route path="/smart-list" element={<SmartList />} />
+        <Route path="/dfd" element={<DrivingForDollars />} />
+        <Route path="/call-analytics" element={<CallAnalyticsDashboard />} />
+        <Route path="/caller-reputation" element={<CallerReputation />} />
+        <Route path="/rehab-estimator" element={<RehabEstimator />} />
+        <Route path="/direct-mail" element={<DirectMailDashboard />} />
+        <Route path="/profit-calculator" element={<ProfitCalculator />} />
+        {/* ── Disposition Engine (Features 22-27) ─────────────────────── */}
+        <Route path="/listings" element={<Listings />} />
+        {/* ── Content + Social Engine (Features 28-33) ─────────────────── */}
+        <Route path="/content-studio" element={<ContentStudio />} />
+        {/* ── Virtual Tours (Features 34-38) ───────────────────────────── */}
+        <Route path="/virtual-tours" element={<VirtualTourStudio />} />
       </Route>
+
+      {/* Public tour viewer — no auth */}
+      <Route path="/tour/:token" element={<TourViewer />} />
 
       {/* Home — landing for guests, dashboard for logged-in users */}
       <Route path="/" element={<HomeRoute />} />

@@ -5,6 +5,8 @@ import {
   Columns, Briefcase, BarChart2, Settings, LogOut,
   Calculator, Shield, Phone, Building2, Bell, GraduationCap, Store,
   Brain, Flame, Target, Map, Sun,
+  ListOrdered, Car, PhoneOff, ShieldCheck, Hammer,
+  Mail, DollarSign, Home, Camera, Video, Calendar,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -27,12 +29,26 @@ const NAV = [
   { label: 'Academy',        icon: GraduationCap,    to: '/academy' },
   { label: 'Marketplace',    icon: Store,            to: '/marketplace' },
   { label: 'Settings',       icon: Settings,         to: '/settings' },
-  // ── Intelligence (NEW) ────────────────────────────────────────────────────
+  // ── Intelligence ──────────────────────────────────────────────────────────
   { label: 'Intelligence',   icon: Brain,            to: '/intelligence' },
   { label: 'Hot Leads',      icon: Flame,            to: '/hot-leads' },
   { label: 'Weekly Focus',   icon: Target,           to: '/weekly-focus' },
   { label: 'Heat Map',       icon: Map,              to: '/heatmap' },
   { label: 'Daily Briefing', icon: Sun,              to: '/briefing' },
+  // ── Advanced Acquisition ──────────────────────────────────────────────────
+  { label: 'Smart List',     icon: ListOrdered,      to: '/smart-list' },
+  { label: 'Driving 4 $',    icon: Car,              to: '/dfd' },
+  { label: 'Call Analytics', icon: PhoneOff,         to: '/call-analytics' },
+  { label: 'Caller ID',      icon: ShieldCheck,      to: '/caller-reputation' },
+  { label: 'Rehab Estimator',icon: Hammer,           to: '/rehab-estimator' },
+  { label: 'Direct Mail',    icon: Mail,             to: '/direct-mail' },
+  { label: 'Profit Calc',    icon: DollarSign,       to: '/profit-calculator' },
+  // ── Disposition Engine ────────────────────────────────────────────────────
+  { label: 'Listings',       icon: Home,             to: '/listings' },
+  // ── Content + Social ──────────────────────────────────────────────────────
+  { label: 'Content Studio', icon: Video,            to: '/content-studio' },
+  // ── Virtual Tours ─────────────────────────────────────────────────────────
+  { label: 'Virtual Tours',  icon: Camera,           to: '/virtual-tours' },
 ]
 
 export default function Sidebar() {
