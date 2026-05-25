@@ -22,6 +22,13 @@ const { requireAuth: auth } = require('../middleware/auth');
 
 // ─── Plan config ──────────────────────────────────────────────────────────────
 const PLANS = {
+  founding_member: {
+    priceId:    process.env.STRIPE_FOUNDING_MEMBER_PRICE_ID || 'price_1Tb3xAAW61xZuN5nilAyqg7j',
+    name:       'Founding Member',
+    dials:      7000,
+    amount:     39700,
+    founding:   true,
+  },
   starter: {
     priceId:    process.env.STRIPE_STARTER_PRICE_ID    || 'price_1Tb1UhAW61xZuN5nBiMP6Spu',
     name:       'Starter Plan',

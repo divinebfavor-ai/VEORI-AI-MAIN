@@ -118,7 +118,7 @@ function LandingNav() {
         <a href="#pricing" style={{ fontSize: 13.5, fontWeight: 700, color: '#000', background: '#00C47B', padding: '7px 18px', borderRadius: 8, textDecoration: 'none', transition: 'all 0.2s' }}
           onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 6px 22px rgba(0,196,123,0.38)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none'; }}
-        >Get founding access</a>
+        >Get started</a>
       </div>
     </motion.nav>
   )
@@ -129,32 +129,9 @@ function LandingNav() {
 function Hero() {
   const ref = useRef(null)
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] })
-  const bgY    = useTransform(scrollYProgress, [0, 1], ['0%', '30%'])
-  const textY  = useTransform(scrollYProgress, [0, 1], ['0%', '18%'])
+  const bgY        = useTransform(scrollYProgress, [0, 1], ['0%', '30%'])
+  const textY      = useTransform(scrollYProgress, [0, 1], ['0%', '18%'])
   const opacityVal = useTransform(scrollYProgress, [0, 0.7], [1, 0])
-
-  const [name, setName]     = useState('')
-  const [email, setEmail]   = useState('')
-  const [loading, setLoading] = useState(false)
-  const [done, setDone]     = useState(false)
-  const [spots, setSpots]   = useState(50)
-
-  useEffect(() => {
-    let c = 50; const t = setInterval(() => { if (c > 38) { c--; setSpots(c) } else clearInterval(t) }, 80)
-    return () => clearInterval(t)
-  }, [])
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!name.trim() || !email.includes('@')) return
-    setLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, plan: 'founding' }) })
-      const data = await res.json()
-      if (data.url) { window.location.href = data.url; return }
-    } catch {}
-    setLoading(false); setDone(true)
-  }
 
   return (
     <section ref={ref} style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -174,7 +151,7 @@ function Hero() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2, ease: [0.22,1,0.36,1] }}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.22)', borderRadius: 100, padding: '6px 16px', marginBottom: 36 }}>
           <PulseDot />
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#00C47B', letterSpacing: '0.01em', fontFamily: 'Inter,sans-serif' }}>Accepting first 50 founding operators</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#00C47B', letterSpacing: '0.01em', fontFamily: 'Inter,sans-serif' }}>AI-powered real estate acquisitions — fully automated</span>
         </motion.div>
 
         <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.32, ease: [0.22,1,0.36,1] }}
@@ -185,38 +162,28 @@ function Hero() {
 
         <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.42, ease: [0.22,1,0.36,1] }}
           style={{ fontSize: 'clamp(16px,1.8vw,19px)', color: 'rgba(255,255,255,0.72)', lineHeight: 1.68, maxWidth: 600, margin: '0 auto 48px', fontFamily: 'Inter,sans-serif' }}>
-          VEORI calls your sellers, qualifies them, makes offers, calls your buyers, sends contracts for e-sign, coordinates your title company, and closes the deal. All automatically. 24/7.{' '}
-          Beta founding operators lock in <strong style={{ color: '#C9A84C' }}>$197/month forever.</strong>
+          VEORI calls your sellers, qualifies them, makes offers, calls your buyers, sends contracts for e-sign, coordinates your title company, and closes the deal. All automatically. 24/7.
         </motion.p>
 
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.52, ease: [0.22,1,0.36,1] }} style={{ maxWidth: 480, margin: '0 auto' }}>
-          {!done ? (
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required
-                style={{ width: '100%', padding: '13px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
-                onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.4)'}
-                onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.10)'} />
-              <input type="email" placeholder="Your email address" value={email} onChange={e => setEmail(e.target.value)} required
-                style={{ width: '100%', padding: '13px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
-                onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.4)'}
-                onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.10)'} />
-              <button type="submit" disabled={loading}
-                style={{ width: '100%', padding: '15px', background: loading ? 'rgba(0,196,123,0.7)' : '#00C47B', color: '#000', fontSize: 16, fontWeight: 800, border: 'none', borderRadius: 10, cursor: loading ? 'wait' : 'pointer', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em', transition: 'all 0.2s' }}
-                onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,196,123,0.40)' }}}
-                onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
-                {loading ? 'Redirecting to checkout...' : 'Join Beta at $197/mo Locked Forever →'}
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 12.5, color: 'rgba(255,255,255,0.35)', marginTop: 2, fontFamily: 'Inter,sans-serif' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', display: 'inline-block' }} />
-                <span><strong style={{ color: 'rgba(255,255,255,0.50)' }}>{spots}</strong> founding spots remaining of 50</span>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', display: 'inline-block' }} />
-              </div>
-            </form>
-          ) : (
-            <div style={{ background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.28)', borderRadius: 14, padding: '24px 28px', fontSize: 16, color: '#00C47B', fontWeight: 600, fontFamily: 'Inter,sans-serif' }}>
-              You're in. We'll reach out within 24 hours to get you set up.
-            </div>
-          )}
+        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.52, ease: [0.22,1,0.36,1] }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <a href="#pricing"
+              style={{ padding: '15px 36px', background: '#00C47B', color: '#000', fontSize: 16, fontWeight: 800, borderRadius: 10, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s', display: 'inline-block' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,196,123,0.40)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
+              See Plans &amp; Pricing →
+            </a>
+            <a href="#how"
+              style={{ padding: '15px 36px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: 700, borderRadius: 10, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s', display: 'inline-block' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#fff' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}>
+              How it works
+            </a>
+          </div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.38)', fontFamily: 'Inter,sans-serif' }}>
+            Starting from <strong style={{ color: 'rgba(255,255,255,0.65)' }}>$499/month</strong> · Cancel anytime
+          </div>
         </motion.div>
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.9 }}
@@ -343,7 +310,7 @@ const HUMAN_ROWS = [
   { label: 'Calls per day', value: '80 to 120', bad: true },
 ]
 const VEORI_ROWS = [
-  { label: 'Cost', value: '$197/month', good: true },
+  { label: 'Cost', value: 'From $499/mo', good: true },
   { label: 'Availability', value: '24/7/365', good: true },
   { label: 'Consistency', value: 'Perfect every call', good: true },
   { label: 'Sick days', value: 'Never', good: true },
@@ -404,7 +371,7 @@ function Comparison() {
 // ─── How It Works ─────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { num: '01', title: 'Pay $197 today', body: 'Lock in founding operator pricing permanently. Standard pricing is $297/month after beta closes. Your rate never changes.' },
+  { num: '01', title: 'Choose your plan', body: 'Pick the plan that fits your deal volume — from 3,000 dials/month on Starter up to 50,000 on Enterprise. Checkout through Stripe. Account activates within 48 hours.' },
   { num: '02', title: 'Account activates in 48 hours', body: 'Create your own login inside the VEORI platform. We send you a setup link. No waiting on someone to manually onboard you.' },
   { num: '03', title: 'Upload your seller list', body: 'Drop in a CSV with your leads. Names, numbers, addresses. VEORI starts calling automatically. Natural conversations, handles objections, scores every seller 0 to 100.' },
   { num: '04', title: 'VEORI qualifies and makes offers', body: 'Hot sellers are flagged by motivation score. VEORI makes cash offers based on your criteria. Consistent pitch every time. No variance, no emotion, just execution.' },
@@ -465,51 +432,191 @@ function HowItWorks() {
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 
-const FOUNDING_ITEMS = [
-  '500 AI calls/month (sellers and buyers)',
-  'Real-time motivation scoring (0 to 100)',
-  'Automated offer delivery to sellers',
-  'Buyer list calling and qualification',
-  'E-sign and automatic agent delivery',
-  'Title company booking and follow-up',
-  'Property photo requests',
-  'Full CRM dashboard with recordings',
-  '24/7 automated operation',
-  'Rate locked permanently',
-  'All future features, no upgrade fees',
+const PLANS = [
+  { key: 'starter',    name: 'Starter',    price: 499,  dials: '3,000'  },
+  { key: 'growth',     name: 'Growth',     price: 999,  dials: '7,000',  popular: true },
+  { key: 'pro',        name: 'Pro',        price: 1799, dials: '15,000' },
+  { key: 'scale',      name: 'Scale',      price: 2999, dials: '30,000' },
+  { key: 'enterprise', name: 'Enterprise', price: 5999, dials: '50,000' },
 ]
 
-const OTHER_PLANS = [
-  { name: 'Standard', price: '$297', cycle: '/month', note: 'After beta closes', calls: '500 AI calls/month', features: ['500 AI calls/month', 'Seller and buyer calling', 'Motivation scoring', 'E-sign and agent delivery', 'Title company coordination', 'Full CRM dashboard'] },
-  { name: 'Grind', price: '$697', cycle: '/month', note: 'Most popular at scale', calls: '2,000 AI calls/month', features: ['2,000 AI calls/month', 'All Standard features', 'Advanced scoring model', 'Multi-list management', 'Priority support'] },
-  { name: 'Empire', price: '$1,497', cycle: '/month', note: 'Multi-market operators', calls: '5,000 AI calls/month', features: ['5,000 AI calls/month', 'All Grind features', 'Multi-market campaigns', 'Dedicated success manager', 'Custom integrations'] },
-  { name: 'Dynasty', price: '$4,997', cycle: '/month', note: 'Enterprise operations', calls: '15,000 AI calls/month', features: ['15,000 AI calls/month', 'All Empire features', 'White-label option', 'SLA guarantee', 'Custom build-outs'] },
+const PLAN_FEATURES = [
+  'AI voice calls included',
+  'SMS follow-up on no answer',
+  'Real-time motivation scoring',
+  'Automated 3-day follow-up sequence',
+  'Pipeline dashboard',
+  'CRM lead management',
+  'Number health monitoring',
+  'Cancel anytime',
 ]
 
-function WaitlistModal({ plan, onClose }) {
-  const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [done, setDone] = useState(false); const [loading, setLoading] = useState(false)
-  async function handleSubmit(e) {
-    e.preventDefault(); if (!name.trim() || !email.includes('@')) return; setLoading(true)
-    try { await fetch(`${API_URL}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, plan: plan.name.toLowerCase(), type: 'waitlist' }) }) } catch {}
-    setLoading(false); setDone(true)
-  }
+const FOUNDING_BONUSES = [
+  'Locked at $397/month forever — price never increases',
+  'Direct access to founder for product feedback',
+  'Shape the product roadmap',
+  'Founding Member badge on profile',
+]
+
+function FoundingMemberCard({ onSelect }) {
+  const { ref, visible } = useReveal()
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(4,10,20,0.88)', backdropFilter: 'blur(14px)', display: 'grid', placeItems: 'center', padding: 24 }}>
-      <motion.div initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.35, ease: [0.22,1,0.36,1] }}
-        style={{ background: '#0A1526', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '40px 36px', maxWidth: 420, width: '100%', position: 'relative' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4 }} onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.35)'}>&times;</button>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#C9A84C', marginBottom: 10, fontFamily: 'Inter,sans-serif' }}>Join the waitlist</div>
-        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 6, fontFamily: 'Inter,sans-serif' }}>{plan.name} Plan</div>
-        <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.45)', marginBottom: 28, lineHeight: 1.6, fontFamily: 'Inter,sans-serif' }}>{plan.price}/month. {plan.calls}.<br />We'll reach out when this plan opens.</div>
-        {!done ? (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontSize: 14, fontFamily: 'Inter,sans-serif', outline: 'none' }} onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.38)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'} />
-            <input type="email" placeholder="Your email address" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontSize: 14, fontFamily: 'Inter,sans-serif', outline: 'none' }} onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.38)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'} />
-            <button type="submit" disabled={loading} style={{ width: '100%', padding: '13px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 15, fontWeight: 700, borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }} onMouseEnter={e => { e.target.style.background = 'rgba(255,255,255,0.10)' }} onMouseLeave={e => { e.target.style.background = 'rgba(255,255,255,0.06)' }}>{loading ? 'Saving...' : `Join ${plan.name} Waitlist →`}</button>
-          </form>
-        ) : (
-          <div style={{ background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.25)', borderRadius: 10, padding: '18px', fontSize: 15, color: '#00C47B', fontWeight: 600, textAlign: 'center', fontFamily: 'Inter,sans-serif' }}>You're on the list. We'll reach out when {plan.name} opens.</div>
-        )}
+    <motion.div ref={ref} initial={{ opacity: 0, y: 28 }} animate={visible ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }}
+      whileHover={{ y: -4, transition: { duration: 0.22 } }}
+      style={{
+        background: 'linear-gradient(135deg, #0F1A0A 0%, #0A1205 100%)',
+        border: '1px solid rgba(201,168,76,0.55)',
+        borderRadius: 20,
+        overflow: 'hidden',
+        position: 'relative',
+        boxShadow: '0 0 80px rgba(201,168,76,0.12), 0 0 40px rgba(201,168,76,0.06), 0 24px 64px rgba(0,0,0,0.40)',
+        marginBottom: 20,
+      }}>
+
+      {/* Gold top bar */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, transparent 0%, #C9A84C 30%, #F0C96E 50%, #C9A84C 70%, transparent 100%)' }} />
+
+      {/* Corner glow */}
+      <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, background: 'radial-gradient(circle, rgba(201,168,76,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: -40, left: -40, width: 160, height: 160, background: 'radial-gradient(circle, rgba(201,168,76,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+      <div style={{ padding: '36px 40px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 32 }}>
+
+        {/* Left — pricing */}
+        <div style={{ borderRight: '1px solid rgba(201,168,76,0.15)', paddingRight: 32 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 100, padding: '4px 14px', marginBottom: 20 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', boxShadow: '0 0 8px rgba(201,168,76,0.8)', animation: 'lp-pulse-ring 2s ease-out infinite', display: 'inline-block' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#C9A84C', fontFamily: 'Inter,sans-serif' }}>Limited — First 20 Spots Only</span>
+          </div>
+
+          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>Founding Member</div>
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 3, marginBottom: 6 }}>
+            <span style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.50)', marginTop: 8, fontFamily: 'Inter,sans-serif' }}>$</span>
+            <span style={{ fontSize: 64, fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1, color: '#F0C96E', fontFamily: 'Inter,sans-serif' }}>397</span>
+          </div>
+          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', marginBottom: 6, fontFamily: 'Inter,sans-serif' }}>/month, billed monthly</div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through', textDecorationColor: 'rgba(255,80,80,0.6)', fontFamily: 'Inter,sans-serif' }}>$999/mo (Growth)</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#00C47B', background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.25)', padding: '2px 8px', borderRadius: 100, fontFamily: 'Inter,sans-serif' }}>60% off</span>
+          </div>
+
+          <div style={{ fontSize: 13, color: '#C9A84C', fontWeight: 700, marginBottom: 24, fontFamily: 'Inter,sans-serif' }}>
+            7,000 dials/month
+          </div>
+
+          {/* Scarcity bar */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', fontFamily: 'Inter,sans-serif' }}>Spots remaining</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#C9A84C', fontFamily: 'Inter,sans-serif' }}>Only 20 available</span>
+            </div>
+            <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 100, overflow: 'hidden' }}>
+              <div style={{ width: '70%', height: '100%', background: 'linear-gradient(90deg, #C9A84C, #F0C96E)', borderRadius: 100 }} />
+            </div>
+          </div>
+
+          <button onClick={() => onSelect({ key: 'founding_member', name: 'Founding Member', price: 397, dials: '7,000' })}
+            style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg, #C9A84C 0%, #F0C96E 50%, #C9A84C 100%)', backgroundSize: '200% 100%', color: '#000', fontSize: 15, fontWeight: 900, border: 'none', borderRadius: 12, cursor: 'pointer', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em', transition: 'all 0.3s', boxShadow: '0 8px 32px rgba(201,168,76,0.35)' }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundPosition = '100% 0'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(201,168,76,0.55)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundPosition = '0% 0'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(201,168,76,0.35)'; e.currentTarget.style.transform = '' }}>
+            Claim Your Spot →
+          </button>
+          <p style={{ fontSize: 11.5, color: 'rgba(201,168,76,0.55)', textAlign: 'center', marginTop: 10, fontFamily: 'Inter,sans-serif' }}>
+            Rate locked forever. Cancel anytime.
+          </p>
+        </div>
+
+        {/* Middle — Growth features */}
+        <div style={{ borderRight: '1px solid rgba(201,168,76,0.15)', paddingRight: 32 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>Everything in Growth</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {PLAN_FEATURES.map(f => (
+              <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                <span style={{ color: '#00C47B', fontWeight: 700, flexShrink: 0, marginTop: 1, fontSize: 13 }}>✓</span>
+                <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13.5, lineHeight: 1.4, fontFamily: 'Inter,sans-serif' }}>{f}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right — Founding bonuses */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: '#C9A84C', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>Founding Member Bonuses</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {FOUNDING_BONUSES.map(b => (
+              <div key={b} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                <span style={{ color: '#C9A84C', fontWeight: 700, flexShrink: 0, marginTop: 1, fontSize: 14 }}>★</span>
+                <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, lineHeight: 1.4, fontFamily: 'Inter,sans-serif' }}>{b}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 28, padding: '16px 20px', background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 12 }}>
+            <div style={{ fontSize: 12, color: '#C9A84C', fontWeight: 700, marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>Why founding pricing?</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+              The first 20 members help shape VEORI into the tool you actually need. In return, you get Growth plan access at 60% off — permanently.
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+function CheckoutModal({ plan, onClose }) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!name.trim() || !email.includes('@')) return
+    setLoading(true); setError('')
+    try {
+      const res = await fetch(`${API_URL}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, plan: plan.key }),
+      })
+      const data = await res.json()
+      if (data.url) { window.location.href = data.url; return }
+      setError('Something went wrong. Please try again.')
+    } catch {
+      setError('Something went wrong. Please try again.')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(4,10,20,0.90)', backdropFilter: 'blur(16px)', display: 'grid', placeItems: 'center', padding: 24 }}>
+      <motion.div initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.32, ease: [0.22,1,0.36,1] }}
+        style={{ background: '#0A1526', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 20, padding: '40px 36px', maxWidth: 420, width: '100%', position: 'relative' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4 }}
+          onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.35)'}>&times;</button>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 10, fontFamily: 'Inter,sans-serif' }}>Get started</div>
+        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>{plan.name} Plan</div>
+        <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.45)', marginBottom: 28, fontFamily: 'Inter,sans-serif' }}>${plan.price.toLocaleString()}/month · {plan.dials} dials</div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input type="text" placeholder="Your full name" value={name} onChange={e => setName(e.target.value)} required
+            style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontSize: 14, fontFamily: 'Inter,sans-serif', outline: 'none', boxSizing: 'border-box' }}
+            onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.40)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'} />
+          <input type="email" placeholder="Your email address" value={email} onChange={e => setEmail(e.target.value)} required
+            style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontSize: 14, fontFamily: 'Inter,sans-serif', outline: 'none', boxSizing: 'border-box' }}
+            onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.40)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'} />
+          {error && <p style={{ fontSize: 13, color: '#ff6b6b', margin: 0, fontFamily: 'Inter,sans-serif' }}>{error}</p>}
+          <button type="submit" disabled={loading}
+            style={{ width: '100%', padding: '14px', background: '#00C47B', color: '#000', fontSize: 15, fontWeight: 800, border: 'none', borderRadius: 10, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s', opacity: loading ? 0.8 : 1 }}
+            onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 10px 32px rgba(0,196,123,0.40)' }}}
+            onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none' }}>
+            {loading ? 'Redirecting to checkout…' : `Start ${plan.name} Plan →`}
+          </button>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', margin: 0, textAlign: 'center', fontFamily: 'Inter,sans-serif' }}>
+            Secure checkout via Stripe. Cancel anytime.
+          </p>
+        </form>
       </motion.div>
     </div>
   )
@@ -517,110 +624,113 @@ function WaitlistModal({ plan, onClose }) {
 
 function Pricing() {
   const { ref, visible } = useReveal()
-  const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [loading, setLoading] = useState(false); const [done, setDone] = useState(false); const [waitlistPlan, setWaitlistPlan] = useState(null)
-  async function handleSubmit(e) {
-    e.preventDefault(); if (!name.trim() || !email.includes('@')) return; setLoading(true)
-    try { const res = await fetch(`${API_URL}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, plan: 'founding' }) }); const data = await res.json(); if (data.url) { window.location.href = data.url; return } } catch {}
-    setLoading(false); setDone(true)
-  }
+  const [selectedPlan, setSelectedPlan] = useState(null)
+
   return (
     <section id="pricing" style={{ padding: '100px 24px', position: 'relative', overflow: 'hidden' }}>
-      {waitlistPlan && <WaitlistModal plan={waitlistPlan} onClose={() => setWaitlistPlan(null)} />}
-      <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translate(-50%,-50%)', width: 700, height: 500, background: 'radial-gradient(ellipse at center, rgba(201,168,76,0.06) 0%, transparent 70%)', pointerEvents: 'none', animation: 'lp-glow 5s ease-in-out infinite' }} />
-      <div style={{ maxWidth: 1080, margin: '0 auto', position: 'relative' }}>
-        <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }} style={{ textAlign: 'center', marginBottom: 56 }}>
+      {selectedPlan && <CheckoutModal plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
+      <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%,-50%)', width: 800, height: 600, background: 'radial-gradient(ellipse at center, rgba(0,196,123,0.05) 0%, transparent 70%)', pointerEvents: 'none', animation: 'lp-glow 5s ease-in-out infinite' }} />
+      <div style={{ maxWidth: 1160, margin: '0 auto', position: 'relative' }}>
+        <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }}
+          style={{ textAlign: 'center', marginBottom: 56 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>Pricing</div>
           <h2 style={{ fontSize: 'clamp(28px,4vw,46px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>Simple. No surprises.</h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.48)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>Founding operators lock in $197/month permanently. All other plans open when beta closes.</p>
+          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.48)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+            Every plan includes the full platform. Scale up as your operation grows.
+          </p>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }}
-          style={{ background: '#0A1526', border: '1px solid rgba(201,168,76,0.28)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 0 80px rgba(201,168,76,0.07), 0 32px 80px rgba(0,0,0,0.35)', position: 'relative', marginBottom: 20 }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.7), transparent)' }} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-            <div style={{ padding: '40px 44px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'inline-block', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#000', background: '#C9A84C', padding: '4px 14px', borderRadius: 100, marginBottom: 24, fontFamily: 'Inter,sans-serif' }}>Founding · Beta Only</div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: 'rgba(255,255,255,0.45)', marginTop: 10, fontFamily: 'Inter,sans-serif' }}>$</span>
-                <span style={{ fontSize: 80, fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1, fontFamily: 'Inter,sans-serif' }}>197</span>
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 12 }}>
-                  <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.45)', fontFamily: 'Inter,sans-serif' }}>/month</span>
-                  <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 700, fontFamily: 'Inter,sans-serif' }}>locked forever</span>
-                </div>
-              </div>
-              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.32)', marginBottom: 28, fontFamily: 'Inter,sans-serif' }}>
-                <span style={{ textDecoration: 'line-through', textDecorationColor: 'rgba(255,80,80,0.5)' }}>$297/mo</span>
-                <span style={{ marginLeft: 8 }}>standard rate after beta</span>
-              </div>
-              {!done ? (
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontSize: 14, fontFamily: 'Inter,sans-serif', outline: 'none' }} onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.38)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'} />
-                  <input type="email" placeholder="Your email address" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontSize: 14, fontFamily: 'Inter,sans-serif', outline: 'none' }} onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.38)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'} />
-                  <button type="submit" disabled={loading} style={{ width: '100%', padding: '14px', background: '#00C47B', color: '#000', fontSize: 15, fontWeight: 800, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 10px 32px rgba(0,196,123,0.40)' }} onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none' }}>{loading ? 'Redirecting...' : 'Lock In $197/Month Forever →'}</button>
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginTop: 2, textAlign: 'center', fontFamily: 'Inter,sans-serif' }}>First 50 operators only. Rate never changes.</p>
-                </form>
-              ) : (
-                <div style={{ background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.25)', borderRadius: 10, padding: '18px', fontSize: 15, color: '#00C47B', fontWeight: 600, textAlign: 'center', fontFamily: 'Inter,sans-serif' }}>You're in. We'll reach out within 24 hours.</div>
-              )}
-            </div>
-            <div style={{ padding: '40px 44px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 20, fontFamily: 'Inter,sans-serif' }}>Everything included</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {FOUNDING_ITEMS.map(item => (
-                  <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13.5 }}>
-                    <span style={{ color: '#00C47B', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>
-                    <span style={{ color: 'rgba(255,255,255,0.72)', lineHeight: 1.4, fontFamily: 'Inter,sans-serif' }}>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </motion.div>
+        {/* Founding Member — full-width hero card */}
+        <FoundingMemberCard onSelect={setSelectedPlan} />
 
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', textAlign: 'center', marginBottom: 20, fontFamily: 'Inter,sans-serif' }}>Other plans, join the waitlist</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-            {OTHER_PLANS.map((plan, i) => (
-              <OtherPlanCard key={plan.name} plan={plan} index={i} onWaitlist={setWaitlistPlan} />
-            ))}
-          </div>
+        {/* Divider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.25)', fontFamily: 'Inter,sans-serif' }}>Standard plans</span>
+          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
         </div>
-        <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} style={{ textAlign: 'center', fontSize: 12.5, color: 'rgba(255,255,255,0.25)', marginTop: 24, fontFamily: 'Inter,sans-serif' }}>
-          All plans billed monthly. Cancel anytime. Founding operator rate ($197/month) is locked permanently and never increases.
+
+        {/* Standard plan grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+          {PLANS.map((plan, i) => (
+            <PlanCard key={plan.key} plan={plan} index={i} onSelect={setSelectedPlan} />
+          ))}
+        </div>
+
+        <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
+          style={{ textAlign: 'center', fontSize: 12.5, color: 'rgba(255,255,255,0.25)', marginTop: 28, fontFamily: 'Inter,sans-serif' }}>
+          All plans billed monthly. Cancel anytime. No setup fees.
         </motion.p>
       </div>
     </section>
   )
 }
 
-// ─── OtherPlanCard — extracts hook out of map loop ───────────────────────────
-function OtherPlanCard({ plan, index, onWaitlist }) {
+// ─── PlanCard — extracts hook out of map loop ─────────────────────────────────
+function PlanCard({ plan, index, onSelect }) {
   const { ref, visible } = useReveal()
+  const isPopular = plan.popular
+
   return (
-    <motion.div key={plan.name} ref={ref} initial={{ opacity: 0, y: 24 }} animate={visible ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.6, delay: index * 0.08, ease: [0.22,1,0.36,1] }}
-      whileHover={{ y: -3, transition: { duration: 0.22 } }}
-      style={{ background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '28px 24px', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8, fontFamily: 'Inter,sans-serif' }}>{plan.note}</div>
-      <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>{plan.name}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
-        <span style={{ fontSize: 34, fontWeight: 900, letterSpacing: '-0.04em', fontFamily: 'Inter,sans-serif' }}>{plan.price}</span>
-        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.38)', fontFamily: 'Inter,sans-serif' }}>{plan.cycle}</span>
+    <motion.div ref={ref} initial={{ opacity: 0, y: 24 }} animate={visible ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.6, delay: index * 0.07, ease: [0.22,1,0.36,1] }}
+      whileHover={{ y: -4, transition: { duration: 0.22 } }}
+      style={{
+        background: isPopular ? 'linear-gradient(160deg, #0D1F35 0%, #091628 100%)' : '#0A1526',
+        border: isPopular ? '1px solid rgba(0,196,123,0.35)' : '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 18,
+        padding: '28px 24px',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        boxShadow: isPopular ? '0 0 60px rgba(0,196,123,0.08), 0 20px 60px rgba(0,0,0,0.30)' : '0 8px 32px rgba(0,0,0,0.20)',
+      }}>
+      {isPopular && (
+        <>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, rgba(0,196,123,0.7), transparent)', borderRadius: '18px 18px 0 0' }} />
+          <div style={{ position: 'absolute', top: -1, right: 20, background: '#00C47B', color: '#000', fontSize: 10, fontWeight: 800, letterSpacing: '0.10em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: '0 0 8px 8px', fontFamily: 'Inter,sans-serif' }}>Most Popular</div>
+        </>
+      )}
+
+      <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12, fontFamily: 'Inter,sans-serif', color: '#fff' }}>{plan.name}</div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2, marginBottom: 4 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.50)', marginTop: 6, fontFamily: 'Inter,sans-serif' }}>$</span>
+        <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1, fontFamily: 'Inter,sans-serif' }}>{plan.price.toLocaleString()}</span>
       </div>
-      <div style={{ fontSize: 12.5, color: '#00C47B', fontWeight: 600, marginBottom: 20, fontFamily: 'Inter,sans-serif' }}>{plan.calls}</div>
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 18, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
-        {plan.features.map(f => (
+      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.38)', marginBottom: 6, fontFamily: 'Inter,sans-serif' }}>/month</div>
+
+      <div style={{ fontSize: 12.5, color: '#00C47B', fontWeight: 700, marginBottom: 22, fontFamily: 'Inter,sans-serif' }}>
+        {plan.dials} dials/month
+      </div>
+
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 18, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
+        {PLAN_FEATURES.map(f => (
           <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 }}>
-            <span style={{ color: 'rgba(0,196,123,0.7)', flexShrink: 0, marginTop: 1 }}>✓</span>
-            <span style={{ color: 'rgba(255,255,255,0.60)', fontFamily: 'Inter,sans-serif' }}>{f}</span>
+            <span style={{ color: '#00C47B', flexShrink: 0, marginTop: 1, fontWeight: 700 }}>✓</span>
+            <span style={{ color: 'rgba(255,255,255,0.62)', lineHeight: 1.4, fontFamily: 'Inter,sans-serif' }}>{f}</span>
           </div>
         ))}
       </div>
-      <button onClick={() => onWaitlist(plan)}
-        style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.80)', fontSize: 14, fontWeight: 700, borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = '#fff' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.80)' }}>
-        Join Waitlist →
+
+      <button onClick={() => onSelect(plan)}
+        style={{
+          width: '100%', padding: '13px',
+          background: isPopular ? '#00C47B' : 'rgba(255,255,255,0.06)',
+          border: isPopular ? 'none' : '1px solid rgba(255,255,255,0.10)',
+          color: isPopular ? '#000' : 'rgba(255,255,255,0.85)',
+          fontSize: 14, fontWeight: 800, borderRadius: 10, cursor: 'pointer',
+          fontFamily: 'Inter,sans-serif', transition: 'all 0.2s',
+        }}
+        onMouseEnter={e => {
+          if (isPopular) { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(0,196,123,0.38)' }
+          else { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#fff' }
+        }}
+        onMouseLeave={e => {
+          if (isPopular) { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none' }
+          else { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }
+        }}>
+        Get Started →
       </button>
     </motion.div>
   )
@@ -660,10 +770,10 @@ function ComingSoon() {
         <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }} style={{ textAlign: 'center', marginBottom: 56 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A84C', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>Coming soon</div>
           <h2 style={{ fontSize: 'clamp(26px,4vw,42px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.1, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>
-            The roadmap is already built.<br />Founding operators get it all free.
+            The roadmap is already built.<br />Every subscriber gets it all.
           </h2>
           <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.48)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
-            These features are in active development. Every founding operator gets them automatically at no extra cost.
+            These features are in active development. Every VEORI subscriber gets them automatically — no extra cost, no upgrade required.
           </p>
         </motion.div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
@@ -684,38 +794,37 @@ function ComingSoon() {
 
 function FinalCTA() {
   const { ref, visible } = useReveal()
-  const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [loading, setLoading] = useState(false); const [done, setDone] = useState(false)
-  async function handleSubmit(e) {
-    e.preventDefault(); if (!name.trim() || !email.includes('@')) return; setLoading(true)
-    try { const res = await fetch(`${API_URL}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, plan: 'founding' }) }); const data = await res.json(); if (data.url) { window.location.href = data.url; return } } catch {}
-    setLoading(false); setDone(true)
-  }
   return (
     <section style={{ position: 'relative', padding: '120px 24px', overflow: 'hidden', textAlign: 'center' }}>
       <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${WAVE_BG})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.25 }} />
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(6,14,26,0.75)' }} />
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 600, height: 400, background: 'radial-gradient(ellipse at center, rgba(201,168,76,0.10) 0%, transparent 70%)', pointerEvents: 'none', animation: 'lp-glow 4s ease-in-out infinite' }} />
-      <motion.div ref={ref} initial={{ opacity: 0, y: 28 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} style={{ position: 'relative', maxWidth: 520, margin: '0 auto' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#C9A84C', marginBottom: 18, fontFamily: 'Inter,sans-serif' }}>Last call</div>
-        <h2 style={{ fontSize: 'clamp(32px,5vw,56px)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.06, marginBottom: 18, fontFamily: 'Inter,sans-serif' }}>Lock In Founding<br />Operator Pricing</h2>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(6,14,26,0.78)' }} />
+      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 600, height: 400, background: 'radial-gradient(ellipse at center, rgba(0,196,123,0.10) 0%, transparent 70%)', pointerEvents: 'none', animation: 'lp-glow 4s ease-in-out infinite' }} />
+      <motion.div ref={ref} initial={{ opacity: 0, y: 28 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} style={{ position: 'relative', maxWidth: 560, margin: '0 auto' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 18, fontFamily: 'Inter,sans-serif' }}>Start today</div>
+        <h2 style={{ fontSize: 'clamp(32px,5vw,56px)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.06, marginBottom: 18, fontFamily: 'Inter,sans-serif' }}>
+          Your AI acquisitions team.<br />Ready in minutes.
+        </h2>
         <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.55)', lineHeight: 1.65, marginBottom: 40, fontFamily: 'Inter,sans-serif' }}>
-          Join the first 50. <strong style={{ color: '#C9A84C' }}>$197/month forever.</strong><br />
-          When the spots are gone, standard pricing is $297/month.
+          Pick a plan, connect your leads, and let VEORI handle the calls.<br />
+          <strong style={{ color: 'rgba(255,255,255,0.80)' }}>No setup fees. Cancel anytime.</strong>
         </p>
-        {!done ? (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 400, margin: '0 auto' }}>
-            <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required style={{ width: '100%', padding: '13px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }} onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.40)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.10)'} />
-            <input type="email" placeholder="Your email address" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '13px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }} onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.40)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.10)'} />
-            <button type="submit" disabled={loading} style={{ width: '100%', padding: '15px', background: '#00C47B', color: '#000', fontSize: 16, fontWeight: 800, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,196,123,0.42)'; e.currentTarget.style.transform = 'translateY(-1px)' }} onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = '' }}>{loading ? 'Redirecting...' : 'Lock In $197/Month Forever →'}</button>
-            <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.30)', marginTop: 4, fontFamily: 'Inter,sans-serif' }}>
-              Questions? <a href="mailto:divinebfavor@gmail.com" style={{ color: 'rgba(255,255,255,0.48)', textDecoration: 'underline', textUnderlineOffset: 3 }}>divinebfavor@gmail.com</a>
-            </p>
-          </form>
-        ) : (
-          <div style={{ background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.28)', borderRadius: 14, padding: '28px', fontSize: 16, color: '#00C47B', fontWeight: 600, maxWidth: 400, margin: '0 auto', fontFamily: 'Inter,sans-serif' }}>
-            You're in. We'll reach out within 24 hours to get you set up.
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <a href="#pricing"
+            style={{ display: 'inline-block', padding: '15px 36px', background: '#00C47B', color: '#000', fontSize: 16, fontWeight: 800, borderRadius: 10, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,196,123,0.42)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = '' }}>
+            See Pricing →
+          </a>
+          <a href="mailto:support@veori.ai"
+            style={{ display: 'inline-block', padding: '15px 36px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.80)', fontSize: 16, fontWeight: 700, borderRadius: 10, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#fff' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.80)' }}>
+            Talk to us
+          </a>
+        </div>
+        <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.28)', marginTop: 24, fontFamily: 'Inter,sans-serif' }}>
+          Questions? <a href="mailto:support@veori.ai" style={{ color: 'rgba(255,255,255,0.45)', textDecoration: 'underline', textUnderlineOffset: 3 }}>support@veori.ai</a>
+        </p>
       </motion.div>
     </section>
   )
