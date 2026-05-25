@@ -30,6 +30,8 @@ import WealthPlaybook from './pages/WealthPlaybook'
 import WealthStrategy from './pages/WealthStrategy'
 import WealthCalculatorPage from './pages/WealthCalculatorPage'
 import LandingPage from './pages/LandingPage'
+import Terms from './pages/Terms'
+import Privacy from './pages/Privacy'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -54,6 +56,8 @@ export default function App() {
   return (
     <Routes>
       {/* Public */}
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />

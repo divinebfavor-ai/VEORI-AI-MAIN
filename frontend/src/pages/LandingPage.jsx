@@ -31,17 +31,36 @@ function PulseDot() {
 }
 
 function VeoriLogo({ size = 32 }) {
-  const r = size * 0.25
+  const id = React.useId().replace(/:/g, '')
+  const cx = size / 2
+  const cy = size / 2
+  const rectSize = size * 0.74
+  const x = (size - rectSize) / 2
+  const rx = rectSize * 0.243
+  const sw = size * 0.054
+  const dotR = size * 0.065
+  const dotGlowR = size * 0.13
+
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none">
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="lp-logo-g" x1="0" y1="0" x2={size} y2={size} gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#00E090" />
-          <stop offset="100%" stopColor="#009E61" />
-        </linearGradient>
+        <clipPath id={`clip-${id}`}><circle cx={cx} cy={cy} r={size * 0.485}/></clipPath>
+        <filter id={`gd-${id}`} x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation={size * 0.015} result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
       </defs>
-      <rect width={size} height={size} rx={r} fill="url(#lp-logo-g)" />
-      <text x={size / 2} y={size * 0.72} fontFamily="Inter,system-ui,sans-serif" fontSize={size * 0.5} fontWeight="900" fill="#000" textAnchor="middle">V</text>
+      <circle cx={cx} cy={cy} r={size / 2} fill="#050A14"/>
+      <g clipPath={`url(#clip-${id})`} transform={`rotate(20, ${cx}, ${cy})`}>
+        <rect x={x} y={x} width={rectSize} height={rectSize} rx={rx} ry={rx}
+          stroke="#00C37A" strokeWidth={sw} fill="none"
+          transform={`rotate(30, ${cx}, ${cy})`}/>
+        <rect x={x} y={x} width={rectSize} height={rectSize} rx={rx} ry={rx}
+          stroke="#C9A84C" strokeWidth={sw} fill="none"
+          transform={`rotate(-30, ${cx}, ${cy})`}/>
+      </g>
+      <circle cx={cx} cy={cy} r={dotGlowR} fill="white" filter={`url(#gd-${id})`}/>
+      <circle cx={cx} cy={cy} r={dotR} fill="#00C37A"/>
     </svg>
   )
 }
@@ -715,6 +734,8 @@ function Footer() {
         {[['How it works', '#how'], ['Platform', '#platform'], ['Pricing', '#pricing'], ['Contact', 'mailto:divinebfavor@gmail.com']].map(([label, href]) => (
           <li key={label}><a href={href} style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'none', transition: 'color 0.2s', fontFamily: 'Inter,sans-serif' }} onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.70)'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.35)'}>{label}</a></li>
         ))}
+        <li><a href="/terms" style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'none', transition: 'color 0.2s', fontFamily: 'Inter,sans-serif' }} onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.70)'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.35)'}>Terms</a></li>
+        <li><a href="/privacy" style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'none', transition: 'color 0.2s', fontFamily: 'Inter,sans-serif' }} onMouseEnter={e => e.target.style.color = 'rgba(255,255,255,0.70)'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.35)'}>Privacy</a></li>
       </ul>
       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontFamily: 'Inter,sans-serif' }}>© 2026 VEORI AI. All rights reserved.</div>
     </footer>

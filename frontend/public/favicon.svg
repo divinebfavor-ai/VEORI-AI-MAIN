@@ -1,4 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#3B82F6"/>
-  <text x="16" y="24" font-family="Inter,system-ui,sans-serif" font-size="22" font-weight="900" fill="white" text-anchor="middle">V</text>
+  <defs>
+    <filter id="g1" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="0.6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="32" height="32" rx="8" fill="#050A14"/>
+
+  <!-- Ring 1 — Gold, -60deg -->
+  <ellipse cx="16" cy="16" rx="13" ry="4" fill="none" stroke="#C9A84C" stroke-width="1.5"
+    transform="rotate(-60, 16, 16)" filter="url(#g1)" opacity="0.95"/>
+
+  <!-- Ring 2 — Green, 60deg -->
+  <ellipse cx="16" cy="16" rx="13" ry="4" fill="none" stroke="#00C37A" stroke-width="1.5"
+    transform="rotate(60, 16, 16)" filter="url(#g1)" opacity="0.95"/>
+
+  <!-- Ring 3 — Gold, 0deg -->
+  <ellipse cx="16" cy="16" rx="13" ry="4" fill="none" stroke="#C9A84C" stroke-width="1.5"
+    transform="rotate(0, 16, 16)" filter="url(#g1)" opacity="0.95"/>
+
+  <!-- Center dot -->
+  <circle cx="16" cy="16" r="2" fill="#FFFFFF"/>
 </svg>

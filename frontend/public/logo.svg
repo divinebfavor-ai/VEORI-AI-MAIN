@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <clipPath id="bounds">
+      <circle cx="100" cy="100" r="97"/>
+    </clipPath>
+    <filter id="glow-dot" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Dark circular background -->
+  <circle cx="100" cy="100" r="100" fill="#050A14"/>
+
+  <g clip-path="url(#bounds)" transform="rotate(20, 100, 100)">
+    <!-- Green — tilted right +30deg -->
+    <rect x="26" y="26" width="148" height="148" rx="36" ry="36"
+      fill="none"
+      stroke="#00C37A"
+      stroke-width="8"
+      transform="rotate(30, 100, 100)"
+    />
+
+    <!-- Gold — tilted left -30deg -->
+    <rect x="26" y="26" width="148" height="148" rx="36" ry="36"
+      fill="none"
+      stroke="#C9A84C"
+      stroke-width="8"
+      transform="rotate(-30, 100, 100)"
+    />
+  </g>
+
+  <!-- Center dot -->
+  <circle cx="100" cy="100" r="12" fill="white" filter="url(#glow-dot)"/>
+  <circle cx="100" cy="100" r="6" fill="#00C37A"/>
+</svg>
