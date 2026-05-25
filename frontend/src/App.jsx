@@ -32,6 +32,12 @@ import WealthCalculatorPage from './pages/WealthCalculatorPage'
 import LandingPage from './pages/LandingPage'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
+// ── Intelligence Features (NEW) ────────────────────────────────────────────────
+import LeadIntelligence from './pages/LeadIntelligence'
+import HotLeads from './pages/HotLeads'
+import WeeklyFocus from './pages/WeeklyFocus'
+import HeatMap from './pages/HeatMap'
+import DailyBriefing from './pages/DailyBriefing'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -94,6 +100,12 @@ export default function App() {
         <Route path="/wealth/calculator" element={<WealthCalculatorPage />} />
         <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/settings" element={<Settings />} />
+        {/* ── Intelligence Features (NEW) ───────────────────────────────── */}
+        <Route path="/intelligence" element={<LeadIntelligence />} />
+        <Route path="/hot-leads" element={<HotLeads />} />
+        <Route path="/weekly-focus" element={<WeeklyFocus />} />
+        <Route path="/heatmap" element={<HeatMap />} />
+        <Route path="/briefing" element={<DailyBriefing />} />
       </Route>
 
       {/* Home — landing for guests, dashboard for logged-in users */}

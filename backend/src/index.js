@@ -143,6 +143,22 @@ app.use('/api/wealth',          wealthRouter);
 app.use('/api/billing',         billingRouter);
 app.use('/api/stripe',          billingRouter); // alias — /api/stripe/webhook, /api/stripe/create-checkout-session
 
+// ─── Intelligence Feature Routes (NEW — do not modify above) ──────────────────
+const leadMemoryRouter     = require('./routes/conversationMemory');
+const sentimentRouter      = require('./routes/sentimentTimeline');
+const dealProbRouter       = require('./routes/dealProbability');
+const hotEscalationRouter  = require('./routes/hotEscalation');
+const dealPredictionRouter = require('./routes/dealPrediction');
+const heatmapRouter        = require('./routes/heatmap');
+const dailyBriefingRouter  = require('./routes/dailyBriefing');
+app.use('/api/lead-memory',       leadMemoryRouter);
+app.use('/api/sentiment',         sentimentRouter);
+app.use('/api/deal-probability',  dealProbRouter);
+app.use('/api/hot-leads',         hotEscalationRouter);
+app.use('/api/deal-prediction',   dealPredictionRouter);
+app.use('/api/heatmap',           heatmapRouter);
+app.use('/api/briefing',          dailyBriefingRouter);
+
 // ─── BullMQ Job Queue (replaces all setInterval business logic) ───────────────
 const { initWorkers } = require('./services/queueService');
 try {

@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Users, PlayCircle, Radio,
   Columns, Briefcase, BarChart2, Settings, LogOut,
   Calculator, Shield, Phone, Building2, Bell, GraduationCap, Store,
+  Brain, Flame, Target, Map, Sun,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -26,6 +27,12 @@ const NAV = [
   { label: 'Academy',        icon: GraduationCap,    to: '/academy' },
   { label: 'Marketplace',    icon: Store,            to: '/marketplace' },
   { label: 'Settings',       icon: Settings,         to: '/settings' },
+  // ── Intelligence (NEW) ────────────────────────────────────────────────────
+  { label: 'Intelligence',   icon: Brain,            to: '/intelligence' },
+  { label: 'Hot Leads',      icon: Flame,            to: '/hot-leads' },
+  { label: 'Weekly Focus',   icon: Target,           to: '/weekly-focus' },
+  { label: 'Heat Map',       icon: Map,              to: '/heatmap' },
+  { label: 'Daily Briefing', icon: Sun,              to: '/briefing' },
 ]
 
 export default function Sidebar() {
