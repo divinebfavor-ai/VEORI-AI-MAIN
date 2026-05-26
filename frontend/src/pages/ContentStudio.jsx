@@ -21,7 +21,7 @@ const PLATFORMS = [
 const TONES = ['professional','casual','excited','urgent']
 
 export default function ContentStudio() {
-  const [tab, setTab]                   = useState('connections')
+  const [tab, setTab]                   = useState('captions')
   const [connections, setConnections]   = useState([])
   const [content, setContent]           = useState([])
   const [listings, setListings]         = useState([])
@@ -110,47 +110,27 @@ export default function ContentStudio() {
         <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>AI captions, email blasts, social publishing, content calendar all in one place</p>
       </div>
 
+      {/* Social connection banner */}
+      {connections.length === 0 && !loading && (
+        <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 20 }}>🔗</span>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C' }}>Connect your social accounts first</span>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginLeft: 8 }}>Go to Settings → Social Media to connect Facebook, Instagram, Twitter, and more.</span>
+          </div>
+          <a href="/settings" style={{ padding: '7px 14px', background: '#C9A84C', color: '#000', borderRadius: 8, fontSize: 12, fontWeight: 800, textDecoration: 'none', fontFamily: 'Inter,sans-serif', whiteSpace: 'nowrap' }}>Open Settings</a>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {['connections','captions','email-blast','calendar','library'].map(t => (
+        {['captions','email-blast','calendar','library'].map(t => (
           <button key={t} style={s.tab(tab === t)} onClick={() => setTab(t)}>
-            {t === 'connections' ? '🔗 Connections' : t === 'captions' ? '✍️ AI Captions' : t === 'email-blast' ? '📧 Email Blast' : t === 'calendar' ? '📅 Calendar' : '📁 Library'}
+            {t === 'captions' ? '✍️ AI Captions' : t === 'email-blast' ? '📧 Email Blast' : t === 'calendar' ? '📅 Calendar' : '📁 Library'}
           </button>
         ))}
       </div>
 
       {loading && <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.45)' }}>Loading…</div>}
-
-      {/* Connections */}
-      {!loading && tab === 'connections' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px,1fr))', gap: 12 }}>
-          {PLATFORMS.map(p => {
-            const conn = connections.find(c => c.platform === p.id)
-            const isConnected = conn?.connected
-            return (
-              <div key={p.id} style={{ ...s.card, border: isConnected ? `1px solid ${p.color}40` : '1px solid var(--border, rgba(255,255,255,0.07))' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: `${p.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{p.icon}</div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{p.label}</div>
-                    {isConnected && conn.account_name && <div style={{ fontSize: 11, color: p.color }}>@{conn.account_name}</div>}
-                  </div>
-                </div>
-                {isConnected ? (
-                  <button onClick={() => disconnectPlatform(p.id)}
-                    style={{ width: '100%', padding: '8px', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)', color: '#EF4444', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'Inter,sans-serif', fontWeight: 700 }}>
-                    Disconnect
-                  </button>
-                ) : (
-                  <button onClick={() => connectPlatform(p.id)}
-                    style={{ width: '100%', padding: '8px', background: `${p.color}20`, border: `1px solid ${p.color}40`, color: p.color, borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'Inter,sans-serif', fontWeight: 700 }}>
-                    Connect {p.label}
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
 
       {/* AI Captions */}
       {!loading && tab === 'captions' && (
@@ -197,10 +177,32 @@ export default function ContentStudio() {
                   onChange={e => setCaption(e.target.value)}
                   style={{ ...s.input, height: 200, resize: 'vertical', marginBottom: 12 }}
                 />
-                <button onClick={() => navigator.clipboard.writeText(caption)}
-                  style={{ padding: '8px 20px', background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }}>
-                  📋 Copy to Clipboard
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={() => navigator.clipboard.writeText(caption)}
+                    style={{ padding: '8px 20px', background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }}>
+                    📋 Copy
+                  </button>
+                  {connections.filter(c => c.connected).map(conn => {
+                    const pl = PLATFORMS.find(p => p.id === conn.platform)
+                    if (!pl) return null
+                    return (
+                      <button key={conn.platform}
+                        onClick={async () => {
+                          try {
+                            const r = await fetch(`${API}/social-connections/publish`, {
+                              method: 'POST', headers: authHeader(),
+                              body: JSON.stringify({ platform: conn.platform, content: caption, listing_id: captionForm.listing_id || null }),
+                            })
+                            const d = await r.json()
+                            alert(d.success ? `Posted to ${pl.label}!` : (d.error || 'Post failed'))
+                          } catch { alert('Failed to post') }
+                        }}
+                        style={{ padding: '8px 16px', background: `${pl.color}20`, border: `1px solid ${pl.color}40`, color: pl.color, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }}>
+                        {pl.icon} Post to {pl.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </>
             ) : (
               <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.35)' }}>

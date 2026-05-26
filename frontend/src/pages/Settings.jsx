@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun } from 'lucide-react'
+import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
@@ -8,6 +8,20 @@ import useAuthStore from '../store/authStore'
 import useThemeStore from '../store/themeStore'
 import { phones, operator as operatorApi, auth } from '../services/api'
 
+const SOCIAL_PLATFORMS = [
+  { id: 'facebook',  label: 'Facebook',  icon: '📘', color: '#1877F2', hint: 'Post to your Facebook page and groups' },
+  { id: 'instagram', label: 'Instagram', icon: '📸', color: '#E1306C', hint: 'Reach buyers on Instagram' },
+  { id: 'twitter',   label: 'Twitter/X', icon: '𝕏',  color: '#1DA1F2', hint: 'Blast deals on X' },
+  { id: 'youtube',   label: 'YouTube',   icon: '▶',  color: '#FF0000', hint: 'Share virtual tours as videos' },
+  { id: 'tiktok',    label: 'TikTok',    icon: '♪',  color: '#69C9D0', hint: 'Short-form property content' },
+]
+
+const API_SOCIAL = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+function socialAuthHeader() {
+  const t = localStorage.getItem('token') || localStorage.getItem('authToken') || ''
+  return t ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
+}
+
 const TABS = [
   { id: 'profile',  label: 'Profile',       icon: User },
   { id: 'phones',   label: 'Phone Numbers', icon: Phone },
@@ -15,6 +29,7 @@ const TABS = [
   { id: 'alerts',   label: 'Alerts',        icon: Bell },
   { id: 'persona',  label: 'AI Persona',    icon: Sparkles },
   { id: 'banking',  label: 'Banking',       icon: CreditCard },
+  { id: 'social',   label: 'Social Media',  icon: Share2 },
 ]
 
 function Section({ title, description, children }) {
@@ -468,6 +483,40 @@ export default function Settings() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'owner'
 
+  // ── Social media connections ─────────────────────────────────────────────
+  const [socialConnections, setSocialConnections] = useState([])
+  const [socialLoading, setSocialLoading]         = useState(false)
+
+  const loadSocial = () => {
+    setSocialLoading(true)
+    fetch(`${API_SOCIAL}/social-connections`, { headers: socialAuthHeader() })
+      .then(r => r.json())
+      .then(d => setSocialConnections(d.connections || []))
+      .catch(() => {})
+      .finally(() => setSocialLoading(false))
+  }
+
+  useEffect(() => { if (tab === 'social') loadSocial() }, [tab])
+
+  const connectPlatform = async (platform) => {
+    try {
+      const r = await fetch(`${API_SOCIAL}/social-connections/auth-url/${platform}`, { headers: socialAuthHeader() })
+      const d = await r.json()
+      if (d.success && d.url) {
+        window.open(d.url, '_blank', 'width=600,height=700')
+        setTimeout(loadSocial, 3000)
+      } else {
+        alert(`${platform} OAuth not yet configured. Add the app credentials in Railway environment variables, then reconnect.`)
+      }
+    } catch { alert('Connection failed') }
+  }
+
+  const disconnectPlatform = async (platform) => {
+    if (!confirm(`Disconnect ${platform}?`)) return
+    await fetch(`${API_SOCIAL}/social-connections/${platform}`, { method: 'DELETE', headers: socialAuthHeader() })
+    loadSocial()
+  }
+
   useEffect(() => {
     setProfileForm({
       full_name: user?.full_name || '',
@@ -866,6 +915,61 @@ export default function Settings() {
                   <Plus size={14} /> Add Bank Account
                 </Button>
               )}
+            </Section>
+          )}
+
+          {tab === 'social' && (
+            <Section title="Social Media Accounts" description="Connect your social accounts. Once connected, Content Studio can post property listings directly to these platforms.">
+              {socialLoading ? (
+                <p className="text-[13px] text-text-muted">Loading…</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {SOCIAL_PLATFORMS.map(p => {
+                    const conn = socialConnections.find(c => c.platform === p.id)
+                    const isConnected = conn?.connected
+                    return (
+                      <div key={p.id} className="bg-surface border border-border-subtle rounded-xl p-5"
+                        style={{ borderColor: isConnected ? `${p.color}40` : undefined }}>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
+                            style={{ background: `${p.color}20` }}>{p.icon}</div>
+                          <div>
+                            <p className="text-[14px] font-semibold text-text-primary">{p.label}</p>
+                            {isConnected && conn.account_name
+                              ? <p className="text-[11px]" style={{ color: p.color }}>@{conn.account_name} connected</p>
+                              : <p className="text-[11px] text-text-muted">{p.hint}</p>
+                            }
+                          </div>
+                          {isConnected && (
+                            <div className="ml-auto">
+                              <CheckCircle size={16} style={{ color: p.color }} />
+                            </div>
+                          )}
+                        </div>
+                        {isConnected ? (
+                          <button onClick={() => disconnectPlatform(p.id)}
+                            className="w-full py-2 rounded-lg text-[12px] font-semibold text-danger bg-danger/10 border border-danger/20 hover:bg-danger/20 transition-colors">
+                            Disconnect
+                          </button>
+                        ) : (
+                          <button onClick={() => connectPlatform(p.id)}
+                            className="w-full py-2 rounded-lg text-[12px] font-semibold transition-colors"
+                            style={{ background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}30` }}
+                            onMouseEnter={e => e.currentTarget.style.background = `${p.color}25`}
+                            onMouseLeave={e => e.currentTarget.style.background = `${p.color}15`}>
+                            Connect {p.label}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              <div className="mt-4 p-4 bg-surface rounded-lg border border-border-subtle">
+                <p className="text-[12px] text-text-muted leading-relaxed">
+                  <strong className="text-text-secondary">How it works:</strong> Connect your accounts here once. Then go to <strong className="text-text-secondary">Content Studio</strong> to pick any property listing, generate an AI-written caption, and post it directly to your connected platforms or Facebook groups with one click.
+                </p>
+              </div>
             </Section>
           )}
 
