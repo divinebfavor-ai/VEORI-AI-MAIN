@@ -149,7 +149,7 @@ function StatCard({ label, value, icon: Icon, accent, sub, loading }) {
 // ─── Onboarding checklist ─────────────────────────────────────────────────────
 const CHECKLIST = [
   { key: 'profile',   label: 'Complete your operator profile',    to: '/settings' },
-  { key: 'phone',     label: 'Add a Vapi phone number',           to: '/settings' },
+  { key: 'phone',     label: 'Add a phone number',                to: '/settings' },
   { key: 'lead',      label: 'Import your first lead',            to: '/leads' },
   { key: 'campaign',  label: 'Launch your first campaign',        to: '/campaigns' },
   { key: 'buyer',     label: 'Add a cash buyer',                  to: '/buyers' },

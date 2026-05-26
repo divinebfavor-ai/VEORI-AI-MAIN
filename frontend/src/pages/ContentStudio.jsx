@@ -56,7 +56,7 @@ export default function ContentStudio() {
       const r = await fetch(`${API}/social-connections/auth-url/${platform}`, { headers: authHeader() })
       const d = await r.json()
       if (d.success) window.open(d.url, '_blank')
-      else alert(`OAuth for ${platform} not yet configured. Add API keys in Railway env vars.`)
+      else alert(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connection coming soon. Contact support to enable.`)
     } catch { alert('Connection failed') }
   }
 

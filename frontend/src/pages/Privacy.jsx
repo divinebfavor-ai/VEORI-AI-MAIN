@@ -77,7 +77,7 @@ export default function Privacy() {
         <p style={s.p}>We collect information you provide directly to us:</p>
         <ul style={{ paddingLeft: 24, marginBottom: 16 }}>
           <li style={s.li}><strong style={{ color: '#fff' }}>Account Information:</strong> Name, email address, password, company name, and phone number when you register.</li>
-          <li style={s.li}><strong style={{ color: '#fff' }}>Billing Information:</strong> Payment method details processed securely through Stripe. We do not store raw card numbers.</li>
+          <li style={s.li}><strong style={{ color: '#fff' }}>Billing Information:</strong> Payment method details processed securely through our payment processor. We do not store raw card numbers.</li>
           <li style={s.li}><strong style={{ color: '#fff' }}>Business Data:</strong> Lead information, property data, campaign settings, call recordings, and transcripts you upload or generate through the platform.</li>
           <li style={s.li}><strong style={{ color: '#fff' }}>Communications:</strong> Messages you send to our support team.</li>
         </ul>
@@ -103,7 +103,7 @@ export default function Privacy() {
         <h2 style={s.h2}>3. Sharing of Information</h2>
         <p style={s.p}>We do not sell your personal information. We may share your information with:</p>
         <ul style={{ paddingLeft: 24, marginBottom: 16 }}>
-          <li style={s.li}><strong style={{ color: '#fff' }}>Service Providers:</strong> Third-party vendors who help us operate the platform, including Supabase (database), Stripe (payments), VAPI (AI calling), Anthropic (AI), Resend (email), and Twilio (telephony). These providers are contractually obligated to protect your data.</li>
+          <li style={s.li}><strong style={{ color: '#fff' }}>Service Providers:</strong> Third-party vendors who help us operate the platform, including cloud database, payment processing, AI calling, AI processing, email delivery, and telephony providers. These providers are contractually obligated to protect your data.</li>
           <li style={s.li}><strong style={{ color: '#fff' }}>Legal Requirements:</strong> When required by law, court order, or governmental authority.</li>
           <li style={s.li}><strong style={{ color: '#fff' }}>Business Transfers:</strong> In connection with a merger, acquisition, or sale of assets, with notice to you.</li>
           <li style={s.li}><strong style={{ color: '#fff' }}>With Your Consent:</strong> For any other purpose with your explicit consent.</li>

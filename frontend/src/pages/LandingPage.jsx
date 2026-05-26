@@ -371,7 +371,7 @@ function Comparison() {
 // ─── How It Works ─────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { num: '01', title: 'Choose your plan', body: 'Pick the plan that fits your deal volume — from 3,000 dials/month on Starter up to 50,000 on Enterprise. Checkout through Paddle. Account activates within 48 hours.' },
+  { num: '01', title: 'Choose your plan', body: 'Pick the plan that fits your deal volume — from 3,000 dials/month on Starter up to 50,000 on Enterprise. Secure checkout. Account activates within 48 hours.' },
   { num: '02', title: 'Account activates in 48 hours', body: 'Create your own login inside the VEORI platform. We send you a setup link. No waiting on someone to manually onboard you.' },
   { num: '03', title: 'Upload your seller list', body: 'Drop in a CSV with your leads. Names, numbers, addresses. VEORI starts calling automatically. Natural conversations, handles objections, scores every seller 0 to 100.' },
   { num: '04', title: 'VEORI qualifies and makes offers', body: 'Hot sellers are flagged by motivation score. VEORI makes cash offers based on your criteria. Consistent pitch every time. No variance, no emotion, just execution.' },
@@ -614,7 +614,7 @@ function CheckoutModal({ plan, onClose }) {
             {loading ? 'Redirecting to checkout…' : `Start ${plan.name} Plan →`}
           </button>
           <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', margin: 0, textAlign: 'center', fontFamily: 'Inter,sans-serif' }}>
-            Secure checkout via Paddle. Cancel anytime.
+            Secure checkout. Cancel anytime.
           </p>
         </form>
       </motion.div>

@@ -154,9 +154,9 @@ function PhoneTab({ phoneList, setPhoneList }) {
         const fresh = await phones.getPhones()
         const raw = fresh.data?.numbers ?? fresh.data?.data ?? fresh.data
         setPhoneList(Array.isArray(raw) ? raw : [])
-        toast.success(`Synced ${data.imported} number${data.imported > 1 ? 's' : ''} from Vapi`)
+        toast.success(`Synced ${data.imported} phone number${data.imported > 1 ? 's' : ''}`)
       } else {
-        toast.success('All Vapi numbers already in Veori')
+        toast.success('All phone numbers are already up to date')
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Sync failed')
@@ -204,7 +204,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
   }
 
   return (
-    <Section title="Phone Numbers" description="Buy and manage numbers for AI calling — powered by Vapi">
+    <Section title="Phone Numbers" description="Buy and manage phone numbers for AI calling">
       {/* Plan status bar */}
       {planStatus && (
         <div style={{
@@ -295,7 +295,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
             <Plus size={14} /> Get a Number
           </Button>
           <Button variant="secondary" loading={syncing} onClick={handleSync}>
-            Sync from Vapi
+            Sync Numbers
           </Button>
           <Button variant="ghost" onClick={() => setShowProvision('manual')}>
             <Plus size={14} /> Add Manually
@@ -1004,21 +1004,19 @@ export default function Settings() {
             <Section title="API Keys" description="Connect external services (admin only)">
               <div className="space-y-4">
                 {[
-                  { label: 'Vapi API Key', hint: 'From vapi.ai dashboard' },
-                  { label: 'Anthropic API Key', hint: 'From console.anthropic.com' },
-                  { label: 'OpenAI API Key', hint: 'From platform.openai.com' },
-                  { label: 'ElevenLabs API Key', hint: 'From elevenlabs.io dashboard' },
-                  { label: 'Dropbox Sign API Key', hint: 'From sign.dropbox.com' },
-                  { label: 'Redis URL', hint: 'Railway Redis addon or Upstash' },
+                  { label: 'AI Calling Key',      hint: 'Managed by Veori' },
+                  { label: 'AI Engine Key',        hint: 'Managed by Veori' },
+                  { label: 'Voice Engine Key',     hint: 'Managed by Veori' },
+                  { label: 'E-Signature Key',      hint: 'Managed by Veori' },
                 ].map(({ label, hint }) => (
                   <div key={label}>
-                    <Input label={label} type="password" placeholder="Set in Railway environment variables" disabled />
+                    <Input label={label} type="password" placeholder="Configured by Veori" disabled />
                     <p className="text-[11px] text-text-muted mt-1">{hint}</p>
                   </div>
                 ))}
                 <div className="flex items-center gap-2 mt-4 px-3 py-3 bg-primary/5 border border-primary/20 rounded-[6px]">
                   <CheckCircle size={14} className="text-primary flex-shrink-0" />
-                  <p className="text-[12px] text-text-secondary">API keys are set securely in Railway environment variables, not stored in the database.</p>
+                  <p className="text-[12px] text-text-secondary">All integrations are managed securely by Veori. No setup needed on your end.</p>
                 </div>
               </div>
             </Section>

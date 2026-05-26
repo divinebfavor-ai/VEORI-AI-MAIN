@@ -208,7 +208,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
     try {
       const r = await callsApi.syncFromVapi()
       const { synced = 0 } = r.data || {}
-      toast.success(synced > 0 ? `Synced ${synced} calls from Vapi` : 'Already up to date')
+      toast.success(synced > 0 ? `Synced ${synced} calls` : 'Already up to date')
       loadCallLog()
     } catch { toast.error('Sync failed') }
     finally { setSyncing(false) }
@@ -535,7 +535,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
                     cursor: syncing ? 'default' : 'pointer',
                   }}
                 >
-                  <Zap size={10} /> {syncing ? 'Syncing…' : 'Sync from Vapi'}
+                  <Zap size={10} /> {syncing ? 'Syncing…' : 'Sync Calls'}
                 </button>
               </div>
 
@@ -543,7 +543,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
                 <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t4)' }}>
                   <Phone size={22} style={{ margin: '0 auto 10px', display: 'block' }} strokeWidth={1.5} />
                   <p style={{ fontSize: 13, marginBottom: 8 }}>No calls recorded yet</p>
-                  <p style={{ fontSize: 11, color: 'var(--t4)' }}>Hit "Sync from Vapi" to pull any existing call data</p>
+                  <p style={{ fontSize: 11, color: 'var(--t4)' }}>Hit "Sync Calls" to pull any existing call data</p>
                 </div>
               ) : callLog.map(c => <CallCard key={c.id} call={c} />)}
             </div>

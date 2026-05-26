@@ -62,7 +62,7 @@ function CreateModal({ onClose, onCreated }) {
                   className="w-full accent-primary" />
                 <div className="flex justify-between text-[11px] text-text-muted mt-1"><span>1</span><span>5</span></div>
                 {Number(form.concurrent_lines) > 2 && (
-                  <p className="text-[11px] text-amber-400 mt-2">Vapi free accounts allow 1-2 concurrent calls. Set higher only if you have reserved concurrency lines in Vapi billing.</p>
+                  <p className="text-[11px] text-amber-400 mt-2">Higher concurrency requires a plan that supports it. Contact support if you need more than 2 simultaneous calls.</p>
                 )}
               </div>
               <div className="flex gap-4">
