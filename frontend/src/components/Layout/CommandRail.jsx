@@ -6,7 +6,7 @@ import {
   Calculator, Shield, Phone, Building2,
   Sun, Moon, MessageSquare, BookOpen, Store, Bell,
   ChevronLeft, ChevronRight, Compass,
-  Car, Mail, Home, Video, Camera,
+  Car, Mail, Home, Video, Camera, Map, Share2,
 } from 'lucide-react'
 import VeoriLogo from '../VeoriLogo'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -34,11 +34,13 @@ const NAV = [
   { to: '/aria',             icon: MessageSquare,   label: 'Aria AI' },
   // ── Acquisition ───────────────────────────────────────────────────────────
   { to: '/dfd',              icon: Car,             label: 'Driving for Dollars' },
+  { to: '/virtual-dfd',      icon: Map,             label: 'Virtual DFD' },
   { to: '/direct-mail',      icon: Mail,            label: 'Direct Mail' },
   // ── Disposition ───────────────────────────────────────────────────────────
   { to: '/listings',         icon: Home,            label: 'Listings' },
   // ── Content ───────────────────────────────────────────────────────────────
   { to: '/content-studio',   icon: Video,           label: 'Content Studio' },
+  { to: '/social-dashboard', icon: Share2,          label: 'Social Dashboard' },
   // ── Virtual Tours ─────────────────────────────────────────────────────────
   { to: '/virtual-tours',    icon: Camera,          label: 'Virtual Tours' },
 ]

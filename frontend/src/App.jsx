@@ -50,6 +50,8 @@ import ProfitCalculator from './pages/ProfitCalculator'
 import Listings from './pages/Listings'
 // ── Content + Social Engine (Features 28-33) ─────────────────────────────────
 import ContentStudio from './pages/ContentStudio'
+import SocialDashboard from './pages/SocialDashboard'
+import VirtualDFD from './pages/VirtualDFD'
 // ── Virtual Tours (Features 34-38) ───────────────────────────────────────────
 import VirtualTourStudio from './pages/VirtualTourStudio'
 import TourViewer from './pages/TourViewer'
@@ -133,6 +135,9 @@ export default function App() {
         <Route path="/listings" element={<Listings />} />
         {/* ── Content + Social Engine (Features 28-33) ─────────────────── */}
         <Route path="/content-studio" element={<ContentStudio />} />
+        <Route path="/social-dashboard" element={<SocialDashboard />} />
+        {/* ── Virtual DFD (Feature 27) ─────────────────────────────────── */}
+        <Route path="/virtual-dfd" element={<VirtualDFD />} />
         {/* ── Virtual Tours (Features 34-38) ───────────────────────────── */}
         <Route path="/virtual-tours" element={<VirtualTourStudio />} />
       </Route>
