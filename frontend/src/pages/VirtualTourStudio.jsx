@@ -1,5 +1,5 @@
 /**
- * Features 34-38 — 3D Virtual Tour Engine
+ * Features 34-38 3D Virtual Tour Engine
  */
 import React, { useState, useEffect } from 'react'
 
@@ -11,7 +11,7 @@ function authHeader() {
 }
 
 const TOUR_TYPES = [
-  { id: 'slideshow', label: '🖼 Photo Slideshow', description: 'Smooth photo tour — no API key needed' },
+  { id: 'slideshow', label: '🖼 Photo Slideshow', description: 'Smooth photo tour no API key needed' },
   { id: '360',       label: '🔄 360° Tour',       description: 'Powered by Trolto API (key required)' },
   { id: 'kuula',     label: '🌐 Kuula Tour',      description: 'Professional 360° walkthrough' },
 ]
@@ -81,8 +81,8 @@ export default function VirtualTourStudio() {
   }
 
   const s = {
-    page:  { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
-    card:  { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px' },
+    page:  { padding: '32px', color: 'var(--t1, #fff)', fontFamily: 'Inter,sans-serif' },
+    card:  { background: 'var(--card-bg, #0A1526)', border: '1px solid var(--border, rgba(255,255,255,0.07))', borderRadius: 14, padding: '20px' },
     input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: '100%', boxSizing: 'border-box' },
     tab:   (a) => ({ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'Inter,sans-serif', background: a ? '#00C37A' : 'rgba(255,255,255,0.06)', color: a ? '#000' : 'rgba(255,255,255,0.55)' }),
   }
@@ -92,7 +92,7 @@ export default function VirtualTourStudio() {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4 }}>🏛 Virtual Tour Studio</h1>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Create public 360° tours from property photos — share links with buyers</p>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Create public 360° tours from property photos share links with buyers</p>
         </div>
         <button onClick={() => setTab('create')} style={{ padding: '10px 22px', background: '#00C37A', color: '#000', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }}>+ Create Tour</button>
       </div>
@@ -167,12 +167,12 @@ export default function VirtualTourStudio() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 4 }}>Link to Listing (optional)</label>
-                <select style={{ ...s.input, background: '#0A1526' }} value={form.listing_id} onChange={e => {
+                <select style={{ ...s.input, background: 'var(--card-bg, #0A1526)' }} value={form.listing_id} onChange={e => {
                   const l = listings.find(l => l.id === e.target.value)
                   setForm(p => ({ ...p, listing_id: e.target.value, title: l ? `${l.address} Tour` : p.title }))
                 }}>
-                  <option value="">— No listing —</option>
-                  {listings.map(l => <option key={l.id} value={l.id}>{l.title} — {l.address}</option>)}
+                  <option value="">No listing</option>
+                  {listings.map(l => <option key={l.id} value={l.id}>{l.title} {l.address}</option>)}
                 </select>
               </div>
               <div>

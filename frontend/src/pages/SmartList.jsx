@@ -1,5 +1,5 @@
 /**
- * Feature 13 — Smart List Prioritization Engine
+ * Feature 13 Smart List Prioritization Engine
  */
 import React, { useState, useEffect } from 'react'
 
@@ -10,7 +10,7 @@ function authHeader() {
 }
 
 const TIER_COLORS = { A: '#00C37A', B: '#C9A84C', C: '#F59E0B', D: 'rgba(255,255,255,0.35)' }
-const TIER_LABELS = { A: 'A-Tier — Call Today', B: 'B-Tier — Call This Week', C: 'C-Tier — Nurture', D: 'D-Tier — Low Priority' }
+const TIER_LABELS = { A: 'A-Tier Call Today', B: 'B-Tier Call This Week', C: 'C-Tier Nurture', D: 'D-Tier Low Priority' }
 
 export default function SmartList() {
   const [leads, setLeads]     = useState([])
@@ -37,8 +37,8 @@ export default function SmartList() {
   const counts = { A: leads.filter(l => l.priority_tier === 'A').length, B: leads.filter(l => l.priority_tier === 'B').length, C: leads.filter(l => l.priority_tier === 'C').length, D: leads.filter(l => l.priority_tier === 'D').length }
 
   const s = {
-    page:  { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
-    card:  { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px' },
+    page:  { padding: '32px', color: 'var(--t1, #fff)', fontFamily: 'Inter,sans-serif' },
+    card:  { background: 'var(--card-bg, #0A1526)', border: '1px solid var(--border, rgba(255,255,255,0.07))', borderRadius: 14, padding: '20px' },
     input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: 240 },
     btn:   (a) => ({ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Inter,sans-serif', background: a ? '#00C37A' : 'rgba(255,255,255,0.06)', color: a ? '#000' : 'rgba(255,255,255,0.55)' }),
   }
@@ -53,7 +53,7 @@ export default function SmartList() {
       {/* Tier summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 24 }}>
         {['A','B','C','D'].map(tier => (
-          <div key={tier} style={{ ...s.card, cursor: 'pointer', border: filter === tier ? `1px solid ${TIER_COLORS[tier]}` : '1px solid rgba(255,255,255,0.07)' }} onClick={() => setFilter(filter === tier ? 'all' : tier)}>
+          <div key={tier} style={{ ...s.card, cursor: 'pointer', border: filter === tier ? `1px solid ${TIER_COLORS[tier]}` : '1px solid var(--border, rgba(255,255,255,0.07))' }} onClick={() => setFilter(filter === tier ? 'all' : tier)}>
             <div style={{ fontSize: 28, fontWeight: 900, color: TIER_COLORS[tier] }}>{counts[tier]}</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', fontWeight: 600 }}>{TIER_LABELS[tier]}</div>
           </div>

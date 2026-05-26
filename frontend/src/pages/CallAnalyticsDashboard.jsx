@@ -1,5 +1,5 @@
 /**
- * Features 15 & 16 — Silent Call Detection + Best Time to Call AI
+ * Features 15 & 16 Silent Call Detection + Best Time to Call AI
  */
 import React, { useState, useEffect } from 'react'
 
@@ -32,8 +32,8 @@ export default function CallAnalyticsDashboard() {
   }, [])
 
   const s = {
-    page:  { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
-    card:  { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px' },
+    page:  { padding: '32px', color: 'var(--t1, #fff)', fontFamily: 'Inter,sans-serif' },
+    card:  { background: 'var(--card-bg, #0A1526)', border: '1px solid var(--border, rgba(255,255,255,0.07))', borderRadius: 14, padding: '20px' },
     tab:   (a) => ({ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'Inter,sans-serif', background: a ? '#00C37A' : 'rgba(255,255,255,0.06)', color: a ? '#000' : 'rgba(255,255,255,0.55)' }),
     stat:  { background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '16px', textAlign: 'center' },
   }
@@ -156,7 +156,7 @@ export default function CallAnalyticsDashboard() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {silent.silent_calls.slice(0, 20).map((sc, i) => (
                   <div key={sc.id || i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ fontSize: 13 }}>{sc.leads?.first_name} {sc.leads?.last_name} — {sc.leads?.phone}</div>
+                    <div style={{ fontSize: 13 }}>{sc.leads?.first_name} {sc.leads?.last_name} {sc.leads?.phone}</div>
                     <div style={{ fontSize: 12, color: '#EF4444' }}>{sc.silence_sec}s silent</div>
                   </div>
                 ))}

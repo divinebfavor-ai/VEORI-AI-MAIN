@@ -1,5 +1,5 @@
 /**
- * Feature 17 — Live Caller ID Reputation Score
+ * Feature 17 Live Caller ID Reputation Score
  */
 import React, { useState, useEffect } from 'react'
 
@@ -42,8 +42,8 @@ export default function CallerReputation() {
   useEffect(() => { load() }, [])
 
   const s = {
-    page: { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
-    card: { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px' },
+    page: { padding: '32px', color: 'var(--t1, #fff)', fontFamily: 'Inter,sans-serif' },
+    card: { background: 'var(--card-bg, #0A1526)', border: '1px solid var(--border, rgba(255,255,255,0.07))', borderRadius: 14, padding: '20px' },
   }
 
   const flagged   = numbers.filter(n => n.reputation?.flagged_spam)
@@ -93,7 +93,7 @@ export default function CallerReputation() {
             const color = spam >= 60 ? '#EF4444' : spam >= 40 ? '#F59E0B' : '#00C37A'
             const label = spam >= 60 ? '🚨 Flagged' : spam >= 40 ? '⚠️ Degrading' : '✅ Healthy'
             return (
-              <div key={n.id || n.number} style={{ ...s.card, border: rep.flagged_spam ? '1px solid rgba(239,68,68,0.30)' : '1px solid rgba(255,255,255,0.07)' }}>
+              <div key={n.id || n.number} style={{ ...s.card, border: rep.flagged_spam ? '1px solid rgba(239,68,68,0.30)' : '1px solid var(--border, rgba(255,255,255,0.07))' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>

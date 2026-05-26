@@ -1,5 +1,5 @@
 /**
- * Features 28-33 — Content + Social Media Engine
+ * Features 28-33 Content + Social Media Engine
  * Social connections, caption generator, video generator, email blast, content calendar
  */
 import React, { useState, useEffect } from 'react'
@@ -96,18 +96,18 @@ export default function ContentStudio() {
   }
 
   const s = {
-    page:  { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
-    card:  { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px' },
+    page:  { padding: '32px', color: 'var(--t1, #fff)', fontFamily: 'Inter,sans-serif' },
+    card:  { background: 'var(--card-bg, #0A1526)', border: '1px solid var(--border, rgba(255,255,255,0.07))', borderRadius: 14, padding: '20px' },
     input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: '100%', boxSizing: 'border-box' },
     tab:   (a) => ({ padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Inter,sans-serif', background: a ? '#00C37A' : 'rgba(255,255,255,0.06)', color: a ? '#000' : 'rgba(255,255,255,0.55)' }),
-    sel:   { background: '#0A1526', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: '100%' },
+    sel:   { background: 'var(--card-bg, #0A1526)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: '100%' },
   }
 
   return (
     <div style={s.page}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4 }}>🎬 Content Studio</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>AI captions, email blasts, social publishing, content calendar — all in one place</p>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>AI captions, email blasts, social publishing, content calendar all in one place</p>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -127,7 +127,7 @@ export default function ContentStudio() {
             const conn = connections.find(c => c.platform === p.id)
             const isConnected = conn?.connected
             return (
-              <div key={p.id} style={{ ...s.card, border: isConnected ? `1px solid ${p.color}40` : '1px solid rgba(255,255,255,0.07)' }}>
+              <div key={p.id} style={{ ...s.card, border: isConnected ? `1px solid ${p.color}40` : '1px solid var(--border, rgba(255,255,255,0.07))' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 8, background: `${p.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{p.icon}</div>
                   <div>
@@ -161,8 +161,8 @@ export default function ContentStudio() {
               <div>
                 <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 4 }}>Property Listing (optional)</label>
                 <select style={s.sel} value={captionForm.listing_id} onChange={e => setCaptionForm(p => ({ ...p, listing_id: e.target.value }))}>
-                  <option value="">— No listing selected —</option>
-                  {listings.map(l => <option key={l.id} value={l.id}>{l.title} — {l.address}</option>)}
+                  <option value="">No listing selected</option>
+                  {listings.map(l => <option key={l.id} value={l.id}>{l.title} {l.address}</option>)}
                 </select>
               </div>
               <div>
@@ -228,7 +228,7 @@ export default function ContentStudio() {
               <div>
                 <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 4 }}>Listing (optional)</label>
                 <select style={s.sel} value={blastForm.listing_id} onChange={e => setBlastForm(p => ({ ...p, listing_id: e.target.value }))}>
-                  <option value="">— No specific listing —</option>
+                  <option value="">No specific listing</option>
                   {listings.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
                 </select>
               </div>
@@ -241,7 +241,7 @@ export default function ContentStudio() {
               </div>
               <div>
                 <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 4 }}>Subject Line *</label>
-                <input style={s.input} placeholder="🏠 NEW DEAL — Off-Market Property Available Now" value={blastForm.subject} onChange={e => setBlastForm(p => ({ ...p, subject: e.target.value }))} />
+                <input style={s.input} placeholder="🏠 NEW DEAL Off-Market Property Available Now" value={blastForm.subject} onChange={e => setBlastForm(p => ({ ...p, subject: e.target.value }))} />
               </div>
               <div>
                 <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 4 }}>Email Body (HTML or plain text) *</label>
@@ -259,7 +259,7 @@ export default function ContentStudio() {
       {/* Content Calendar */}
       {!loading && tab === 'calendar' && (
         <div style={s.card}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: 'rgba(255,255,255,0.45)' }}>CONTENT CALENDAR — This Month</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: 'rgba(255,255,255,0.45)' }}>CONTENT CALENDAR This Month</div>
           {calendar.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.35)' }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>📅</div>

@@ -1,5 +1,5 @@
 /**
- * Feature 14 — Driving for Dollars Mobile AI Mode
+ * Feature 14 Driving for Dollars Mobile AI Mode
  */
 import React, { useState, useEffect } from 'react'
 
@@ -86,8 +86,8 @@ export default function DrivingForDollars() {
   }
 
   const s = {
-    page:  { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
-    card:  { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px' },
+    page:  { padding: '32px', color: 'var(--t1, #fff)', fontFamily: 'Inter,sans-serif' },
+    card:  { background: 'var(--card-bg, #0A1526)', border: '1px solid var(--border, rgba(255,255,255,0.07))', borderRadius: 14, padding: '20px' },
     input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: '100%', boxSizing: 'border-box' },
     tab:   (a) => ({ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'Inter,sans-serif', background: a ? '#00C37A' : 'rgba(255,255,255,0.06)', color: a ? '#000' : 'rgba(255,255,255,0.55)' }),
     btn:   (color='#00C37A') => ({ padding: '10px 22px', background: color, color: color === '#00C37A' ? '#000' : '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }),
@@ -152,7 +152,7 @@ export default function DrivingForDollars() {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{pin.address || 'No address'}</div>
                   {pin.ai_analysis?.opportunity_score && (
-                    <div style={{ fontSize: 11, color: '#00C37A' }}>Score: {pin.ai_analysis.opportunity_score}/100 — {pin.ai_analysis.recommended_action}</div>
+                    <div style={{ fontSize: 11, color: '#00C37A' }}>Score: {pin.ai_analysis.opportunity_score}/100 {pin.ai_analysis.recommended_action}</div>
                   )}
                 </div>
                 {analyzing === pin.id && <span style={{ fontSize: 11, color: '#C9A84C' }}>Analyzing…</span>}

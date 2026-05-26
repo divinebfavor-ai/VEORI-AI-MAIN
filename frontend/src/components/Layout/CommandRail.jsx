@@ -6,6 +6,9 @@ import {
   Calculator, Shield, Phone, Building2,
   Sun, Moon, MessageSquare, BookOpen, Store, Bell,
   ChevronLeft, ChevronRight, Compass,
+  Brain, Flame, Target, Map,
+  ListOrdered, Car, PhoneOff, ShieldCheck, Hammer,
+  Mail, DollarSign, Home, Video, Camera,
 } from 'lucide-react'
 import VeoriLogo from '../VeoriLogo'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -17,7 +20,7 @@ import { notifications as notifApi } from '../../services/api'
 const NAV = [
   { to: '/dashboard',        icon: LayoutDashboard, label: 'Command Center' },
   { to: '/leads',            icon: Users,           label: 'Leads' },
-  { to: '/monitor',          icon: Radio,           label: 'Live Calls',       live: true },
+  { to: '/monitor',          icon: Radio,           label: 'Live Calls',     live: true },
   { to: '/pipeline',         icon: Columns,         label: 'Pipeline' },
   { to: '/campaigns',        icon: Briefcase,       label: 'Campaigns' },
   { to: '/buyers',           icon: Building2,       label: 'Buyers' },
@@ -31,6 +34,26 @@ const NAV = [
   { to: '/wealth',           icon: Compass,         label: 'Wealth Playbook' },
   { to: '/marketplace',      icon: Store,           label: 'Marketplace' },
   { to: '/aria',             icon: MessageSquare,   label: 'Aria AI' },
+  // ── Intelligence ──────────────────────────────────────────────────────────
+  { to: '/intelligence',     icon: Brain,           label: 'Intelligence' },
+  { to: '/hot-leads',        icon: Flame,           label: 'Hot Leads' },
+  { to: '/weekly-focus',     icon: Target,          label: 'Weekly Focus' },
+  { to: '/heatmap',          icon: Map,             label: 'Heat Map' },
+  { to: '/briefing',         icon: Sun,             label: 'Daily Briefing' },
+  // ── Acquisition ───────────────────────────────────────────────────────────
+  { to: '/smart-list',       icon: ListOrdered,     label: 'Smart List' },
+  { to: '/dfd',              icon: Car,             label: 'Driving for Dollars' },
+  { to: '/call-analytics',   icon: PhoneOff,        label: 'Call Analytics' },
+  { to: '/caller-reputation',icon: ShieldCheck,     label: 'Caller ID' },
+  { to: '/rehab-estimator',  icon: Hammer,          label: 'Rehab Estimator' },
+  { to: '/direct-mail',      icon: Mail,            label: 'Direct Mail' },
+  { to: '/profit-calculator',icon: DollarSign,      label: 'Profit Calculator' },
+  // ── Disposition ───────────────────────────────────────────────────────────
+  { to: '/listings',         icon: Home,            label: 'Listings' },
+  // ── Content ───────────────────────────────────────────────────────────────
+  { to: '/content-studio',   icon: Video,           label: 'Content Studio' },
+  // ── Virtual Tours ─────────────────────────────────────────────────────────
+  { to: '/virtual-tours',    icon: Camera,          label: 'Virtual Tours' },
 ]
 
 // ─── Notifications dropdown ───────────────────────────────────────────────────

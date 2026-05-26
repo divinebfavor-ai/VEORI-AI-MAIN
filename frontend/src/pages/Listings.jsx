@@ -1,5 +1,5 @@
 /**
- * Features 22-24, 27 — Property Listings + Disposition Engine
+ * Features 22-24, 27 Property Listings + Disposition Engine
  */
 import React, { useState, useEffect } from 'react'
 
@@ -101,8 +101,8 @@ export default function Listings() {
   }
 
   const s = {
-    page:  { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
-    card:  { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px' },
+    page:  { padding: '32px', color: 'var(--t1, #fff)', fontFamily: 'Inter,sans-serif' },
+    card:  { background: 'var(--card-bg, #0A1526)', border: '1px solid var(--border, rgba(255,255,255,0.07))', borderRadius: 14, padding: '20px' },
     input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: '100%', boxSizing: 'border-box' },
     tab:   (a) => ({ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'Inter,sans-serif', background: a ? '#00C37A' : 'rgba(255,255,255,0.06)', color: a ? '#000' : 'rgba(255,255,255,0.55)' }),
     btn:   (bg, fg='#000') => ({ padding: '7px 14px', background: bg, color: fg, border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }),
@@ -190,7 +190,7 @@ export default function Listings() {
           <div style={s.card}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20, color: '#00C37A' }}>CREATE NEW LISTING</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={{ gridColumn: '1/-1' }}>{field('Listing Title *', 'title', 'text', '3/2/1 — Great Opportunity in Downtown…')}</div>
+              <div style={{ gridColumn: '1/-1' }}>{field('Listing Title *', 'title', 'text', '3/2/1 Great Opportunity in Downtown…')}</div>
               {field('Asking Price', 'asking_price', 'number', '125000')}
               {field('ARV', 'arv', 'number', '250000')}
               {field('Repair Cost', 'repair_cost', 'number', '30000')}

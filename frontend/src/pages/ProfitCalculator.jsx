@@ -1,5 +1,5 @@
 /**
- * Feature 21 — Deal Profit Calculator
+ * Feature 21 Deal Profit Calculator
  */
 import React, { useState, useEffect } from 'react'
 
@@ -48,8 +48,8 @@ export default function ProfitCalculator() {
   }
 
   const s = {
-    page: { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
-    card: { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px' },
+    page: { padding: '32px', color: 'var(--t1, #fff)', fontFamily: 'Inter,sans-serif' },
+    card: { background: 'var(--card-bg, #0A1526)', border: '1px solid var(--border, rgba(255,255,255,0.07))', borderRadius: 14, padding: '20px' },
     input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: '100%', boxSizing: 'border-box' },
     tab: (a) => ({ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'Inter,sans-serif', background: a ? '#00C37A' : 'rgba(255,255,255,0.06)', color: a ? '#000' : 'rgba(255,255,255,0.55)' }),
     row: (label, value, color='#fff') => (
@@ -73,7 +73,7 @@ export default function ProfitCalculator() {
     <div style={s.page}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4 }}>💰 Profit Calculator</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Calculate deal profitability with 3 scenarios — conservative, moderate, aggressive</p>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Calculate deal profitability with 3 scenarios conservative, moderate, aggressive</p>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>

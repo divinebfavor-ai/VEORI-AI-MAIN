@@ -1,5 +1,5 @@
 /**
- * Feature 20 — Direct Mail Auto-Trigger
+ * Feature 20 Direct Mail Auto-Trigger
  */
 import React, { useState, useEffect } from 'react'
 
@@ -56,9 +56,9 @@ export default function DirectMailDashboard() {
   }
 
   const s = {
-    page: { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
-    card: { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px' },
-    sel:  { background: '#0A1526', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: '100%' },
+    page: { padding: '32px', color: 'var(--t1, #fff)', fontFamily: 'Inter,sans-serif' },
+    card: { background: 'var(--card-bg, #0A1526)', border: '1px solid var(--border, rgba(255,255,255,0.07))', borderRadius: 14, padding: '20px' },
+    sel:  { background: 'var(--card-bg, #0A1526)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', padding: '9px 14px', fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none', width: '100%' },
     tab:  (a) => ({ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'Inter,sans-serif', background: a ? '#C9A84C' : 'rgba(255,255,255,0.06)', color: a ? '#000' : 'rgba(255,255,255,0.55)' }),
   }
 
@@ -66,7 +66,7 @@ export default function DirectMailDashboard() {
     <div style={s.page}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4 }}>✉️ Direct Mail</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Automated postcard campaigns via Lob.com — triggers fire automatically on key events</p>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>Automated postcard campaigns via Lob.com triggers fire automatically on key events</p>
       </div>
 
       {/* Stats */}
@@ -121,8 +121,8 @@ export default function DirectMailDashboard() {
               <div>
                 <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 4 }}>Select Lead</label>
                 <select style={s.sel} value={sendForm.lead_id} onChange={e => setSendForm(p => ({ ...p, lead_id: e.target.value }))}>
-                  <option value="">— Choose a lead —</option>
-                  {leads.map(l => <option key={l.id} value={l.id}>{l.first_name} {l.last_name} — {l.property_address}</option>)}
+                  <option value="">Choose a lead</option>
+                  {leads.map(l => <option key={l.id} value={l.id}>{l.first_name} {l.last_name} {l.property_address}</option>)}
                 </select>
               </div>
               <div>
