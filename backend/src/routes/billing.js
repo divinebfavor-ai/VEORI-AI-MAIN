@@ -174,10 +174,30 @@ router.post('/checkout', async (req, res) => {
   }
 });
 
-// Alias used in some frontend calls
+// Alias used in some frontend calls — identical logic, just a different path
 router.post('/create-checkout-session', async (req, res) => {
-  req.body.plan = req.body.plan || req.body.planName?.toLowerCase();
-  return router.handle(Object.assign(req, { url: '/checkout', path: '/checkout' }), res, () => {});
+  try {
+    const plan = req.body.plan || req.body.planName?.toLowerCase() || 'founding_member';
+    const { name, email } = req.body;
+
+    if (!email || !name) return res.status(400).json({ error: 'Name and email are required.' });
+    const planConfig = PLANS[plan];
+    if (!planConfig) return res.status(400).json({ error: `Unknown plan: ${plan}` });
+
+    let url = null;
+    if (process.env.PADDLE_API_KEY && planConfig.priceId) {
+      url = await createPaddleCheckout({ email, name, plan, planConfig });
+    } else if (process.env.STRIPE_SECRET_KEY) {
+      url = await createStripeCheckout({ email, name, plan, planConfig });
+    } else {
+      return res.status(503).json({ error: 'Payment system not yet configured.' });
+    }
+    if (!url) throw new Error('No checkout URL returned');
+    res.json({ url });
+  } catch (err) {
+    console.error('[billing/create-checkout-session]', err.message);
+    res.status(500).json({ error: 'Failed to create checkout. Please try again or contact support.' });
+  }
 });
 
 // ─── POST /api/billing/portal ─────────────────────────────────────────────────
