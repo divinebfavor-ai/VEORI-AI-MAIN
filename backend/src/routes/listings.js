@@ -125,6 +125,108 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// ─── PHOTO ENHANCEMENT — Real-ESRGAN via Replicate ───────────────────────────
+// POST /api/listings/:id/enhance-photos
+// Upscales every photo in the listing using Real-ESRGAN (4x, face enhance on)
+// Saves enhanced URLs back to listing.photos[] and returns them
+router.post('/:id/enhance-photos', async (req, res) => {
+  try {
+    const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
+    if (!REPLICATE_TOKEN) {
+      return res.status(503).json({ success: false, error: 'Photo enhancement not configured yet.' });
+    }
+
+    // Load listing + verify ownership
+    const { data: listing, error: listErr } = await supabase
+      .from('listings')
+      .select('id, photos')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (listErr || !listing) return res.status(404).json({ success: false, error: 'Listing not found.' });
+
+    const photos = listing.photos || [];
+    if (photos.length === 0) return res.status(400).json({ success: false, error: 'No photos to enhance.' });
+
+    const axios = require('axios');
+
+    // Helper: run one photo through Real-ESRGAN and wait for result
+    async function enhanceOne(imageUrl) {
+      // Start prediction
+      const start = await axios.post(
+        'https://api.replicate.com/v1/models/nightmareai/real-esrgan/predictions',
+        {
+          input: {
+            image:         imageUrl,
+            scale:         4,
+            face_enhance:  false,
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${REPLICATE_TOKEN}`,
+            'Content-Type': 'application/json',
+            Prefer: 'wait',  // Replicate will wait up to 60s and return inline
+          },
+          timeout: 90000,
+        }
+      );
+
+      const prediction = start.data;
+
+      // If Prefer:wait returned a completed result inline
+      if (prediction.status === 'succeeded' && prediction.output) {
+        return prediction.output;
+      }
+
+      // Otherwise poll until done (max 90s)
+      const pollUrl = prediction.urls?.get || `https://api.replicate.com/v1/predictions/${prediction.id}`;
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const poll = await axios.get(pollUrl, {
+          headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
+          timeout: 15000,
+        });
+        if (poll.data.status === 'succeeded') return poll.data.output;
+        if (poll.data.status === 'failed')    throw new Error('Enhancement failed for image');
+      }
+      throw new Error('Enhancement timed out');
+    }
+
+    // Enhance up to 6 photos (keep cost reasonable)
+    const toEnhance = photos.slice(0, 6);
+    const enhanced  = [];
+    const errors    = [];
+
+    for (const url of toEnhance) {
+      try {
+        const result = await enhanceOne(url);
+        enhanced.push(result || url);
+      } catch (e) {
+        console.warn('[enhance-photos] skipped one photo:', e.message);
+        enhanced.push(url); // keep original on failure
+        errors.push(e.message);
+      }
+    }
+
+    // Merge: enhanced + any photos beyond the first 6 (unchanged)
+    const newPhotos = [...enhanced, ...photos.slice(6)];
+
+    // Save back to listing
+    await supabase
+      .from('listings')
+      .update({ photos: newPhotos, updated_at: new Date().toISOString() })
+      .eq('id', req.params.id);
+
+    console.log(`[enhance-photos] listing ${req.params.id}: ${enhanced.length} photos enhanced`);
+    res.json({ success: true, photos: newPhotos, enhanced: enhanced.length, errors });
+  } catch (err) {
+    console.error('[enhance-photos]', err.message);
+    res.status(500).json({ success: false, error: 'Photo enhancement failed. Please try again.' });
+  }
+});
+
 // DELETE /api/listings/:id
 router.delete('/:id', async (req, res) => {
   try {

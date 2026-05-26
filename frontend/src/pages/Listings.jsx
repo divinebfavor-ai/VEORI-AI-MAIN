@@ -26,6 +26,8 @@ export default function Listings() {
   const [generatingDesc, setGeneratingDesc] = useState(false)
   const [publishing, setPublishing]         = useState(null)  // listingId being published
   const [pipelineResult, setPipelineResult] = useState(null)
+  const [enhancing, setEnhancing]           = useState(null)  // listingId being enhanced
+  const [enhanceResult, setEnhanceResult]   = useState(null)
 
   function load() {
     setLoading(true)
@@ -139,6 +141,26 @@ ${form.highlights ? '- Highlights: ' + form.highlights : ''}`
     setPublishing(null)
   }
 
+  async function enhancePhotos(listingId, photoCount) {
+    if (!photoCount || photoCount === 0) return alert('This listing has no photos to enhance. Add photos first.')
+    if (!confirm(`Enhance ${Math.min(photoCount, 6)} photo${photoCount > 1 ? 's' : ''} with AI upscaling? This takes 1-2 minutes.`)) return
+    setEnhancing(listingId)
+    setEnhanceResult(null)
+    try {
+      const r = await fetch(`${API}/listings/${listingId}/enhance-photos`, {
+        method: 'POST', headers: authHeader(),
+      })
+      const d = await r.json()
+      if (d.success) {
+        setEnhanceResult({ listingId, enhanced: d.enhanced, total: d.photos.length })
+        load()
+      } else {
+        alert(d.error || 'Enhancement failed. Please try again.')
+      }
+    } catch { alert('Enhancement failed. Please try again.') }
+    setEnhancing(null)
+  }
+
   async function updateStatus(id, status) {
     await fetch(`${API}/listings/${id}`, {
       method: 'PUT', headers: authHeader(),
@@ -226,6 +248,12 @@ ${form.highlights ? '- Highlights: ' + form.highlights : ''}`
                       </button>
                       <button onClick={() => blast(l.id)} disabled={blasting} style={s.btn('#C9A84C')}>📣 Blast Only</button>
                       <button onClick={() => generatePackage(l.id)} disabled={generatePdf} style={s.btn('rgba(255,255,255,0.08)', '#fff')}>📄 PDF</button>
+                      <button
+                        onClick={() => enhancePhotos(l.id, l.photos?.length || 0)}
+                        disabled={enhancing === l.id}
+                        style={s.btn('rgba(201,168,76,0.12)', '#C9A84C')}>
+                        {enhancing === l.id ? '⏳ Enhancing…' : '✦ Enhance Photos'}
+                      </button>
                       {l.status === 'active' && <button onClick={() => updateStatus(l.id, 'under_contract')} style={s.btn('rgba(139,92,246,0.15)', '#8B5CF6')}>→ Under Contract</button>}
                       {l.status === 'under_contract' && <button onClick={() => updateStatus(l.id, 'closed')} style={s.btn('rgba(0,195,122,0.15)', '#00C37A')}>→ Closed</button>}
                     </div>
@@ -235,6 +263,20 @@ ${form.highlights ? '- Highlights: ' + form.highlights : ''}`
             </div>
           )}
         </>
+      )}
+
+      {enhanceResult && (
+        <div style={{ position: 'fixed', bottom: 80, right: 28, zIndex: 1000, background: '#0A1526', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 14, padding: '18px 24px', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: '#C9A84C' }}>✦ Photos Enhanced!</p>
+              <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
+                {enhanceResult.enhanced} photo{enhanceResult.enhanced !== 1 ? 's' : ''} upscaled to HD quality.
+              </p>
+            </div>
+            <button onClick={() => setEnhanceResult(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 18, lineHeight: 1, marginLeft: 12 }}>✕</button>
+          </div>
+        </div>
       )}
 
       {pipelineResult && (
