@@ -5,7 +5,7 @@
  *         GET /api/tours/:id/analytics
  */
 const router  = require('express').Router();
-const { auth } = require('../middleware/auth');
+const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 
 router.use(auth);

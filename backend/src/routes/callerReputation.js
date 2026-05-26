@@ -4,7 +4,7 @@
  *         POST /api/caller-reputation/refresh, POST /api/caller-reputation/bulk-refresh
  */
 const router  = require('express').Router();
-const { auth } = require('../middleware/auth');
+const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 
 router.use(auth);

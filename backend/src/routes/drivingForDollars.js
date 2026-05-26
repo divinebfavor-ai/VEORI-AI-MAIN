@@ -4,7 +4,7 @@
  *         PUT /api/dfd/session/:id/end, GET /api/dfd/sessions, POST /api/dfd/pin/:id/analyze
  */
 const router  = require('express').Router();
-const { auth } = require('../middleware/auth');
+const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 
 router.use(auth);
