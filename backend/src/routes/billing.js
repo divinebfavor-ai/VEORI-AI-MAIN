@@ -19,7 +19,7 @@ function getSupabase() {
   return _supabase;
 }
 
-const { auth } = require('../middleware/auth');
+const { requireAuth: auth } = require('../middleware/auth');
 
 const PADDLE_BASE = process.env.PADDLE_ENVIRONMENT === 'sandbox'
   ? 'https://sandbox-api.paddle.com'
