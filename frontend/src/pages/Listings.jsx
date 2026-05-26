@@ -24,6 +24,8 @@ export default function Listings() {
   const [generatePdf, setGeneratePdf] = useState(false)
   const [pdfResult, setPdfResult] = useState(null)
   const [generatingDesc, setGeneratingDesc] = useState(false)
+  const [publishing, setPublishing]         = useState(null)  // listingId being published
+  const [pipelineResult, setPipelineResult] = useState(null)
 
   function load() {
     setLoading(true)
@@ -122,6 +124,21 @@ ${form.highlights ? '- Highlights: ' + form.highlights : ''}`
     setGeneratingDesc(false)
   }
 
+  async function publishPipeline(listingId) {
+    if (!confirm('This will generate a video, write captions, post to all connected social accounts, and email blast all your buyers. Ready?')) return
+    setPublishing(listingId)
+    setPipelineResult(null)
+    try {
+      const r = await fetch(`${API}/pipeline/publish/${listingId}`, {
+        method: 'POST', headers: authHeader(),
+      })
+      const d = await r.json()
+      setPipelineResult(d)
+      load()
+    } catch { alert('Pipeline failed. Please try again.') }
+    setPublishing(null)
+  }
+
   async function updateStatus(id, status) {
     await fetch(`${API}/listings/${id}`, {
       method: 'PUT', headers: authHeader(),
@@ -201,9 +218,14 @@ ${form.highlights ? '- Highlights: ' + form.highlights : ''}`
                       )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-                      <button onClick={() => blast(l.id)} disabled={blasting} style={s.btn('#C9A84C')}>📣 Blast</button>
+                      <button
+                        onClick={() => publishPipeline(l.id)}
+                        disabled={publishing === l.id}
+                        style={{ ...s.btn('#00C37A'), display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                        {publishing === l.id ? '⏳ Publishing...' : '🚀 Publish Pipeline'}
+                      </button>
+                      <button onClick={() => blast(l.id)} disabled={blasting} style={s.btn('#C9A84C')}>📣 Blast Only</button>
                       <button onClick={() => generatePackage(l.id)} disabled={generatePdf} style={s.btn('rgba(255,255,255,0.08)', '#fff')}>📄 PDF</button>
-                      {l.status === 'draft' && <button onClick={() => updateStatus(l.id, 'active')} style={s.btn('rgba(0,195,122,0.15)', '#00C37A')}>→ Activate</button>}
                       {l.status === 'active' && <button onClick={() => updateStatus(l.id, 'under_contract')} style={s.btn('rgba(139,92,246,0.15)', '#8B5CF6')}>→ Under Contract</button>}
                       {l.status === 'under_contract' && <button onClick={() => updateStatus(l.id, 'closed')} style={s.btn('rgba(0,195,122,0.15)', '#00C37A')}>→ Closed</button>}
                     </div>
@@ -213,6 +235,36 @@ ${form.highlights ? '- Highlights: ' + form.highlights : ''}`
             </div>
           )}
         </>
+      )}
+
+      {pipelineResult && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}>
+          <div style={{ background: 'var(--card-bg, #0A1526)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 16, padding: 32, width: '100%', maxWidth: 500 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <span style={{ fontSize: 28 }}>🚀</span>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#00C37A', margin: 0 }}>Pipeline Complete!</h2>
+            </div>
+            {Object.entries(pipelineResult.steps || {}).map(([step, result]) => (
+              <div key={step} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', textTransform: 'capitalize' }}>
+                  {step.replace(/_/g, ' ')}
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#00C37A' }}>
+                  {typeof result === 'object'
+                    ? result.status === 'skipped' ? `⏭ ${result.reason || 'skipped'}`
+                    : result.queued ? `✓ ${result.queued.join(', ')}`
+                    : result.render_id ? `✓ rendering (${result.eta})`
+                    : result.sent !== undefined ? `✓ ${result.sent} emails sent`
+                    : '✓ done'
+                    : `✓ ${result}`}
+                </span>
+              </div>
+            ))}
+            <button onClick={() => setPipelineResult(null)} style={{ marginTop: 20, width: '100%', padding: '12px', background: '#00C37A', color: '#000', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }}>
+              Done
+            </button>
+          </div>
+        </div>
       )}
 
       {tab === 'create' && (

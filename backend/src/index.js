@@ -187,9 +187,11 @@ app.use('/api/deal-package',   dealPackageRouter);
 const socialConnectionsRouter = require('./routes/socialConnections');
 const contentEngineRouter     = require('./routes/contentEngine');
 const postQueueRouter         = require('./routes/postQueue');
+const publishPipelineRouter   = require('./routes/publishPipeline');
 app.use('/api/social-connections', socialConnectionsRouter);
 app.use('/api/content',            contentEngineRouter);
 app.use('/api/post-queue',         postQueueRouter);
+app.use('/api/pipeline',           publishPipelineRouter);
 
 // ─── Virtual Tours Routes (Features 34-38) ───────────────────────────────────
 const virtualToursRouter = require('./routes/virtualTours');
