@@ -16,7 +16,7 @@
  *   POST /api/social-connections/publish      — post content to connected platform
  */
 const router  = require('express').Router();
-const { auth, optionalAuth } = require('../middleware/auth');
+const { requireAuth: auth, optionalAuth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 const jwt      = require('jsonwebtoken');
 
