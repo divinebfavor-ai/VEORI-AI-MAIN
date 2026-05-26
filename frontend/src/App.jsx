@@ -52,6 +52,7 @@ import Listings from './pages/Listings'
 import ContentStudio from './pages/ContentStudio'
 import SocialDashboard from './pages/SocialDashboard'
 import VirtualDFD from './pages/VirtualDFD'
+import OAuthCallback from './pages/OAuthCallback'
 // ── Virtual Tours (Features 34-38) ───────────────────────────────────────────
 import VirtualTourStudio from './pages/VirtualTourStudio'
 import TourViewer from './pages/TourViewer'
@@ -87,6 +88,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/aria" element={<Aria />} />
       <Route path="/sign/:token" element={<ContractSigning />} />
+      <Route path="/oauth/callback" element={<OAuthCallback />} />
 
       {/* Protected */}
       <Route

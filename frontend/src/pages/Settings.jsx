@@ -502,13 +502,40 @@ export default function Settings() {
     try {
       const r = await fetch(`${API_SOCIAL}/social-connections/auth-url/${platform}`, { headers: socialAuthHeader() })
       const d = await r.json()
+
       if (d.success && d.url) {
-        window.open(d.url, '_blank', 'width=600,height=700')
-        setTimeout(loadSocial, 3000)
+        // Open OAuth popup
+        const popup = window.open(d.url, `connect_${platform}`, 'width=620,height=720,scrollbars=yes')
+
+        // Listen for the popup to post back success/error
+        const handler = (event) => {
+          if (event.data?.type === 'OAUTH_SUCCESS' && event.data.platform === platform) {
+            window.removeEventListener('message', handler)
+            loadSocial()
+            toast.success(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connected!`)
+          }
+          if (event.data?.type === 'OAUTH_ERROR') {
+            window.removeEventListener('message', handler)
+            toast.error('Connection cancelled or failed. Please try again.')
+          }
+        }
+        window.addEventListener('message', handler)
+
+        // Fallback: if popup closes without posting a message, reload after 5s
+        const pollClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(pollClosed)
+            window.removeEventListener('message', handler)
+            setTimeout(loadSocial, 500)
+          }
+        }, 500)
       } else {
-        alert(`${platform} OAuth not yet configured. Add the app credentials in Railway environment variables, then reconnect.`)
+        // Platform not yet configured — show a clean, operator-friendly message
+        toast.error(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connection coming soon.`)
       }
-    } catch { alert('Connection failed') }
+    } catch {
+      toast.error('Could not start connection. Please try again.')
+    }
   }
 
   const disconnectPlatform = async (platform) => {
