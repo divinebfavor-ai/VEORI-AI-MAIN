@@ -4,6 +4,7 @@ import CommandRail from './CommandRail'
 import SystemStatusBar from './SystemStatusBar'
 import IntelPanel from './IntelPanel'
 import AssistantChat from '../AI/AssistantChat'
+import FeedbackButton from '../FeedbackButton'
 import useThemeStore from '../../store/themeStore'
 
 export default function Layout() {
@@ -21,6 +22,7 @@ export default function Layout() {
         <IntelPanel />
       </div>
       <AssistantChat />
+      <FeedbackButton />
     </div>
   )
 }

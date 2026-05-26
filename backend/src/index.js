@@ -46,6 +46,7 @@ const notificationsRouter    = require('./routes/notifications');
 const smsRouter              = require('./routes/sms');
 const wealthRouter           = require('./routes/wealth');
 const billingRouter          = require('./routes/billing');
+const feedbackRouter         = require('./routes/feedback');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -164,6 +165,7 @@ app.use('/api/notifications',   notificationsRouter);
 app.use('/api/sms',             smsRouter);
 app.use('/api/wealth',          wealthRouter);
 app.use('/api/billing',         billingRouter);
+app.use('/api/feedback',        feedbackRouter);
 app.use('/api/stripe',          billingRouter); // alias — /api/stripe/webhook, /api/stripe/create-checkout-session
 
 // ─── Intelligence Feature Routes (NEW — do not modify above) ──────────────────
