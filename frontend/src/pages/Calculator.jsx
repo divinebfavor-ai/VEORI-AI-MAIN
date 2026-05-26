@@ -1,6 +1,92 @@
 import React, { useState } from 'react'
-import { Calculator as CalcIcon, RefreshCw } from 'lucide-react'
+import { Calculator as CalcIcon, RefreshCw, ChevronDown, ChevronUp, Hammer } from 'lucide-react'
 import Button from '../components/ui/Button'
+
+// ─── Rehab line items ────────────────────────────────────────────────────────
+const REHAB_ITEMS = [
+  { id: 'roof',          label: 'Roof Replacement',       low: 6000,  high: 15000 },
+  { id: 'hvac',          label: 'HVAC System',            low: 3500,  high: 8000  },
+  { id: 'kitchen',       label: 'Kitchen Remodel',        low: 8000,  high: 25000 },
+  { id: 'bathrooms',     label: 'Bathroom Remodel',       low: 4000,  high: 12000 },
+  { id: 'flooring',      label: 'Flooring',               low: 3000,  high: 9000  },
+  { id: 'paint_int',     label: 'Interior Paint',         low: 1500,  high: 4000  },
+  { id: 'paint_ext',     label: 'Exterior Paint',         low: 2000,  high: 6000  },
+  { id: 'windows',       label: 'Windows',                low: 3000,  high: 9000  },
+  { id: 'plumbing',      label: 'Plumbing',               low: 2000,  high: 8000  },
+  { id: 'electrical',    label: 'Electrical',             low: 2000,  high: 7000  },
+  { id: 'foundation',    label: 'Foundation / Structural', low: 5000, high: 30000 },
+  { id: 'landscaping',   label: 'Landscaping / Curb',     low: 1000,  high: 5000  },
+]
+
+function RehabEstimatorPanel() {
+  const [open, setOpen]       = useState(false)
+  const [selected, setSelected] = useState({})
+  const [custom, setCustom]   = useState({})
+
+  const toggle = (id) => setSelected(p => ({ ...p, [id]: !p[id] }))
+
+  const totalLow  = REHAB_ITEMS.filter(i => selected[i.id]).reduce((s, i) => s + i.low,  0)
+  const totalHigh = REHAB_ITEMS.filter(i => selected[i.id]).reduce((s, i) => s + i.high, 0)
+  const totalMid  = Math.round((totalLow + totalHigh) / 2)
+
+  return (
+    <div className="bg-card border border-border-subtle rounded-lg overflow-hidden mt-6">
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-surface transition-colors">
+        <div className="flex items-center gap-3">
+          <Hammer size={18} className="text-gold" strokeWidth={1.6} />
+          <div className="text-left">
+            <p className="text-[14px] font-semibold text-text-primary">Rehab Cost Estimator</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Check off repairs needed — auto-fills your repair estimate above</p>
+          </div>
+        </div>
+        {open ? <ChevronUp size={16} className="text-text-muted" /> : <ChevronDown size={16} className="text-text-muted" />}
+      </button>
+
+      {open && (
+        <div className="border-t border-border-subtle p-6">
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            {REHAB_ITEMS.map(item => (
+              <label key={item.id} className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all border ${
+                selected[item.id]
+                  ? 'bg-gold/5 border-gold/30'
+                  : 'bg-surface border-border-subtle hover:border-border'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" checked={!!selected[item.id]} onChange={() => toggle(item.id)}
+                    className="accent-[#C9A84C] w-4 h-4" />
+                  <span className="text-[13px] text-text-primary">{item.label}</span>
+                </div>
+                <span className="text-[11px] text-text-muted whitespace-nowrap ml-2">
+                  ${item.low.toLocaleString()}–${item.high.toLocaleString()}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {totalMid > 0 && (
+            <div className="flex items-center gap-4 p-4 bg-surface rounded-lg border border-border-subtle">
+              <div className="flex-1">
+                <p className="text-[11px] text-text-muted mb-1">Estimated Repair Range</p>
+                <p className="text-[22px] font-bold text-gold">
+                  ${totalLow.toLocaleString()} – ${totalHigh.toLocaleString()}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-text-muted mb-1">Midpoint (use this)</p>
+                <p className="text-[22px] font-bold text-text-primary">${totalMid.toLocaleString()}</p>
+              </div>
+            </div>
+          )}
+
+          {totalMid === 0 && (
+            <p className="text-[13px] text-text-muted text-center py-4">Check off the repairs needed to see your estimate</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const SCENARIO_LABELS = {
   conservative: { label: 'Conservative', arvMult: 0.90, repairMult: 1.20, color: 'text-warning' },
@@ -192,6 +278,9 @@ export default function Calculator() {
           <p className="text-[13px] text-text-muted">Three scenarios will appear automatically</p>
         </div>
       )}
+
+      {/* ── Rehab Estimator (expandable, additive) ── */}
+      <RehabEstimatorPanel />
     </div>
   )
 }

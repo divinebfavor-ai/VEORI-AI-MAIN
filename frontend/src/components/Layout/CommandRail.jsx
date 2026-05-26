@@ -6,8 +6,7 @@ import {
   Calculator, Shield, Phone, Building2,
   Sun, Moon, MessageSquare, BookOpen, Store, Bell,
   ChevronLeft, ChevronRight, Compass,
-  ListOrdered, Car, PhoneOff,
-  Mail, Home, Video, Camera,
+  Car, Mail, Home, Video, Camera,
 } from 'lucide-react'
 import VeoriLogo from '../VeoriLogo'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -34,9 +33,7 @@ const NAV = [
   { to: '/marketplace',      icon: Store,           label: 'Marketplace' },
   { to: '/aria',             icon: MessageSquare,   label: 'Aria AI' },
   // ── Acquisition ───────────────────────────────────────────────────────────
-  { to: '/smart-list',       icon: ListOrdered,     label: 'Smart List' },
   { to: '/dfd',              icon: Car,             label: 'Driving for Dollars' },
-  { to: '/call-analytics',   icon: PhoneOff,        label: 'Call Analytics' },
   { to: '/direct-mail',      icon: Mail,            label: 'Direct Mail' },
   // ── Disposition ───────────────────────────────────────────────────────────
   { to: '/listings',         icon: Home,            label: 'Listings' },
