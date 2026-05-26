@@ -53,6 +53,7 @@ import ContentStudio from './pages/ContentStudio'
 import SocialDashboard from './pages/SocialDashboard'
 import VirtualDFD from './pages/VirtualDFD'
 import OAuthCallback from './pages/OAuthCallback'
+import RefundPolicy from './pages/RefundPolicy'
 // ── Virtual Tours (Features 34-38) ───────────────────────────────────────────
 import VirtualTourStudio from './pages/VirtualTourStudio'
 import TourViewer from './pages/TourViewer'
@@ -82,6 +83,7 @@ export default function App() {
       {/* Public */}
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
+      <Route path="/refund-policy" element={<RefundPolicy />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
