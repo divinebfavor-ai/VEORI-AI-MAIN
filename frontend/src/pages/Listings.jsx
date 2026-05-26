@@ -23,6 +23,7 @@ export default function Listings() {
   const [blasting, setBlasting] = useState(false)
   const [generatePdf, setGeneratePdf] = useState(false)
   const [pdfResult, setPdfResult] = useState(null)
+  const [generatingDesc, setGeneratingDesc] = useState(false)
 
   function load() {
     setLoading(true)
@@ -90,6 +91,35 @@ export default function Listings() {
       } else alert(d.error)
     } catch { alert('Failed to generate PDF') }
     setGeneratePdf(false)
+  }
+
+  async function generateDescription() {
+    if (!form.address && !form.property_type) return alert('Fill in address and property details first')
+    setGeneratingDesc(true)
+    try {
+      const prompt = `Write a compelling 3-sentence wholesale real estate listing description for the following property. Be concise, professional, and highlight the investment opportunity. Do not include a title.
+
+Property details:
+- Address: ${form.address || 'N/A'}${form.city ? ', ' + form.city : ''}${form.state ? ', ' + form.state : ''}
+- Type: ${form.property_type?.replace(/_/g, ' ') || 'residential'}
+- Bedrooms: ${form.bedrooms || 'N/A'}, Bathrooms: ${form.bathrooms || 'N/A'}
+- Sq Ft: ${form.sqft || 'N/A'}, Year Built: ${form.year_built || 'N/A'}
+- ARV: $${Number(form.arv || 0).toLocaleString()}
+- Asking Price: $${Number(form.asking_price || 0).toLocaleString()}
+- Repair Cost: $${Number(form.repair_cost || 0).toLocaleString()}
+${form.highlights ? '- Highlights: ' + form.highlights : ''}`
+
+      const r = await fetch(`${API}/aria/chat`, {
+        method: 'POST',
+        headers: authHeader(),
+        body: JSON.stringify({ message: prompt, history: [] }),
+      })
+      const d = await r.json()
+      const text = d.reply || d.content || d.text || ''
+      if (text) setForm(p => ({ ...p, description: text.trim() }))
+      else alert('Could not generate description. Try again.')
+    } catch { alert('Failed to generate description') }
+    setGeneratingDesc(false)
   }
 
   async function updateStatus(id, status) {
@@ -208,7 +238,21 @@ export default function Listings() {
               {field('City', 'city', 'text', 'Atlanta')}
               {field('State', 'state', 'text', 'GA')}
               {field('Zip', 'zip', 'text', '30301')}
-              <div style={{ gridColumn: '1/-1' }}>{field('Description', 'description', 'textarea', 'Describe the property…')}</div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>Description</label>
+                  <button onClick={generateDescription} disabled={generatingDesc} style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,195,122,0.35)',
+                    background: 'rgba(0,195,122,0.08)', color: '#00C37A',
+                    fontSize: 11, fontWeight: 600, cursor: generatingDesc ? 'default' : 'pointer',
+                    opacity: generatingDesc ? 0.6 : 1, fontFamily: 'Inter,sans-serif',
+                  }}>
+                    {generatingDesc ? '✦ Generating...' : '✦ AI Generate'}
+                  </button>
+                </div>
+                <textarea style={{ ...s.input, height: 80, resize: 'vertical' }} placeholder="Describe the property or click AI Generate..." value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+              </div>
               <div style={{ gridColumn: '1/-1' }}>{field('Highlights (one per line)', 'highlights', 'textarea', 'Great cash flow\nLow entry price\nSolid rental demand')}</div>
               <div style={{ gridColumn: '1/-1', display: 'flex', gap: 10 }}>
                 <button onClick={create} disabled={creating}
