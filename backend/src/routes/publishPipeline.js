@@ -159,8 +159,7 @@ async function generateShotstackVideo(listing, voiceoverUrl) {
 async function generateCaptions(listing, userId) {
   if (!process.env.ANTHROPIC_API_KEY) return {};
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const { callAnthropic, staggeredParallel } = require('../services/aiService');
 
     const details = `
 Property: ${listing.address}, ${listing.city}, ${listing.state}
@@ -184,10 +183,10 @@ Highlights: ${(listing.highlights || []).join(', ')}
     const captions = {};
     const platforms = Object.keys(platformSpecs);
 
-    // Generate all captions in parallel
-    await Promise.all(platforms.map(async (platform) => {
+    // Staggered — fire one every 400ms instead of all at once
+    await staggeredParallel(platforms.map((platform) => async () => {
       try {
-        const msg = await anthropic.messages.create({
+        const msg = await callAnthropic({
           model:      'claude-3-haiku-20240307',
           max_tokens: 600,
           messages: [{
@@ -198,12 +197,12 @@ ${details}
 
 Write only the post text. No explanation. Make it compelling for cash buyers and real estate investors.`,
           }],
-        });
+        }, { label: `caption-${platform}` });
         captions[platform] = msg.content[0]?.text?.trim() || '';
       } catch (e) {
         captions[platform] = '';
       }
-    }));
+    }), 400);
 
     return captions;
   } catch (e) {

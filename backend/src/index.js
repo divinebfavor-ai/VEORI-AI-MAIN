@@ -81,8 +81,31 @@ app.use(
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
-// General API limit — 300 req per 15 min per IP
-app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false, message: { success: false, error: 'Too many requests. Please slow down.' } }));
+// General API limit — 600 req per 15 min per IP (unauthenticated)
+// Authenticated users get a separate higher limit applied per-route
+app.use('/api/', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => !!req.headers.authorization, // authenticated users skip this limit
+  message: { success: false, error: 'Too many requests. Please wait a moment and try again.' },
+}));
+
+// Authenticated users — 2000 req per 15 min (much higher — they are paying users)
+app.use('/api/', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => !req.headers.authorization, // only applies to authenticated requests
+  keyGenerator: (req) => {
+    // Rate limit per user token, not per IP — so office networks don't share a limit
+    const token = (req.headers.authorization || '').replace('Bearer ', '').slice(0, 32);
+    return token || req.ip;
+  },
+  message: { success: false, error: 'You\'re moving fast! Give it a second and try again.' },
+}));
 
 // Strict auth limit — 10 attempts per 15 min per IP (brute force protection)
 const authLimiter = rateLimit({

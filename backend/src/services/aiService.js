@@ -1,8 +1,80 @@
 // ─── AI Service — Claude Haiku 4.5 ────────────────────────────────────────────
 const Anthropic = require('@anthropic-ai/sdk');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL  = 'claude-haiku-4-5-20251001';
+const MODEL = 'claude-haiku-4-5-20251001';
+
+// Lazy client — only created when first needed, safe if key not set yet
+let _client = null;
+function getAnthropicClient() {
+  if (!_client) {
+    if (!process.env.ANTHROPIC_API_KEY) return null;
+    _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return _client;
+}
+
+// ─── Concurrency limiter — max 3 simultaneous Anthropic calls ─────────────────
+let _active = 0;
+const _waitQueue = [];
+const MAX_CONCURRENT = 3;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function acquireSlot() {
+  return new Promise((resolve) => {
+    if (_active < MAX_CONCURRENT) { _active++; resolve(); }
+    else { _waitQueue.push(resolve); }
+  });
+}
+function releaseSlot() {
+  _active = Math.max(0, _active - 1);
+  if (_waitQueue.length > 0 && _active < MAX_CONCURRENT) {
+    _active++;
+    _waitQueue.shift()();
+  }
+}
+
+// ─── Core wrapper — retry + concurrency ───────────────────────────────────────
+async function callAnthropic(params, { retries = 4, label = 'ai' } = {}) {
+  const client = getAnthropicClient();
+  if (!client) throw new Error('ANTHROPIC_API_KEY not configured');
+
+  await acquireSlot();
+  try {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await client.messages.create(params);
+      } catch (err) {
+        const status = err?.status || err?.statusCode || 0;
+        const retryable = status === 429 || status === 529 || status === 503;
+        if (!retryable || attempt === retries) throw err;
+        const delay = Math.min(1500 * Math.pow(2, attempt), 20000);
+        console.warn(`[AI:${label}] ${status} — retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+        await sleep(delay);
+      }
+    }
+  } finally {
+    releaseSlot();
+  }
+}
+
+// ─── Staggered parallel — fire tasks with a gap between each ─────────────────
+// Use this instead of Promise.all when firing multiple AI calls at once
+async function staggeredParallel(tasks, delayMs = 400) {
+  const promises = [];
+  for (let i = 0; i < tasks.length; i++) {
+    if (i > 0) await sleep(delayMs);
+    promises.push(tasks[i]());
+  }
+  return Promise.all(promises);
+}
+
+// Backward-compat shim — existing code uses `client.messages.create(...)` directly
+// Replace with callAnthropic going forward; this keeps old callers working
+const client = {
+  messages: {
+    create: (params) => callAnthropic(params),
+  },
+};
 
 /**
  * Analyze a completed call transcript
@@ -264,4 +336,4 @@ Be direct and actionable. This is read by a busy real estate operator.`;
   }
 }
 
-module.exports = { analyzeCallTranscript, scoreMotivation, analyzePropertyOffer, getCoachingSuggestions, generateFollowUpEmail, operatorAssistant, ariaChatbot, generateDailyReport };
+module.exports = { analyzeCallTranscript, scoreMotivation, analyzePropertyOffer, getCoachingSuggestions, generateFollowUpEmail, operatorAssistant, ariaChatbot, generateDailyReport, staggeredParallel, callAnthropic };

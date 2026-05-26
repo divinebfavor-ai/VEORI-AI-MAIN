@@ -18,18 +18,32 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Response interceptor — handle 401
-// Instead of window.location (full page reload), we update the Zustand store
-// directly so React Router handles the redirect cleanly.
+// Response interceptor — handle 401 + 429 with automatic retry
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Lazy-import to avoid circular deps at module load time
+  async (error) => {
+    const status = error.response?.status
+
+    // 401 — log out
+    if (status === 401) {
       import('../store/authStore').then(({ default: useAuthStore }) => {
         useAuthStore.getState().clearAuth()
       })
+      return Promise.reject(error)
     }
+
+    // 429 — too many requests: wait and retry automatically (up to 3 times)
+    const config = error.config
+    if (status === 429 && config && !config._retryCount) {
+      config._retryCount = 0
+    }
+    if (status === 429 && config && config._retryCount < 3) {
+      config._retryCount += 1
+      const delay = 1000 * config._retryCount // 1s, 2s, 3s
+      await new Promise((r) => setTimeout(r, delay))
+      return api(config)
+    }
+
     return Promise.reject(error)
   }
 )
