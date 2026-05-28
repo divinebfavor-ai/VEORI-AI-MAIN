@@ -246,7 +246,7 @@ export default function VirtualDFD() {
                   { label: 'Properties Found',  value: result.found     ?? 0 },
                   { label: 'Leads Imported',     value: result.imported  ?? 0 },
                   { label: 'Avg Score',          value: result.avg_score ? `${result.avg_score}/100` : '—' },
-                  { label: 'Campaign',           value: result.campaign_started ? 'Started ✅' : 'Not started' },
+                  { label: 'Campaign',           value: result.campaign_started ? 'Ready ✅' : 'Not created' },
                 ].map(m => (
                   <div key={m.label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '10px 12px' }}>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>{m.label}</div>
@@ -271,9 +271,15 @@ export default function VirtualDFD() {
                 </>
               )}
               {result.campaign_id && (
-                <a href="/campaigns" style={{ display: 'block', marginTop: 14, textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#00C37A', textDecoration: 'none' }}>
-                  View Campaign →
-                </a>
+                <div style={{ marginTop: 14, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, padding: '10px 14px' }}>
+                  <p style={{ margin: '0 0 6px', fontSize: 12, color: '#C9A84C', fontWeight: 700 }}>📞 Next step: Skip-trace your leads</p>
+                  <p style={{ margin: '0 0 10px', fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                    AI DFD leads don't have phone numbers yet. Go to Leads → skip-trace them → then start the campaign.
+                  </p>
+                  <a href="/campaigns" style={{ fontSize: 12, fontWeight: 700, color: '#00C37A', textDecoration: 'none' }}>
+                    View Campaign →
+                  </a>
+                </div>
               )}
             </div>
           )}

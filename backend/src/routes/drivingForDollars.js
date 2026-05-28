@@ -309,34 +309,37 @@ Return ONLY the JSON array, no other text.`;
       avg_score:      avgScore,
     }).select().single().catch(() => {}); // non-blocking
 
-    // ── Step 4: Auto-launch campaign if requested ─────────────────────────────
+    // ── Step 4: Create campaign (draft) linked to these leads ─────────────────
+    // NOTE: DFD leads have no phone numbers yet — they need skip-tracing first.
+    // We create the campaign in DRAFT so the user can skip-trace leads then
+    // start the campaign manually from the Campaigns page. If they have their
+    // own phone numbers on some leads, they can still start immediately.
     let campaignId = null;
     let campaignStarted = false;
     if (auto_campaign && imported > 0) {
       try {
+        const scanSource = `ai_dfd_${zip}_${Date.now()}`;
+
+        // Tag leads with unique source so this campaign picks them up
+        await supabase.from('leads')
+          .update({ source: scanSource })
+          .in('id', insertedLeads.map(l => l.id));
+
         const { data: campaign, error: campErr } = await supabase
           .from('campaigns')
           .insert({
             user_id:          req.user.id,
             name:             `AI DFD — ${zip}${city ? ' ' + city : ''} ${new Date().toLocaleDateString()}`,
-            status:           'active',
+            status:           'draft',
             concurrent_lines: 3,
-            call_script:      'motivated_seller',
+            lead_filter:      { source: scanSource },
           })
           .select().single();
 
         if (!campErr && campaign) {
           campaignId = campaign.id;
-          // Link all imported leads to campaign
-          const linkRows = insertedLeads.map(l => ({
-            campaign_id: campaign.id,
-            lead_id:     l.id,
-            user_id:     req.user.id,
-            status:      'pending',
-          }));
-          await supabase.from('campaign_leads').insert(linkRows).catch(() => {});
-          campaignStarted = true;
-          console.log(`[DFD AI Scan] Campaign ${campaign.id} started with ${imported} leads`);
+          campaignStarted = true; // campaign created and ready — user starts when leads are skip-traced
+          console.log(`[DFD AI Scan] Campaign ${campaign.id} created (draft) with ${imported} leads`);
         }
       } catch (e) {
         console.warn('[DFD AI Scan] Campaign creation failed:', e.message);
