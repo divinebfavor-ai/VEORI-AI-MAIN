@@ -3,7 +3,7 @@
  * Route: /billing
  */
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 
 const API = 'https://veori-ai-main-production.up.railway.app/api/fw-billing'
@@ -26,11 +26,12 @@ const PLAN_HIGHLIGHTS = {
 
 export default function Billing() {
   const navigate    = useNavigate()
+  const [urlParams] = useSearchParams()
   const user        = useAuthStore(s => s.user)
   const [plans, setPlans]         = useState([])
   const [subscription, setSub]    = useState(null)
   const [loading, setLoading]     = useState(true)
-  const [subscribing, setSubbing] = useState(null) // planKey being processed
+  const [subscribing, setSubbing] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -40,6 +41,11 @@ export default function Billing() {
       if (plansData.success) {
         const ordered = PLAN_ORDER.map(k => plansData.plans.find(p => p.key === k)).filter(Boolean)
         setPlans(ordered)
+        // Auto-launch checkout if ?plan= is in URL (coming from landing page)
+        const autoPlan = urlParams.get('plan')
+        if (autoPlan && ordered.find(p => p.key === autoPlan)) {
+          setTimeout(() => handleSubscribe(autoPlan), 800)
+        }
       }
       if (subData.success) setSub(subData)
     }).catch(console.error).finally(() => setLoading(false))

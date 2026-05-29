@@ -15,8 +15,13 @@ export default function Register() {
   const [params] = useSearchParams()
 
   useEffect(() => {
-    const ref = params.get('ref')
-    if (ref) setRefCode(ref.toUpperCase())
+    const ref  = params.get('ref')
+    const name = params.get('name')
+    const email = params.get('email')
+    const plan = params.get('plan')
+    if (ref)   setRefCode(ref.toUpperCase())
+    if (name || email) setForm(f => ({ ...f, full_name: name || f.full_name, email: email || f.email }))
+    if (plan)  localStorage.setItem('pending_plan', plan)
   }, [])
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
@@ -51,7 +56,13 @@ export default function Register() {
         }).catch(() => {})
       }
       toast.success('Account created!')
-      navigate('/dashboard')
+      const pendingPlan = localStorage.getItem('pending_plan')
+      if (pendingPlan) {
+        localStorage.removeItem('pending_plan')
+        navigate(`/billing?plan=${pendingPlan}`)
+      } else {
+        navigate('/dashboard')
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Registration failed')
     } finally {

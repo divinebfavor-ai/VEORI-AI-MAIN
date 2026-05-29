@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 
 const HERO_BG   = 'https://d8j0ntlcm91z4.cloudfront.net/user_3Dh2N4HpfmHr3sqVUsWx08TjMB3/hf_20260520_150728_06f1619c-4b3c-49f4-bd6b-511027068f8b.png'
 const WAVE_BG   = 'https://d8j0ntlcm91z4.cloudfront.net/user_3Dh2N4HpfmHr3sqVUsWx08TjMB3/hf_20260520_153328_75be9237-41b1-40b5-a52e-6b75731a7c61.png'
-const API_URL   = 'https://veori-ai-main-production.up.railway.app/api/billing'
+const API_URL   = 'https://veori-ai-main-production.up.railway.app/api/fw-billing'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -575,18 +575,18 @@ function CheckoutModal({ plan, onClose }) {
     if (!name.trim() || !email.includes('@')) return
     setLoading(true); setError('')
     try {
-      const res = await fetch(`${API_URL}/checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, plan: plan.key }),
+      // Redirect to register with plan pre-selected
+      // After registration, billing page auto-launches Flutterwave checkout
+      const params = new URLSearchParams({
+        name,
+        email,
+        plan: plan.key,
       })
-      const data = await res.json()
-      if (data.url) { window.location.href = data.url; return }
-      setError('Something went wrong. Please try again.')
+      window.location.href = `/register?${params.toString()}`
     } catch {
       setError('Something went wrong. Please try again.')
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
