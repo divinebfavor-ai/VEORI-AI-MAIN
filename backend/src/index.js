@@ -233,10 +233,6 @@ const publicTourRouter   = require('./routes/publicTour');
 app.use('/api/tours', virtualToursRouter);
 app.use('/api/tour',  publicTourRouter);
 
-// ─── Property Marketing Engine (Cinematic AI Video Generator) ─────────────────
-const propertyMarketingRouter = require('./routes/propertyMarketing');
-app.use('/api/property-marketing', propertyMarketingRouter);
-
 // ─── BullMQ Job Queue (replaces all setInterval business logic) ───────────────
 const { initWorkers } = require('./services/queueService');
 try {
