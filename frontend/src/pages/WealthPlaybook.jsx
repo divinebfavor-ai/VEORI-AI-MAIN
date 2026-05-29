@@ -224,7 +224,7 @@ function AssessmentScreen({ onComplete }) {
     if (step < QUESTIONS.length - 1) {
       setTimeout(() => setStep(s => s + 1), 280)
     } else {
-      // Final answer — submit
+      // Final answer - submit
       setLoading(true)
       try {
         const res = await wealthApi.submitAssessment(newAnswers)
@@ -388,7 +388,7 @@ function PlaybookDashboard({ playbook, score, feed, onRefresh, refreshing, onRet
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, marginBottom: 32 }}>
-        {/* Left column — strategies */}
+        {/* Left column - strategies */}
         <div>
           {/* Primary strategy */}
           {primary && (
@@ -427,7 +427,7 @@ function PlaybookDashboard({ playbook, score, feed, onRefresh, refreshing, onRet
               ))}
               <div style={{ marginTop: 14, padding: '10px 12px', background: 'var(--surface-bg)', borderRadius: 8 }}>
                 <p style={{ fontSize: 10, color: 'var(--t4)', lineHeight: 1.5, margin: 0 }}>
-                  {playbook.wealth_projection.key_assumption} — Projections are illustrative. Results vary. Consult a financial advisor.
+                  {playbook.wealth_projection.key_assumption} - Projections are illustrative. Results vary. Consult a financial advisor.
                 </p>
               </div>
             </div>
@@ -451,7 +451,7 @@ function PlaybookDashboard({ playbook, score, feed, onRefresh, refreshing, onRet
               </div>
               <ArrowRight size={14} style={{ color: 'var(--t4)' }} />
             </div>
-            <p style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.5, margin: 0 }}>Enter your numbers — see your 5-year wealth projection side by side with doing nothing.</p>
+            <p style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.5, margin: 0 }}>Enter your numbers - see your 5-year wealth projection side by side with doing nothing.</p>
           </button>
 
           {/* Elite Moves Feed */}
@@ -484,7 +484,7 @@ function WelcomeScreen({ onStart }) {
         Your Wealth Playbook
       </h1>
       <p style={{ fontSize: 15, color: 'var(--t3)', lineHeight: 1.7, marginBottom: 8 }}>
-        Answer 5 quick questions and our AI builds a personalized real estate wealth plan designed specifically for your situation — connected directly to live Veori deals and tools.
+        Answer 5 quick questions and our AI builds a personalized real estate wealth plan designed specifically for your situation - connected directly to live Veori deals and tools.
       </p>
       <p style={{ fontSize: 13, color: 'var(--t4)', lineHeight: 1.6, marginBottom: 36 }}>
         Takes 90 seconds. The strategies you get are executable today.

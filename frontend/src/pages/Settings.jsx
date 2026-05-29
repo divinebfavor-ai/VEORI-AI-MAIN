@@ -217,7 +217,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
               {planStatus.used} / {planStatus.limit} numbers used
             </p>
             <p style={{ fontSize: 11, color: 'var(--t4)', margin: '2px 0 0' }}>
-              {planStatus.tier} plan · {planStatus.can_provision ? `${planStatus.limit - planStatus.used} slot(s) remaining` : 'Limit reached — upgrade to add more'}
+              {planStatus.tier} plan · {planStatus.can_provision ? `${planStatus.limit - planStatus.used} slot(s) remaining` : 'Limit reached - upgrade to add more'}
             </p>
           </div>
           <div style={{ height: 6, width: 120, background: 'var(--surface-bg-3)', borderRadius: 3, overflow: 'hidden' }}>
@@ -236,8 +236,8 @@ function PhoneTab({ phoneList, setPhoneList }) {
           </div>
         )}
         {phoneList.filter(p => !p.released_at).map(p => {
-          // Real E.164 number (e.g. +17045551234) — show it directly
-          // SIP URI or missing — show friendly name or state label instead
+          // Real E.164 number (e.g. +17045551234) - show it directly
+          // SIP URI or missing - show friendly name or state label instead
           const isRealNumber = p.number && p.number.startsWith('+')
           const displayNumber = isRealNumber
             ? p.number
@@ -284,7 +284,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
         )})}
       </div>
 
-      {/* Get a Number — provisioning */}
+      {/* Get a Number - provisioning */}
       {!showProvision ? (
         <div className="flex gap-2 flex-wrap">
           <Button
@@ -543,7 +543,7 @@ export default function Settings() {
           }
         }, 500)
       } else {
-        // Platform not yet configured — show a clean, operator-friendly message
+        // Platform not yet configured - show a clean, operator-friendly message
         toast.error(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connection coming soon.`)
       }
     } catch {
@@ -928,7 +928,7 @@ export default function Settings() {
           )}
 
           {tab === 'banking' && (
-            <Section title="Wire Transfer Details" description="Used for receiving assignment fee payments — shown in title company notifications">
+            <Section title="Wire Transfer Details" description="Used for receiving assignment fee payments - shown in title company notifications">
               <div className="bg-warning/5 border border-warning/20 rounded-[6px] px-4 py-3 mb-4">
                 <p className="text-[12px] text-text-secondary">
                   Your banking information is stored securely. Only the last 4 digits of account and routing numbers are visible after saving. Never shared with sellers or buyers.

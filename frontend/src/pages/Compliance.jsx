@@ -116,15 +116,15 @@ export default function Compliance() {
                     <tr key={log.id} className="hover:bg-elevated transition-colors">
                       <td className="px-4 py-3 text-text-primary font-mono">{log.phone_number}</td>
                       <td className="px-4 py-3 text-text-secondary">
-                        {log.called_at_utc ? new Date(log.called_at_utc).toLocaleString() : '—'}
+                        {log.called_at_utc ? new Date(log.called_at_utc).toLocaleString() : '-'}
                       </td>
-                      <td className="px-4 py-3 text-text-secondary">{log.local_time || '—'}</td>
+                      <td className="px-4 py-3 text-text-secondary">{log.local_time || '-'}</td>
                       <td className="px-4 py-3">
                         {log.within_calling_hours
                           ? <CheckCircle size={14} className="text-primary" />
                           : <AlertTriangle size={14} className="text-danger" />}
                       </td>
-                      <td className="px-4 py-3 text-text-secondary">{log.dnc_result || '—'}</td>
+                      <td className="px-4 py-3 text-text-secondary">{log.dnc_result || '-'}</td>
                       <td className="px-4 py-3 text-text-secondary">{log.attempt_number || 1}</td>
                       <td className="px-4 py-3">
                         <Badge variant={log.consent_status === 'given' ? 'green' : 'gray'}>

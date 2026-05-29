@@ -7,7 +7,7 @@ import MarkdownRenderer from '../ui/MarkdownRenderer'
 const PROMPTS = [
   { icon: TrendingUp, label: 'Show my hottest leads',       q: 'Which of my leads have the highest motivation scores right now? Show me the top ones to prioritize.' },
   { icon: Phone,      label: 'What to follow up on today?', q: 'What should I prioritize following up on today based on my recent calls and leads?' },
-  { icon: BarChart2,  label: 'How did calls perform?',      q: 'Give me a summary of how my calls performed this week — connect rate, motivation scores, deals close to converting.' },
+  { icon: BarChart2,  label: 'How did calls perform?',      q: 'Give me a summary of how my calls performed this week - connect rate, motivation scores, deals close to converting.' },
   { icon: Mail,       label: 'Write a follow-up SMS',       q: 'Help me write a compelling follow-up SMS to a motivated seller who said they need to think about it.' },
 ]
 

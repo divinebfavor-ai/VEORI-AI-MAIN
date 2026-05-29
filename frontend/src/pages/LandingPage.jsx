@@ -151,7 +151,7 @@ function Hero() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2, ease: [0.22,1,0.36,1] }}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.22)', borderRadius: 100, padding: '6px 16px', marginBottom: 36 }}>
           <PulseDot />
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#00C47B', letterSpacing: '0.01em', fontFamily: 'Inter,sans-serif' }}>AI-powered real estate acquisitions — fully automated</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#00C47B', letterSpacing: '0.01em', fontFamily: 'Inter,sans-serif' }}>AI-powered real estate acquisitions - fully automated</span>
         </motion.div>
 
         <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.32, ease: [0.22,1,0.36,1] }}
@@ -371,7 +371,7 @@ function Comparison() {
 // ─── How It Works ─────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { num: '01', title: 'Choose your plan', body: 'Pick the plan that fits your deal volume — from 3,000 dials/month on Starter up to 50,000 on Enterprise. Secure checkout. Account activates within 48 hours.' },
+  { num: '01', title: 'Choose your plan', body: 'Pick the plan that fits your deal volume - from 3,000 dials/month on Starter up to 50,000 on Enterprise. Secure checkout. Account activates within 48 hours.' },
   { num: '02', title: 'Account activates in 48 hours', body: 'Create your own login inside the VEORI platform. We send you a setup link. No waiting on someone to manually onboard you.' },
   { num: '03', title: 'Upload your seller list', body: 'Drop in a CSV with your leads. Names, numbers, addresses. VEORI starts calling automatically. Natural conversations, handles objections, scores every seller 0 to 100.' },
   { num: '04', title: 'VEORI qualifies and makes offers', body: 'Hot sellers are flagged by motivation score. VEORI makes cash offers based on your criteria. Consistent pitch every time. No variance, no emotion, just execution.' },
@@ -452,7 +452,7 @@ const PLAN_FEATURES = [
 ]
 
 const FOUNDING_BONUSES = [
-  'Locked at $397/month forever — price never increases',
+  'Locked at $397/month forever - price never increases',
   'Direct access to founder for product feedback',
   'Shape the product roadmap',
   'Founding Member badge on profile',
@@ -483,11 +483,11 @@ function FoundingMemberCard({ onSelect }) {
 
       <div style={{ padding: '36px 40px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 32 }}>
 
-        {/* Left — pricing */}
+        {/* Left - pricing */}
         <div style={{ borderRight: '1px solid rgba(201,168,76,0.15)', paddingRight: 32 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 100, padding: '4px 14px', marginBottom: 20 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', boxShadow: '0 0 8px rgba(201,168,76,0.8)', animation: 'lp-pulse-ring 2s ease-out infinite', display: 'inline-block' }} />
-            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#C9A84C', fontFamily: 'Inter,sans-serif' }}>Limited — First 20 Spots Only</span>
+            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#C9A84C', fontFamily: 'Inter,sans-serif' }}>Limited - First 20 Spots Only</span>
           </div>
 
           <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>Founding Member</div>
@@ -528,7 +528,7 @@ function FoundingMemberCard({ onSelect }) {
           </p>
         </div>
 
-        {/* Middle — Growth features */}
+        {/* Middle - Growth features */}
         <div style={{ borderRight: '1px solid rgba(201,168,76,0.15)', paddingRight: 32 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>Everything in Growth</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -541,7 +541,7 @@ function FoundingMemberCard({ onSelect }) {
           </div>
         </div>
 
-        {/* Right — Founding bonuses */}
+        {/* Right - Founding bonuses */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: '#C9A84C', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>Founding Member Bonuses</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -555,7 +555,7 @@ function FoundingMemberCard({ onSelect }) {
           <div style={{ marginTop: 28, padding: '16px 20px', background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 12 }}>
             <div style={{ fontSize: 12, color: '#C9A84C', fontWeight: 700, marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>Why founding pricing?</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
-              The first 20 members help shape VEORI into the tool you actually need. In return, you get Growth plan access at 60% off — permanently.
+              The first 20 members help shape VEORI into the tool you actually need. In return, you get Growth plan access at 60% off - permanently.
             </div>
           </div>
         </div>
@@ -640,7 +640,7 @@ function Pricing() {
           </p>
         </motion.div>
 
-        {/* Founding Member — full-width hero card */}
+        {/* Founding Member - full-width hero card */}
         <FoundingMemberCard onSelect={setSelectedPlan} />
 
         {/* Divider */}
@@ -666,7 +666,7 @@ function Pricing() {
   )
 }
 
-// ─── PlanCard — extracts hook out of map loop ─────────────────────────────────
+// ─── PlanCard - extracts hook out of map loop ─────────────────────────────────
 function PlanCard({ plan, index, onSelect }) {
   const { ref, visible } = useReveal()
   const isPopular = plan.popular
@@ -736,7 +736,7 @@ function PlanCard({ plan, index, onSelect }) {
   )
 }
 
-// ─── ComingSoonCard — extracts hook out of map loop ──────────────────────────
+// ─── ComingSoonCard - extracts hook out of map loop ──────────────────────────
 function ComingSoonCard({ item, index }) {
   const { ref, visible } = useReveal()
   return (
@@ -773,7 +773,7 @@ function ComingSoon() {
             The roadmap is already built.<br />Every subscriber gets it all.
           </h2>
           <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.48)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
-            These features are in active development. Every VEORI subscriber gets them automatically — no extra cost, no upgrade required.
+            These features are in active development. Every VEORI subscriber gets them automatically - no extra cost, no upgrade required.
           </p>
         </motion.div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>

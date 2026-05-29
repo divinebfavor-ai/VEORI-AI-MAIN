@@ -50,7 +50,7 @@ export default function Marketplace() {
             </span>
           </div>
           <p className="text-[15px] text-text-muted leading-relaxed max-w-[480px] mx-auto">
-            The first AI-native wholesale deal exchange. Find buyers, list deals, and close faster — all without leaving Veori.
+            The first AI-native wholesale deal exchange. Find buyers, list deals, and close faster - all without leaving Veori.
           </p>
         </div>
 
@@ -84,7 +84,7 @@ export default function Marketplace() {
           <p className="text-[13px] text-text-muted">
             Marketplace launches with{' '}
             <span className="text-gold font-medium">Veori Credits</span>
-            {' '}— complete lessons in the Academy to get early access.
+            {' '}- complete lessons in the Academy to get early access.
           </p>
         </div>
       </div>

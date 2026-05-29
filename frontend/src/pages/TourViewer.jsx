@@ -1,6 +1,6 @@
 /**
- * Feature 36 — Public Tour Viewer (veori.net/tour/:token)
- * No auth required — public facing
+ * Feature 36 - Public Tour Viewer (veori.net/tour/:token)
+ * No auth required - public facing
  */
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'

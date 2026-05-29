@@ -439,7 +439,7 @@ export default function Dialer() {
       <div className="flex items-end justify-between mb-8">
         <div>
           <h1 className="text-[28px] font-medium text-text-primary">Manual Dialer</h1>
-          <p className="text-[13px] text-text-muted mt-1">Call a lead directly — AI transcription and scoring in real time</p>
+          <p className="text-[13px] text-text-muted mt-1">Call a lead directly - AI transcription and scoring in real time</p>
         </div>
         <div className="flex items-center gap-1 bg-surface border border-border-subtle rounded-xl p-1">
           <button
@@ -527,7 +527,7 @@ export default function Dialer() {
                 {selectedLead.is_on_dnc && (
                   <div className="mt-2 flex items-center gap-1.5 text-danger">
                     <AlertCircle size={12} />
-                    <span className="text-[11px] font-medium">On DNC list — cannot call</span>
+                    <span className="text-[11px] font-medium">On DNC list - cannot call</span>
                   </div>
                 )}
               </div>

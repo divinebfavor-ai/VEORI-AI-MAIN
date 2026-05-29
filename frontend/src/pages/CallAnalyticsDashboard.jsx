@@ -111,7 +111,7 @@ export default function CallAnalyticsDashboard() {
                   <div key={d.day} style={{ textAlign: 'center', padding: '12px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', marginBottom: 4 }}>{d.label}</div>
                     <div style={{ fontSize: 16, fontWeight: 900, color: d.answer_rate >= 50 ? '#00C37A' : d.answer_rate >= 30 ? '#C9A84C' : 'rgba(255,255,255,0.45)' }}>
-                      {d.answer_rate != null ? `${d.answer_rate}%` : '—'}
+                      {d.answer_rate != null ? `${d.answer_rate}%` : '-'}
                     </div>
                     <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{d.total} calls</div>
                   </div>

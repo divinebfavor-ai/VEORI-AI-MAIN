@@ -43,7 +43,7 @@ function SubscriptionBanner({ user }) {
   } else if (status === 'trial') {
     bg = 'rgba(0,195,122,0.06)'; border = 'rgba(0,195,122,0.18)'; color = '#00C37A'
     icon = '✨'
-    message = `Trial active — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining. ${callsLimit ? `${callsUsed}/${callsLimit} calls used.` : ''}`
+    message = `Trial active - ${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining. ${callsLimit ? `${callsUsed}/${callsLimit} calls used.` : ''}`
     action = 'View Plans'
   } else return null
 
@@ -138,7 +138,7 @@ function StatCard({ label, value, icon: Icon, accent, sub, loading }) {
           fontVariantNumeric: 'tabular-nums',
           fontFamily: 'Geist Mono, monospace',
         }}>
-          {loading ? '—' : value}
+          {loading ? '-' : value}
         </p>
         <p className="label-caps">{label}</p>
       </div>
@@ -207,7 +207,7 @@ function OnboardingChecklist({ onDismiss }) {
             background: '#00C37A', color: '#000', border: 'none', cursor: 'pointer',
             fontSize: 12, fontWeight: 700, letterSpacing: '0.03em',
           }}>
-            You're all set — dismiss
+            You're all set - dismiss
           </button>
         )}
       </div>
@@ -281,7 +281,7 @@ function AICommandLog() {
                 </p>
                 <p style={{ fontSize: 10, color: 'var(--t4)', margin: 0 }}>
                   {entry.model ? `${entry.model} · ` : ''}
-                  {entry.created_at ? formatDistanceToNow(new Date(entry.created_at), { addSuffix: true }) : '—'}
+                  {entry.created_at ? formatDistanceToNow(new Date(entry.created_at), { addSuffix: true }) : '-'}
                 </p>
               </div>
               {entry.status && (

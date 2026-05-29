@@ -1,5 +1,5 @@
 /**
- * Feature 14 — Driving for Dollars with Real Interactive Map
+ * Feature 14 - Driving for Dollars with Real Interactive Map
  * Uses Leaflet + OpenStreetMap (no API key required)
  * Click anywhere on the map to drop a pin and analyze the property
  */
@@ -246,7 +246,7 @@ export default function DrivingForDollars() {
             </MapContainer>
           </div>
 
-          {/* Right sidebar — pin form or pin list */}
+          {/* Right sidebar - pin form or pin list */}
           <div style={{ width: 300, borderLeft: '1px solid var(--border, rgba(255,255,255,0.07))', overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--app-bg, #060E1A)' }}>
             {/* Pending pin form */}
             {pendingPin ? (

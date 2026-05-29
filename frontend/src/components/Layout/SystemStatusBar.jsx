@@ -28,11 +28,11 @@ export default function SystemStatusBar() {
     return () => clearInterval(t)
   }, [])
 
-  const callsToday = stats?.calls_today ?? '—'
-  const hotLeads   = stats?.hot_leads   ?? '—'
-  const deals      = stats?.deals_under_contract ?? '—'
-  const pendingSigs = stats?.pending_signatures ?? '—'
-  const dueFollowUps = stats?.due_follow_ups ?? '—'
+  const callsToday = stats?.calls_today ?? '-'
+  const hotLeads   = stats?.hot_leads   ?? '-'
+  const deals      = stats?.deals_under_contract ?? '-'
+  const pendingSigs = stats?.pending_signatures ?? '-'
+  const dueFollowUps = stats?.due_follow_ups ?? '-'
 
   const since = lastUpdate
     ? (() => {
@@ -83,7 +83,7 @@ export default function SystemStatusBar() {
             background: 'var(--t4)', flexShrink: 0,
             display: 'inline-block', opacity: 0.4,
           }} />
-          IDLE — READY
+          IDLE - READY
         </span>
       )}
 
@@ -139,7 +139,7 @@ export default function SystemStatusBar() {
       {/* Spacer */}
       <span style={{ flex: 1 }} />
 
-      {/* System health — right */}
+      {/* System health - right */}
       <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--t4)' }}>
         <span style={{
           width: 5, height: 5, borderRadius: '50%',

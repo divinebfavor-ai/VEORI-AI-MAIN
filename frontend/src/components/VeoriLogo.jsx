@@ -1,7 +1,7 @@
 import React from 'react'
 
 /**
- * Veori Logo Mark — overlapping ring design in brand colors
+ * Veori Logo Mark - overlapping ring design in brand colors
  * Green (#00C37A) + Gold (#C9A84C) on transparent background
  */
 export default function VeoriLogo({ size = 32, className = '' }) {
@@ -41,7 +41,7 @@ export default function VeoriLogo({ size = 32, className = '' }) {
         </filter>
       </defs>
 
-      {/* Ring 1 — green, axis-aligned */}
+      {/* Ring 1 - green, axis-aligned */}
       <rect
         x="14" y="14" width="72" height="72" rx="22" ry="22"
         stroke={`url(#${id}-g1)`}
@@ -50,7 +50,7 @@ export default function VeoriLogo({ size = 32, className = '' }) {
         filter={`url(#${id}-glow)`}
       />
 
-      {/* Ring 2 — gold, rotated 45° */}
+      {/* Ring 2 - gold, rotated 45° */}
       <rect
         x="14" y="14" width="72" height="72" rx="22" ry="22"
         stroke={`url(#${id}-g2)`}

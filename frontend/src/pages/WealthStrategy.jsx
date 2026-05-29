@@ -153,7 +153,7 @@ export default function WealthStrategy() {
 
       {/* How it works */}
       <section style={{ marginBottom: 36 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)', marginBottom: 20, letterSpacing: '-0.01em' }}>How It Works — Step by Step</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)', marginBottom: 20, letterSpacing: '-0.01em' }}>How It Works - Step by Step</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {(strategy.how_it_works || []).map((step, i) => (
             <StepCard key={i} step={step} isLast={i === (strategy.how_it_works.length - 1)} />
@@ -225,7 +225,7 @@ export default function WealthStrategy() {
       }}>
         <div>
           <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--t1)', marginBottom: 4 }}>Ready to execute this strategy?</p>
-          <p style={{ fontSize: 13, color: 'var(--t3)', margin: 0 }}>Veori automates every step — find the deal, structure the financing, close it.</p>
+          <p style={{ fontSize: 13, color: 'var(--t3)', margin: 0 }}>Veori automates every step - find the deal, structure the financing, close it.</p>
         </div>
         <button
           onClick={() => navigate(strategy.action_path || '/campaigns')}

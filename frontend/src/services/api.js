@@ -8,7 +8,7 @@ const api = axios.create({
   timeout: 15000,
 })
 
-// Request interceptor — attach token
+// Request interceptor - attach token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('veori_token')
@@ -18,13 +18,13 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Response interceptor — handle 401 + 429 with automatic retry
+// Response interceptor - handle 401 + 429 with automatic retry
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const status = error.response?.status
 
-    // 401 — log out
+    // 401 - log out
     if (status === 401) {
       import('../store/authStore').then(({ default: useAuthStore }) => {
         useAuthStore.getState().clearAuth()
@@ -32,7 +32,7 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 429 — too many requests: wait and retry automatically (up to 3 times)
+    // 429 - too many requests: wait and retry automatically (up to 3 times)
     const config = error.config
     if (status === 429 && config && !config._retryCount) {
       config._retryCount = 0

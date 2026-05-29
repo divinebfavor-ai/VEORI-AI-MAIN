@@ -27,7 +27,7 @@ function urgencyLevel(dateStr) {
 }
 
 function fmtDate(str) {
-  if (!str) return '—'
+  if (!str) return '-'
   const d = new Date(str)
   const now = new Date()
   const diff = d - now

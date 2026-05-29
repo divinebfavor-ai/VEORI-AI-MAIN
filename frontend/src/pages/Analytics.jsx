@@ -55,7 +55,7 @@ function KpiCard({ label, value, prefix = '', suffix = '', trend, sparkData, acc
         )}
       </div>
       <p className="text-[42px] font-bold leading-none tracking-tight" style={{ color }}>
-        {loading ? '—' : `${prefix}${animated.toLocaleString()}${suffix}`}
+        {loading ? '-' : `${prefix}${animated.toLocaleString()}${suffix}`}
       </p>
       {sparkData && sparkData.length > 0 && (
         <div className="h-10 -mx-2">
@@ -260,12 +260,12 @@ function StateHeatmapRow({ state, closeRate, dealsAttempted, dealsClosed, avgFee
         {dealsClosed}/{dealsAttempted} deals
       </span>
       <span className="text-[12px] text-gold font-medium w-24 text-right">
-        {avgFee ? `$${Math.round(avgFee).toLocaleString()}` : '—'}
+        {avgFee ? `$${Math.round(avgFee).toLocaleString()}` : '-'}
       </span>
       <span className={`text-[10px] w-8 text-right ${
         trend === 'up' ? 'text-primary' : trend === 'down' ? 'text-danger' : 'text-text-muted'
       }`}>
-        {trend === 'up' ? '▲' : trend === 'down' ? '▼' : '—'}
+        {trend === 'up' ? '▲' : trend === 'down' ? '▼' : '-'}
       </span>
     </div>
   )
@@ -389,7 +389,7 @@ export default function Analytics() {
   const motiveSpark  = dealFlow.map(d => ({ v: d.avg_motivation || 0 }))
   const pipelineSpark= dealFlow.map(d => ({ v: d.new_leads || 0 }))
 
-  // Deal flow chart — dual line
+  // Deal flow chart - dual line
   const flowChartData = dealFlow.map(d => ({
     month:    d.month_label || d.month,
     Closed:   d.deals_closed || 0,
@@ -482,7 +482,7 @@ export default function Analytics() {
           <div className="h-56 rounded-lg bg-surface animate-pulse" />
         ) : flowChartData.length === 0 ? (
           <div className="h-56 flex items-center justify-center text-text-muted text-[13px]">
-            No deal flow data yet — run campaigns to start tracking.
+            No deal flow data yet - run campaigns to start tracking.
           </div>
         ) : (
           <div className="h-56">

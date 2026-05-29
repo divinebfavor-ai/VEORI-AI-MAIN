@@ -37,7 +37,7 @@ function RehabEstimatorPanel() {
           <Hammer size={18} className="text-gold" strokeWidth={1.6} />
           <div className="text-left">
             <p className="text-[14px] font-semibold text-text-primary">Rehab Cost Estimator</p>
-            <p className="text-[11px] text-text-muted mt-0.5">Check off repairs needed — auto-fills your repair estimate above</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Check off repairs needed - auto-fills your repair estimate above</p>
           </div>
         </div>
         {open ? <ChevronUp size={16} className="text-text-muted" /> : <ChevronDown size={16} className="text-text-muted" />}
@@ -218,7 +218,7 @@ export default function Calculator() {
               { label: 'Max Assignment',  value: fmt$(assignFee), accent: 'text-gold',          sub: 'At first offer' },
               {
                 label: 'Target Purchase',
-                value: desired ? fmt$(mao - parseFloat(desired)) : '—',
+                value: desired ? fmt$(mao - parseFloat(desired)) : '-',
                 accent: 'text-text-primary',
                 sub: desired ? 'For your fee' : 'Enter desired fee',
               },
@@ -248,7 +248,7 @@ export default function Calculator() {
               <div className="flex items-center justify-between p-3 bg-elevated rounded-[6px]">
                 <div>
                   <p className="text-[13px] font-medium text-text-primary">Opening offer (anchor low)</p>
-                  <p className="text-[11px] text-text-muted">Start here — leaves room to negotiate</p>
+                  <p className="text-[11px] text-text-muted">Start here - leaves room to negotiate</p>
                 </div>
                 <p className="text-[18px] font-bold text-primary">{fmt$(firstOffer)}</p>
               </div>
@@ -262,7 +262,7 @@ export default function Calculator() {
               <div className="flex items-center justify-between p-3 bg-elevated rounded-[6px] border border-gold/20">
                 <div>
                   <p className="text-[13px] font-medium text-gold">Maximum offer (MAO)</p>
-                  <p className="text-[11px] text-text-muted">Never exceed this — walk away if seller is above</p>
+                  <p className="text-[11px] text-text-muted">Never exceed this - walk away if seller is above</p>
                 </div>
                 <p className="text-[18px] font-bold text-gold">{fmt$(mao)}</p>
               </div>

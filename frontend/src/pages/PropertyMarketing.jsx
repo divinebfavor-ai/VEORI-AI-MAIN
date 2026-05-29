@@ -362,7 +362,7 @@ export default function PropertyMarketing() {
                 </div>
               ))}
               <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(0,195,122,0.06)', borderRadius: 8, fontSize: 12, color: 'var(--t3)' }}>
-                Render takes 2-3 minutes. You can leave this page — we'll save it.
+                Render takes 2-3 minutes. You can leave this page - we'll save it.
               </div>
             </div>
           )}

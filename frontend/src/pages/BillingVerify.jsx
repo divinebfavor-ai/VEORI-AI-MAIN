@@ -1,5 +1,5 @@
 /**
- * BillingVerify — handles Flutterwave redirect after payment
+ * BillingVerify - handles Flutterwave redirect after payment
  * Route: /billing/verify
  */
 import React, { useEffect, useState } from 'react'

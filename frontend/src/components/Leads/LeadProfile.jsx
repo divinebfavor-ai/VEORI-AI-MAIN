@@ -99,7 +99,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
                 className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-primary mt-1 transition-colors"
               >
                 <Phone size={13} />
-                {lead.phone || '—'}
+                {lead.phone || '-'}
                 {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
               </button>
               {lead.address && (
@@ -231,7 +231,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
                             : 'Unknown date'}
                         </div>
                         <div className="text-xs text-text-muted mt-0.5">
-                          {call.duration ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s` : '—'}
+                          {call.duration ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s` : '-'}
                         </div>
                       </div>
                       <Badge variant={scoreBadgeVariant(call.score)}>

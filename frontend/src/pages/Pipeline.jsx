@@ -99,7 +99,7 @@ function DealRow({ deal, selected, onClick, onOpen }) {
             {fmt$(deal.offer_price)}
           </span>
         ) : (
-          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>-</span>
         )}
       </div>
 
@@ -110,7 +110,7 @@ function DealRow({ deal, selected, onClick, onOpen }) {
             {fmt$(deal.assignment_fee)}
           </span>
         ) : (
-          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>-</span>
         )}
       </div>
 

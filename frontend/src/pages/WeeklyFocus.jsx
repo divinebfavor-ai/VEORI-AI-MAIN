@@ -1,5 +1,5 @@
 /**
- * /weekly-focus — Deal Prediction Engine: This Week's Focus
+ * /weekly-focus - Deal Prediction Engine: This Week's Focus
  * NEW FILE
  */
 import React, { useState, useEffect } from 'react'

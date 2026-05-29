@@ -109,7 +109,7 @@ function LessonModal({ lesson, onClose, onComplete, completed }) {
               {submitted && (
                 <div className={`p-4 rounded-xl ${correct ? 'bg-primary/10 border border-primary/20' : 'bg-danger/10 border border-danger/20'}`}>
                   <p className={`text-[13px] font-medium ${correct ? 'text-primary' : 'text-danger'}`}>
-                    {correct ? '✓ Correct! Lesson marked complete.' : '✗ Not quite — the correct answer is highlighted above.'}
+                    {correct ? '✓ Correct! Lesson marked complete.' : '✗ Not quite - the correct answer is highlighted above.'}
                   </p>
                 </div>
               )}

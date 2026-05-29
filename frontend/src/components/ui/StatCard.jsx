@@ -17,7 +17,7 @@ export default function StatCard({ value, label, accent = 'green', sub, classNam
     )}>
       <p className="label-caps">{label}</p>
       <p className={clsx('text-[56px] font-bold leading-none tracking-tight', colors[accent] || colors.white)}>
-        {value ?? '—'}
+        {value ?? '-'}
       </p>
       {sub && <p className="text-[13px] text-text-muted">{sub}</p>}
     </div>

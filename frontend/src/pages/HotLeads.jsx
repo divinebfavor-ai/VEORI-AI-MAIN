@@ -1,5 +1,5 @@
 /**
- * /hot-leads — Hot Lead Auto-Escalation Dashboard
+ * /hot-leads - Hot Lead Auto-Escalation Dashboard
  * NEW FILE
  */
 import React, { useState, useEffect, useCallback } from 'react'

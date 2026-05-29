@@ -66,7 +66,7 @@ const useThemeStore = create(
         set({ theme })
       },
 
-      // Sync from DB on login — DB wins over localStorage
+      // Sync from DB on login - DB wins over localStorage
       syncFromDB: async () => {
         const dbTheme = await loadThemeFromDB()
         if (dbTheme) {

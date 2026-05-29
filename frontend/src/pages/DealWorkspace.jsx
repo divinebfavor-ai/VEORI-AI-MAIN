@@ -38,10 +38,10 @@ function fieldKey(label) {
   return m[label] || label.toLowerCase().replace(/\s+/g, '_')
 }
 
-function fmt$(n) { return n ? '$' + Math.round(Number(n)).toLocaleString() : '—' }
+function fmt$(n) { return n ? '$' + Math.round(Number(n)).toLocaleString() : '-' }
 
 function formatTimestamp(ts) {
-  if (!ts) return '—'
+  if (!ts) return '-'
   return new Date(ts).toLocaleString([], {
     month: 'short',
     day: 'numeric',
@@ -105,7 +105,7 @@ function EditableField({ label, value, onSave, type = 'text', prefix = '', highl
 
   const displayVal = prefix === '$' && value
     ? '$' + Number(value).toLocaleString()
-    : (value || '—')
+    : (value || '-')
 
   return (
     <div
@@ -934,7 +934,7 @@ export default function DealWorkspace() {
                   fontSize: 18, fontWeight: 800,
                   color: velocityScore == null ? 'var(--t4)' : velocityScore >= 70 ? '#00C37A' : velocityScore >= 40 ? '#B8922A' : '#D93030'
                 }}>
-                  {velocityScore != null ? velocityScore : '—'}
+                  {velocityScore != null ? velocityScore : '-'}
                 </span>
               </div>
               {velocityScore != null && (
@@ -1084,7 +1084,7 @@ export default function DealWorkspace() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <span style={{ fontSize: 12, color: 'var(--t3)' }}>Closing date</span>
-                    <span style={{ fontSize: 12, color: 'var(--t2)' }}>{titleLog.closing_date || deal.closing_date || '—'}</span>
+                    <span style={{ fontSize: 12, color: 'var(--t2)' }}>{titleLog.closing_date || deal.closing_date || '-'}</span>
                   </div>
                   {titleLog.title_contact_name && (
                     <div style={{ paddingTop: 8, borderTop: '1px solid var(--border-rest)' }}>

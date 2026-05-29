@@ -1,5 +1,5 @@
 /**
- * Billing Page — In-App Subscription Management (Flutterwave)
+ * Billing Page - In-App Subscription Management (Flutterwave)
  * Route: /billing
  */
 import React, { useState, useEffect } from 'react'
@@ -220,7 +220,7 @@ export default function Billing() {
                       ? 'Redirecting…'
                       : isCurrent
                       ? '✓ Current Plan'
-                      : `Subscribe — $${plan.amount}/mo`}
+                      : `Subscribe - $${plan.amount}/mo`}
                   </button>
                 </div>
               )

@@ -66,7 +66,7 @@ function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const hydrated        = useAuthStore((s) => s.hydrated)
 
-  // Don't redirect until we've read localStorage — avoids flash-logout on page load
+  // Don't redirect until we've read localStorage - avoids flash-logout on page load
   if (!hydrated) return null
 
   if (!isAuthenticated) return <Navigate to="/login" replace />
@@ -155,10 +155,10 @@ export default function App() {
         <Route path="/billing" element={<Billing />} />
       </Route>
 
-      {/* Public tour viewer — no auth */}
+      {/* Public tour viewer - no auth */}
       <Route path="/tour/:token" element={<TourViewer />} />
 
-      {/* Home — landing for guests, dashboard for logged-in users */}
+      {/* Home - landing for guests, dashboard for logged-in users */}
       <Route path="/" element={<HomeRoute />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

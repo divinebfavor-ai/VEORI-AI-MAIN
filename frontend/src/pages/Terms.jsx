@@ -106,7 +106,7 @@ export default function Terms() {
         <p style={s.p}>You are solely responsible for ensuring your use of VEORI AI's calling features complies with all applicable laws including the Telephone Consumer Protection Act (TCPA), state calling laws, and Do Not Call regulations. VEORI AI provides tools to assist with compliance but does not guarantee compliance. You assume all legal responsibility for outbound calls made through our platform.</p>
 
         <h2 style={s.h2}>7. Intellectual Property</h2>
-        <p style={s.p}>All content, features, and functionality of VEORI AI — including but not limited to software, text, graphics, and AI models — are owned by VEORI AI and protected by intellectual property laws. You may not copy, reproduce, or create derivative works without our express written permission.</p>
+        <p style={s.p}>All content, features, and functionality of VEORI AI - including but not limited to software, text, graphics, and AI models - are owned by VEORI AI and protected by intellectual property laws. You may not copy, reproduce, or create derivative works without our express written permission.</p>
 
         <h2 style={s.h2}>8. Data and Privacy</h2>
         <p style={s.p}>Your use of the platform is also governed by our Privacy Policy. By using VEORI AI, you consent to the collection and use of your data as described therein. You retain ownership of your lead data. We will not sell your data to third parties.</p>

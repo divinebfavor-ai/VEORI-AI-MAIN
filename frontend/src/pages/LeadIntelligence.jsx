@@ -1,5 +1,5 @@
 /**
- * /intelligence — Lead Intelligence Hub
+ * /intelligence - Lead Intelligence Hub
  * Shows conversation memory + sentiment timeline + deal probability for a lead
  * NEW FILE
  */
@@ -110,10 +110,10 @@ export default function LeadIntelligence() {
       <div style={{ maxWidth: 420, marginBottom: 28 }}>
         <div style={s.label}>Select Lead</div>
         <select style={s.select} value={selectedLead} onChange={e => setSelected(e.target.value)}>
-          <option value="">— Choose a lead —</option>
+          <option value="">- Choose a lead -</option>
           {leads.map(l => (
             <option key={l.id} value={l.id}>
-              {l.first_name} {l.last_name} — {l.property_address || l.phone} {l.motivation_score ? `(${l.motivation_score}/100)` : ''}
+              {l.first_name} {l.last_name} - {l.property_address || l.phone} {l.motivation_score ? `(${l.motivation_score}/100)` : ''}
             </option>
           ))}
         </select>

@@ -107,7 +107,7 @@ export default function FeedbackButton() {
               /* ── Success state ── */
               <div style={{ textAlign: 'center', padding: '24px 0' }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-                <p style={{ color: '#00C37A', fontWeight: 700, fontSize: 16, margin: '0 0 6px' }}>Got it — thank you!</p>
+                <p style={{ color: '#00C37A', fontWeight: 700, fontSize: 16, margin: '0 0 6px' }}>Got it - thank you!</p>
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: 0 }}>We'll review this and fix it ASAP.</p>
                 <button
                   style={{ ...btn, marginTop: 20, width: 'auto', padding: '10px 28px' }}

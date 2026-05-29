@@ -141,7 +141,7 @@ export default function Buyers() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-[14px] text-gold font-medium">
-                    {b.max_price ? '$'+Number(b.max_price).toLocaleString() : '—'}
+                    {b.max_price ? '$'+Number(b.max_price).toLocaleString() : '-'}
                   </td>
                   <td className="px-6 py-4 text-[14px] text-text-secondary tabular-nums">
                     {b.deals_closed || 0} closed

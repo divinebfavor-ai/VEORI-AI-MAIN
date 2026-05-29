@@ -20,7 +20,7 @@ function statusBadge(s) {
   const m = { interested: 'green', 'appointment set': 'green', 'under contract': 'green', 'offer made': 'gold', calling: 'amber', new: 'gray', contacted: 'amber', dnc: 'red', closed: 'gold' }
   return m[s?.toLowerCase()] || 'gray'
 }
-function fmt$(n) { return n ? '$' + Number(n).toLocaleString() : '—' }
+function fmt$(n) { return n ? '$' + Number(n).toLocaleString() : '-' }
 function initials(first, last) { return `${(first||'')[0]||''}${(last||'')[0]||''}`.toUpperCase() || '?' }
 
 const PAGE_SIZE = 20
@@ -62,10 +62,10 @@ function CallCard({ call: c }) {
   return (
     <div style={{ background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
 
-      {/* Row 1 — time + outcome + score + duration */}
+      {/* Row 1 - time + outcome + score + duration */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 500 }}>
-          {c.started_at ? formatDistanceToNow(new Date(c.started_at), { addSuffix: true }) : '—'}
+          {c.started_at ? formatDistanceToNow(new Date(c.started_at), { addSuffix: true }) : '-'}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {fmtDur && <span style={{ fontSize: 11, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>{fmtDur}</span>}
@@ -226,7 +226,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
     setDialing(true)
     try {
       await callsApi.initiateCall({ lead_id: lead.id })
-      toast.success('Call initiated — check Live Monitor')
+      toast.success('Call initiated - check Live Monitor')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Call failed')
     } finally { setDialing(false) }
@@ -239,14 +239,14 @@ function LeadPanel({ lead, onClose, onNavigate }) {
       const d = r.data?.data || r.data
       const phones = d?.phones?.length || 0
       const emails = d?.emails?.length || 0
-      toast.success(`Skip trace complete — ${phones} phone${phones !== 1 ? 's' : ''}, ${emails} email${emails !== 1 ? 's' : ''} found`)
+      toast.success(`Skip trace complete - ${phones} phone${phones !== 1 ? 's' : ''}, ${emails} email${emails !== 1 ? 's' : ''} found`)
     } catch { toast.error('Skip trace failed') }
     finally { setTracing(false) }
   }
 
   const dropVm = async () => {
     if (lead.is_on_dnc) { toast.error('Lead is on DNC list'); return }
-    if (!lead.phone) { toast.error('No phone number — run skip trace first'); return }
+    if (!lead.phone) { toast.error('No phone number - run skip trace first'); return }
     setDropping(true)
     try {
       const r = await leads.dropVoicemail(lead.id, 'first_contact')
@@ -612,7 +612,7 @@ function LeadRow({ lead, selected, onClick }) {
         transform: hov && !selected ? 'translateY(-0.5px)' : 'none',
       }}
     >
-      {/* Seller — avatar + name */}
+      {/* Seller - avatar + name */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <div style={{
           width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
@@ -652,11 +652,11 @@ function LeadRow({ lead, selected, onClick }) {
             {lead.property_address}
           </p>
         ) : (
-          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>-</span>
         )}
       </div>
 
-      {/* Score — large number + mini bar */}
+      {/* Score - large number + mini bar */}
       <div style={{ textAlign: 'right' }}>
         {score != null ? (
           <div>
@@ -672,7 +672,7 @@ function LeadRow({ lead, selected, onClick }) {
             </div>
           </div>
         ) : (
-          <span style={{ fontSize: 12, color: 'var(--t4)' }}>—</span>
+          <span style={{ fontSize: 12, color: 'var(--t4)' }}>-</span>
         )}
       </div>
 
@@ -784,7 +784,7 @@ export default function Leads() {
     if (!file) return
     setImporting(true)
 
-    // Normalize a value — trim whitespace, return empty string if falsy
+    // Normalize a value - trim whitespace, return empty string if falsy
     const v = (row, ...keys) => {
       for (const k of keys) {
         const val = row[k] || row[k?.toLowerCase()] || row[k?.toUpperCase()]

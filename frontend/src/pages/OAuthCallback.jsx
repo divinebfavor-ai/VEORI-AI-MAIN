@@ -1,5 +1,5 @@
 /**
- * OAuth Callback Page — /oauth/callback
+ * OAuth Callback Page - /oauth/callback
  *
  * Operators land here after approving a social media connection.
  * This page reads the result, shows success/error, then closes the popup.
@@ -40,7 +40,7 @@ export default function OAuthCallback() {
         window.opener.postMessage({ type: 'OAUTH_SUCCESS', platform: plat, account: acct }, '*')
         setTimeout(() => window.close(), 1800)
       } else {
-        // Full redirect — send them back to Settings
+        // Full redirect - send them back to Settings
         setTimeout(() => { window.location.href = '/settings?tab=social' }, 2000)
       }
     } else {

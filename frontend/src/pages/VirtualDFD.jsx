@@ -131,7 +131,7 @@ export default function VirtualDFD() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
 
-        {/* Left — scan form */}
+        {/* Left - scan form */}
         <div>
           {/* Location */}
           <div style={s.card}>
@@ -197,7 +197,7 @@ export default function VirtualDFD() {
                     textAlign: 'left',
                   }}
                 >
-                  {autoCampaign ? '✅ Yes — start calling immediately' : '❌ No — just import leads'}
+                  {autoCampaign ? '✅ Yes - start calling immediately' : '❌ No - just import leads'}
                 </button>
               </div>
             </div>
@@ -217,7 +217,7 @@ export default function VirtualDFD() {
           )}
         </div>
 
-        {/* Right — progress + result */}
+        {/* Right - progress + result */}
         <div>
           {/* Progress */}
           {running && (
@@ -245,7 +245,7 @@ export default function VirtualDFD() {
                 {[
                   { label: 'Properties Found',  value: result.found     ?? 0 },
                   { label: 'Leads Imported',     value: result.imported  ?? 0 },
-                  { label: 'Avg Score',          value: result.avg_score ? `${result.avg_score}/100` : '—' },
+                  { label: 'Avg Score',          value: result.avg_score ? `${result.avg_score}/100` : '-' },
                   { label: 'Campaign',           value: result.campaign_started ? 'Ready ✅' : 'Not created' },
                 ].map(m => (
                   <div key={m.label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '10px 12px' }}>

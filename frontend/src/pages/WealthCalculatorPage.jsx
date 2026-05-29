@@ -143,7 +143,7 @@ export default function WealthCalculatorPage() {
           See What Your Money Could Become
         </h1>
         <p style={{ fontSize: 14, color: 'var(--t3)', lineHeight: 1.6 }}>
-          Enter your numbers and compare your wealth trajectory — investing through Veori vs leaving money in a savings account.
+          Enter your numbers and compare your wealth trajectory - investing through Veori vs leaving money in a savings account.
         </p>
       </div>
 
@@ -307,7 +307,7 @@ export default function WealthCalculatorPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300, background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 16, padding: 40, textAlign: 'center' }}>
             <TrendingUp size={40} style={{ color: 'var(--t4)', marginBottom: 16 }} />
             <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--t3)', marginBottom: 8 }}>Enter your numbers on the left</p>
-            <p style={{ fontSize: 13, color: 'var(--t4)' }}>We'll show you exactly what your financial future looks like — with Veori and without it.</p>
+            <p style={{ fontSize: 13, color: 'var(--t4)' }}>We'll show you exactly what your financial future looks like - with Veori and without it.</p>
           </div>
         )}
       </div>

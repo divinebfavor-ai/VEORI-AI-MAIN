@@ -12,7 +12,7 @@ const AMBER = '#FF9500'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(secs) {
-  if (!secs && secs !== 0) return '—'
+  if (!secs && secs !== 0) return '-'
   const m = Math.floor(secs / 60), s = secs % 60
   return `${m}:${String(s).padStart(2, '0')}`
 }
@@ -35,7 +35,7 @@ function statusMeta(status, outcome) {
     return { label: 'DONE', color: 'var(--t4)', icon: CheckCircle }
   }
   if (status === 'failed') return { label: 'FAIL', color: RED, icon: AlertCircle }
-  return { label: status?.toUpperCase() || '—', color: 'var(--t4)', icon: Clock }
+  return { label: status?.toUpperCase() || '-', color: 'var(--t4)', icon: Clock }
 }
 
 // ─── Live duration counter ─────────────────────────────────────────────────────
@@ -80,12 +80,12 @@ function useListenMode() {
   const [volumes,   setVolumes]   = useState({})
 
   const connectListen = useCallback(async (callId, dbCallId) => {
-    if (!dbCallId) { toast.error('Call not ready yet — try again in a moment'); return }
+    if (!dbCallId) { toast.error('Call not ready yet - try again in a moment'); return }
     try {
       const token = localStorage.getItem('veori_token')
       const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-      // Build a WebRTC peer connection — receive audio only
+      // Build a WebRTC peer connection - receive audio only
       const pc = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -103,7 +103,7 @@ function useListenMode() {
         audioEl.srcObject = event.streams[0]
         audioEl.play().catch(() => {})
         setListening(l => ({ ...l, [callId]: true }))
-        toast.success('Listening live — seller cannot hear you')
+        toast.success('Listening live - seller cannot hear you')
       }
 
       // Receive-only audio
@@ -131,7 +131,7 @@ function useListenMode() {
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
         pc.close()
-        throw new Error(e.error || 'Audio not available — call may still be ringing')
+        throw new Error(e.error || 'Audio not available - call may still be ringing')
       }
 
       // Vapi returns the SDP answer (text/plain or application/sdp)
@@ -227,14 +227,14 @@ function LiveCallCard({ call, isListening, volume, takeover, onListen, onStopLis
         </div>
       </div>
 
-      {/* Waveform — only show when actually connected */}
+      {/* Waveform - only show when actually connected */}
       <div style={{ marginBottom: 14 }}>
         <Waveform active={isConnected} bars={18} color={isListening ? BLUE : subStatus.color} />
       </div>
 
-      {/* Action buttons — always visible */}
+      {/* Action buttons - always visible */}
       <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
-        {/* LISTEN — primary prominent button */}
+        {/* LISTEN - primary prominent button */}
         <button
           onClick={isListening ? onStopListen : onListen}
           style={{
@@ -326,13 +326,13 @@ function CallRow({ call, isSelected, onClick, onDelete }) {
           {name}
         </p>
         <p style={{ margin: 0, fontSize: 11, color: 'var(--t4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {call.leads?.phone || call.phone_numbers?.number || '—'}
+          {call.leads?.phone || call.phone_numbers?.number || '-'}
         </p>
       </div>
 
       {/* Duration */}
       <span style={{ fontSize: 11, color: 'var(--t3)', fontFamily: 'Geist Mono, monospace', flexShrink: 0 }}>
-        {call.duration_seconds ? fmt(call.duration_seconds) : isLive ? 'live' : '—'}
+        {call.duration_seconds ? fmt(call.duration_seconds) : isLive ? 'live' : '-'}
       </span>
 
       {/* Status badge */}
@@ -342,7 +342,7 @@ function CallRow({ call, isSelected, onClick, onDelete }) {
         borderRadius: 5, padding: '2px 6px', flexShrink: 0,
       }}>{label}</span>
 
-      {/* Delete icon for failed calls — shown on hover */}
+      {/* Delete icon for failed calls - shown on hover */}
       {isFailed && hovered ? (
         <button
           onClick={e => { e.stopPropagation(); onDelete && onDelete(call) }}
@@ -493,7 +493,7 @@ function CallDetailPanel({ call }) {
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--t1)' }}>{name}</p>
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--t3)', marginTop: 2 }}>{call.leads?.phone || '—'}</p>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--t3)', marginTop: 2 }}>{call.leads?.phone || '-'}</p>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color, background: `${color}15`, border: `1px solid ${color}28`, borderRadius: 5, padding: '2px 7px', display: 'inline-block', marginTop: 6 }}>{label}</span>
         </div>
       </div>
@@ -501,10 +501,10 @@ function CallDetailPanel({ call }) {
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
         {[
-          { label: 'Duration', value: call.duration_seconds ? fmt(call.duration_seconds) : isLive ? 'Live now' : '—' },
-          { label: 'Outcome', value: call.outcome?.replace(/_/g,' ') || '—' },
-          { label: 'Called from', value: call.phone_numbers?.number || call.phone_numbers?.friendly_name || '—' },
-          { label: 'Called at', value: call.started_at ? new Date(call.started_at).toLocaleString() : '—' },
+          { label: 'Duration', value: call.duration_seconds ? fmt(call.duration_seconds) : isLive ? 'Live now' : '-' },
+          { label: 'Outcome', value: call.outcome?.replace(/_/g,' ') || '-' },
+          { label: 'Called from', value: call.phone_numbers?.number || call.phone_numbers?.friendly_name || '-' },
+          { label: 'Called at', value: call.started_at ? new Date(call.started_at).toLocaleString() : '-' },
         ].map(({ label, value }) => (
           <div key={label} style={{ background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
             <p style={{ margin: 0, fontSize: 10, color: 'var(--t4)', letterSpacing: '0.06em', marginBottom: 3 }}>{label.toUpperCase()}</p>
@@ -701,7 +701,7 @@ export default function LiveMonitor() {
   const prevLiveCount = useRef(0)
   useEffect(() => {
     if (prevLiveCount.current > 0 && liveCalls.length < prevLiveCount.current) {
-      // A call just ended — reload history immediately so it appears there
+      // A call just ended - reload history immediately so it appears there
       setTimeout(loadHistory, 1000)
     }
     prevLiveCount.current = liveCalls.length

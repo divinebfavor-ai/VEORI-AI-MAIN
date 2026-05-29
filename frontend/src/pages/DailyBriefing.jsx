@@ -1,5 +1,5 @@
 /**
- * /briefing — Daily AI Briefing page
+ * /briefing - Daily AI Briefing page
  * NEW FILE
  */
 import React, { useState, useEffect } from 'react'

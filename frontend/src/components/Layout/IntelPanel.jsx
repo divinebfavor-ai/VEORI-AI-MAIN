@@ -29,7 +29,7 @@ function StatRow({ label, value, valueStyle }) {
     }}>
       <span style={{ fontSize: 12, color: 'var(--t3)' }}>{label}</span>
       <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--t2)', fontVariantNumeric: 'tabular-nums', ...(valueStyle || {}) }}>
-        {value ?? '—'}
+        {value ?? '-'}
       </span>
     </div>
   )
@@ -67,7 +67,7 @@ function scoreColor(s) {
   if (s >= 40) return '#FF9500'
   return '#FF4444'
 }
-function fmt$(n) { return n ? '$' + Number(n).toLocaleString() : '—' }
+function fmt$(n) { return n ? '$' + Number(n).toLocaleString() : '-' }
 function fmtDate(d) { return d ? formatDistanceToNow(new Date(d), { addSuffix: true }) : 'Never' }
 
 function SystemPanel() {
@@ -111,7 +111,7 @@ function SystemPanel() {
                     {c.leads?.first_name} {c.leads?.last_name}
                   </p>
                   <p style={{ fontSize: 10, color: 'var(--t4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.leads?.property_address || '—'}
+                    {c.leads?.property_address || '-'}
                   </p>
                 </div>
                 {c.motivation_score != null && (
@@ -184,7 +184,7 @@ function LeadPanel({ data: lead }) {
           {lead.first_name} {lead.last_name}
         </p>
         <p style={{ fontSize: 11, color: 'var(--t4)', marginTop: 3 }}>
-          {[lead.property_city, lead.property_state].filter(Boolean).join(', ') || '—'}
+          {[lead.property_city, lead.property_state].filter(Boolean).join(', ') || '-'}
         </p>
       </div>
 
@@ -221,7 +221,7 @@ function LeadPanel({ data: lead }) {
               {lead.seller_personality === 'Emotional'  && 'Lead with empathy before numbers.'}
               {lead.seller_personality === 'Analytical' && 'Provide data and comparables first.'}
               {lead.seller_personality === 'Skeptical'  && 'Build credibility before the offer.'}
-              {lead.seller_personality === 'Motivated'  && 'Move fast — confirm urgency and close.'}
+              {lead.seller_personality === 'Motivated'  && 'Move fast - confirm urgency and close.'}
               {lead.seller_personality === 'Resistant'  && 'Plant seeds of value. Low pressure.'}
             </p>
           </div>
@@ -229,7 +229,7 @@ function LeadPanel({ data: lead }) {
 
         <Section title="Property">
           <div>
-            <StatRow label="Address"   value={lead.property_address ? lead.property_address.split(',')[0] : '—'} />
+            <StatRow label="Address"   value={lead.property_address ? lead.property_address.split(',')[0] : '-'} />
             <StatRow label="ARV"       value={fmt$(lead.estimated_arv || lead.estimated_value)} valueStyle={{ color: '#C9A84C' }} />
             <StatRow label="Equity"    value={fmt$(lead.estimated_equity)} />
             <StatRow label="Source"    value={lead.source} />

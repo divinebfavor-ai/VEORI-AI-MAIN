@@ -117,7 +117,7 @@ export default function RepairEstimator({ onEstimate, initialItems = [] }) {
             {breakdown.map(b => (
               <div key={b.cat} className="flex justify-between text-[12px]">
                 <span className="text-text-muted">
-                  {b.label}{b.qty > 1 ? ` ×${b.qty}` : ''} — {b.option}
+                  {b.label}{b.qty > 1 ? ` ×${b.qty}` : ''} - {b.option}
                 </span>
                 <span className="text-text-secondary">{fmt$(b.low)}–{fmt$(b.high)}</span>
               </div>

@@ -125,7 +125,7 @@ export default function Privacy() {
           <li style={s.li}>Request correction of inaccurate data.</li>
           <li style={s.li}>Request deletion of your data.</li>
           <li style={s.li}>Object to or restrict certain processing of your data.</li>
-          <li style={s.li}>Data portability — receive your data in a structured format.</li>
+          <li style={s.li}>Data portability - receive your data in a structured format.</li>
           <li style={s.li}>Withdraw consent where processing is based on consent.</li>
         </ul>
         <p style={s.p}>To exercise these rights, contact us at <a href="mailto:support@veori.ai" style={{ color: '#00C37A' }}>support@veori.ai</a>.</p>

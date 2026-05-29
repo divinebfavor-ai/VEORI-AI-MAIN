@@ -1,6 +1,6 @@
 /**
- * /heatmap — Market Heat Map by zip code
- * NEW FILE — visual zip code grid, no external map library needed
+ * /heatmap - Market Heat Map by zip code
+ * NEW FILE - visual zip code grid, no external map library needed
  */
 import React, { useState, useEffect } from 'react'
 

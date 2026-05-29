@@ -555,7 +555,7 @@ export default function Aria() {
               )}
             </div>
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--t4)', marginTop: 8 }}>
-              Educational information only — not legal or financial advice.
+              Educational information only - not legal or financial advice.
             </p>
           </div>
         </div>
