@@ -18,7 +18,7 @@ const SOCIAL_PLATFORMS = [
 
 const API_SOCIAL = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
 function socialAuthHeader() {
-  const t = localStorage.getItem('token') || localStorage.getItem('authToken') || ''
+  const t = localStorage.getItem('veori_token') || ''
   return t ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
 }
 
