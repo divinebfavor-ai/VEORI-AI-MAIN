@@ -228,7 +228,17 @@ function LeadPanel({ lead, onClose, onNavigate }) {
       await callsApi.initiateCall({ lead_id: lead.id })
       toast.success('Call initiated - check Live Monitor')
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Call failed')
+      const errCode = err.response?.data?.error_code
+      if (errCode === 'FREE_LIMIT_REACHED') {
+        toast.error('Free daily limit reached', { duration: 5000 })
+        setTimeout(() => {
+          if (window.confirm('You have used your 10 free calls for today.\n\nSubscribe to get 3,000+ calls per month.\n\nGo to billing now?')) {
+            window.location.href = '/billing'
+          }
+        }, 300)
+      } else {
+        toast.error(err.response?.data?.error || 'Call failed')
+      }
     } finally { setDialing(false) }
   }
 

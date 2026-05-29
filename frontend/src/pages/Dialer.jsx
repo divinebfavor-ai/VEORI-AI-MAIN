@@ -384,7 +384,18 @@ export default function Dialer() {
       toast.success('Call initiated')
     } catch (err) {
       setCallState('idle')
-      toast.error(err.response?.data?.error || 'Failed to initiate call')
+      const errCode = err.response?.data?.error_code
+      const errMsg  = err.response?.data?.error || 'Failed to initiate call'
+      if (errCode === 'FREE_LIMIT_REACHED') {
+        toast.error('Free daily limit reached', { duration: 5000 })
+        setTimeout(() => {
+          if (window.confirm('You have used your 10 free calls for today.\n\nSubscribe to get 3,000+ calls per month.\n\nGo to billing now?')) {
+            window.location.href = '/billing'
+          }
+        }, 300)
+      } else {
+        toast.error(errMsg)
+      }
     }
   }
 

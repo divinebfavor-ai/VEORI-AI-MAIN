@@ -108,12 +108,41 @@ router.post('/initiate', async (req, res, next) => {
     if (!lead_id) return res.status(400).json({ success: false, error: 'lead_id required' });
 
     // Check call quota for this operator
-    const { data: opUser } = await supabase.from('users').select('calls_used, calls_limit, subscription_status, trial_ends_at').eq('id', req.user.id).single();
+    const { data: opUser } = await supabase.from('users').select('calls_used, calls_limit, subscription_status, subscription_plan, monthly_dial_limit, trial_ends_at, free_calls_today, free_calls_date').eq('id', req.user.id).single();
     if (opUser) {
       const isTrialExpired = opUser.subscription_status === 'trial' && opUser.trial_ends_at && new Date(opUser.trial_ends_at) < new Date();
       if (isTrialExpired) return res.status(403).json({ success: false, error: 'Your trial has ended. Upgrade your plan to keep calling.' });
-      if (opUser.calls_limit && (opUser.calls_used || 0) >= opUser.calls_limit) {
-        return res.status(403).json({ success: false, error: `Monthly call limit reached (${opUser.calls_limit} calls). Upgrade your plan for more.` });
+
+      const isSubscribed = opUser.subscription_status === 'active' && opUser.subscription_plan;
+
+      if (!isSubscribed) {
+        // Free tier: 10 calls per day
+        const FREE_DAILY_LIMIT = 10;
+        const today = new Date().toISOString().split('T')[0];
+        const lastResetDate = opUser.free_calls_date || '';
+        const freeCalls = lastResetDate === today ? (opUser.free_calls_today || 0) : 0;
+
+        if (freeCalls >= FREE_DAILY_LIMIT) {
+          return res.status(403).json({
+            success:    false,
+            error:      `You have used your ${FREE_DAILY_LIMIT} free calls for today. Subscribe to get 3,000+ calls per month.`,
+            error_code: 'FREE_LIMIT_REACHED',
+            limit:      FREE_DAILY_LIMIT,
+            used:       freeCalls,
+          });
+        }
+
+        // Reset or increment daily counter
+        await supabase.from('users').update({
+          free_calls_today: lastResetDate === today ? freeCalls + 1 : 1,
+          free_calls_date:  today,
+        }).eq('id', req.user.id);
+      } else {
+        // Subscribed: check monthly limit
+        const monthlyLimit = opUser.monthly_dial_limit || opUser.calls_limit || 0;
+        if (monthlyLimit && (opUser.calls_used || 0) >= monthlyLimit) {
+          return res.status(403).json({ success: false, error: `Monthly call limit reached (${monthlyLimit.toLocaleString()} calls). Upgrade your plan for more.` });
+        }
       }
     }
 
