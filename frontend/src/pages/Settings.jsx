@@ -483,6 +483,19 @@ export default function Settings() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'owner'
 
+  // ── Subscription ─────────────────────────────────────────────────────────
+  const [billingInfo, setBillingInfo] = useState(null)
+
+  useEffect(() => {
+    const token = localStorage.getItem('veori_token')
+    fetch('https://veori-ai-main-production.up.railway.app/api/fw-billing/subscription', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => { if (d.success) setBillingInfo(d) })
+      .catch(() => {})
+  }, [])
+
   // ── Social media connections ─────────────────────────────────────────────
   const [socialConnections, setSocialConnections] = useState([])
   const [socialLoading, setSocialLoading]         = useState(false)
@@ -753,13 +766,23 @@ export default function Settings() {
               <Section title="Subscription" description="Your current plan and usage">
                 <div className="flex items-center justify-between py-2">
                   <div>
-                    <p className="text-[14px] font-medium text-text-primary capitalize">{user?.plan || 'Hustle'} Plan</p>
-                    <p className="text-[12px] text-text-muted mt-0.5">{user?.calls_used || 0} / {user?.calls_limit || '∞'} calls used this month</p>
+                    <p className="text-[14px] font-medium text-text-primary capitalize">
+                      {billingInfo?.plan_name || user?.plan || 'Free'} Plan
+                    </p>
+                    <p className="text-[12px] text-text-muted mt-0.5">
+                      {billingInfo?.dials?.toLocaleString() || user?.calls_limit || 0} AI dials/month
+                      {billingInfo?.expires_at ? ` · Renews ${new Date(billingInfo.expires_at).toLocaleDateString()}` : ''}
+                    </p>
+                    <p className="text-[11px] mt-1" style={{ color: billingInfo?.status === 'active' ? '#00C37A' : '#FF9500' }}>
+                      {billingInfo?.status === 'active' ? '● Active' : billingInfo?.status === 'cancelled' ? '● Cancelled' : '● No active plan'}
+                    </p>
                   </div>
-                  <Badge variant="green">{user?.plan || 'Hustle'}</Badge>
+                  <Badge variant="green">{billingInfo?.plan_name || user?.plan || 'Free'}</Badge>
                 </div>
                 <div className="mt-4">
-                  <Button variant="secondary" onClick={() => window.location.href = '/billing'}>Upgrade Plan</Button>
+                  <Button variant="secondary" onClick={() => window.location.href = '/billing'}>
+                    {billingInfo?.status === 'active' ? 'Manage Plan' : 'Upgrade Plan'}
+                  </Button>
                 </div>
               </Section>
             </>
