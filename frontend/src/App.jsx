@@ -57,6 +57,8 @@ import RefundPolicy from './pages/RefundPolicy'
 // ── Virtual Tours (Features 34-38) ───────────────────────────────────────────
 import VirtualTourStudio from './pages/VirtualTourStudio'
 import TourViewer from './pages/TourViewer'
+// ── Property Marketing Engine ─────────────────────────────────────────────────
+import PropertyMarketing from './pages/PropertyMarketing'
 
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -144,6 +146,8 @@ export default function App() {
         <Route path="/virtual-dfd" element={<VirtualDFD />} />
         {/* ── Virtual Tours (Features 34-38) ───────────────────────────── */}
         <Route path="/virtual-tours" element={<VirtualTourStudio />} />
+        {/* ── Property Marketing Engine ─────────────────────────────────── */}
+        <Route path="/property-marketing" element={<PropertyMarketing />} />
       </Route>
 
       {/* Public tour viewer — no auth */}

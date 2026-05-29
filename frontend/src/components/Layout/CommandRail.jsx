@@ -6,7 +6,7 @@ import {
   Calculator, Shield, Phone, Building2,
   Sun, Moon, MessageSquare, BookOpen, Store, Bell,
   ChevronLeft, ChevronRight, Compass,
-  Car, Mail, Home, Video, Camera, Map, Share2,
+  Car, Mail, Home, Video, Camera, Map, Share2, Film,
 } from 'lucide-react'
 import VeoriLogo from '../VeoriLogo'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -38,6 +38,7 @@ const NAV = [
   // ── Disposition ───────────────────────────────────────────────────────────
   { to: '/listings',         icon: Home,            label: 'Listings' },
   // ── Content ───────────────────────────────────────────────────────────────
+  { to: '/property-marketing', icon: Film,          label: 'Property Marketing' },
   { to: '/content-studio',   icon: Video,           label: 'Content Studio' },
   { to: '/social-dashboard', icon: Share2,          label: 'Social Dashboard' },
   // ── Virtual Tours ─────────────────────────────────────────────────────────
