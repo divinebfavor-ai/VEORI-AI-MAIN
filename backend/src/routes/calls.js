@@ -125,7 +125,7 @@ router.post('/initiate', async (req, res, next) => {
         if (freeCalls >= FREE_DAILY_LIMIT) {
           return res.status(403).json({
             success:    false,
-            error:      `You have used your ${FREE_DAILY_LIMIT} free calls for today. Subscribe to get 3,000+ calls per month.`,
+            error:      `You have used your ${FREE_DAILY_LIMIT} free calls for today. Subscribe to unlock more calls.`,
             error_code: 'FREE_LIMIT_REACHED',
             limit:      FREE_DAILY_LIMIT,
             used:       freeCalls,

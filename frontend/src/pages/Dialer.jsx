@@ -389,7 +389,7 @@ export default function Dialer() {
       if (errCode === 'FREE_LIMIT_REACHED') {
         toast.error('Free daily limit reached', { duration: 5000 })
         setTimeout(() => {
-          if (window.confirm('You have used your 10 free calls for today.\n\nSubscribe to get 3,000+ calls per month.\n\nGo to billing now?')) {
+          if (window.confirm('You have used your 10 free calls for today.\n\nSubscribe to unlock more calls and choose a plan that fits you.\n\nSee plans now?')) {
             window.location.href = '/billing'
           }
         }, 300)
