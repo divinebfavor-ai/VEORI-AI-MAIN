@@ -30,6 +30,8 @@ import WealthPlaybook from './pages/WealthPlaybook'
 import WealthStrategy from './pages/WealthStrategy'
 import WealthCalculatorPage from './pages/WealthCalculatorPage'
 import LandingPage from './pages/LandingPage'
+import Billing from './pages/Billing'
+import BillingVerify from './pages/BillingVerify'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 // ── Intelligence Features (NEW) ────────────────────────────────────────────────
@@ -93,6 +95,7 @@ export default function App() {
       <Route path="/aria" element={<Aria />} />
       <Route path="/sign/:token" element={<ContractSigning />} />
       <Route path="/oauth/callback" element={<OAuthCallback />} />
+      <Route path="/billing/verify" element={<BillingVerify />} />
 
       {/* Protected */}
       <Route
@@ -148,6 +151,8 @@ export default function App() {
         <Route path="/virtual-tours" element={<VirtualTourStudio />} />
         {/* ── Property Marketing Engine ─────────────────────────────────── */}
         <Route path="/property-marketing" element={<PropertyMarketing />} />
+        {/* ── Billing ───────────────────────────────────────────────────── */}
+        <Route path="/billing" element={<Billing />} />
       </Route>
 
       {/* Public tour viewer — no auth */}

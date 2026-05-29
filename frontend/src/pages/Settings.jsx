@@ -759,7 +759,7 @@ export default function Settings() {
                   <Badge variant="green">{user?.plan || 'Hustle'}</Badge>
                 </div>
                 <div className="mt-4">
-                  <Button variant="secondary">Upgrade Plan</Button>
+                  <Button variant="secondary" onClick={() => window.location.href = '/billing'}>Upgrade Plan</Button>
                 </div>
               </Section>
             </>
