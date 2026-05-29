@@ -240,14 +240,16 @@ router.post('/trigger', async (req, res) => {
       console.log(`[Referrals] Month1 commission $${commission} for referrer ${referrerId}`);
 
     } else {
-      // Recurring payment — 3%
-      const commission = calcCommission(amount, RECURRING_RATE);
-
+      // Recurring payment — 3% of the LOCKED original plan amount (not current plan)
       const { data: referral } = await supabase
         .from('referrals')
-        .select('id, total_earned')
+        .select('id, total_earned, plan_amount')
         .eq('referred_id', user_id)
         .single();
+
+      // Always use the locked plan_amount from when they first subscribed
+      const lockedAmount = parseFloat(referral?.plan_amount || amount);
+      const commission   = calcCommission(lockedAmount, RECURRING_RATE);
 
       if (!referral) return res.json({ success: true, message: 'No referral record found' });
 
