@@ -218,6 +218,15 @@ app.use('/api/content',            contentEngineRouter);
 app.use('/api/post-queue',         postQueueRouter);
 app.use('/api/pipeline',           publishPipelineRouter);
 
+// ─── Flutterwave Billing ─────────────────────────────────────────────────────
+const flutterwaveRouter = require('./routes/flutterwaveBilling');
+app.use('/api/fw-billing/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/fw-billing', flutterwaveRouter);
+
+// ─── Property Marketing Engine ───────────────────────────────────────────────
+const propertyMarketingRouter = require('./routes/propertyMarketing');
+app.use('/api/property-marketing', propertyMarketingRouter);
+
 // ─── Virtual Tours Routes (Features 34-38) ───────────────────────────────────
 const virtualToursRouter = require('./routes/virtualTours');
 const publicTourRouter   = require('./routes/publicTour');
