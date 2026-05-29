@@ -16,7 +16,7 @@ function authHeaders() {
 const PLAN_ORDER = ['founding_member', 'starter', 'growth', 'pro', 'scale', 'enterprise']
 
 const PLAN_HIGHLIGHTS = {
-  founding_member: ['7,000 AI dials/month', 'All features included', 'Rate locked forever', 'Priority support'],
+  founding_member: ['3,000 AI dials/month', 'All features included', 'Rate locked forever', 'Priority support'],
   starter:         ['3,000 AI dials/month', 'All features included', 'Email support'],
   growth:          ['7,000 AI dials/month', 'All features included', 'Priority support'],
   pro:             ['15,000 AI dials/month', 'All features included', 'Priority support', 'Custom sequences'],
