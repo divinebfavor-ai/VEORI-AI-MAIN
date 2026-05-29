@@ -376,12 +376,13 @@ router.post('/webhook', express.json(), async (req, res) => {
     console.log('[FW Webhook] event:', event.event, '| tx:', data?.tx_ref);
 
     if (event.event === 'charge.completed' && data?.status === 'successful') {
-      // Payment succeeded — activate subscription
       const planKey = data.meta?.plan || data.tx_ref?.split('_')[1] || null;
       const userId  = data.meta?.user_id || null;
 
       if (userId && planKey && PLANS[planKey]) {
+        const plan      = PLANS[planKey];
         const expiresAt = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
+
         await updateUserSubscription(userId, {
           plan:             planKey,
           status:           'active',
@@ -389,7 +390,24 @@ router.post('/webhook', express.json(), async (req, res) => {
           fwSubscriptionId: data.plan?.toString() || null,
           expiresAt,
         });
-        console.log(`[FW Webhook] Activated ${planKey} for user ${userId}`);
+
+        // Determine if this is first payment or recurring
+        const { data: existingRef } = await supabase
+          .from('referrals')
+          .select('month1_paid')
+          .eq('referred_id', userId)
+          .single();
+
+        const commissionType = (!existingRef || !existingRef.month1_paid) ? 'month1' : 'recurring';
+
+        // Trigger referral commission (fire and forget)
+        fetch(`${process.env.BACKEND_URL || 'https://veori-ai-main-production.up.railway.app'}/api/referrals/trigger`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ user_id: userId, plan: planKey, plan_amount: plan.amount, type: commissionType }),
+        }).catch(e => console.warn('[FW Webhook] Commission trigger failed:', e.message));
+
+        console.log(`[FW Webhook] Activated ${planKey} for user ${userId}, commission type: ${commissionType}`);
       }
     }
 

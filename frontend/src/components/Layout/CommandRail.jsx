@@ -6,7 +6,7 @@ import {
   Calculator, Shield, Phone, Building2,
   Sun, Moon, MessageSquare, BookOpen, Store, Bell,
   ChevronLeft, ChevronRight, Compass,
-  Car, Mail, Home, Video, Camera, Map, Share2, Film,
+  Car, Mail, Home, Video, Camera, Map, Share2, Film, Gift,
 } from 'lucide-react'
 import VeoriLogo from '../VeoriLogo'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -261,6 +261,8 @@ export default function CommandRail() {
 
       {/* Bottom */}
       <div style={{ borderTop: '1px solid var(--sidebar-border)', padding: '12px 0 8px', position: 'relative' }}>
+        {/* Referrals */}
+        <NavItem to="/referrals" icon={Gift} label="Referrals" collapsed={collapsed} />
         {/* Settings */}
         <NavItem to="/settings" icon={Settings} label="Settings" collapsed={collapsed} />
 

@@ -227,6 +227,10 @@ app.use('/api/fw-billing', flutterwaveRouter);
 const propertyMarketingRouter = require('./routes/propertyMarketing');
 app.use('/api/property-marketing', propertyMarketingRouter);
 
+// ─── Referral System ─────────────────────────────────────────────────────────
+const referralsRouter = require('./routes/referrals');
+app.use('/api/referrals', referralsRouter);
+
 // ─── Virtual Tours Routes (Features 34-38) ───────────────────────────────────
 const virtualToursRouter = require('./routes/virtualTours');
 const publicTourRouter   = require('./routes/publicTour');

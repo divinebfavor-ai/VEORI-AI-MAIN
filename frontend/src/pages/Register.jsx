@@ -1,14 +1,23 @@
-import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import VeoriLogo from '../components/VeoriLogo'
 
+const API = 'https://veori-ai-main-production.up.railway.app/api'
+
 export default function Register() {
   const [form, setForm] = useState({ full_name: '', email: '', password: '', company_name: '' })
   const [loading, setLoading] = useState(false)
+  const [refCode, setRefCode] = useState('')
   const { register } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+
+  useEffect(() => {
+    const ref = params.get('ref')
+    if (ref) setRefCode(ref.toUpperCase())
+  }, [])
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
@@ -32,7 +41,15 @@ export default function Register() {
     }
     setLoading(true)
     try {
-      await register(form)
+      const result = await register(form)
+      // Apply referral code if present
+      if (refCode && result?.user?.id) {
+        fetch(`${API}/referrals/apply`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ referral_code: refCode, user_id: result.user.id }),
+        }).catch(() => {})
+      }
       toast.success('Account created!')
       navigate('/dashboard')
     } catch (err) {

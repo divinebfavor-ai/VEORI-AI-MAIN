@@ -32,6 +32,7 @@ import WealthCalculatorPage from './pages/WealthCalculatorPage'
 import LandingPage from './pages/LandingPage'
 import Billing from './pages/Billing'
 import BillingVerify from './pages/BillingVerify'
+import Referrals from './pages/Referrals'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 // ── Intelligence Features (NEW) ────────────────────────────────────────────────
@@ -153,6 +154,8 @@ export default function App() {
         <Route path="/property-marketing" element={<PropertyMarketing />} />
         {/* ── Billing ───────────────────────────────────────────────────── */}
         <Route path="/billing" element={<Billing />} />
+        {/* ── Referrals ─────────────────────────────────────────────────── */}
+        <Route path="/referrals" element={<Referrals />} />
       </Route>
 
       {/* Public tour viewer - no auth */}
