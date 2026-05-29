@@ -170,13 +170,16 @@ router.post('/create-payment-link', auth, async (req, res) => {
     }
 
     // Get user details
-    const { data: user } = await supabase
+    const { data: user, error: userErr } = await supabase
       .from('users')
-      .select('id, email, first_name, last_name')
+      .select('id, email, full_name, company_name, phone')
       .eq('id', req.user.id)
       .single();
 
-    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    if (userErr || !user) {
+      console.error('[FW] User lookup error:', userErr?.message);
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
 
     const txRef = `veori_${planKey}_${user.id}_${Date.now()}`;
 
@@ -190,8 +193,8 @@ router.post('/create-payment-link', auth, async (req, res) => {
       redirect_url: `${FRONTEND_URL}/billing/verify?plan=${planKey}`,
       customer: {
         email:       user.email,
-        name:        `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
-        phonenumber: '',
+        name:        user.full_name || user.company_name || user.email,
+        phonenumber: user.phone || '',
       },
       customizations: {
         title:       'Veori AI',
@@ -300,13 +303,16 @@ router.get('/verify/:txRef', auth, async (req, res) => {
 // ─── GET /api/fw-billing/subscription ────────────────────────────────────────
 router.get('/subscription', auth, async (req, res) => {
   try {
-    const { data: user } = await supabase
+    const { data: user, error: userErr } = await supabase
       .from('users')
-      .select('subscription_plan, subscription_status, subscription_expires_at, monthly_dial_limit, fw_subscription_id')
+      .select('id, email, subscription_plan, subscription_status, subscription_expires_at, monthly_dial_limit, fw_subscription_id')
       .eq('id', req.user.id)
       .single();
 
-    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    if (userErr || !user) {
+      console.error('[FW] Subscription lookup error:', userErr?.message);
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
 
     const planKey = user.subscription_plan;
     const plan    = PLANS[planKey] || null;
