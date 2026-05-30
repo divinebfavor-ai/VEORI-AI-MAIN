@@ -12,6 +12,24 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'veori-ai-secret-change-in-production';
 const APP_URL    = process.env.FRONTEND_URL || 'https://veori.net';
 
+const geoip = require('geoip-lite');
+
+function getGeoFromRequest(req) {
+  try {
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = forwarded ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || '';
+    const cleanIp = ip.replace('::ffff:', '');
+    const geo = geoip.lookup(cleanIp);
+    if (!geo) return {};
+    return {
+      country_code: geo.country  || null,
+      region:       geo.region   || null,
+      city:         geo.city     || null,
+      timezone:     geo.timezone || null,
+    };
+  } catch { return {}; }
+}
+
 function validatePasswordStrength(password) {
   if (!password || password.length < 12) return 'Password must be at least 12 characters';
   if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
@@ -32,9 +50,21 @@ router.post('/register', async (req, res, next) => {
     if (pwError) return res.status(400).json({ success: false, error: pwError });
 
     const hash = await bcrypt.hash(password, 12);
+    const geo  = getGeoFromRequest(req);
+    const source = req.body.source || req.headers['x-signup-source'] || null;
+
     const { data, error } = await supabase
       .from('users')
-      .insert([{ id: uuidv4(), email: email.toLowerCase(), password_hash: hash, full_name, company_name, phone, plan: 'hustle' }])
+      .insert([{
+        id: uuidv4(),
+        email: email.toLowerCase(),
+        password_hash: hash,
+        full_name, company_name, phone,
+        plan: 'hustle',
+        ...geo,
+        signup_source: source,
+        last_seen_at:  new Date().toISOString(),
+      }])
       .select('id, email, full_name, company_name, plan, calls_limit, calls_used')
       .single();
 
