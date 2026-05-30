@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Shield, RotateCcw } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { twoFA } from '../services/api'
 import VeoriLogo from '../components/VeoriLogo'
 
 // ─── Google Icon ──────────────────────────────────────────────────────────────
@@ -23,25 +24,78 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [loading,  setLoading]  = useState(false)
-  const { login }  = useAuth()
-  const navigate   = useNavigate()
-  const emailRef   = useRef(null)
+
+  // 2FA state
+  const [twoFAPending,    setTwoFAPending]    = useState(null)  // { temp_token, two_fa_method }
+  const [twoFACode,       setTwoFACode]       = useState('')
+  const [resending,       setResending]       = useState(false)
+  const codeRef = useRef(null)
+
+  const { login, completeLogin } = useAuth()
+  const navigate = useNavigate()
+  const emailRef = useRef(null)
 
   useEffect(() => { emailRef.current?.focus() }, [])
+  useEffect(() => { if (twoFAPending) codeRef.current?.focus() }, [twoFAPending])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!email || !password) { toast.error('Email and password required'); return }
     setLoading(true)
     try {
-      await login(email, password)
-      navigate('/dashboard')
+      const result = await login(email, password)
+      if (result?.requires_2fa) {
+        setTwoFAPending({ temp_token: result.temp_token, method: result.two_fa_method })
+        const methodLabel = result.two_fa_method === 'totp'
+          ? 'your authenticator app'
+          : result.two_fa_method === 'sms'
+          ? 'your phone via SMS'
+          : 'your email'
+        toast.success(`Verification code sent to ${methodLabel}`)
+      } else {
+        navigate('/dashboard')
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Invalid credentials')
     } finally {
       setLoading(false)
     }
   }
+
+  const handleVerify2FA = async (e) => {
+    e.preventDefault()
+    if (!twoFACode.trim()) { toast.error('Enter your verification code'); return }
+    setLoading(true)
+    try {
+      const res = await twoFA.verify(twoFAPending.temp_token, twoFACode.replace(/\s/g, ''))
+      completeLogin(res.data.token, res.data.user)
+      navigate('/dashboard')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Invalid code. Please try again.')
+      setTwoFACode('')
+      codeRef.current?.focus()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setResending(true)
+    try {
+      await twoFA.resend(twoFAPending.temp_token)
+      toast.success('New code sent')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not resend code')
+    } finally {
+      setResending(false)
+    }
+  }
+
+  const methodLabel = twoFAPending?.method === 'totp'
+    ? 'Google Authenticator / Authy'
+    : twoFAPending?.method === 'sms'
+    ? 'SMS to your phone'
+    : 'your email'
 
   return (
     <div style={{
@@ -84,6 +138,70 @@ export default function Login() {
           background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15) 30%, rgba(255,255,255,0.30) 50%, rgba(255,255,255,0.15) 70%, transparent)',
         }} />
 
+        {twoFAPending ? (
+          /* ── 2FA Screen ───────────────────────────────────────────────── */
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,195,122,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Shield size={16} color="#00C37A" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: '#FFFFFF', margin: 0 }}>Two-factor verification</h2>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', margin: 0 }}>Code from {methodLabel}</p>
+              </div>
+            </div>
+            <form onSubmit={handleVerify2FA}>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)', marginBottom: 8 }}>
+                  Verification Code
+                </label>
+                <input
+                  ref={codeRef}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="000000"
+                  value={twoFACode}
+                  onChange={e => setTwoFACode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  autoComplete="one-time-code"
+                  className="glass-input"
+                  style={{ width: '100%', height: 56, padding: '0 16px', boxSizing: 'border-box', fontSize: 28, fontWeight: 700, letterSpacing: '0.3em', textAlign: 'center', fontFamily: 'Geist Mono, monospace' }}
+                />
+              </div>
+
+              <button type="submit" disabled={loading || twoFACode.length < 6}
+                style={{
+                  width: '100%', height: 52,
+                  background: loading || twoFACode.length < 6 ? 'rgba(0,195,122,0.4)' : '#00C37A',
+                  border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, color: '#000000',
+                  cursor: loading || twoFACode.length < 6 ? 'not-allowed' : 'pointer',
+                  marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'all 0.2s ease', fontFamily: 'inherit',
+                }}
+              >
+                {loading ? (
+                  <svg className="animate-spin" style={{ width: 18, height: 18 }} fill="none" viewBox="0 0 24 24">
+                    <circle opacity={0.25} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                    <path opacity={0.75} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : 'Verify & Sign In'}
+              </button>
+
+              {twoFAPending.method !== 'totp' && (
+                <button type="button" onClick={handleResend} disabled={resending}
+                  style={{ width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 16, fontFamily: 'inherit' }}>
+                  <RotateCcw size={12} /> {resending ? 'Sending…' : 'Resend code'}
+                </button>
+              )}
+
+              <button type="button" onClick={() => { setTwoFAPending(null); setTwoFACode('') }}
+                style={{ width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Back to login
+              </button>
+            </form>
+          </>
+        ) : (
+          /* ── Normal Login Screen ──────────────────────────────────────── */
+          <>
         <h2 style={{ fontSize: 20, fontWeight: 500, color: '#FFFFFF', margin: '0 0 4px', letterSpacing: '-0.01em' }}>
           Welcome back
         </h2>
@@ -213,6 +331,8 @@ export default function Login() {
             </Link>
           </p>
         </form>
+          </>
+        )}
       </div>
 
       {/* Footer */}

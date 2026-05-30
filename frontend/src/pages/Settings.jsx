@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2 } from 'lucide-react'
+import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2, Smartphone, Mail, QrCode, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Badge from '../components/ui/Badge'
 import useAuthStore from '../store/authStore'
 import useThemeStore from '../store/themeStore'
-import { phones, operator as operatorApi, auth } from '../services/api'
+import { phones, operator as operatorApi, auth, twoFA } from '../services/api'
 
 const SOCIAL_PLATFORMS = [
   { id: 'facebook',  label: 'Facebook',  icon: '📘', color: '#1877F2', hint: 'Post to your Facebook page and groups' },
@@ -457,6 +457,242 @@ function AddBankAccountForm({ onSave, onCancel }) {
   )
 }
 
+// ─── 2FA Panel ────────────────────────────────────────────────────────────────
+function TwoFactorPanel() {
+  const [status,       setStatus]       = useState(null)   // { enabled, method }
+  const [loading,      setLoading]      = useState(true)
+  const [step,         setStep]         = useState('idle') // idle | choosing | setup_totp | setup_sms | setup_email | activating | disabling
+  const [qrCode,       setQrCode]       = useState(null)
+  const [secret,       setSecret]       = useState(null)
+  const [smsPhone,     setSmsPhone]     = useState('')
+  const [code,         setCode]         = useState('')
+  const [disablePass,  setDisablePass]  = useState('')
+  const [working,      setWorking]      = useState(false)
+
+  useEffect(() => {
+    twoFA.status()
+      .then(r => setStatus(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const startTOTP = async () => {
+    setWorking(true)
+    try {
+      const { data } = await twoFA.setupTOTP()
+      setQrCode(data.qr_code)
+      setSecret(data.secret)
+      setStep('setup_totp')
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed to start setup') }
+    finally { setWorking(false) }
+  }
+
+  const startSMS = async () => {
+    if (!smsPhone.trim()) { toast.error('Enter your phone number first'); return }
+    setWorking(true)
+    try {
+      await twoFA.setupSMS(smsPhone.trim())
+      setStep('activating')
+      toast.success('Verification code sent via SMS')
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed to send SMS') }
+    finally { setWorking(false) }
+  }
+
+  const startEmail = async () => {
+    setWorking(true)
+    try {
+      await twoFA.setupEmail()
+      setStep('activating')
+      toast.success('Verification code sent to your email')
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed to send email') }
+    finally { setWorking(false) }
+  }
+
+  const activate = async () => {
+    if (!code.trim()) { toast.error('Enter the 6-digit code'); return }
+    setWorking(true)
+    try {
+      await twoFA.activate(code.replace(/\s/g, ''))
+      setStatus({ enabled: true, method: step === 'setup_totp' ? 'totp' : step === 'setup_sms' ? 'sms' : 'email' })
+      setStep('idle'); setCode(''); setQrCode(null); setSecret(null)
+      toast.success('Two-factor authentication is now ON')
+    } catch (err) { toast.error(err.response?.data?.error || 'Invalid code') }
+    finally { setWorking(false) }
+  }
+
+  const disable = async () => {
+    if (!disablePass.trim()) { toast.error('Enter your password to confirm'); return }
+    setWorking(true)
+    try {
+      await twoFA.disable(disablePass)
+      setStatus({ enabled: false, method: null })
+      setStep('idle'); setDisablePass('')
+      toast.success('Two-factor authentication disabled')
+    } catch (err) { toast.error(err.response?.data?.error || 'Incorrect password') }
+    finally { setWorking(false) }
+  }
+
+  const METHOD_ICONS = { totp: QrCode, sms: Smartphone, email: Mail }
+  const METHOD_LABELS = { totp: 'Authenticator App', sms: 'SMS', email: 'Email' }
+
+  if (loading) return <p className="text-[13px] text-text-muted">Loading…</p>
+
+  return (
+    <div className="space-y-4">
+      {/* Status banner */}
+      <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${status?.enabled ? 'bg-primary/5 border-primary/20' : 'bg-surface border-border-subtle'}`}>
+        <Shield size={16} className={status?.enabled ? 'text-primary' : 'text-text-muted'} />
+        <div className="flex-1">
+          <p className="text-[13px] font-semibold text-text-primary">
+            {status?.enabled ? `2FA ON — ${METHOD_LABELS[status.method] || status.method}` : '2FA is OFF'}
+          </p>
+          <p className="text-[11px] text-text-muted mt-0.5">
+            {status?.enabled
+              ? 'Your account requires a verification code at every login.'
+              : 'Enable 2FA to add an extra layer of security to your account.'}
+          </p>
+        </div>
+        {status?.enabled && <Badge variant="green">Active</Badge>}
+      </div>
+
+      {/* Enable flow */}
+      {!status?.enabled && step === 'idle' && (
+        <div>
+          <p className="text-[12px] text-text-muted mb-3">Choose a verification method:</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { id: 'totp',  Icon: QrCode,      label: 'Authenticator App', sub: 'Google Authenticator, Authy' },
+              { id: 'sms',   Icon: Smartphone,  label: 'SMS',               sub: 'Text message to your phone' },
+              { id: 'email', Icon: Mail,        label: 'Email',             sub: 'Code sent to your email' },
+            ].map(({ id, Icon, label, sub }) => (
+              <button key={id}
+                onClick={() => { setStep(id === 'totp' ? 'setup_totp_pre' : id === 'sms' ? 'setup_sms' : 'setup_email') }}
+                style={{ padding: '16px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface-bg)', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#00C37A'; e.currentTarget.style.background = 'rgba(0,195,122,0.04)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface-bg)' }}
+              >
+                <Icon size={20} style={{ color: '#00C37A', margin: '0 auto 8px' }} />
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--t1)', margin: '0 0 3px' }}>{label}</p>
+                <p style={{ fontSize: 10, color: 'var(--t4)', margin: 0 }}>{sub}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TOTP — start */}
+      {step === 'setup_totp_pre' && (
+        <div className="space-y-3">
+          <p className="text-[13px] text-text-secondary">Click below to generate your QR code, then scan it with Google Authenticator or Authy.</p>
+          <div className="flex gap-2">
+            <Button onClick={startTOTP} loading={working}>Generate QR Code</Button>
+            <Button variant="ghost" onClick={() => setStep('idle')}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {/* TOTP — QR code + enter code */}
+      {step === 'setup_totp' && (
+        <div className="space-y-4">
+          <div className="flex gap-6 items-start">
+            <div>
+              <p className="text-[12px] font-semibold text-text-primary mb-2">1. Scan with your app</p>
+              {qrCode && <img src={qrCode} alt="2FA QR Code" style={{ width: 160, height: 160, borderRadius: 10, border: '1px solid var(--border)', background: '#fff' }} />}
+              <p className="text-[10px] text-text-muted mt-2">Or enter manually:</p>
+              <code style={{ fontSize: 10, color: 'var(--t3)', wordBreak: 'break-all', display: 'block', maxWidth: 160 }}>{secret}</code>
+            </div>
+            <div className="flex-1">
+              <p className="text-[12px] font-semibold text-text-primary mb-2">2. Enter the 6-digit code</p>
+              <Input
+                value={code}
+                onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                maxLength={6}
+                style={{ fontFamily: 'Geist Mono, monospace', letterSpacing: '0.2em', fontSize: 20 }}
+              />
+              <div className="flex gap-2 mt-3">
+                <Button onClick={activate} loading={working} disabled={code.length < 6}>Enable 2FA</Button>
+                <Button variant="ghost" onClick={() => { setStep('idle'); setQrCode(null); setSecret(null); setCode('') }}>Cancel</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SMS — phone input */}
+      {step === 'setup_sms' && (
+        <div className="space-y-3">
+          <Input
+            label="Your phone number"
+            value={smsPhone}
+            onChange={e => setSmsPhone(e.target.value)}
+            placeholder="+1 (555) 000-0000"
+            hint="A 6-digit code will be sent here at every login."
+          />
+          <div className="flex gap-2">
+            <Button onClick={startSMS} loading={working}>Send Verification Code</Button>
+            <Button variant="ghost" onClick={() => setStep('idle')}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Email — auto-send, go straight to activating */}
+      {step === 'setup_email' && (
+        <div className="space-y-3">
+          <p className="text-[13px] text-text-secondary">A 6-digit code will be sent to your email at every login.</p>
+          <div className="flex gap-2">
+            <Button onClick={startEmail} loading={working}>Send Verification Code</Button>
+            <Button variant="ghost" onClick={() => setStep('idle')}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Activate — enter code */}
+      {step === 'activating' && (
+        <div className="space-y-3">
+          <Input
+            label="Enter the 6-digit code"
+            value={code}
+            onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="000000"
+            maxLength={6}
+            style={{ fontFamily: 'Geist Mono, monospace', letterSpacing: '0.2em', fontSize: 20 }}
+          />
+          <div className="flex gap-2">
+            <Button onClick={activate} loading={working} disabled={code.length < 6}>Confirm & Enable</Button>
+            <Button variant="ghost" onClick={() => { setStep('idle'); setCode('') }}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Disable 2FA */}
+      {status?.enabled && step === 'idle' && (
+        <div className="pt-2">
+          <Button variant="danger" onClick={() => setStep('disabling')}>Disable 2FA</Button>
+        </div>
+      )}
+
+      {step === 'disabling' && (
+        <div className="space-y-3 border border-danger/20 bg-danger/5 rounded-lg p-4">
+          <p className="text-[13px] font-semibold text-danger">Disable Two-Factor Authentication</p>
+          <p className="text-[12px] text-text-muted">Enter your password to confirm. Your account will be less secure without 2FA.</p>
+          <Input
+            label="Your password"
+            type="password"
+            value={disablePass}
+            onChange={e => setDisablePass(e.target.value)}
+            placeholder="••••••••••••"
+          />
+          <div className="flex gap-2">
+            <Button variant="danger" onClick={disable} loading={working}>Yes, Disable 2FA</Button>
+            <Button variant="ghost" onClick={() => { setStep('idle'); setDisablePass('') }}>Cancel</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Settings() {
   const [tab, setTab]             = useState('profile')
   const [phoneList, setPhoneList] = useState([])
@@ -794,6 +1030,10 @@ export default function Settings() {
 
           {tab === 'security' && (
             <>
+              <Section title="Two-Factor Authentication" description="Require a verification code at login — Google Authenticator, SMS, or Email">
+                <TwoFactorPanel />
+              </Section>
+
               <Section title="Change Password" description="Use a strong password to protect your account">
                 <div className="space-y-4">
                   <div className="relative">

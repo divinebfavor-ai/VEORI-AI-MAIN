@@ -59,6 +59,18 @@ export const auth = {
   logout:         ()                => api.post('/api/auth/logout'),
 }
 
+// ─── Two-Factor Authentication ────────────────────────────────────────────────
+export const twoFA = {
+  status:    ()                      => api.get('/api/auth/2fa/status'),
+  setupTOTP: ()                      => api.post('/api/auth/2fa/setup/totp'),
+  setupSMS:  (phone)                 => api.post('/api/auth/2fa/setup/sms', { phone }),
+  setupEmail:()                      => api.post('/api/auth/2fa/setup/email'),
+  activate:  (code)                  => api.post('/api/auth/2fa/activate', { code }),
+  verify:    (temp_token, code)      => api.post('/api/auth/2fa/verify', { temp_token, code }),
+  resend:    (temp_token)            => api.post('/api/auth/2fa/resend', { temp_token }),
+  disable:   (password)              => api.delete('/api/auth/2fa/disable', { data: { password } }),
+}
+
 // ─── Leads ───────────────────────────────────────────────────────────────────
 export const leads = {
   getLeads:         (params) => api.get('/api/leads', { params }),

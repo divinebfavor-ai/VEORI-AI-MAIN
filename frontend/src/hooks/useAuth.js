@@ -9,9 +9,15 @@ export function useAuth() {
 
   const login = async (email, password) => {
     const res = await auth.login(email, password)
+    // 2FA enabled — return pending state; Login.jsx will show code entry
+    if (res.data.requires_2fa) return res.data
     const { token, user: userData } = res.data
     setAuth(userData, token)
     return userData
+  }
+
+  const completeLogin = (token, userData) => {
+    setAuth(userData, token)
   }
 
   const logout = async () => {
@@ -32,5 +38,5 @@ export function useAuth() {
     return userData
   }
 
-  return { user, isAuthenticated, login, logout, register }
+  return { user, isAuthenticated, login, completeLogin, logout, register }
 }
