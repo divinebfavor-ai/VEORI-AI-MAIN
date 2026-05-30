@@ -140,62 +140,73 @@ function Hero() {
       <div className="lp-grid" style={{ position: 'absolute', inset: 0, opacity: 0.6 }} />
       <div style={{ position: 'absolute', top: '10%', left: '50%', transform: 'translateX(-50%)', width: 800, height: 500, background: 'radial-gradient(ellipse at center, rgba(0,196,123,0.09) 0%, transparent 70%)', pointerEvents: 'none', animation: 'lp-glow 4s ease-in-out infinite' }} />
 
-      <motion.div style={{ position: 'relative', zIndex: 10, y: textY, opacity: opacityVal, textAlign: 'center', padding: '140px 24px 80px', maxWidth: 1000, margin: '0 auto', width: '100%' }}>
+      <motion.div style={{ position: 'relative', zIndex: 10, y: textY, opacity: opacityVal, textAlign: 'center', padding: '160px 24px 100px', maxWidth: 900, margin: '0 auto', width: '100%' }}>
 
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.08, ease: [0.22,1,0.36,1] }}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 11, marginBottom: 32 }}>
-          <VeoriLogo size={44} />
-          <span style={{ fontSize: 26, fontWeight: 900, letterSpacing: '-0.05em', color: '#fff', fontFamily: 'Inter,sans-serif' }}>VEORI</span>
+        {/* Logo centered */}
+        <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, marginBottom: 40 }}>
+          <VeoriLogo size={72} />
+          <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.06em', color: '#fff', fontFamily: 'Inter,sans-serif', lineHeight: 1 }}>VEORI</span>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2, ease: [0.22,1,0.36,1] }}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.22)', borderRadius: 100, padding: '6px 16px', marginBottom: 36 }}>
+        {/* AI badge */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(0,196,123,0.12)', border: '1px solid rgba(0,196,123,0.30)', borderRadius: 100, padding: '8px 20px', marginBottom: 32 }}>
           <PulseDot />
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#00C47B', letterSpacing: '0.01em', fontFamily: 'Inter,sans-serif' }}>AI-powered real estate acquisitions - fully automated</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#00C47B', letterSpacing: '0.02em', fontFamily: 'Inter,sans-serif', textTransform: 'uppercase' }}>AI Operating System for Real Estate</span>
         </motion.div>
 
+        {/* Headline */}
         <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.32, ease: [0.22,1,0.36,1] }}
-          style={{ fontSize: 'clamp(44px,7vw,80px)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.04, marginBottom: 22, fontFamily: 'Inter,sans-serif' }}>
-          Your AI VA That<br />
-          <span className="lp-shimmer">Never Stops Calling</span>
+          style={{ fontSize: 'clamp(38px,6vw,72px)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.06, marginBottom: 24, fontFamily: 'Inter,sans-serif' }}>
+          The AI That Calls Sellers,<br />
+          <span className="lp-shimmer">Closes Deals, While You Sleep.</span>
         </motion.h1>
 
+        {/* Subheadline */}
         <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.42, ease: [0.22,1,0.36,1] }}
-          style={{ fontSize: 'clamp(16px,1.8vw,19px)', color: 'rgba(255,255,255,0.72)', lineHeight: 1.68, maxWidth: 600, margin: '0 auto 48px', fontFamily: 'Inter,sans-serif' }}>
-          VEORI calls your sellers, qualifies them, makes offers, calls your buyers, sends contracts for e-sign, coordinates your title company, and closes the deal. All automatically. 24/7.
+          style={{ fontSize: 'clamp(15px,1.8vw,18px)', color: 'rgba(255,255,255,0.65)', lineHeight: 1.75, maxWidth: 560, margin: '0 auto 52px', fontFamily: 'Inter,sans-serif' }}>
+          Veori makes 3,000 AI calls a month, qualifies sellers, sends contracts, coordinates title companies and closes deals — fully automated, 24 hours a day.
         </motion.p>
 
+        {/* CTAs */}
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.52, ease: [0.22,1,0.36,1] }}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
             <a href="#pricing"
-              style={{ padding: '15px 36px', background: '#00C47B', color: '#000', fontSize: 16, fontWeight: 800, borderRadius: 10, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s', display: 'inline-block' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,196,123,0.40)' }}
+              style={{ padding: '16px 40px', background: '#00C47B', color: '#000', fontSize: 16, fontWeight: 800, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s', letterSpacing: '-0.01em' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,196,123,0.45)' }}
               onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
-              See Plans &amp; Pricing →
+              Get Started Today
             </a>
             <a href="#how"
-              style={{ padding: '15px 36px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: 700, borderRadius: 10, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s', display: 'inline-block' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#fff' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}>
-              How it works
+              style={{ padding: '16px 40px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: 700, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#fff' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}>
+              See How It Works
             </a>
           </div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.38)', fontFamily: 'Inter,sans-serif' }}>
-            Starting from <strong style={{ color: 'rgba(255,255,255,0.65)' }}>$499/month</strong> · Cancel anytime
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter,sans-serif' }}>
+            From <strong style={{ color: 'rgba(255,255,255,0.60)' }}>$499/month</strong> · No setup fees · Cancel anytime
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.9 }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 40, flexWrap: 'wrap', marginTop: 56, padding: '20px 32px', borderRadius: 14, background: 'rgba(10,21,38,0.70)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', maxWidth: 640, margin: '56px auto 0' }}>
-          {[['AI calls / day', '500', '#00C47B'], ['Seller to e-sign', '4 min', '#fff'], ['Sides worked', 'Both', '#C9A84C'], ['Human required', 'Zero', '#fff']].map(([label, value, color], i) => (
-            <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 22, fontWeight: 600, color, letterSpacing: '-0.02em', lineHeight: 1 }}>{value}</div>
-              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.40)', fontFamily: 'Inter,sans-serif' }}>{label}</div>
-              {i < 3 && <div style={{ position: 'absolute' }} />}
+        {/* Stats bar */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.75 }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, flexWrap: 'wrap', marginTop: 64, borderRadius: 16, background: 'rgba(8,18,34,0.80)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(16px)', maxWidth: 680, margin: '64px auto 0', overflow: 'hidden' }}>
+          {[
+            { label: 'AI Dials / Month', value: '3,000', color: '#00C47B' },
+            { label: 'Saves vs VA', value: '$1,421', color: '#C9A84C' },
+            { label: 'Human Required', value: 'Zero', color: '#fff' },
+            { label: 'Works 24/7', value: 'Always', color: '#fff' },
+          ].map(({ label, value, color }, i) => (
+            <div key={label} style={{ flex: 1, minWidth: 140, padding: '22px 20px', textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+              <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 26, fontWeight: 900, color, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 6 }}>{value}</div>
+              <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)', fontFamily: 'Inter,sans-serif' }}>{label}</div>
             </div>
           ))}
         </motion.div>
+
       </motion.div>
 
       <div style={{ position: 'absolute', bottom: 32, left: '50%', animation: 'lp-float 2.5s ease-in-out infinite', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
