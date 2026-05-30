@@ -301,22 +301,26 @@ function WhatYouGet() {
 // ─── Comparison ───────────────────────────────────────────────────────────────
 
 const HUMAN_ROWS = [
-  { label: 'Cost', value: '$1,500/month', bad: true },
-  { label: 'Availability', value: '8 hours/day', bad: true },
-  { label: 'Consistency', value: 'Varies daily', bad: true },
-  { label: 'Sick days', value: 'Yes', bad: true },
+  { label: 'Monthly cost', value: '$1,280 - $1,920', bad: true },
+  { label: 'Calls per day', value: '~90 dials', bad: true },
+  { label: 'Calls per week', value: '~450 dials', bad: true },
+  { label: 'Calls per month', value: '~1,800 dials', bad: true },
+  { label: 'Works weekends', value: 'No', bad: true },
+  { label: 'Works nights', value: 'No', bad: true },
+  { label: 'Consistent script', value: 'No', bad: true },
+  { label: 'Gets tired / quits', value: 'Yes', bad: true },
   { label: 'Training required', value: 'Always', bad: true },
-  { label: 'Quits after 6 months', value: 'Usually', bad: true },
-  { label: 'Calls per day', value: '80 to 120', bad: true },
 ]
 const VEORI_ROWS = [
-  { label: 'Cost', value: 'From $499/mo', good: true },
-  { label: 'Availability', value: '24/7/365', good: true },
-  { label: 'Consistency', value: 'Perfect every call', good: true },
-  { label: 'Sick days', value: 'Never', good: true },
+  { label: 'Monthly cost', value: 'From $499/month', good: true },
+  { label: 'Calls per day', value: '100+ dials', good: true },
+  { label: 'Calls per week', value: '750 dials', good: true },
+  { label: 'Calls per month', value: '3,000 dials', good: true },
+  { label: 'Works weekends', value: 'Yes, 24/7', good: true },
+  { label: 'Works nights', value: 'Yes, 24/7', good: true },
+  { label: 'Consistent script', value: 'Perfect every call', good: true },
+  { label: 'Gets tired / quits', value: 'Never', good: true },
   { label: 'Training required', value: 'None', good: true },
-  { label: 'Quits', value: 'Never', good: true },
-  { label: 'Calls per day', value: '500', good: true },
 ]
 
 function SideCard({ title, rows, highlighted, delay = 0 }) {
@@ -348,10 +352,10 @@ function Comparison() {
         <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }} style={{ textAlign: 'center', marginBottom: 56 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>The math</div>
           <h2 style={{ fontSize: 'clamp(26px,4vw,44px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>
-            Same result. Better consistency.<br />$1,303 less per month.
+            More calls. Better results.<br />Up to $1,421 less per month.
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', maxWidth: 460, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
-            A human VA costs more, works less, and quits eventually. VEORI doesn't.
+          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', maxWidth: 520, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+            A human VA makes 1,800 calls a month and costs $1,280-$1,920. Veori makes 3,000 calls for $499. Works nights. Works weekends. Never quits.
           </p>
         </motion.div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
@@ -622,6 +626,57 @@ function CheckoutModal({ plan, onClose }) {
   )
 }
 
+// ─── ROI Section ──────────────────────────────────────────────────────────────
+function ROISection() {
+  const { ref, visible } = useReveal()
+  const stats = [
+    { number: '$499', label: 'Starter plan per month', sub: 'Everything included' },
+    { number: '3,000', label: 'AI dials per month', sub: 'Works 24/7, never stops' },
+    { number: '1 deal', label: 'Average closes per month', sub: 'Conservative estimate' },
+    { number: '$10K-$25K', label: 'Average deal profit', sub: 'Wholesale assignment fee' },
+  ]
+  return (
+    <section style={{ padding: '80px 24px', background: 'rgba(0,196,123,0.03)', borderTop: '1px solid rgba(0,196,123,0.08)', borderBottom: '1px solid rgba(0,196,123,0.08)' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6 }}
+          style={{ textAlign: 'center', marginBottom: 52 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 12, fontFamily: 'Inter,sans-serif' }}>The ROI</div>
+          <h2 style={{ fontSize: 'clamp(26px,4vw,44px)', fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 12, fontFamily: 'Inter,sans-serif' }}>
+            For every $1 you spend on Veori,<br />you make back $20 to $50.
+          </h2>
+          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+            One closed wholesale deal covers your entire subscription for the month. Everything after that is pure profit.
+          </p>
+        </motion.div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20, marginBottom: 48 }}>
+          {stats.map((s, i) => (
+            <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.5, delay: i * 0.08 }}
+              style={{ background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '28px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 38, fontWeight: 900, color: '#00C47B', letterSpacing: '-0.04em', fontFamily: 'Inter,sans-serif', marginBottom: 8 }}>{s.number}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.40)', fontFamily: 'Inter,sans-serif' }}>{s.sub}</div>
+            </motion.div>
+          ))}
+        </div>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, delay: 0.3 }}
+          style={{ background: 'linear-gradient(135deg, rgba(201,168,76,0.10), rgba(201,168,76,0.04))', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 16, padding: '28px 32px', display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', fontFamily: 'Inter,sans-serif', marginBottom: 6 }}>
+              One deal pays for 20 months of Veori.
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.50)', fontFamily: 'Inter,sans-serif' }}>
+              The average wholesale assignment fee is $10,000. Your Starter plan is $499/month.
+            </div>
+          </div>
+          <a href="#pricing" style={{ background: '#C9A84C', color: '#000', fontSize: 14, fontWeight: 800, padding: '14px 28px', borderRadius: 10, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            See Plans
+          </a>
+        </motion.div>
+      </div>
+    </section>
+  )
+}
+
 function Pricing() {
   const { ref, visible } = useReveal()
   const [selectedPlan, setSelectedPlan] = useState(null)
@@ -861,6 +916,7 @@ export default function LandingPage() {
       <Ticker />
       <WhatYouGet />
       <Comparison />
+      <ROISection />
       <HowItWorks />
       <Pricing />
       <ComingSoon />
