@@ -10,6 +10,7 @@
 const router   = require('express').Router();
 const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
+const audit    = require('../services/auditLog');
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',').map(e => e.trim());
 
@@ -18,6 +19,8 @@ router.use(auth, (req, res, next) => {
   if (!ADMIN_EMAILS.includes(req.user.email)) {
     return res.status(403).json({ success: false, error: 'Admin access only' });
   }
+  audit.log({ userId: req.user.id, action: audit.ACTIONS.ADMIN_ACCESS, req,
+    metadata: { path: req.path, method: req.method } });
   next();
 });
 
@@ -75,6 +78,8 @@ router.get('/users', async (req, res) => {
 
     if (error) throw error;
 
+    audit.log({ userId: req.user.id, action: audit.ACTIONS.ADMIN_USER_VIEW, req,
+      metadata: { page, limit } });
     res.json({ success: true, users: data || [], total: count || 0, page: parseInt(page) });
   } catch (err) {
     console.error('[Admin] users error:', err.message);
