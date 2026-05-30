@@ -33,6 +33,7 @@ import LandingPage from './pages/LandingPage'
 import Billing from './pages/Billing'
 import BillingVerify from './pages/BillingVerify'
 import Referrals from './pages/Referrals'
+import Admin from './pages/Admin'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 // ── Intelligence Features (NEW) ────────────────────────────────────────────────
@@ -156,6 +157,8 @@ export default function App() {
         <Route path="/billing" element={<Billing />} />
         {/* ── Referrals ─────────────────────────────────────────────────── */}
         <Route path="/referrals" element={<Referrals />} />
+        {/* ── Admin ─────────────────────────────────────────────────────── */}
+        <Route path="/admin" element={<Admin />} />
       </Route>
 
       {/* Public tour viewer - no auth */}

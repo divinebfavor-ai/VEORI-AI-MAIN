@@ -231,6 +231,10 @@ app.use('/api/property-marketing', propertyMarketingRouter);
 const referralsRouter = require('./routes/referrals');
 app.use('/api/referrals', referralsRouter);
 
+// ─── Admin Dashboard ─────────────────────────────────────────────────────────
+const adminRouter = require('./routes/admin');
+app.use('/api/admin', adminRouter);
+
 // ─── Virtual Tours Routes (Features 34-38) ───────────────────────────────────
 const virtualToursRouter = require('./routes/virtualTours');
 const publicTourRouter   = require('./routes/publicTour');

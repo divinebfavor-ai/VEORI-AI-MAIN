@@ -84,8 +84,13 @@ export default function Privacy() {
         <p style={s.p}>We also collect information automatically:</p>
         <ul style={{ paddingLeft: 24, marginBottom: 16 }}>
           <li style={s.li}>Log data including IP address, browser type, pages visited, and time spent.</li>
-          <li style={s.li}>Usage data about how you interact with the platform.</li>
+          <li style={s.li}>Usage data about how you interact with the platform, including features used and actions taken.</li>
           <li style={s.li}>Device information including hardware model and operating system.</li>
+          <li style={s.li}>Geographic information derived from your IP address, including country, region, and city. We do not store your raw IP address.</li>
+          <li style={s.li}>Timezone detected from your device or IP address to provide localized experiences.</li>
+          <li style={s.li}>Referral source indicating how you discovered Veori (e.g. social media, referral link, search).</li>
+          <li style={s.li}>Session activity including login frequency and last active date to improve platform reliability.</li>
+          <li style={s.li}>Call transcripts, recordings, and AI-generated scores used to power and improve our AI features. This data may be used in anonymized form to train and improve our AI models.</li>
         </ul>
 
         <h2 style={s.h2}>2. How We Use Your Information</h2>

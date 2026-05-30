@@ -74,6 +74,35 @@ router.post('/register', async (req, res, next) => {
     }
 
     const token = jwt.sign({ id: data.id, email: data.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    // Send welcome email (fire and forget)
+    sendEmail({
+      to: data.email,
+      subject: 'Welcome to Veori - Your AI is Ready',
+      html: `
+        <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;background:#060E1A;color:#fff;border-radius:16px;overflow:hidden;">
+          <div style="background:linear-gradient(135deg,#060E1A,#0A1526);padding:40px 40px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:32px;font-weight:900;letter-spacing:-0.04em;color:#fff;margin-bottom:6px;">VEORI</div>
+            <div style="font-size:13px;color:#00C37A;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">AI Operating System for Real Estate</div>
+          </div>
+          <div style="padding:40px;">
+            <h1 style="font-size:24px;font-weight:800;margin:0 0 16px;color:#fff;">Welcome, ${data.full_name?.split(' ')[0] || 'there'}.</h1>
+            <p style="font-size:15px;color:rgba(255,255,255,0.65);line-height:1.7;margin:0 0 24px;">Your Veori account is live. You now have access to the full AI-powered real estate platform — including AI dialing, lead management, deal tracking, contract signing, and more.</p>
+            <div style="background:rgba(0,195,122,0.08);border:1px solid rgba(0,195,122,0.20);border-radius:12px;padding:24px;margin-bottom:28px;">
+              <div style="font-size:13px;font-weight:700;color:#00C37A;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Get started in 3 steps</div>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div style="font-size:14px;color:rgba(255,255,255,0.80);">1. Add your first leads or run an AI zip code scan</div>
+                <div style="font-size:14px;color:rgba(255,255,255,0.80);">2. Create a campaign and let Veori start calling</div>
+                <div style="font-size:14px;color:rgba(255,255,255,0.80);">3. Watch your pipeline fill up on the dashboard</div>
+              </div>
+            </div>
+            <a href="https://veori.net/dashboard" style="display:block;text-align:center;background:#00C37A;color:#060E1A;font-size:15px;font-weight:800;padding:16px;border-radius:10px;text-decoration:none;">Open Your Dashboard</a>
+            <p style="font-size:12px;color:rgba(255,255,255,0.30);text-align:center;margin-top:24px;">Questions? Reply to this email or contact us at support@veori.ai</p>
+          </div>
+        </div>
+      `,
+    }).catch(e => console.warn('[Auth] Welcome email failed:', e.message));
+
     res.status(201).json({ success: true, token, user: data });
   } catch (err) { next(err); }
 });
