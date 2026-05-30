@@ -916,7 +916,6 @@ export default function LandingPage() {
       <Ticker />
       <WhatYouGet />
       <Comparison />
-      <ROISection />
       <HowItWorks />
       <Pricing />
       <ComingSoon />
