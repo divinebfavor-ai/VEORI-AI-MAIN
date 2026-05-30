@@ -51,32 +51,62 @@ const feedbackRouter         = require('./routes/feedback');
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-// ─── Security ─────────────────────────────────────────────────────────────────
-app.use(helmet());
+// ─── Security Headers (Helmet hardened) ──────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: false,          // handled by Vercel frontend
+  crossOriginEmbedderPolicy: false,      // needed for external APIs
+  hsts: {
+    maxAge:            31536000,         // 1 year
+    includeSubDomains: true,
+    preload:           true,
+  },
+  noSniff:                 true,         // X-Content-Type-Options: nosniff
+  xssFilter:               true,         // X-XSS-Protection
+  referrerPolicy:          { policy: 'strict-origin-when-cross-origin' },
+  frameguard:              { action: 'deny' },       // no iframes
+  permittedCrossDomainPolicies: { permittedPolicies: 'none' },
+  dnsPrefetchControl:      { allow: false },
+}));
+
+// ─── HPP — HTTP Parameter Pollution protection ─────────────────────────────
+const hpp = require('hpp');
+app.use(hpp());
+
+// ─── NoSQL / injection sanitization ───────────────────────────────────────
+const mongoSanitize = require('express-mongo-sanitize');
+app.use(mongoSanitize({ replaceWith: '_' }));
 
 // Stripe webhook needs raw body — mount BEFORE express.json()
 app.use('/api/billing/webhook', require('./routes/billing'));
 app.use('/api/stripe/webhook',  require('./routes/billing'));
 
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+app.use(express.json({ limit: '1mb' }));          // tightened from 2mb
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// ─── CORS ─────────────────────────────────────────────────────────────────────
+// ─── CORS — strict production whitelist ───────────────────────────────────
+const PROD_ORIGINS = [
+  'https://veori.net',
+  'https://www.veori.net',
+  'http://localhost:3000',
+  'http://localhost:5173',
+];
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-  : ['http://localhost:3000', 'http://localhost:5173'];
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : PROD_ORIGINS;
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      // Allow no-origin requests (Postman, Railway health checks, curl)
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return cb(null, true);
-      cb(new Error(`CORS: origin ${origin} not allowed`));
-    },
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow server-to-server (no origin), Railway health checks
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials:      true,
+  methods:          ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders:   ['Content-Type', 'Authorization', 'x-api-key'],
+  exposedHeaders:   ['X-RateLimit-Limit', 'X-RateLimit-Remaining'],
+  maxAge:           86400,  // preflight cache 24h
+}));
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
