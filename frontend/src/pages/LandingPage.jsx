@@ -856,6 +856,96 @@ function ComingSoon() {
   )
 }
 
+// ─── Replace Your Stack ───────────────────────────────────────────────────────
+
+const STACK_TOOLS = [
+  { tool: 'AI Cold Calling Dialer',        price: '$150 - $500' },
+  { tool: 'Real Estate CRM',               price: '$99 - $749' },
+  { tool: 'Skip Tracing Tool',             price: '$100 - $400' },
+  { tool: 'Lead List Software',            price: '$77 - $197' },
+  { tool: 'Driving for Dollars App',       price: '$49 - $99' },
+  { tool: 'Contract Signing Tool',         price: '$25 - $40' },
+  { tool: 'Social Media Scheduler',        price: '$50 - $100' },
+  { tool: 'Property Video Creator',        price: '$50 - $100' },
+  { tool: 'Virtual Tour Software',         price: '$50 - $130' },
+  { tool: 'Call Analytics Platform',       price: '$45 - $100' },
+]
+
+function ReplaceYourStack() {
+  const { ref, visible } = useReveal()
+  return (
+    <section style={{ padding: '100px 24px', background: 'rgba(255,255,255,0.012)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+        <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6 }}
+          style={{ textAlign: 'center', marginBottom: 56 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>Stop paying for 10 tools</div>
+          <h2 style={{ fontSize: 'clamp(26px,4vw,46px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>
+            Everything You Pay For Separately.<br />
+            <span className="lp-shimmer">Veori Has It All In One.</span>
+          </h2>
+          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.48)', maxWidth: 520, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+            Most real estate investors are paying over $600 a month across different tools that don't even talk to each other. Veori replaces all of them.
+          </p>
+        </motion.div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, alignItems: 'start', flexWrap: 'wrap' }}>
+
+          {/* Left: Tools they're paying for */}
+          <motion.div initial={{ opacity: 0, x: -24 }} animate={visible ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.7, delay: 0.1 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,80,80,0.75)', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>
+              What you're currently paying
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+              {STACK_TOOLS.map((item, i) => (
+                <div key={item.tool} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: i < STACK_TOOLS.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 14, color: 'rgba(255,80,80,0.60)' }}>✕</span>
+                    <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.55)', fontFamily: 'Inter,sans-serif' }}>{item.tool}</span>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,80,80,0.75)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'nowrap' }}>{item.price}/mo</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(255,80,80,0.06)', borderTop: '1px solid rgba(255,80,80,0.12)' }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'rgba(255,255,255,0.70)', fontFamily: 'Inter,sans-serif' }}>Total per month</span>
+                <span style={{ fontSize: 16, fontWeight: 900, color: 'rgba(255,80,80,0.85)', fontFamily: 'JetBrains Mono, monospace' }}>$695 - $2,415</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Right: Veori */}
+          <motion.div initial={{ opacity: 0, x: 24 }} animate={visible ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.7, delay: 0.18 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>
+              What you pay with Veori
+            </div>
+            <div style={{ background: 'linear-gradient(160deg, rgba(0,196,123,0.08), rgba(0,196,123,0.03))', border: '1px solid rgba(0,196,123,0.25)', borderRadius: 14, overflow: 'hidden' }}>
+              {STACK_TOOLS.map((item, i) => (
+                <div key={item.tool} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: i < STACK_TOOLS.length - 1 ? '1px solid rgba(0,196,123,0.07)' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 14, color: '#00C47B' }}>✓</span>
+                    <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.80)', fontFamily: 'Inter,sans-serif' }}>{item.tool}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#00C47B', fontFamily: 'Inter,sans-serif', background: 'rgba(0,196,123,0.12)', padding: '3px 10px', borderRadius: 20 }}>Included</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(0,196,123,0.08)', borderTop: '1px solid rgba(0,196,123,0.15)' }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', fontFamily: 'Inter,sans-serif' }}>Total per month</span>
+                <span style={{ fontSize: 16, fontWeight: 900, color: '#00C47B', fontFamily: 'JetBrains Mono, monospace' }}>From $499</span>
+              </div>
+            </div>
+
+            <a href="#pricing" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 20, padding: '16px', background: '#00C47B', color: '#000', fontSize: 15, fontWeight: 800, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,196,123,0.40)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
+              Replace Your Stack Today
+            </a>
+          </motion.div>
+
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ─── Final CTA ────────────────────────────────────────────────────────────────
 
 function FinalCTA() {
@@ -927,6 +1017,7 @@ export default function LandingPage() {
       <Ticker />
       <WhatYouGet />
       <Comparison />
+      <ReplaceYourStack />
       <HowItWorks />
       <Pricing />
       <ComingSoon />
