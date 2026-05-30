@@ -64,14 +64,23 @@ import TourViewer from './pages/TourViewer'
 // ── Property Marketing Engine ─────────────────────────────────────────────────
 import PropertyMarketing from './pages/PropertyMarketing'
 
+const ADMIN_EMAILS = ['divineqflash@gmail.com']
+
 function RequireAuth({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const hydrated        = useAuthStore((s) => s.hydrated)
 
-  // Don't redirect until we've read localStorage - avoids flash-logout on page load
   if (!hydrated) return null
-
   if (!isAuthenticated) return <Navigate to="/login" replace />
+  return children
+}
+
+function RequireAdmin({ children }) {
+  const user     = useAuthStore((s) => s.user)
+  const hydrated = useAuthStore((s) => s.hydrated)
+
+  if (!hydrated) return null
+  if (!user || !ADMIN_EMAILS.includes(user.email)) return <Navigate to="/dashboard" replace />
   return children
 }
 
@@ -158,7 +167,7 @@ export default function App() {
         {/* ── Referrals ─────────────────────────────────────────────────── */}
         <Route path="/referrals" element={<Referrals />} />
         {/* ── Admin ─────────────────────────────────────────────────────── */}
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
       </Route>
 
       {/* Public tour viewer - no auth */}
