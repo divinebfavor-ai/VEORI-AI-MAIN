@@ -166,7 +166,7 @@ function Hero() {
         {/* Subheadline */}
         <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.42, ease: [0.22,1,0.36,1] }}
           style={{ fontSize: 'clamp(15px,1.8vw,18px)', color: 'rgba(255,255,255,0.65)', lineHeight: 1.75, maxWidth: 560, margin: '0 auto 52px', fontFamily: 'Inter,sans-serif' }}>
-          Veori makes 3,000 AI calls a month, qualifies sellers, sends contracts, coordinates title companies and closes deals — fully automated, 24 hours a day.
+          Veori makes 3,000 AI calls a month, qualifies sellers, sends contracts, coordinates title companies and closes deals. Fully automated, 24 hours a day.
         </motion.p>
 
         {/* CTAs */}
