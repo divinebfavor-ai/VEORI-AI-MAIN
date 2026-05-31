@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2, Smartphone, Mail, QrCode, RotateCcw } from 'lucide-react'
+import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2, Mail, QrCode, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
@@ -461,10 +461,9 @@ function AddBankAccountForm({ onSave, onCancel }) {
 function TwoFactorPanel() {
   const [status,       setStatus]       = useState(null)   // { enabled, method }
   const [loading,      setLoading]      = useState(true)
-  const [step,         setStep]         = useState('idle') // idle | choosing | setup_totp | setup_sms | setup_email | activating | disabling
+  const [step,         setStep]         = useState('idle') // idle | setup_totp_pre | setup_totp | setup_email | activating | disabling
   const [qrCode,       setQrCode]       = useState(null)
   const [secret,       setSecret]       = useState(null)
-  const [smsPhone,     setSmsPhone]     = useState('')
   const [code,         setCode]         = useState('')
   const [disablePass,  setDisablePass]  = useState('')
   const [working,      setWorking]      = useState(false)
@@ -484,17 +483,6 @@ function TwoFactorPanel() {
       setSecret(data.secret)
       setStep('setup_totp')
     } catch (err) { toast.error(err.response?.data?.error || 'Failed to start setup') }
-    finally { setWorking(false) }
-  }
-
-  const startSMS = async () => {
-    if (!smsPhone.trim()) { toast.error('Enter your phone number first'); return }
-    setWorking(true)
-    try {
-      await twoFA.setupSMS(smsPhone.trim())
-      setStep('activating')
-      toast.success('Verification code sent via SMS')
-    } catch (err) { toast.error(err.response?.data?.error || 'Failed to send SMS') }
     finally { setWorking(false) }
   }
 
@@ -559,14 +547,13 @@ function TwoFactorPanel() {
       {!status?.enabled && step === 'idle' && (
         <div>
           <p className="text-[12px] text-text-muted mb-3">Choose a verification method:</p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {[
-              { id: 'totp',  Icon: QrCode,      label: 'Authenticator App', sub: 'Google Authenticator, Authy' },
-              { id: 'sms',   Icon: Smartphone,  label: 'SMS',               sub: 'Text message to your phone' },
-              { id: 'email', Icon: Mail,        label: 'Email',             sub: 'Code sent to your email' },
+              { id: 'totp',  Icon: QrCode, label: 'Authenticator App', sub: 'Google Authenticator, Authy' },
+              { id: 'email', Icon: Mail,   label: 'Email',             sub: 'Code sent to your email' },
             ].map(({ id, Icon, label, sub }) => (
               <button key={id}
-                onClick={() => { setStep(id === 'totp' ? 'setup_totp_pre' : id === 'sms' ? 'setup_sms' : 'setup_email') }}
+                onClick={() => { setStep(id === 'totp' ? 'setup_totp_pre' : 'setup_email') }}
                 style={{ padding: '16px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface-bg)', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = '#00C37A'; e.currentTarget.style.background = 'rgba(0,195,122,0.04)' }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface-bg)' }}
@@ -615,23 +602,6 @@ function TwoFactorPanel() {
                 <Button variant="ghost" onClick={() => { setStep('idle'); setQrCode(null); setSecret(null); setCode('') }}>Cancel</Button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* SMS — phone input */}
-      {step === 'setup_sms' && (
-        <div className="space-y-3">
-          <Input
-            label="Your phone number"
-            value={smsPhone}
-            onChange={e => setSmsPhone(e.target.value)}
-            placeholder="+1 (555) 000-0000"
-            hint="A 6-digit code will be sent here at every login."
-          />
-          <div className="flex gap-2">
-            <Button onClick={startSMS} loading={working}>Send Verification Code</Button>
-            <Button variant="ghost" onClick={() => setStep('idle')}>Cancel</Button>
           </div>
         </div>
       )}
