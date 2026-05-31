@@ -294,8 +294,10 @@ async function handleCallEnded(call, event) {
   }
 
   // Auto photo request: if motivated (score 60+ or strong outcome), text seller a photo upload link
-  const motivatedOutcomes = ['verbal_yes', 'appointment', 'offer_made', 'interested', 'callback_requested'];
-  const isMotivated = motivatedOutcomes.includes(outcome) || (aiAnalysis.motivation_score >= 60);
+  // Only request photos when seller has fully engaged — verbal yes, appointment set, or offer discussed.
+  // Not on "interested" or "callback" — that is too early in the conversation.
+  const motivatedOutcomes = ['verbal_yes', 'appointment', 'offer_made'];
+  const isMotivated = motivatedOutcomes.includes(outcome) || (aiAnalysis.motivation_score >= 75);
   if (isMotivated && callRec.lead_id && callRec.user_id) {
     setImmediate(async () => {
       try {
