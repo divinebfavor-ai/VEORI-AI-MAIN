@@ -51,6 +51,10 @@ const feedbackRouter         = require('./routes/feedback');
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
+// ─── Trust Railway/Vercel reverse proxy ───────────────────────────────────────
+// Required for express-rate-limit to correctly read X-Forwarded-For
+app.set('trust proxy', 1);
+
 // ─── Security Headers (Helmet hardened) ──────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: false,          // handled by Vercel frontend
