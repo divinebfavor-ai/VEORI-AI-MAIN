@@ -518,7 +518,7 @@ function FoundingMemberCard({ onSelect }) {
           </div>
 
           <div style={{ fontSize: 13, color: '#C9A84C', fontWeight: 700, marginBottom: 24, fontFamily: 'Inter,sans-serif' }}>
-            7,000 dials/month
+            2,800 dials/month
           </div>
 
           {/* Scarcity bar */}
@@ -532,7 +532,7 @@ function FoundingMemberCard({ onSelect }) {
             </div>
           </div>
 
-          <button onClick={() => onSelect({ key: 'founding_member', name: 'Founding Member', price: 397, dials: '7,000' })}
+          <button onClick={() => onSelect({ key: 'founding_member', name: 'Founding Member', price: 397, dials: '2,800' })}
             style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg, #C9A84C 0%, #F0C96E 50%, #C9A84C 100%)', backgroundSize: '200% 100%', color: '#000', fontSize: 15, fontWeight: 900, border: 'none', borderRadius: 12, cursor: 'pointer', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em', transition: 'all 0.3s', boxShadow: '0 8px 32px rgba(201,168,76,0.35)' }}
             onMouseEnter={e => { e.currentTarget.style.backgroundPosition = '100% 0'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(201,168,76,0.55)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
             onMouseLeave={e => { e.currentTarget.style.backgroundPosition = '0% 0'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(201,168,76,0.35)'; e.currentTarget.style.transform = '' }}>
