@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 
-const API = 'https://veori-ai-main-production.up.railway.app/api/feedback'
+const API = `${import.meta.env.VITE_API_URL || 'https://veori.net'}/api/feedback`
 
 const TYPES = [
   { value: 'bug',       label: '🐛 Bug',             desc: 'Something is broken or not working' },
