@@ -678,4 +678,134 @@ router.get('/2fa/status', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// GOOGLE OAUTH — Sign in / Sign up with Google
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const BACKEND_URL          = process.env.BACKEND_URL
+  || (process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : 'https://veori-ai-main-production.up.railway.app');
+
+// GET /api/auth/google — redirect to Google consent screen
+router.get('/google', (req, res) => {
+  if (!GOOGLE_CLIENT_ID) {
+    return res.redirect(`${APP_URL}/login?error=google_not_configured`);
+  }
+  const params = new URLSearchParams({
+    client_id:     GOOGLE_CLIENT_ID,
+    redirect_uri:  `${BACKEND_URL}/api/auth/google/callback`,
+    response_type: 'code',
+    scope:         'openid email profile',
+    access_type:   'offline',
+    prompt:        'select_account',
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+// GET /api/auth/google/callback — Google redirects here after user approves
+router.get('/google/callback', async (req, res) => {
+  const { code, error } = req.query;
+
+  if (error || !code) {
+    return res.redirect(`${APP_URL}/login?error=google_cancelled`);
+  }
+
+  try {
+    // Exchange auth code for access token
+    const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
+      code,
+      client_id:     GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      redirect_uri:  `${BACKEND_URL}/api/auth/google/callback`,
+      grant_type:    'authorization_code',
+    }, { timeout: 10000 });
+
+    const { access_token } = tokenRes.data;
+    if (!access_token) throw new Error('No access token from Google');
+
+    // Get user profile from Google
+    const profileRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` },
+      timeout: 10000,
+    });
+
+    const { email, name, picture } = profileRes.data;
+    if (!email) throw new Error('No email returned from Google');
+
+    const geo = {};
+
+    // Find existing user by email
+    let { data: user } = await supabase
+      .from('users')
+      .select('id, email, full_name, plan, two_fa_enabled, two_fa_method, subscription_status')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (!user) {
+      // New user — create account (password_hash required by schema, set to random unguessable value)
+      const randomHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+      const { data: newUser, error: createErr } = await supabase
+        .from('users')
+        .insert({
+          id:            uuidv4(),
+          email:         email.toLowerCase(),
+          password_hash: randomHash,
+          full_name:     name || email.split('@')[0],
+          plan:          'hustle',
+          signup_source: 'google',
+          last_seen_at:  new Date().toISOString(),
+          ...geo,
+        })
+        .select('id, email, full_name, plan, two_fa_enabled, two_fa_method, subscription_status')
+        .single();
+
+      if (createErr) throw createErr;
+      user = newUser;
+
+      audit.log({ userId: user.id, action: audit.ACTIONS.REGISTER,
+        metadata: { email: user.email, source: 'google' } });
+    }
+
+    // If 2FA enabled, issue temp token and redirect to login for code entry
+    if (user.two_fa_enabled) {
+      const tempToken = issueTempToken(user);
+      const method    = user.two_fa_method || 'email';
+
+      if (method === 'email') {
+        const code2fa = generateOTP();
+        await storeOTP(user.id, code2fa);
+        await sendEmailOTP(user.email, user.full_name, code2fa).catch(() => {});
+      }
+
+      const params = new URLSearchParams({
+        requires_2fa:  'true',
+        two_fa_method: method,
+        temp_token:    tempToken,
+      });
+      return res.redirect(`${APP_URL}/login?${params}`);
+    }
+
+    // Issue JWT and redirect to frontend
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const userPayload = Buffer.from(JSON.stringify({
+      id:                  user.id,
+      email:               user.email,
+      full_name:           user.full_name,
+      plan:                user.plan,
+      subscription_status: user.subscription_status,
+    })).toString('base64url');
+
+    audit.log({ userId: user.id, action: audit.ACTIONS.LOGIN,
+      metadata: { email: user.email, method: 'google' } });
+
+    res.redirect(`${APP_URL}/login?gt=${token}&gu=${userPayload}`);
+  } catch (err) {
+    console.error('[Google OAuth] Error:', err.message);
+    res.redirect(`${APP_URL}/login?error=google_failed`);
+  }
+});
+
 module.exports = router;

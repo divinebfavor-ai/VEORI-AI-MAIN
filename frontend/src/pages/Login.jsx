@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Eye, EyeOff, Shield, RotateCcw } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { twoFA } from '../services/api'
 import VeoriLogo from '../components/VeoriLogo'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app'
 
 // ─── Google Icon ──────────────────────────────────────────────────────────────
 function GoogleIcon() {
@@ -32,8 +34,44 @@ export default function Login() {
   const codeRef = useRef(null)
 
   const { login, completeLogin } = useAuth()
-  const navigate = useNavigate()
-  const emailRef = useRef(null)
+  const navigate     = useNavigate()
+  const [urlParams]  = useSearchParams()
+  const emailRef     = useRef(null)
+
+  // Handle redirect back from Google OAuth or 2FA gate
+  useEffect(() => {
+    const gt    = urlParams.get('gt')    // google token
+    const gu    = urlParams.get('gu')    // google user (base64url)
+    const err   = urlParams.get('error')
+    const req2fa       = urlParams.get('requires_2fa')
+    const twoFaMethod  = urlParams.get('two_fa_method')
+    const tempToken    = urlParams.get('temp_token')
+
+    if (gt && gu) {
+      try {
+        const user = JSON.parse(atob(gu.replace(/-/g, '+').replace(/_/g, '/')))
+        completeLogin(gt, user)
+        navigate('/dashboard', { replace: true })
+      } catch {
+        toast.error('Google sign-in failed. Please try again.')
+      }
+      return
+    }
+
+    if (req2fa === 'true' && tempToken) {
+      setTwoFAPending({ temp_token: tempToken, method: twoFaMethod || 'email' })
+      return
+    }
+
+    if (err) {
+      const messages = {
+        google_cancelled:       'Google sign-in was cancelled.',
+        google_failed:          'Google sign-in failed. Please try again.',
+        google_not_configured:  'Google sign-in is not available right now.',
+      }
+      toast.error(messages[err] || 'Something went wrong. Please try again.')
+    }
+  }, [])
 
   useEffect(() => { emailRef.current?.focus() }, [])
   useEffect(() => { if (twoFAPending) codeRef.current?.focus() }, [twoFAPending])
@@ -302,7 +340,7 @@ export default function Login() {
           </div>
 
           {/* Google */}
-          <button type="button" onClick={() => toast.info('Google SSO coming soon')}
+          <button type="button" onClick={() => { window.location.href = `${API_BASE}/api/auth/google` }}
             style={{
               width: '100%', height: 52,
               background: 'rgba(255,255,255,0.04)',
