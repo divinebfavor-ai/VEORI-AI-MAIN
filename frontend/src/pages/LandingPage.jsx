@@ -513,12 +513,12 @@ function FoundingMemberCard({ onSelect }) {
           </div>
           <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', marginBottom: 6, fontFamily: 'Inter,sans-serif' }}>/month, billed monthly</div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through', textDecorationColor: 'rgba(255,80,80,0.6)', fontFamily: 'Inter,sans-serif' }}>$999/mo (Growth)</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#00C47B', background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.25)', padding: '2px 8px', borderRadius: 100, fontFamily: 'Inter,sans-serif' }}>60% off</span>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through', textDecorationColor: 'rgba(255,80,80,0.6)', fontFamily: 'Inter,sans-serif' }}>$499/mo (Starter)</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#00C47B', background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.25)', padding: '2px 8px', borderRadius: 100, fontFamily: 'Inter,sans-serif' }}>20% off</span>
           </div>
 
           <div style={{ fontSize: 13, color: '#C9A84C', fontWeight: 700, marginBottom: 24, fontFamily: 'Inter,sans-serif' }}>
-            2,800 dials/month
+            3,000 dials/month
           </div>
 
           {/* Scarcity bar */}
@@ -532,7 +532,7 @@ function FoundingMemberCard({ onSelect }) {
             </div>
           </div>
 
-          <button onClick={() => onSelect({ key: 'founding_member', name: 'Founding Member', price: 397, dials: '2,800' })}
+          <button onClick={() => onSelect({ key: 'founding_member', name: 'Founding Member', price: 397, dials: '3,000' })}
             style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg, #C9A84C 0%, #F0C96E 50%, #C9A84C 100%)', backgroundSize: '200% 100%', color: '#000', fontSize: 15, fontWeight: 900, border: 'none', borderRadius: 12, cursor: 'pointer', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em', transition: 'all 0.3s', boxShadow: '0 8px 32px rgba(201,168,76,0.35)' }}
             onMouseEnter={e => { e.currentTarget.style.backgroundPosition = '100% 0'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(201,168,76,0.55)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
             onMouseLeave={e => { e.currentTarget.style.backgroundPosition = '0% 0'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(201,168,76,0.35)'; e.currentTarget.style.transform = '' }}>

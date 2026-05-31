@@ -30,7 +30,7 @@ const PLANS = {
     amount:      397,
     currency:    'USD',
     interval:    'monthly',
-    dials:       2800,
+    dials:       3000,
     description: 'Founding member rate — locked in forever',
     founding:    true,
     fw_plan_id:  process.env.FW_PLAN_FOUNDING || null,
