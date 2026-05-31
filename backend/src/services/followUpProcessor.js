@@ -7,7 +7,7 @@ const { scheduleSequenceStep } = require('./queueService');
 async function processFollowUp({ followUpId, dealId, contactId, contactType, type, template }) {
   try {
     // Mark as in-progress
-    await supabase.from('follow_ups').update({ status: 'sent' }).eq('followup_id', followUpId);
+    await supabase.from('follow_ups').update({ status: 'sent' }).eq('id', followUpId);
 
     if (type === 'sms') {
       await sendFollowUpSms({ followUpId, contactId, contactType, template });
@@ -15,7 +15,7 @@ async function processFollowUp({ followUpId, dealId, contactId, contactType, typ
       await sendFollowUpEmail({ followUpId, contactId, contactType, template });
     }
 
-    await supabase.from('follow_ups').update({ status: 'completed' }).eq('followup_id', followUpId);
+    await supabase.from('follow_ups').update({ status: 'completed' }).eq('id', followUpId);
 
     await logAiAction({
       dealId,
@@ -26,7 +26,7 @@ async function processFollowUp({ followUpId, dealId, contactId, contactType, typ
     });
   } catch (err) {
     console.error('[FollowUpProcessor] Error:', err.message);
-    await supabase.from('follow_ups').update({ status: 'failed' }).eq('followup_id', followUpId);
+    await supabase.from('follow_ups').update({ status: 'failed' }).eq('id', followUpId);
   }
 }
 
@@ -47,7 +47,7 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
     await supabase.from('follow_ups').update({
       status: 'completed',
       bullmq_job_id: null,
-    }).eq('followup_id', followUpId);
+    }).eq('id', followUpId);
 
     await logAiAction({
       dealId,
@@ -58,7 +58,7 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
     });
   } catch (err) {
     console.error('[FollowUpProcessor] Scheduled call error:', err.message);
-    await supabase.from('follow_ups').update({ status: 'failed' }).eq('followup_id', followUpId);
+    await supabase.from('follow_ups').update({ status: 'failed' }).eq('id', followUpId);
 
     // SMS fallback 30 minutes later
     const { scheduleFollowUp } = require('./queueService');
