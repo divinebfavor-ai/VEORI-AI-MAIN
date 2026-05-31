@@ -8,7 +8,7 @@ try {
   if (RESEND_KEY) resend = new Resend(RESEND_KEY);
 } catch (e) { /* key not set — email will simulate */ }
 
-async function sendEmail({ userId, leadId, dealId, to, subject, body, emailType }) {
+async function sendEmail({ userId, leadId, dealId, to, subject, body, html: htmlParam, emailType }) {
   try {
     // Look up operator's custom email settings (from_name, reply_to)
     let fromName = 'Alex at Veori';
@@ -25,8 +25,10 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, emailType 
     const defaultFrom = process.env.EMAIL_FROM || 'alex@veori.net';
     // Resend requires "from" to be a verified domain — keep domain but use operator's name
     const from = `${fromName} <${defaultFrom}>`;
-    const html = body.includes('<') ? body : body.replace(/\n/g, '<br>');
-    const text = body.replace(/<[^>]+>/g, '');
+    // Accept either html: or body: — html: takes precedence (used by welcome email, 2FA OTP)
+    const content = htmlParam || body || '';
+    const html = content.includes('<') ? content : content.replace(/\n/g, '<br>');
+    const text = content.replace(/<[^>]+>/g, '');
 
     if (!resend) {
       console.log(`[Email] No API key — simulating email to ${to}: ${subject}`);
