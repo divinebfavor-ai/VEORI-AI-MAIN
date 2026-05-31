@@ -16,7 +16,7 @@ const SOCIAL_PLATFORMS = [
   { id: 'tiktok',    label: 'TikTok',    icon: '♪',  color: '#69C9D0', hint: 'Short-form property content' },
 ]
 
-const API_SOCIAL = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+const API_SOCIAL = `${import.meta.env.VITE_API_URL || 'https://veori.net'}/api`
 function socialAuthHeader() {
   const t = localStorage.getItem('veori_token') || ''
   return t ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
@@ -694,7 +694,7 @@ export default function Settings() {
 
   useEffect(() => {
     const token = localStorage.getItem('veori_token')
-    fetch('https://veori-ai-main-production.up.railway.app/api/fw-billing/subscription', {
+    fetch(`${import.meta.env.VITE_API_URL || 'https://veori.net'}/api/fw-billing/subscription`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(r => r.json())

@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 
-const API = 'https://veori-ai-main-production.up.railway.app/api/fw-billing'
+const API = `${import.meta.env.VITE_API_URL || 'https://veori.net'}/api/fw-billing`
 
 function authHeaders() {
   const token = localStorage.getItem('veori_token')
