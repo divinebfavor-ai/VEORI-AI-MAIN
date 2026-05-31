@@ -1009,7 +1009,28 @@ function Footer() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const API_BASE = import.meta.env.VITE_API_URL || 'https://veori.net'
+
 export default function LandingPage() {
+  useEffect(() => {
+    // Generate or retrieve session ID for this browser session
+    let sid = sessionStorage.getItem('veori_sid')
+    if (!sid) {
+      sid = Math.random().toString(36).slice(2) + Date.now().toString(36)
+      sessionStorage.setItem('veori_sid', sid)
+    }
+    // Fire and forget — never block the page
+    fetch(`${API_BASE}/api/analytics/visit`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        session_id: sid,
+        referrer:   document.referrer || null,
+        page:       window.location.pathname,
+      }),
+    }).catch(() => {})
+  }, [])
+
   return (
     <div className="lp-body">
       <LandingNav />

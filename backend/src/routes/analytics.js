@@ -1,8 +1,138 @@
 const express  = require('express');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
+const geoip    = require('geoip-lite');
 
 const router = express.Router();
+
+// ─── Public: Landing page visitor tracking ───────────────────────────────────
+// POST /api/analytics/visit — no auth, called from landing page on load
+const COUNTRY_MAP = { US:'United States',GB:'United Kingdom',CA:'Canada',AU:'Australia',NG:'Nigeria',GH:'Ghana',ZA:'South Africa',IN:'India',DE:'Germany',FR:'France',BR:'Brazil',MX:'Mexico',PH:'Philippines',KE:'Kenya' };
+
+function parseReferrerSource(referrer) {
+  if (!referrer) return 'direct';
+  const r = referrer.toLowerCase();
+  if (r.includes('facebook') || r.includes('fb.com') || r.includes('fb.me')) return 'facebook';
+  if (r.includes('instagram'))   return 'instagram';
+  if (r.includes('twitter') || r.includes('t.co') || r.includes('x.com')) return 'twitter';
+  if (r.includes('tiktok'))      return 'tiktok';
+  if (r.includes('youtube'))     return 'youtube';
+  if (r.includes('google'))      return 'google';
+  if (r.includes('linkedin'))    return 'linkedin';
+  if (r.includes('reddit'))      return 'reddit';
+  if (r.includes('bing'))        return 'bing';
+  return 'other';
+}
+
+function parseDeviceType(ua) {
+  if (!ua) return 'unknown';
+  const u = ua.toLowerCase();
+  if (/tablet|ipad/.test(u))                        return 'tablet';
+  if (/mobile|android|iphone|ipod|blackberry|windows phone/.test(u)) return 'mobile';
+  return 'desktop';
+}
+
+router.post('/visit', async (req, res) => {
+  try {
+    const { session_id, referrer, page } = req.body || {};
+
+    // Get IP
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = forwarded ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || '';
+    const cleanIp = ip.replace('::ffff:', '');
+
+    // Geo lookup
+    const geo = geoip.lookup(cleanIp) || {};
+
+    // Deduplicate — same session in same hour = don't double count
+    if (session_id) {
+      const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count } = await supabase
+        .from('landing_page_visits')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', session_id)
+        .gte('created_at', hourAgo);
+      if ((count || 0) > 0) return res.json({ success: true, duplicate: true });
+    }
+
+    await supabase.from('landing_page_visits').insert({
+      session_id:      session_id || null,
+      ip_address:      cleanIp   || null,
+      country_code:    geo.country  || null,
+      country_name:    COUNTRY_MAP[geo.country] || geo.country || null,
+      region:          geo.region   || null,
+      city:            geo.city     || null,
+      timezone:        geo.timezone || null,
+      referrer:        referrer     || null,
+      referrer_source: parseReferrerSource(referrer),
+      user_agent:      req.headers['user-agent'] || null,
+      device_type:     parseDeviceType(req.headers['user-agent']),
+      page:            page || '/',
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    // Never crash the landing page over analytics
+    console.warn('[Analytics] Visit log failed:', err.message);
+    res.json({ success: false });
+  }
+});
+
+// ─── Admin: Landing page stats ────────────────────────────────────────────────
+// GET /api/analytics/landing-stats — admin only
+router.get('/landing-stats', requireAuth, async (req, res, next) => {
+  try {
+    const now   = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const week  = new Date(now - 7  * 24 * 60 * 60 * 1000).toISOString();
+    const month = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [todayRes, weekRes, monthRes, allRes, countriesRes, sourcesRes, recentRes] = await Promise.all([
+      supabase.from('landing_page_visits').select('*', { count: 'exact', head: true }).gte('created_at', today),
+      supabase.from('landing_page_visits').select('*', { count: 'exact', head: true }).gte('created_at', week),
+      supabase.from('landing_page_visits').select('*', { count: 'exact', head: true }).gte('created_at', month),
+      supabase.from('landing_page_visits').select('*', { count: 'exact', head: true }),
+      supabase.from('landing_page_visits').select('country_code, country_name').gte('created_at', month),
+      supabase.from('landing_page_visits').select('referrer_source').gte('created_at', month),
+      supabase.from('landing_page_visits').select('country_name, city, region, referrer_source, device_type, created_at').order('created_at', { ascending: false }).limit(50),
+    ]);
+
+    // Aggregate countries
+    const countryCount = {};
+    for (const v of countriesRes.data || []) {
+      const key = v.country_name || v.country_code || 'Unknown';
+      countryCount[key] = (countryCount[key] || 0) + 1;
+    }
+    const topCountries = Object.entries(countryCount)
+      .sort(([,a],[,b]) => b - a)
+      .slice(0, 10)
+      .map(([country, count]) => ({ country, count }));
+
+    // Aggregate sources
+    const sourceCount = {};
+    for (const v of sourcesRes.data || []) {
+      const key = v.referrer_source || 'direct';
+      sourceCount[key] = (sourceCount[key] || 0) + 1;
+    }
+    const topSources = Object.entries(sourceCount)
+      .sort(([,a],[,b]) => b - a)
+      .map(([source, count]) => ({ source, count }));
+
+    res.json({
+      success: true,
+      stats: {
+        today:     todayRes.count  || 0,
+        this_week: weekRes.count   || 0,
+        this_month: monthRes.count || 0,
+        all_time:  allRes.count    || 0,
+      },
+      top_countries: topCountries,
+      top_sources:   topSources,
+      recent:        recentRes.data || [],
+    });
+  } catch (err) { next(err); }
+});
+
 router.use(requireAuth);
 
 // GET /api/analytics/dashboard
