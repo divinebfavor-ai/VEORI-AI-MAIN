@@ -240,25 +240,32 @@ router.post('/trigger', async (req, res) => {
       console.log(`[Referrals] Month1 commission $${commission} for referrer ${referrerId}`);
 
     } else {
-      // Recurring payment — 3% of the LOCKED original plan amount (not current plan)
+      // Recurring payment — 3% of the LOCKED original plan amount, for 12 months only
       const { data: referral } = await supabase
         .from('referrals')
-        .select('id, total_earned, plan_amount')
+        .select('id, total_earned, plan_amount, recurring_count')
         .eq('referred_id', user_id)
         .single();
+
+      if (!referral) return res.json({ success: true, message: 'No referral record found' });
+
+      // Stop after 12 recurring payments
+      const recurringCount = referral.recurring_count || 0;
+      if (recurringCount >= 12) {
+        return res.json({ success: true, message: 'Recurring commission period ended (12 months complete)' });
+      }
 
       // Always use the locked plan_amount from when they first subscribed
       const lockedAmount = parseFloat(referral?.plan_amount || amount);
       const commission   = calcCommission(lockedAmount, RECURRING_RATE);
 
-      if (!referral) return res.json({ success: true, message: 'No referral record found' });
-
-      // Update total earned
+      // Update total earned and increment recurring count
       await supabase
         .from('referrals')
         .update({
-          total_earned: parseFloat(referral.total_earned || 0) + commission,
-          updated_at:   new Date().toISOString(),
+          total_earned:    parseFloat(referral.total_earned || 0) + commission,
+          recurring_count: recurringCount + 1,
+          updated_at:      new Date().toISOString(),
         })
         .eq('id', referral.id);
 
