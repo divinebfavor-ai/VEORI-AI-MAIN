@@ -4,6 +4,7 @@ import Layout from './components/Layout/Layout'
 import useAuthStore from './store/authStore'
 
 import Login from './pages/Login'
+import PropertyPhotoUpload from './pages/PropertyPhotoUpload'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
@@ -105,6 +106,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/aria" element={<Aria />} />
       <Route path="/sign/:token" element={<ContractSigning />} />
+      <Route path="/upload/:token" element={<PropertyPhotoUpload />} />
       <Route path="/oauth/callback" element={<OAuthCallback />} />
       <Route path="/billing/verify" element={<BillingVerify />} />
 

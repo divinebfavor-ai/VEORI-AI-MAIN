@@ -404,4 +404,111 @@ router.post('/qualify', async (req, res, next) => {
 
 function parseNum(v) { const n = parseFloat(String(v || '').replace(/[^0-9.]/g, '')); return isNaN(n) ? null : n; }
 
+// ─── Photo request helpers ────────────────────────────────────────────────────
+const crypto = require('crypto');
+const axios  = require('axios');
+
+const TELNYX_KEY     = process.env.TELNYX_API_KEY;
+const SMS_FROM       = process.env.TELNYX_SMS_NUMBER || '+19197945843';
+const TELNYX_PROFILE = process.env.TELNYX_MESSAGING_PROFILE_ID;
+const FRONTEND_URL   = process.env.FRONTEND_URL || 'https://veori.net';
+
+async function generatePhotoToken(leadId, userId, sentVia = 'manual') {
+  const token     = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  await supabase.from('photo_upload_tokens').insert({
+    token, lead_id: leadId, user_id: userId, expires_at: expiresAt, sent_via: sentVia,
+  });
+
+  return { token, url: `${FRONTEND_URL}/upload/${token}`, expiresAt };
+}
+
+// POST /api/leads/:id/send-photo-request — generate link and send to seller
+router.post('/:id/send-photo-request', async (req, res, next) => {
+  try {
+    const { data: lead } = await supabase
+      .from('leads')
+      .select('id, first_name, last_name, phone, email, property_address, property_city, property_state, user_id')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+    if (!lead.phone && !lead.email) {
+      return res.status(400).json({ success: false, error: 'No phone or email on this lead' });
+    }
+
+    const name    = lead.first_name || 'there';
+    const address = [lead.property_address, lead.property_city, lead.property_state].filter(Boolean).join(', ');
+
+    let sentVia = 'manual';
+    let delivered = false;
+
+    // Try SMS first
+    if (lead.phone && TELNYX_KEY) {
+      const { token, url } = await generatePhotoToken(lead.id, req.user.id, 'sms');
+      const message = `Hi ${name}, thanks for speaking with us about ${address || 'your property'}. Please tap the link to send us photos — takes 2 min on your phone:\n\n${url}\n\nThis link expires in 7 days.`;
+
+      try {
+        await axios.post('https://api.telnyx.com/v2/messages', {
+          from: SMS_FROM,
+          to:   lead.phone,
+          text: message,
+          messaging_profile_id: TELNYX_PROFILE,
+        }, {
+          headers: { Authorization: `Bearer ${TELNYX_KEY}`, 'Content-Type': 'application/json' },
+          timeout: 10000,
+        });
+        sentVia   = 'sms';
+        delivered = true;
+        return res.json({ success: true, sent_via: 'sms', phone: lead.phone, token, url });
+      } catch (e) {
+        console.warn('[PhotoRequest] SMS failed, trying email:', e.message);
+      }
+    }
+
+    // Fallback to email
+    if (lead.email) {
+      const { token, url } = await generatePhotoToken(lead.id, req.user.id, 'email');
+      const { sendEmail } = require('../services/emailService');
+      await sendEmail({
+        to:      lead.email,
+        subject: `Please send us photos of ${lead.property_address || 'your property'}`,
+        html: `
+          <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;background:#060E1A;color:#fff;border-radius:16px;padding:40px;">
+            <div style="font-size:24px;font-weight:900;letter-spacing:-0.04em;margin-bottom:24px;">VEORI</div>
+            <p style="font-size:15px;color:rgba(255,255,255,0.7);margin:0 0 20px;">Hi ${name},</p>
+            <p style="font-size:15px;color:rgba(255,255,255,0.7);margin:0 0 24px;">Thanks for speaking with us about <strong style="color:#fff">${address || 'your property'}</strong>. To help us move forward, please send us photos of the property using the button below.</p>
+            <a href="${url}" style="display:block;text-align:center;background:#00C37A;color:#060E1A;font-size:15px;font-weight:800;padding:16px;border-radius:10px;text-decoration:none;margin-bottom:20px;">Send Property Photos</a>
+            <p style="font-size:12px;color:rgba(255,255,255,0.35);">This link expires in 7 days. If you have any questions, simply reply to this email.</p>
+          </div>
+        `,
+      });
+      delivered = true;
+      return res.json({ success: true, sent_via: 'email', email: lead.email, token, url });
+    }
+
+    // Neither worked — return the link anyway for manual sharing
+    const { token, url } = await generatePhotoToken(lead.id, req.user.id, 'manual');
+    res.json({ success: true, sent_via: 'link_only', token, url,
+      message: 'No phone/email delivery available — copy the link to share manually.' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/leads/:id/photos — list photos for a lead
+router.get('/:id/photos', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('lead_photos')
+      .select('id, url, source, file_name, created_at')
+      .eq('lead_id', req.params.id)
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json({ success: true, photos: data || [] });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

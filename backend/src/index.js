@@ -267,6 +267,10 @@ app.use('/api/property-marketing', propertyMarketingRouter);
 const referralsRouter = require('./routes/referrals');
 app.use('/api/referrals', referralsRouter);
 
+// ─── Seller Photo Upload (public — no auth) ───────────────────────────────────
+const photoUploadRouter = require('./routes/photoUpload');
+app.use('/api/photo-upload', photoUploadRouter);
+
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 const adminRouter = require('./routes/admin');
 app.use('/api/admin', adminRouter);

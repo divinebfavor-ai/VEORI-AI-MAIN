@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users } from 'lucide-react'
+import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users, Camera, Image } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
-import { leads, calls as callsApi, deals as dealsApi } from '../services/api'
+import { leads, calls as callsApi, deals as dealsApi, leadPhotos as leadPhotosApi } from '../services/api'
 import useIntelStore from '../store/intelStore'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -180,16 +180,21 @@ function LeadPanel({ lead, onClose, onNavigate }) {
   const [syncing, setSyncing]     = useState(false)
   const [notes, setNotes]         = useState(lead.notes || '')
   const [saving, setSaving]       = useState(false)
-  const [dialing, setDialing]     = useState(false)
+  const [dialing, setDialing]         = useState(false)
   const [creatingDeal, setCreatingDeal] = useState(false)
-  const [tracing, setTracing]     = useState(false)
-  const [dropping, setDropping]   = useState(false)
-  const [mailing, setMailing]     = useState(false)
+  const [tracing, setTracing]         = useState(false)
+  const [dropping, setDropping]       = useState(false)
+  const [mailing, setMailing]         = useState(false)
+  const [photos, setPhotos]           = useState([])
+  const [sendingPhotoReq, setSendingPhotoReq] = useState(false)
+  const [photoLink, setPhotoLink]     = useState(null)
 
   useEffect(() => {
     setNotes(lead.notes || '')
     setTab('overview')
     setCallLog([])
+    setPhotos([])
+    setPhotoLink(null)
   }, [lead.id])
 
   const loadCallLog = () => {
@@ -201,6 +206,11 @@ function LeadPanel({ lead, onClose, onNavigate }) {
 
   useEffect(() => {
     if (tab === 'calls') loadCallLog()
+    if (tab === 'photos') {
+      leadPhotosApi.getPhotos(lead.id)
+        .then(r => setPhotos(r.data?.photos || []))
+        .catch(() => {})
+    }
   }, [tab, lead.id])
 
   const syncCalls = async () => {
@@ -301,9 +311,24 @@ function LeadPanel({ lead, onClose, onNavigate }) {
     finally { setCreatingDeal(false) }
   }
 
+  const sendPhotoRequest = async () => {
+    setSendingPhotoReq(true)
+    try {
+      const r = await leadPhotosApi.sendPhotoRequest(lead.id)
+      const d = r.data
+      if (d.url) setPhotoLink(d.url)
+      const via = d.sent_via === 'sms' ? `SMS to ${d.phone}` : d.sent_via === 'email' ? `email to ${d.email}` : 'link generated'
+      toast.success(`Photo request sent via ${via}`)
+      setTab('photos')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not send photo request')
+    } finally { setSendingPhotoReq(false) }
+  }
+
   const TABS = [
     { id: 'overview', label: 'Overview' },
     { id: 'calls',    label: 'Call History' },
+    { id: 'photos',   label: 'Photos' },
     { id: 'notes',    label: 'Notes' },
   ]
 
@@ -453,6 +478,9 @@ function LeadPanel({ lead, onClose, onNavigate }) {
               <Mail size={12} /> Postcard
             </Button>
           </div>
+          <Button variant="secondary" size="sm" style={{ width: '100%' }} loading={sendingPhotoReq} onClick={sendPhotoRequest} disabled={!!lead.is_on_dnc}>
+            <Camera size={12} /> Request Property Photos
+          </Button>
         </div>
 
         {/* Tabs */}
@@ -556,6 +584,49 @@ function LeadPanel({ lead, onClose, onNavigate }) {
                   <p style={{ fontSize: 11, color: 'var(--t4)' }}>Hit "Sync Calls" to pull any existing call data</p>
                 </div>
               ) : callLog.map(c => <CallCard key={c.id} call={c} />)}
+            </div>
+          )}
+
+          {tab === 'photos' && (
+            <div>
+              {/* Photo link copy box */}
+              {photoLink && (
+                <div style={{ marginBottom: 16, padding: '12px 14px', background: 'rgba(0,195,122,0.06)', border: '1px solid rgba(0,195,122,0.20)', borderRadius: 10 }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, color: '#00C37A', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 6px' }}>Upload Link</p>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <code style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', flex: 1, wordBreak: 'break-all' }}>{photoLink}</code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(photoLink); toast.success('Link copied') }}
+                      style={{ fontSize: 11, color: '#00C37A', background: 'none', border: '1px solid rgba(0,195,122,0.30)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Photos grid */}
+              {photos.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px 0' }}>
+                  <Image size={28} style={{ margin: '0 auto 12px', display: 'block', color: 'var(--t4)' }} strokeWidth={1.5} />
+                  <p style={{ fontSize: 13, color: 'var(--t4)', margin: '0 0 6px' }}>No photos yet</p>
+                  <p style={{ fontSize: 11, color: 'var(--t4)' }}>Click "Request Property Photos" to send the seller an upload link</p>
+                </div>
+              ) : (
+                <>
+                  <p style={{ fontSize: 11, color: 'var(--t4)', marginBottom: 12 }}>{photos.length} photo{photos.length !== 1 ? 's' : ''} from seller</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                    {photos.map(p => (
+                      <a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', aspectRatio: '4/3', borderRadius: 10, overflow: 'hidden', background: 'var(--surface-bg)' }}>
+                        <img src={p.url} alt="Property" style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.2s' }}
+                          onMouseEnter={e => e.target.style.transform = 'scale(1.04)'}
+                          onMouseLeave={e => e.target.style.transform = 'scale(1)'}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

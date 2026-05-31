@@ -293,6 +293,70 @@ async function handleCallEnded(call, event) {
     }
   }
 
+  // Auto photo request: if motivated (score 60+ or strong outcome), text seller a photo upload link
+  const motivatedOutcomes = ['verbal_yes', 'appointment', 'offer_made', 'interested', 'callback_requested'];
+  const isMotivated = motivatedOutcomes.includes(outcome) || (aiAnalysis.motivation_score >= 60);
+  if (isMotivated && callRec.lead_id && callRec.user_id) {
+    setImmediate(async () => {
+      try {
+        const { data: lead } = await supabase.from('leads')
+          .select('id, first_name, last_name, phone, email, property_address, property_city, property_state, has_photos')
+          .eq('id', callRec.lead_id).single();
+
+        // Skip if photos already received
+        if (!lead || lead.has_photos) return;
+
+        // Check if we already sent a photo request for this lead recently (within 7 days)
+        const { count } = await supabase.from('photo_upload_tokens')
+          .select('*', { count: 'exact', head: true })
+          .eq('lead_id', lead.id)
+          .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+
+        if ((count || 0) > 0) return; // Already sent recently
+
+        // Generate token
+        const tokenStr  = require('crypto').randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const FRONTEND  = process.env.FRONTEND_URL || 'https://veori.net';
+
+        await supabase.from('photo_upload_tokens').insert({
+          token: tokenStr, lead_id: lead.id, user_id: callRec.user_id,
+          expires_at: expiresAt, sent_via: 'sms',
+        });
+
+        const uploadUrl = `${FRONTEND}/upload/${tokenStr}`;
+        const name      = lead.first_name || 'there';
+        const address   = [lead.property_address, lead.property_city, lead.property_state].filter(Boolean).join(', ');
+        const message   = `Hi ${name}, thanks for speaking with us about ${address || 'your property'}. Please tap the link to send us photos — takes 2 min:\n\n${uploadUrl}\n\nLink expires in 7 days.`;
+
+        const TELNYX_KEY     = process.env.TELNYX_API_KEY;
+        const SMS_FROM       = process.env.TELNYX_SMS_NUMBER || '+19197945843';
+        const TELNYX_PROFILE = process.env.TELNYX_MESSAGING_PROFILE_ID;
+
+        if (lead.phone && TELNYX_KEY) {
+          await require('axios').post('https://api.telnyx.com/v2/messages', {
+            from: SMS_FROM, to: lead.phone, text: message,
+            messaging_profile_id: TELNYX_PROFILE,
+          }, {
+            headers: { Authorization: `Bearer ${TELNYX_KEY}`, 'Content-Type': 'application/json' },
+            timeout: 10000,
+          });
+          console.log(`[PhotoRequest] Auto-sent to ${lead.phone} for lead ${lead.id}`);
+        } else if (lead.email) {
+          const { sendEmail } = require('../services/emailService');
+          await sendEmail({
+            to: lead.email,
+            subject: `Please send us photos of ${lead.property_address || 'your property'}`,
+            html: `<div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;background:#060E1A;color:#fff;border-radius:16px;padding:40px;"><div style="font-size:24px;font-weight:900;margin-bottom:24px;">VEORI</div><p style="font-size:15px;color:rgba(255,255,255,0.7);margin:0 0 20px;">Hi ${name},</p><p style="font-size:15px;color:rgba(255,255,255,0.7);margin:0 0 24px;">Thanks for speaking with us about <strong style="color:#fff">${address || 'your property'}</strong>. Please send us photos using the button below.</p><a href="${uploadUrl}" style="display:block;text-align:center;background:#00C37A;color:#060E1A;font-size:15px;font-weight:800;padding:16px;border-radius:10px;text-decoration:none;margin-bottom:20px;">Send Property Photos</a><p style="font-size:12px;color:rgba(255,255,255,0.35);">This link expires in 7 days.</p></div>`,
+          });
+          console.log(`[PhotoRequest] Auto-sent email to ${lead.email} for lead ${lead.id}`);
+        }
+      } catch (e) {
+        console.warn('[PhotoRequest] Auto-send failed (non-fatal):', e.message);
+      }
+    });
+  }
+
   // Auto direct mail trigger: if 3+ no-answers, send postcard automatically
   if (['not_home', 'voicemail'].includes(outcome) && callRec.lead_id && callRec.user_id) {
     const { checkAutoMailTrigger, sendPostcard } = require('../services/directMailService');

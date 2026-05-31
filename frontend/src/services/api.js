@@ -59,6 +59,12 @@ export const auth = {
   logout:         ()                => api.post('/api/auth/logout'),
 }
 
+// ─── Lead Photos ─────────────────────────────────────────────────────────────
+export const leadPhotos = {
+  getPhotos:         (leadId) => api.get(`/api/leads/${leadId}/photos`),
+  sendPhotoRequest:  (leadId) => api.post(`/api/leads/${leadId}/send-photo-request`),
+}
+
 // ─── Two-Factor Authentication ────────────────────────────────────────────────
 export const twoFA = {
   status:    ()                      => api.get('/api/auth/2fa/status'),
