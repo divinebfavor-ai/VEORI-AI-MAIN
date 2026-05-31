@@ -12,7 +12,7 @@ export default function Layout() {
   useEffect(() => { init() }, [])
 
   return (
-    <div className="app-bg flex flex-col h-screen overflow-hidden">
+    <div className="app-bg flex flex-col h-screen overflow-hidden" data-app-layout="true">
       <SystemStatusBar />
       <div className="flex flex-1 overflow-hidden">
         <CommandRail />
