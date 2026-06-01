@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { Copy, Users, DollarSign, TrendingUp, Share2, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API = 'https://veori-ai-main-production.up.railway.app/api'
+const API = `${import.meta.env.VITE_API_URL || 'https://veori.net'}/api`
 
 function authHeaders() {
   const token = localStorage.getItem('veori_token')
