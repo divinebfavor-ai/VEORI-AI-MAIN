@@ -460,7 +460,7 @@ async function handleAssistantRequest(event) {
     if (call?.phoneNumber?.id) {
       const { data: phone } = await supabase.from('phone_numbers')
         .select('user_id, users(ai_caller_name, ai_voice_id, ai_personality_tone, company_name, id)')
-        .eq('vapi_phone_id', call.phoneNumber.id)
+        .eq('vapi_phone_number_id', call.phoneNumber.id)
         .single();
       if (phone?.users) operator = phone.users;
     }
