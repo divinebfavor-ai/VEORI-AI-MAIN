@@ -18,8 +18,9 @@ const {
   runLeadEngine,
   runSource,
   SOURCE_LABELS,
-  TARGET_STATES,
 } = require('../services/leadEngine');
+
+const TARGET_STATES = ['PA', 'IL', 'MI']; // covered by free sources right now
 
 // ─── GET /api/lead-engine/status ─────────────────────────────────────────────
 router.get('/status', auth, async (req, res) => {

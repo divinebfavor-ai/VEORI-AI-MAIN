@@ -16,28 +16,20 @@
  *   bankruptcy      — PACER federal bankruptcy with property assets
  */
 
-const { v4: uuidv4 }           = require('uuid');
-const supabase                  = require('../config/supabase');
+const { v4: uuidv4 }            = require('uuid');
+const supabase                   = require('../config/supabase');
 const { calculateSourcingScore } = require('./leadEngineScorer');
 const { skipTraceLead }          = require('./skipTraceService');
-const { pullTaxDelinquent }      = require('./sources/taxDelinquent');
-const { pullCourtRecords }       = require('./sources/courtRecords');
-const { pullGovLand }            = require('./sources/govLand');
-const { pullBankruptcy }         = require('./sources/pacerBankruptcy');
+const {
+  pullAllFreeRecords,
+  pullPhillyLisPendens,
+  pullPhillyViolations,
+  pullPhillyAbsentee,
+  pullPhillySheriffSales,
+  pullCookCountyTaxDelinquent,
+  pullDetroitTaxDelinquent,
+} = require('./sources/freePublicRecords');
 
-// Target states — all 50, prioritized by market activity
-const TARGET_STATES = [
-  'FL','TX','GA','NC','SC','TN','AL','MS','LA',  // Southeast
-  'OH','MI','IN','IL','MO','KY','WV','PA',        // Midwest
-  'AZ','NV','NM','CO','UT',                       // Southwest
-  'CA','OR','WA',                                 // West
-  'NY','NJ','CT','MA','MD','VA',                  // Northeast
-  'AR','OK','KS','IA','MN','WI','ND','SD','NE',  // Central
-  'ID','MT','WY','AK','HI','DE','NH','VT','RI','ME', // Rest
-];
-
-const COURT_SOURCES = ['probate', 'lis_pendens', 'divorce', 'code_violation'];
-const GOV_SOURCES   = ['usda_land', 'blm_land'];
 
 // ─── Deduplication ────────────────────────────────────────────────────────────
 
@@ -155,30 +147,19 @@ async function processRecord(record, userId) {
   }
 }
 
-// ─── Run one source for one state ────────────────────────────────────────────
-
+// ─── Run one specific source (used by targeted pull) ─────────────────────────
 async function runSource(sourceKey, state, userId) {
   const jobId = uuidv4();
-  const startedAt = new Date().toISOString();
-
-  // Log job start
   await supabase.from('lead_engine_jobs').insert({
-    id: jobId, source_key: sourceKey, state, started_at: startedAt, status: 'running',
+    id: jobId, source_key: sourceKey, state, started_at: new Date().toISOString(), status: 'running',
   }).catch(() => {});
 
-  console.log(`[LeadEngine] Starting ${sourceKey} | ${state}`);
-
+  // For targeted pulls, always run all free sources (state filter applied in processRecord)
   let rawRecords = [];
   try {
-    if (sourceKey === 'tax_delinquent') {
-      rawRecords = await pullTaxDelinquent(state, null);
-    } else if (COURT_SOURCES.includes(sourceKey)) {
-      rawRecords = await pullCourtRecords(sourceKey, state, null);
-    } else if (GOV_SOURCES.includes(sourceKey)) {
-      rawRecords = await pullGovLand(sourceKey, state);
-    } else if (sourceKey === 'bankruptcy') {
-      rawRecords = await pullBankruptcy(state);
-    }
+    rawRecords = await pullAllFreeRecords();
+    // If a specific state was requested, filter to that state
+    if (state) rawRecords = rawRecords.filter(r => !r.property_state || r.property_state === state);
   } catch (err) {
     await supabase.from('lead_engine_jobs').update({
       status: 'error', completed_at: new Date().toISOString(), error_message: err.message,
@@ -234,52 +215,50 @@ async function runSource(sourceKey, state, userId) {
 }
 
 const SOURCE_LABELS = {
-  tax_delinquent:  'Tax Delinquent',
-  probate:         'Probate / Estate',
-  lis_pendens:     'Lis Pendens / Pre-Foreclosure',
-  divorce:         'Divorce with Property',
-  code_violation:  'Code Violations',
-  usda_land:       'USDA Rural / Vacant Land',
-  blm_land:        'BLM Adjacent Land',
-  bankruptcy:      'Bankruptcy (PACER)',
+  tax_delinquent: 'Tax Delinquent',
+  lis_pendens:    'Lis Pendens / Pre-Foreclosure',
+  code_violation: 'Code Violations',
 };
 
-// ─── Full engine run ──────────────────────────────────────────────────────────
+// ─── Full engine run — pulls all verified free sources ────────────────────────
+async function runLeadEngine(userId) {
+  console.log(`[LeadEngine] Starting run for user ${userId}`);
 
-async function runLeadEngine(userId, options = {}) {
-  const {
-    states     = TARGET_STATES,
-    sources    = Object.keys(SOURCE_LABELS),
-    maxPerRun  = 500,   // total leads cap per run to avoid spam
-  } = options;
+  const jobId = uuidv4();
+  await supabase.from('lead_engine_jobs').insert({
+    id: jobId, source_key: 'all', started_at: new Date().toISOString(), status: 'running',
+  }).catch(() => {});
 
-  console.log(`[LeadEngine] Starting full run for user ${userId} — ${sources.length} sources × ${states.length} states`);
-  const summary = { total_imported: 0, total_skipped: 0, by_source: {} };
+  let imported = 0, skipped = 0, errors = 0;
 
-  // Run all sources in parallel per state (staggered to be respectful)
-  let totalImported = 0;
-  for (const state of states) {
-    if (totalImported >= maxPerRun) break;
+  try {
+    const rawRecords = await pullAllFreeRecords();
+    console.log(`[LeadEngine] ${rawRecords.length} raw records — processing...`);
 
-    const stateResults = await Promise.all(
-      sources.map(src => runSource(src, state, userId))
-    );
-
-    for (let i = 0; i < sources.length; i++) {
-      const src = sources[i];
-      const res = stateResults[i];
-      summary.by_source[src] = (summary.by_source[src] || 0) + res.imported;
-      summary.total_imported += res.imported;
-      summary.total_skipped  += res.skipped;
-      totalImported          += res.imported;
+    const BATCH = 5;
+    for (let i = 0; i < rawRecords.length; i += BATCH) {
+      const batch = rawRecords.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map(r => processRecord(r, userId)));
+      for (const r of results) {
+        if (r.status === 'imported') imported++;
+        else if (r.status === 'skipped') skipped++;
+        else errors++;
+      }
     }
-
-    // Brief pause between states to be a good API citizen
-    await new Promise(r => setTimeout(r, 500));
+  } catch (err) {
+    console.error('[LeadEngine] Run error:', err.message);
+    errors++;
   }
 
-  console.log(`[LeadEngine] Run complete — ${summary.total_imported} leads imported`);
-  return summary;
+  await supabase.from('lead_engine_jobs').update({
+    status: imported > 0 ? 'success' : 'partial',
+    completed_at: new Date().toISOString(),
+    records_new: imported,
+    records_skipped: skipped,
+  }).eq('id', jobId).catch(() => {});
+
+  console.log(`[LeadEngine] Done — ${imported} imported, ${skipped} skipped, ${errors} errors`);
+  return { total_imported: imported, total_skipped: skipped };
 }
 
 // ─── Scheduler: runs automatically every 24 hours ───────────────────────────
@@ -327,5 +306,4 @@ module.exports = {
   startLeadEngineScheduler,
   stopLeadEngineScheduler,
   SOURCE_LABELS,
-  TARGET_STATES,
 };
