@@ -58,6 +58,20 @@ async function sendOpeningSMS(lead, userId) {
   const phone = lead.phone;
   if (!phone) return null;
 
+  // DNC gate — never send to opted-out numbers
+  if (lead.is_on_dnc) {
+    await supabase.from('tcpa_log').insert({
+      user_id:  userId,
+      lead_id:  lead.id,
+      phone,
+      action:   'sms_blocked_dnc',
+      notes:    'Opening SMS blocked — lead is on DNC list',
+      created_at: new Date().toISOString(),
+    }).catch(() => {});
+    console.warn(`[SMS] Blocked — ${phone} is on DNC`);
+    return null;
+  }
+
   const body = getOpeningMessage(lead);
 
   try {
@@ -165,6 +179,26 @@ async function continueConversation(lead, sellerMessage, conversationHistory) {
 
 async function sendReply(toPhone, body, userId, leadId) {
   try {
+    // DNC gate — check before every outbound SMS
+    const { data: dncCheck } = await supabase
+      .from('dnc_records')
+      .select('id')
+      .eq('phone', toPhone)
+      .maybeSingle();
+
+    if (dncCheck) {
+      await supabase.from('tcpa_log').insert({
+        user_id:  userId,
+        lead_id:  leadId,
+        phone:    toPhone,
+        action:   'sms_blocked_dnc',
+        notes:    'Reply SMS blocked — phone is on DNC list',
+        created_at: new Date().toISOString(),
+      }).catch(() => {});
+      console.warn(`[SMS] Reply blocked — ${toPhone} is on DNC`);
+      return null;
+    }
+
     const { data } = await telnyxHttp.post('/messages', {
       from: SMS_FROM,
       to: toPhone,
