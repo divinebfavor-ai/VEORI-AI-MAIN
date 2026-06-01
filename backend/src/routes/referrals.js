@@ -25,9 +25,9 @@ function calcCommission(amount, rate) {
 }
 
 // ─── Auto payout via Flutterwave Transfer ────────────────────────────────────
-async function triggerAutoPayout(referrerId, amount, description) {
+// referredName: display name of the person whose payment triggered this commission
+async function triggerAutoPayout(referrerId, amount, description, referredName = 'Your referral') {
   try {
-    // Get referrer payout details
     const { data: referrer } = await supabase
       .from('users')
       .select('id, email, full_name, payout_email, payout_bank, payout_method')
@@ -36,36 +36,51 @@ async function triggerAutoPayout(referrerId, amount, description) {
 
     if (!referrer) return { success: false, reason: 'referrer_not_found' };
 
-    const ADMIN_EMAIL = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',')[0].trim();
+    const referrerFirst = referrer.full_name?.split(' ')[0] || 'there';
 
-    // If referrer has no payout method set — email them + email admin
-    if (!referrer.payout_email && !referrer.payout_bank) {
+    // Always notify the referrer first — they need to know who paid regardless of payout status
+    const notifyReferrer = async (payoutLine) => {
       await sendEmail({
         to:      referrer.email,
-        subject: `You earned $${amount} in Veori referral commission`,
+        subject: `${referredName} just paid — you earned $${amount}`,
         html: `
           <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;background:#060E1A;color:#fff;border-radius:16px;padding:40px;">
             <div style="font-size:22px;font-weight:900;margin-bottom:20px;">VEORI</div>
-            <p style="font-size:16px;color:rgba(255,255,255,0.8);margin:0 0 16px;">You earned <strong style="color:#00C37A;">$${amount}</strong> in referral commission!</p>
-            <p style="font-size:14px;color:rgba(255,255,255,0.6);margin:0 0 24px;">${description}</p>
-            <p style="font-size:14px;color:rgba(255,255,255,0.6);margin:0 0 24px;">To receive your payout, please add your payout email (PayPal) in your Veori dashboard under <strong>Referrals → Payout Settings</strong>.</p>
-            <a href="https://veori.net/referrals" style="display:block;text-align:center;background:#00C37A;color:#000;font-size:15px;font-weight:800;padding:14px;border-radius:10px;text-decoration:none;">Add Payout Details</a>
+            <p style="font-size:16px;font-weight:700;color:#fff;margin:0 0 8px;">Hey ${referrerFirst},</p>
+            <p style="font-size:15px;color:rgba(255,255,255,0.8);margin:0 0 20px;">
+              <strong style="color:#00C37A;">${referredName}</strong> — your referral — just subscribed and paid.
+              You earned <strong style="color:#00C37A;">$${amount}</strong> in commission.
+            </p>
+            <div style="background:rgba(0,195,122,0.08);border:1px solid rgba(0,195,122,0.20);border-radius:10px;padding:18px;margin-bottom:24px;">
+              <div style="font-size:13px;color:rgba(255,255,255,0.45);margin-bottom:4px;">Commission details</div>
+              <div style="font-size:14px;color:rgba(255,255,255,0.75);">${description}</div>
+            </div>
+            <p style="font-size:14px;color:rgba(255,255,255,0.55);margin:0 0 24px;">${payoutLine}</p>
+            <a href="https://veori.net/referrals" style="display:block;text-align:center;background:#00C37A;color:#000;font-size:15px;font-weight:800;padding:14px;border-radius:10px;text-decoration:none;">View Your Referrals</a>
           </div>
         `,
       }).catch(() => {});
+    };
+
+    // If no payout method set — notify + prompt them to add payout details
+    if (!referrer.payout_email && !referrer.payout_bank) {
+      await notifyReferrer('To receive your payout, add your PayPal email under <strong>Referrals → Payout Settings</strong> in your dashboard.');
       return { success: false, reason: 'no_payout_method' };
     }
 
     // Auto payout via Flutterwave transfer
     const FW_SECRET = process.env.FLUTTERWAVE_SECRET_KEY;
-    if (!FW_SECRET) return { success: false, reason: 'no_fw_key' };
+    if (!FW_SECRET) {
+      await notifyReferrer('Your commission has been recorded and will be paid out shortly.');
+      return { success: false, reason: 'no_fw_key' };
+    }
 
     const reference = `veori_ref_${referrerId.slice(0, 8)}_${Date.now()}`;
 
     let transferPayload = {
       amount,
-      currency: 'USD',
-      narration: description,
+      currency:         'USD',
+      narration:        description,
       reference,
       beneficiary_name: referrer.full_name || referrer.email,
     };
@@ -77,7 +92,6 @@ async function triggerAutoPayout(referrerId, amount, description) {
       transferPayload.account_bank   = bank.bank_code;
       transferPayload.account_number = bank.account_number;
     } else {
-      // PayPal / email payout
       transferPayload.account_bank   = 'paypal';
       transferPayload.account_number = referrer.payout_email;
     }
@@ -88,16 +102,13 @@ async function triggerAutoPayout(referrerId, amount, description) {
     });
 
     if (resp.data?.status === 'success') {
-      // Notify referrer
-      await sendEmail({
-        to:      referrer.email,
-        subject: `$${amount} referral payout sent`,
-        html: `<div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;background:#060E1A;color:#fff;border-radius:16px;padding:40px;"><div style="font-size:22px;font-weight:900;margin-bottom:20px;">VEORI</div><p style="font-size:16px;color:#00C37A;font-weight:700;margin:0 0 12px;">$${amount} is on its way!</p><p style="font-size:14px;color:rgba(255,255,255,0.6);margin:0 0 8px;">${description}</p><p style="font-size:12px;color:rgba(255,255,255,0.35);margin:0;">Sent to: ${referrer.payout_email || 'your bank account'}</p></div>`,
-      }).catch(() => {});
+      await notifyReferrer(`$${amount} has been sent to ${referrer.payout_email || 'your bank account'} — it should arrive within 1–3 business days.`);
       return { success: true, transfer_id: resp.data?.data?.id };
     }
 
+    // Payout failed — still notify referrer, commission is logged as pending
     console.warn('[Referrals] Flutterwave transfer failed:', resp.data?.message);
+    await notifyReferrer('Your commission has been recorded. We\'ll process the payout shortly — check your Referrals dashboard for status.');
     return { success: false, reason: resp.data?.message };
   } catch (err) {
     console.error('[Referrals] Auto payout error:', err.message);
@@ -266,7 +277,7 @@ router.post('/trigger', async (req, res) => {
     // Find who referred this user
     const { data: user } = await supabase
       .from('users')
-      .select('referred_by')
+      .select('referred_by, full_name, email')
       .eq('id', user_id)
       .single();
 
@@ -274,8 +285,10 @@ router.post('/trigger', async (req, res) => {
       return res.json({ success: true, message: 'No referrer for this user' });
     }
 
-    const referrerId = user.referred_by;
-    const amount     = parseFloat(plan_amount);
+    const referrerId  = user.referred_by;
+    const amount      = parseFloat(plan_amount);
+    // Name shown in the referrer's notification email
+    const referredName = user.full_name || user.email || 'Your referral';
 
     if (type === 'month1') {
       // First payment — 10% commission, create referral record
@@ -298,10 +311,11 @@ router.post('/trigger', async (req, res) => {
         }, { onConflict: 'referred_id' })
         .select().single();
 
-      // Trigger auto payout
+      // Notify referrer + trigger payout
       const payout = await triggerAutoPayout(
         referrerId, commission,
-        `10% referral commission — ${plan} plan signup`
+        `10% first-month commission — ${plan} plan`,
+        referredName
       );
 
       // Log payment
@@ -358,10 +372,11 @@ router.post('/trigger', async (req, res) => {
         })
         .eq('id', referral.id);
 
-      // Trigger auto payout
+      // Notify referrer + trigger payout
       const payout = await triggerAutoPayout(
         referrerId, commission,
-        `3% recurring referral commission — month ${recurringCount + 1} of 12`
+        `3% recurring commission — month ${recurringCount + 1} of 12 (${plan} plan)`,
+        referredName
       );
 
       // Log payment
