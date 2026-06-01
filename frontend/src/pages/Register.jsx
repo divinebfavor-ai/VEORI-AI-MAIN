@@ -161,6 +161,29 @@ export default function Register() {
             </div>
           )}
 
+          {/* Promo Code */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)', marginBottom: 8 }}>
+              Promo / Referral Code <span style={{ color: 'rgba(255,255,255,0.18)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="e.g. JOHN4A2B"
+                value={refCode}
+                onChange={e => setRefCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                className="glass-input"
+                style={{ width: '100%', height: 48, padding: '0 44px 0 16px', boxSizing: 'border-box', fontFamily: 'Geist Mono, monospace', letterSpacing: '0.12em', textTransform: 'uppercase' }}
+              />
+              {refCode.length >= 6 && (
+                <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 18 }}>✓</span>
+              )}
+            </div>
+            {refCode.length >= 6 && (
+              <p style={{ fontSize: 11, color: '#00C37A', margin: '5px 0 0' }}>Promo code applied — your referrer will be credited automatically.</p>
+            )}
+          </div>
+
           <button type="submit" disabled={loading}
             style={{
               width: '100%', height: 52,
