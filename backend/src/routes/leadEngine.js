@@ -215,6 +215,85 @@ router.get('/dashboard', auth, async (req, res) => {
   }
 });
 
+// ─── GET /api/lead-engine/search ─────────────────────────────────────────────
+// Search + filter auto-sourced leads by ZIP, city, state, type, score
+router.get('/search', auth, async (req, res) => {
+  try {
+    const {
+      q,          // free text (name, address, city)
+      state,      // 2-letter state code
+      zip,        // ZIP code
+      city,       // city name
+      lead_type,  // source type filter
+      min_score,  // minimum sourcing score
+      max_score,
+      limit = 50,
+      offset = 0,
+    } = req.query;
+
+    let query = supabase
+      .from('leads')
+      .select('id, first_name, last_name, phone, email, property_address, property_city, property_state, property_zip, county, lead_type, sourcing_score, distress_signals, sourced_at, status, motivation_score, tags', { count: 'exact' })
+      .eq('user_id', req.user.id)
+      .eq('auto_sourced', true)
+      .order('sourcing_score', { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    if (state)     query = query.eq('property_state', state.toUpperCase());
+    if (zip)       query = query.eq('property_zip', zip.trim());
+    if (city)      query = query.ilike('property_city', `%${city}%`);
+    if (lead_type) query = query.eq('lead_type', lead_type);
+    if (min_score) query = query.gte('sourcing_score', parseInt(min_score));
+    if (max_score) query = query.lte('sourcing_score', parseInt(max_score));
+    if (q) {
+      query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,property_address.ilike.%${q}%,property_city.ilike.%${q}%`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    res.json({ success: true, leads: data || [], total: count || 0 });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── POST /api/lead-engine/pull ──────────────────────────────────────────────
+// Fast targeted pull — specific ZIP, city, or state + source type
+// Returns results in ~30-60 seconds instead of waiting for the 24h cycle
+router.post('/pull', auth, async (req, res) => {
+  try {
+    const { zip, city, state, sources } = req.body;
+
+    if (!state && !zip && !city) {
+      return res.status(400).json({ success: false, error: 'Provide at least state, city, or zip' });
+    }
+
+    const targetState = state || 'FL';
+    const targetSources = sources || ['tax_delinquent', 'lis_pendens', 'probate', 'bankruptcy'];
+
+    // Respond immediately — stream results via polling (client polls /search)
+    res.json({
+      success: true,
+      message: `Pulling ${targetSources.length} sources for ${city || zip || targetState}. Check your Lead Engine feed — results appear within 60 seconds.`,
+      target: { state: targetState, city, zip },
+    });
+
+    // Run targeted pull in background
+    const { runSource } = require('../services/leadEngine');
+    Promise.all(
+      targetSources.map(src => runSource(src, targetState, req.user.id))
+    ).then(results => {
+      const total = results.reduce((s, r) => s + (r.imported || 0), 0);
+      console.log(`[LeadEngine] Targeted pull complete — ${total} leads imported for ${city || zip || targetState}`);
+    }).catch(err => {
+      console.error('[LeadEngine] Targeted pull error:', err.message);
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── POST /api/lead-engine/run ────────────────────────────────────────────────
 router.post('/run', auth, async (req, res) => {
   try {

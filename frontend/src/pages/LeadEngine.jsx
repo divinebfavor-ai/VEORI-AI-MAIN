@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { Zap, Globe, TrendingUp, Activity, Play, RefreshCw, CheckCircle, XCircle, Clock, ChevronRight, MapPin, AlertCircle, BarChart2, Database, Filter } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Zap, Globe, TrendingUp, Activity, Play, RefreshCw, CheckCircle, XCircle, Clock, MapPin, AlertCircle, BarChart2, Database, Search, SlidersHorizontal, X, Target } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const API = import.meta.env.VITE_API_URL || 'https://veori.net'
@@ -149,7 +149,26 @@ export default function LeadEngine() {
   const [dashboard, setDashboard] = useState(null)
   const [jobs,      setJobs]      = useState([])
   const [running,   setRunning]   = useState(false)
-  const [tab,       setTab]       = useState('feed')  // 'feed' | 'sources' | 'coverage' | 'jobs'
+  const [tab,       setTab]       = useState('feed')
+
+  // Search + filter state
+  const [searchQ,      setSearchQ]      = useState('')
+  const [filterState,  setFilterState]  = useState('')
+  const [filterZip,    setFilterZip]    = useState('')
+  const [filterCity,   setFilterCity]   = useState('')
+  const [filterType,   setFilterType]   = useState('')
+  const [filterScore,  setFilterScore]  = useState('')
+  const [searchResults, setSearchResults] = useState(null)
+  const [searching,    setSearching]    = useState(false)
+  const [showFilters,  setShowFilters]  = useState(false)
+  const searchTimeout = useRef(null)
+
+  // Fast targeted pull state
+  const [pullState,   setPullState]   = useState('')
+  const [pullCity,    setPullCity]    = useState('')
+  const [pullZip,     setPullZip]     = useState('')
+  const [pulling,     setPulling]     = useState(false)
+  const [showPull,    setShowPull]    = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -173,6 +192,75 @@ export default function LeadEngine() {
     const iv = setInterval(load, 30000) // refresh every 30s
     return () => clearInterval(iv)
   }, [load])
+
+  // Search leads
+  const runSearch = useCallback(async (overrides = {}) => {
+    setSearching(true)
+    try {
+      const params = new URLSearchParams()
+      const q     = overrides.q     ?? searchQ
+      const state = overrides.state ?? filterState
+      const zip   = overrides.zip   ?? filterZip
+      const city  = overrides.city  ?? filterCity
+      const type  = overrides.type  ?? filterType
+      const score = overrides.score ?? filterScore
+      if (q)     params.set('q', q)
+      if (state) params.set('state', state)
+      if (zip)   params.set('zip', zip)
+      if (city)  params.set('city', city)
+      if (type)  params.set('lead_type', type)
+      if (score) params.set('min_score', score)
+      params.set('limit', '50')
+
+      const r = await fetch(`${API}/api/lead-engine/search?${params}`, { headers: authHeader() })
+      const d = await r.json()
+      if (d.success) setSearchResults(d)
+    } catch { /* silent */ }
+    finally { setSearching(false) }
+  }, [searchQ, filterState, filterZip, filterCity, filterType, filterScore])
+
+  // Debounced search on text input
+  const handleSearchInput = (val) => {
+    setSearchQ(val)
+    setSearchResults(null)
+    clearTimeout(searchTimeout.current)
+    if (val.length >= 2 || val.length === 0) {
+      searchTimeout.current = setTimeout(() => runSearch({ q: val }), 400)
+    }
+  }
+
+  // Fast targeted pull
+  const handlePull = async () => {
+    if (!pullState && !pullCity && !pullZip) {
+      toast.error('Enter at least a state, city, or ZIP')
+      return
+    }
+    setPulling(true)
+    try {
+      const r = await fetch(`${API}/api/lead-engine/pull`, {
+        method: 'POST',
+        headers: authHeader(),
+        body: JSON.stringify({ state: pullState, city: pullCity, zip: pullZip }),
+      })
+      const d = await r.json()
+      if (d.success) {
+        toast.success('Pulling leads now — results appear in ~60 seconds', { duration: 6000 })
+        setShowPull(false)
+        // Poll for new results after 30s and 60s
+        setTimeout(() => { load(); runSearch() }, 30000)
+        setTimeout(() => { load(); runSearch() }, 65000)
+      }
+    } catch { toast.error('Pull failed') }
+    finally { setPulling(false) }
+  }
+
+  const clearSearch = () => {
+    setSearchQ(''); setFilterState(''); setFilterZip('')
+    setFilterCity(''); setFilterType(''); setFilterScore('')
+    setSearchResults(null)
+  }
+
+  const hasFilters = searchQ || filterState || filterZip || filterCity || filterType || filterScore
 
   const handleRunAll = async () => {
     setRunning(true)
@@ -233,6 +321,151 @@ export default function LeadEngine() {
         <StatCard icon={<TrendingUp size={16} />} label="Leads This Week" value={totalLeads7d.toLocaleString()} sub="Last 7 days" color="#9B59B6" />
         <StatCard icon={<Database size={16} />}   label="Sources Active"  value={sources.filter(s => s.is_active).length} sub={`of ${sources.length} total`} color="#F39C12" />
         <StatCard icon={<Globe size={16} />}      label="States Covered"  value={status?.states_covered || 50} sub="Nationwide coverage" color="#3498DB" />
+      </div>
+
+      {/* Search + Targeted Pull */}
+      <div style={{ marginBottom: 20 }}>
+        {/* Main search bar */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              placeholder="Search by name, address, city, ZIP…"
+              value={searchQ}
+              onChange={e => handleSearchInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && runSearch()}
+              style={{
+                width: '100%', height: 42, paddingLeft: 38, paddingRight: 36,
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 10, color: '#fff', fontSize: 13, boxSizing: 'border-box',
+                outline: 'none',
+              }}
+            />
+            {searchQ && (
+              <X size={13} onClick={() => handleSearchInput('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }} />
+            )}
+          </div>
+
+          <button onClick={() => setShowFilters(f => !f)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: showFilters ? 'rgba(0,195,122,0.12)' : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${showFilters ? 'rgba(0,195,122,0.3)' : 'rgba(255,255,255,0.12)'}`,
+            borderRadius: 10, padding: '0 14px', color: showFilters ? '#00C37A' : 'rgba(255,255,255,0.6)',
+            fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+          }}>
+            <SlidersHorizontal size={13} /> Filters {hasFilters && <span style={{ background: '#00C37A', color: '#000', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>!</span>}
+          </button>
+
+          <button onClick={() => setShowPull(p => !p)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: showPull ? 'rgba(255,107,53,0.15)' : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${showPull ? 'rgba(255,107,53,0.4)' : 'rgba(255,255,255,0.12)'}`,
+            borderRadius: 10, padding: '0 14px', color: showPull ? '#FF6B35' : 'rgba(255,255,255,0.6)',
+            fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+          }}>
+            <Target size={13} /> Pull by Area
+          </button>
+
+          {hasFilters && (
+            <button onClick={clearSearch} style={{
+              background: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.2)',
+              borderRadius: 10, padding: '0 12px', color: '#FF4444',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>Clear</button>
+          )}
+        </div>
+
+        {/* Filter row */}
+        {showFilters && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, marginBottom: 10 }}>
+            {[
+              { label: 'State', val: filterState, set: v => { setFilterState(v); runSearch({ state: v }) }, placeholder: 'e.g. FL', width: 80 },
+              { label: 'ZIP', val: filterZip, set: v => { setFilterZip(v); if(v.length===5) runSearch({ zip: v }) }, placeholder: '33101', width: 90 },
+              { label: 'City', val: filterCity, set: v => { setFilterCity(v); if(v.length>2) runSearch({ city: v }) }, placeholder: 'Miami', width: 120 },
+            ].map(f => (
+              <div key={f.label}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{f.label}</div>
+                <input value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.placeholder}
+                  style={{ width: f.width, height: 34, padding: '0 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, color: '#fff', fontSize: 12, outline: 'none' }} />
+              </div>
+            ))}
+            <div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Lead Type</div>
+              <select value={filterType} onChange={e => { setFilterType(e.target.value); runSearch({ type: e.target.value }) }}
+                style={{ height: 34, padding: '0 8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, color: '#fff', fontSize: 12, outline: 'none' }}>
+                <option value="">All Types</option>
+                {Object.entries({ tax_delinquent: 'Tax Delinquent', probate: 'Probate', lis_pendens: 'Lis Pendens', divorce: 'Divorce', code_violation: 'Code Violation', usda_land: 'USDA Land', blm_land: 'BLM Land', bankruptcy: 'Bankruptcy' }).map(([k,v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Min Score</div>
+              <select value={filterScore} onChange={e => { setFilterScore(e.target.value); runSearch({ score: e.target.value }) }}
+                style={{ height: 34, padding: '0 8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, color: '#fff', fontSize: 12, outline: 'none' }}>
+                <option value="">Any Score</option>
+                <option value="75">75+ (Hot)</option>
+                <option value="50">50+ (Warm)</option>
+                <option value="25">25+ (Qualified)</option>
+              </select>
+            </div>
+            <button onClick={() => runSearch()} style={{
+              alignSelf: 'flex-end', height: 34, padding: '0 16px',
+              background: '#00C37A', border: 'none', borderRadius: 7,
+              color: '#000', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+            }}>Search</button>
+          </div>
+        )}
+
+        {/* Targeted pull panel */}
+        {showPull && (
+          <div style={{ padding: 16, background: 'rgba(255,107,53,0.06)', border: '1px solid rgba(255,107,53,0.2)', borderRadius: 10, marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#FF6B35', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Target size={14} /> Pull Leads for a Specific Area
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>
+              Results appear in your feed within 60 seconds. No waiting for the 24h cycle.
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              {[
+                { label: 'State *', val: pullState, set: setPullState, placeholder: 'FL', width: 70 },
+                { label: 'City', val: pullCity, set: setPullCity, placeholder: 'Miami', width: 130 },
+                { label: 'ZIP Code', val: pullZip, set: setPullZip, placeholder: '33101', width: 100 },
+              ].map(f => (
+                <div key={f.label}>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{f.label}</div>
+                  <input value={f.val} onChange={e => f.set(e.target.value.toUpperCase())} placeholder={f.placeholder} maxLength={f.label.includes('State') ? 2 : 20}
+                    style={{ width: f.width, height: 36, padding: '0 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontSize: 13, outline: 'none' }} />
+                </div>
+              ))}
+              <button onClick={handlePull} disabled={pulling} style={{
+                height: 36, padding: '0 20px',
+                background: pulling ? 'rgba(255,107,53,0.3)' : '#FF6B35',
+                border: 'none', borderRadius: 8, color: pulling ? '#FF6B35' : '#fff',
+                fontSize: 13, fontWeight: 800, cursor: pulling ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                {pulling ? <><RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> Pulling…</> : <><Zap size={13} /> Pull Now</>}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Search results */}
+        {(searchResults || searching) && (
+          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {searching ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Searching…</> : <><Search size={12} /> {searchResults?.total || 0} leads found</>}
+            </div>
+            {(searchResults?.leads || []).map(l => <LeadFeedRow key={l.id} lead={l} />)}
+            {!searching && searchResults?.leads?.length === 0 && (
+              <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: '20px 0', fontSize: 13 }}>
+                No leads match your search. Try different filters or pull leads for this area.
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
