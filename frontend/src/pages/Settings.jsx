@@ -137,6 +137,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
   const [planStatus, setPlanStatus] = useState(null)
   const [provisioning, setProvisioning] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [fixingWebhooks, setFixingWebhooks] = useState(false)
   const [provisionForm, setProvisionForm] = useState({ area_code: '', friendly_name: '' })
   const [showProvision, setShowProvision] = useState(false)
   const [releaseTarget, setReleaseTarget] = useState(null) // phone to release
@@ -162,6 +163,18 @@ function PhoneTab({ phoneList, setPhoneList }) {
       toast.error(err.response?.data?.error || 'Sync failed')
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const handleFixWebhooks = async () => {
+    setFixingWebhooks(true)
+    try {
+      const { data } = await phones.fixWebhooks()
+      toast.success(`Inbound routing fixed for ${data.patched} number${data.patched !== 1 ? 's' : ''}`)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to fix inbound routing')
+    } finally {
+      setFixingWebhooks(false)
     }
   }
 
@@ -296,6 +309,9 @@ function PhoneTab({ phoneList, setPhoneList }) {
           </Button>
           <Button variant="secondary" loading={syncing} onClick={handleSync}>
             Sync Numbers
+          </Button>
+          <Button variant="secondary" loading={fixingWebhooks} onClick={handleFixWebhooks} title="Fix inbound call routing for all existing numbers">
+            Fix Inbound
           </Button>
           <Button variant="ghost" onClick={() => setShowProvision('manual')}>
             <Plus size={14} /> Add Manually

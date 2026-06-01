@@ -133,6 +133,7 @@ export const phones = {
   addPhone:       (data)         => api.post('/api/phones', data),
   provision:      (area_code, friendly_name) => api.post('/api/phones/provision', { area_code, friendly_name }),
   syncFromVapi:   ()             => api.post('/api/phones/sync-vapi'),
+  fixWebhooks:    ()             => api.post('/api/phones/fix-webhooks'),
   updatePhone:    (id, data)     => api.put(`/api/phones/${id}`, data),
   releasePhone:   (id, reason)   => api.post(`/api/phones/${id}/release`, { reason }),
   deletePhone:    (id)           => api.delete(`/api/phones/${id}`),

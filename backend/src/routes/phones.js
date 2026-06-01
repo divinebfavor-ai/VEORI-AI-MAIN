@@ -138,6 +138,47 @@ router.post('/sync-vapi', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/phones/fix-webhooks — patch ALL existing Vapi numbers with the correct serverUrl
+// Run once to repair numbers that were provisioned before the serverUrl approach was in place
+router.post('/fix-webhooks', async (req, res, next) => {
+  try {
+    const vapiKey = process.env.VAPI_API_KEY;
+    if (!vapiKey) return res.status(500).json({ success: false, error: 'Vapi API key not configured' });
+
+    const webhookUrl = process.env.VAPI_WEBHOOK_URL
+      || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/vapi/webhook` : null);
+
+    if (!webhookUrl) return res.status(500).json({ success: false, error: 'Webhook URL not configured (set VAPI_WEBHOOK_URL or RAILWAY_PUBLIC_DOMAIN)' });
+
+    // Get all DB numbers with a Vapi ID for this user
+    const { data: dbNumbers } = await supabase
+      .from('phone_numbers')
+      .select('vapi_phone_number_id, number')
+      .eq('user_id', req.user.id)
+      .not('vapi_phone_number_id', 'is', null);
+
+    if (!dbNumbers?.length) return res.json({ success: true, patched: 0, message: 'No Vapi numbers found' });
+
+    const results = await Promise.allSettled(
+      dbNumbers.map(p =>
+        axios.patch(`https://api.vapi.ai/phone-number/${p.vapi_phone_number_id}`, {
+          serverUrl: webhookUrl,
+          assistantId: null, // clear old static assignment
+        }, {
+          headers: { Authorization: `Bearer ${vapiKey}`, 'Content-Type': 'application/json' },
+          timeout: 10000,
+        })
+      )
+    );
+
+    const patched  = results.filter(r => r.status === 'fulfilled').length;
+    const failed   = results.length - patched;
+
+    console.log(`[Phone] fix-webhooks: ${patched} patched, ${failed} failed for user ${req.user.id}`);
+    res.json({ success: true, patched, failed, webhook_url: webhookUrl });
+  } catch (err) { next(err); }
+});
+
 // GET /api/phones
 router.get('/', async (req, res, next) => {
   try {
