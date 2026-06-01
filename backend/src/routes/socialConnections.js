@@ -23,9 +23,9 @@ const jwt      = require('jsonwebtoken');
 const SUPPORTED_PLATFORMS = ['facebook', 'instagram', 'twitter', 'youtube', 'tiktok'];
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://veori.net';
-const BACKEND_URL  = process.env.BACKEND_URL  || 'https://veori-ai-main-production.up.railway.app';
-// Platforms redirect HERE (backend) so we can exchange the code server-side, then redirect to frontend
-const CALLBACK_URL = `${BACKEND_URL}/api/social-connections/callback`;
+// OAuth callback always goes through veori.net (Vercel proxies it to Railway)
+// This is the URI registered in Google Cloud Console, Facebook App, etc.
+const CALLBACK_URL = process.env.OAUTH_CALLBACK_URL || 'https://veori.net/api/social-connections/callback';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
