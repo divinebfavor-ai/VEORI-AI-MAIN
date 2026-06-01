@@ -12,19 +12,26 @@ function statusVariant(s) {
 
 // ─── Create Campaign Modal ────────────────────────────────────────────────────
 function CreateModal({ onClose, onCreated }) {
-  const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ name:'', concurrent_lines:1, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
-  const [saving, setSaving] = useState(false)
+  const [step, setStep]       = useState(1)
+  const [form, setForm]       = useState({ name:'', concurrent_lines:1, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
+  const [smsFirst, setSmsFirst] = useState(false)
+  const [saving, setSaving]   = useState(false)
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const launch = async () => {
     if (!form.name) { toast.error('Campaign name required'); return }
     setSaving(true)
     try {
-      await campaigns.createCampaign({ ...form, concurrent_lines: Number(form.concurrent_lines), daily_limit_per_number: Number(form.daily_limit_per_number) })
-      toast.success('Campaign created')
+      const created = await campaigns.createCampaign({ ...form, concurrent_lines: Number(form.concurrent_lines), daily_limit_per_number: Number(form.daily_limit_per_number) })
+      const campaignId = created?.data?.data?.id || created?.data?.id
+      if (smsFirst && campaignId) {
+        await campaigns.startSMSFirst(campaignId)
+        toast.success('SMS First campaign launched — texts going out now')
+      } else {
+        toast.success('Campaign created')
+      }
       onCreated()
-    } catch { toast.error('Failed to create campaign') }
+    } catch (err) { toast.error(err?.response?.data?.error || 'Failed to create campaign') }
     finally { setSaving(false) }
   }
 
@@ -55,6 +62,20 @@ function CreateModal({ onClose, onCreated }) {
           <div>
             <h2 className="text-[22px] font-medium text-text-primary mb-1">Calling settings</h2>
             <p className="text-[13px] text-text-muted mb-6">Configure how Alex will dial</p>
+
+            {/* SMS First toggle */}
+            <div
+              onClick={() => setSmsFirst(v => !v)}
+              className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer mb-5 transition-colors ${smsFirst ? 'border-primary bg-primary/5' : 'border-border-subtle hover:border-border-default'}`}
+            >
+              <div className={`mt-0.5 w-9 h-5 rounded-full flex-shrink-0 relative transition-colors ${smsFirst ? 'bg-primary' : 'bg-elevated'}`}>
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${smsFirst ? 'left-4' : 'left-0.5'}`} />
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-text-primary">SMS First mode</p>
+                <p className="text-[11px] text-text-muted mt-0.5">Text every lead first. Only leads that reply get called by Alex — cuts cost, increases response rate.</p>
+              </div>
+            </div>
             <div className="space-y-5">
               <div>
                 <label className="label-caps block mb-3">Concurrent Lines: <span className="text-text-primary">{form.concurrent_lines}</span></label>
@@ -95,12 +116,13 @@ function CreateModal({ onClose, onCreated }) {
           <div>
             <h2 className="text-[22px] font-medium text-text-primary mb-1">Review & Launch</h2>
             <p className="text-[13px] text-text-muted mb-6">Confirm your campaign settings before launching</p>
-            <div className="space-y-1">
+            <div className="space-y-1 mb-6">
               {[
-                ['Campaign Name', form.name],
+                ['Campaign Name',  form.name],
+                ['Mode',           smsFirst ? '💬 SMS First' : '📞 Direct Call'],
                 ['Concurrent Lines', form.concurrent_lines],
-                ['Daily Limit', `${form.daily_limit_per_number} calls / number`],
-                ['Calling Hours', `${form.calling_hours_start} – ${form.calling_hours_end}`],
+                ['Daily Limit',    `${form.daily_limit_per_number} calls / number`],
+                ['Calling Hours',  `${form.calling_hours_start} – ${form.calling_hours_end}`],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between py-2.5 border-b border-border-subtle last:border-0">
                   <span className="label-caps">{k}</span>
@@ -108,6 +130,11 @@ function CreateModal({ onClose, onCreated }) {
                 </div>
               ))}
             </div>
+            {smsFirst && (
+              <div className="rounded-lg bg-primary/5 border border-primary/20 px-4 py-3 text-[12px] text-text-muted leading-relaxed">
+                <span className="text-primary font-semibold">SMS First mode:</span> Personalised texts go to every lead immediately. Leads that reply get called by Alex within 5 minutes. No-reply leads enter follow-up after 48 hours.
+              </div>
+            )}
           </div>
         )}
 
@@ -152,14 +179,25 @@ function CampaignCard({ c, onAction }) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        {[['Answered', c.leads_answered||0], ['Offers', c.offers_made||0], ['Contracts', c.contracts_sent||0]].map(([k,v]) => (
-          <div key={k} className="text-center">
-            <p className="text-[20px] font-semibold text-text-primary">{v}</p>
-            <p className="label-caps mt-0.5">{k}</p>
-          </div>
-        ))}
-      </div>
+      {c.sms_first_mode ? (
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[['Texts Sent', c.sms_first_sent||0], ['Replied', c.sms_first_replies||0], ['Called', c.sms_first_called||0]].map(([k,v]) => (
+            <div key={k} className="text-center">
+              <p className="text-[20px] font-semibold text-text-primary">{v}</p>
+              <p className="label-caps mt-0.5">{k}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[['Answered', c.leads_answered||0], ['Offers', c.offers_made||0], ['Contracts', c.contracts_sent||0]].map(([k,v]) => (
+            <div key={k} className="text-center">
+              <p className="text-[20px] font-semibold text-text-primary">{v}</p>
+              <p className="label-caps mt-0.5">{k}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Error banner */}
       {c.error_message && (
