@@ -22,6 +22,33 @@ const {
 
 const TARGET_STATES = ['PA', 'IL', 'MI']; // covered by free sources right now
 
+// ─── GET /api/lead-engine/test — sync test to see exactly what's happening ───
+router.get('/test', auth, async (req, res) => {
+  const {
+    pullPhillyLisPendens,
+    pullPhillyViolations,
+    pullPhillyAbsentee,
+    pullPhillySheriffSales,
+  } = require('../services/sources/freePublicRecords');
+
+  const results = {};
+
+  try { const r = await pullPhillyLisPendens();  results.lis_pendens  = { count: r.length, sample: r[0] || null }; }
+  catch (e) { results.lis_pendens  = { error: e.message }; }
+
+  try { const r = await pullPhillyViolations();  results.violations   = { count: r.length, sample: r[0] || null }; }
+  catch (e) { results.violations   = { error: e.message }; }
+
+  try { const r = await pullPhillyAbsentee();    results.absentee     = { count: r.length, sample: r[0] || null }; }
+  catch (e) { results.absentee     = { error: e.message }; }
+
+  try { const r = await pullPhillySheriffSales(); results.sheriff     = { count: r.length, sample: r[0] || null }; }
+  catch (e) { results.sheriff      = { error: e.message }; }
+
+  const totalRaw = Object.values(results).reduce((s, r) => s + (r.count || 0), 0);
+  res.json({ success: true, total_raw_records: totalRaw, results });
+});
+
 // ─── GET /api/lead-engine/status ─────────────────────────────────────────────
 router.get('/status', auth, async (req, res) => {
   try {
