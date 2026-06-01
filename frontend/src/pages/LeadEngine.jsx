@@ -84,9 +84,6 @@ function SourceRow({ source, onToggle, onRun }) {
             ? `${source.total_pulled.toLocaleString()} pulled · ${source.states_covered} states · avg score ${source.avg_score}`
             : source.last_run_status === 'never' ? 'Not yet run' : `Last: ${source.last_run_status}`}
         </div>
-        {source.requires_api && (
-          <div style={{ fontSize: 10, color: '#F39C12', marginTop: 2 }}>{source.requires_api}</div>
-        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {source.last_run_status === 'success' && <CheckCircle size={13} color="#00C37A" />}

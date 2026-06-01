@@ -82,10 +82,6 @@ router.get('/sources', auth, async (req, res) => {
         total_qualified: totalQualified,
         states_covered:  rows.filter(r => r.is_active).length,
         avg_score:       rows.length ? Math.round(rows.reduce((s, r) => s + parseFloat(r.avg_score || 0), 0) / rows.length) : 0,
-        requires_api:    key === 'tax_delinquent' ? 'ATTOM_API_KEY (optional, expands coverage)'
-                        : key === 'bankruptcy'     ? 'PACER_USERNAME + PACER_PASSWORD (optional, Court Listener is free)'
-                        : key === 'probate'        ? 'COURT_API_KEY (optional, expands coverage)'
-                        : null,
       };
     });
 
