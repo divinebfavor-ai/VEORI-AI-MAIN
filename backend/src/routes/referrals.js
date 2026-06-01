@@ -12,14 +12,97 @@ const router   = require('express').Router();
 const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 const crypto   = require('crypto');
+const axios    = require('axios');
+const { sendEmail } = require('../services/emailService');
 
-// Commission rates
+// Commission rates — no cap
 const MONTH1_RATE    = 0.10; // 10% first month
-const RECURRING_RATE = 0.03; // 3% ongoing
-const MAX_COMMISSION = 500;  // hard cap
+const RECURRING_RATE = 0.03; // 3% months 2-12
 
 function calcCommission(amount, rate) {
-  return Math.min(parseFloat((amount * rate).toFixed(2)), MAX_COMMISSION);
+  // No cap — pay full percentage on every plan
+  return parseFloat((amount * rate).toFixed(2));
+}
+
+// ─── Auto payout via Flutterwave Transfer ────────────────────────────────────
+async function triggerAutoPayout(referrerId, amount, description) {
+  try {
+    // Get referrer payout details
+    const { data: referrer } = await supabase
+      .from('users')
+      .select('id, email, full_name, payout_email, payout_bank, payout_method')
+      .eq('id', referrerId)
+      .single();
+
+    if (!referrer) return { success: false, reason: 'referrer_not_found' };
+
+    const ADMIN_EMAIL = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',')[0].trim();
+
+    // If referrer has no payout method set — email them + email admin
+    if (!referrer.payout_email && !referrer.payout_bank) {
+      await sendEmail({
+        to:      referrer.email,
+        subject: `You earned $${amount} in Veori referral commission`,
+        html: `
+          <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;background:#060E1A;color:#fff;border-radius:16px;padding:40px;">
+            <div style="font-size:22px;font-weight:900;margin-bottom:20px;">VEORI</div>
+            <p style="font-size:16px;color:rgba(255,255,255,0.8);margin:0 0 16px;">You earned <strong style="color:#00C37A;">$${amount}</strong> in referral commission!</p>
+            <p style="font-size:14px;color:rgba(255,255,255,0.6);margin:0 0 24px;">${description}</p>
+            <p style="font-size:14px;color:rgba(255,255,255,0.6);margin:0 0 24px;">To receive your payout, please add your payout email (PayPal) in your Veori dashboard under <strong>Referrals → Payout Settings</strong>.</p>
+            <a href="https://veori.net/referrals" style="display:block;text-align:center;background:#00C37A;color:#000;font-size:15px;font-weight:800;padding:14px;border-radius:10px;text-decoration:none;">Add Payout Details</a>
+          </div>
+        `,
+      }).catch(() => {});
+      return { success: false, reason: 'no_payout_method' };
+    }
+
+    // Auto payout via Flutterwave transfer
+    const FW_SECRET = process.env.FLUTTERWAVE_SECRET_KEY;
+    if (!FW_SECRET) return { success: false, reason: 'no_fw_key' };
+
+    const reference = `veori_ref_${referrerId.slice(0, 8)}_${Date.now()}`;
+
+    let transferPayload = {
+      amount,
+      currency: 'USD',
+      narration: description,
+      reference,
+      beneficiary_name: referrer.full_name || referrer.email,
+    };
+
+    if (referrer.payout_method === 'bank' && referrer.payout_bank) {
+      const bank = typeof referrer.payout_bank === 'string'
+        ? JSON.parse(referrer.payout_bank)
+        : referrer.payout_bank;
+      transferPayload.account_bank   = bank.bank_code;
+      transferPayload.account_number = bank.account_number;
+    } else {
+      // PayPal / email payout
+      transferPayload.account_bank   = 'paypal';
+      transferPayload.account_number = referrer.payout_email;
+    }
+
+    const resp = await axios.post('https://api.flutterwave.com/v3/transfers', transferPayload, {
+      headers: { Authorization: `Bearer ${FW_SECRET}`, 'Content-Type': 'application/json' },
+      timeout: 15000,
+    });
+
+    if (resp.data?.status === 'success') {
+      // Notify referrer
+      await sendEmail({
+        to:      referrer.email,
+        subject: `$${amount} referral payout sent`,
+        html: `<div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;background:#060E1A;color:#fff;border-radius:16px;padding:40px;"><div style="font-size:22px;font-weight:900;margin-bottom:20px;">VEORI</div><p style="font-size:16px;color:#00C37A;font-weight:700;margin:0 0 12px;">$${amount} is on its way!</p><p style="font-size:14px;color:rgba(255,255,255,0.6);margin:0 0 8px;">${description}</p><p style="font-size:12px;color:rgba(255,255,255,0.35);margin:0;">Sent to: ${referrer.payout_email || 'your bank account'}</p></div>`,
+      }).catch(() => {});
+      return { success: true, transfer_id: resp.data?.data?.id };
+    }
+
+    console.warn('[Referrals] Flutterwave transfer failed:', resp.data?.message);
+    return { success: false, reason: resp.data?.message };
+  } catch (err) {
+    console.error('[Referrals] Auto payout error:', err.message);
+    return { success: false, reason: err.message };
+  }
 }
 
 // Generate unique referral code from name/email
@@ -215,6 +298,12 @@ router.post('/trigger', async (req, res) => {
         }, { onConflict: 'referred_id' })
         .select().single();
 
+      // Trigger auto payout
+      const payout = await triggerAutoPayout(
+        referrerId, commission,
+        `10% referral commission — ${plan} plan signup`
+      );
+
       // Log payment
       await supabase.from('referral_payments').insert({
         referral_id: referral?.id,
@@ -222,7 +311,7 @@ router.post('/trigger', async (req, res) => {
         referred_id: user_id,
         amount:      commission,
         type:        'month1',
-        status:      'pending',
+        status:      payout.success ? 'paid' : 'pending',
       });
 
       // Add to referrer credits
@@ -237,7 +326,7 @@ router.post('/trigger', async (req, res) => {
         .update({ referral_credits: (parseFloat(referrerUser?.referral_credits || 0) + commission) })
         .eq('id', referrerId);
 
-      console.log(`[Referrals] Month1 commission $${commission} for referrer ${referrerId}`);
+      console.log(`[Referrals] Month1 commission $${commission} for referrer ${referrerId} — payout: ${payout.success ? 'sent' : 'pending'}`);
 
     } else {
       // Recurring payment — 3% of the LOCKED original plan amount, for 12 months only
@@ -269,6 +358,12 @@ router.post('/trigger', async (req, res) => {
         })
         .eq('id', referral.id);
 
+      // Trigger auto payout
+      const payout = await triggerAutoPayout(
+        referrerId, commission,
+        `3% recurring referral commission — month ${recurringCount + 1} of 12`
+      );
+
       // Log payment
       await supabase.from('referral_payments').insert({
         referral_id: referral.id,
@@ -276,7 +371,7 @@ router.post('/trigger', async (req, res) => {
         referred_id: user_id,
         amount:      commission,
         type:        'recurring',
-        status:      'pending',
+        status:      payout.success ? 'paid' : 'pending',
       });
 
       // Add to referrer credits
@@ -336,6 +431,33 @@ router.get('/leaderboard', auth, async (req, res) => {
     console.error('[Referrals] leaderboard error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to load leaderboard' });
   }
+});
+
+// ─── GET /api/referrals/payout-settings ──────────────────────────────────────
+router.get('/payout-settings', auth, async (req, res) => {
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('payout_email, payout_method, payout_bank')
+      .eq('id', req.user.id)
+      .single();
+    res.json({ success: true, payout_email: data?.payout_email || null, payout_method: data?.payout_method || 'paypal' });
+  } catch (err) { next(err); }
+});
+
+// ─── PUT /api/referrals/payout-settings ──────────────────────────────────────
+router.put('/payout-settings', auth, async (req, res, next) => {
+  try {
+    const { payout_email, payout_method } = req.body;
+    if (!payout_email) return res.status(400).json({ success: false, error: 'Payout email is required' });
+
+    await supabase
+      .from('users')
+      .update({ payout_email: payout_email.trim().toLowerCase(), payout_method: payout_method || 'paypal', updated_at: new Date().toISOString() })
+      .eq('id', req.user.id);
+
+    res.json({ success: true, message: 'Payout settings saved. Future commissions will be sent here automatically.' });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

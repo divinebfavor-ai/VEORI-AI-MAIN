@@ -32,9 +32,12 @@ function StatCard({ icon: Icon, label, value, color = '#00C37A' }) {
 }
 
 export default function Referrals() {
-  const [data, setData]       = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [copied, setCopied]   = useState(false)
+  const [data, setData]             = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [copied, setCopied]         = useState(false)
+  const [payoutEmail, setPayoutEmail] = useState('')
+  const [payoutSaving, setPayoutSaving] = useState(false)
+  const [payoutSaved, setPayoutSaved]   = useState(false)
 
   useEffect(() => {
     fetch(`${API}/referrals/me`, { headers: authHeaders() })
@@ -42,7 +45,28 @@ export default function Referrals() {
       .then(d => { if (d.success) setData(d) })
       .catch(() => {})
       .finally(() => setLoading(false))
+
+    fetch(`${API}/referrals/payout-settings`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then(d => { if (d.success && d.payout_email) setPayoutEmail(d.payout_email) })
+      .catch(() => {})
   }, [])
+
+  const savePayoutEmail = async () => {
+    if (!payoutEmail.trim()) { toast.error('Enter your PayPal email'); return }
+    setPayoutSaving(true)
+    try {
+      const res = await fetch(`${API}/referrals/payout-settings`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ payout_email: payoutEmail.trim(), payout_method: 'paypal' }),
+      })
+      const d = await res.json()
+      if (d.success) { setPayoutSaved(true); toast.success('Payout settings saved!') }
+      else toast.error(d.error || 'Failed to save')
+    } catch { toast.error('Failed to save') }
+    finally { setPayoutSaving(false) }
+  }
 
   const copyLink = () => {
     if (!data?.referral_link) return
@@ -101,9 +125,9 @@ export default function Referrals() {
         </div>
         <div style={{ width: 1, background: 'var(--border)' }} />
         <div>
-          <div style={{ fontSize: 11, color: 'var(--t2)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Max per customer</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--t1)' }}>$500</div>
-          <div style={{ fontSize: 12, color: 'var(--t2)' }}>commission cap/month</div>
+          <div style={{ fontSize: 11, color: 'var(--t2)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Duration</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--t1)' }}>12 mo</div>
+          <div style={{ fontSize: 12, color: 'var(--t2)' }}>recurring payments</div>
         </div>
         <div style={{ width: 1, background: 'var(--border)' }} />
         <div>
@@ -207,10 +231,51 @@ export default function Referrals() {
         )}
       </div>
 
-      {/* Payout note */}
-      <div style={{ marginTop: 20, padding: '14px 20px', background: 'rgba(255,149,0,0.08)', border: '1px solid rgba(255,149,0,0.2)', borderRadius: 10 }}>
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--t2)' }}>
-          <span style={{ color: '#FF9500', fontWeight: 700 }}>Payouts:</span> Commissions are paid monthly. Contact <strong>divineqflash@gmail.com</strong> to request your payout once your balance exceeds $50.
+      {/* Payout Settings */}
+      <div style={{ marginTop: 20, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 14, padding: 24 }}>
+        <div style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)', margin: '0 0 4px' }}>Payout Settings</h3>
+          <p style={{ fontSize: 13, color: 'var(--t2)', margin: 0 }}>
+            Add your PayPal email to receive automatic commission payouts. Every time you earn a commission, it is sent instantly.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--t3)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 6 }}>
+              PayPal Email
+            </label>
+            <input
+              type="email"
+              value={payoutEmail}
+              onChange={e => { setPayoutEmail(e.target.value); setPayoutSaved(false) }}
+              placeholder="your@paypal.com"
+              style={{
+                width: '100%', height: 44, padding: '0 14px', boxSizing: 'border-box',
+                background: 'var(--input-bg)', border: '1px solid var(--input-border)',
+                borderRadius: 8, fontSize: 14, color: 'var(--input-text)',
+                outline: 'none', fontFamily: 'inherit',
+              }}
+              onFocus={e => e.target.style.borderColor = 'rgba(0,195,122,0.5)'}
+              onBlur={e => e.target.style.borderColor = 'var(--input-border)'}
+            />
+          </div>
+          <button
+            onClick={savePayoutEmail}
+            disabled={payoutSaving}
+            style={{
+              height: 44, padding: '0 20px', background: payoutSaved ? 'rgba(0,195,122,0.15)' : '#00C37A',
+              border: payoutSaved ? '1px solid rgba(0,195,122,0.4)' : 'none',
+              borderRadius: 8, fontSize: 14, fontWeight: 700,
+              color: payoutSaved ? '#00C37A' : '#000',
+              cursor: payoutSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {payoutSaving ? 'Saving...' : payoutSaved ? '✓ Saved' : 'Save'}
+          </button>
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--t3)', margin: '10px 0 0' }}>
+          Commissions are paid automatically via Flutterwave transfer. 10% on month 1 — 3% every month for 12 months. No cap.
         </p>
       </div>
 
