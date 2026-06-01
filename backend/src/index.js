@@ -281,6 +281,17 @@ const publicTourRouter   = require('./routes/publicTour');
 app.use('/api/tours', virtualToursRouter);
 app.use('/api/tour',  publicTourRouter);
 
+// ─── Lead Engine (Autonomous Public Records Sourcing) ─────────────────────────
+const leadEngineRouter = require('./routes/leadEngine');
+app.use('/api/lead-engine', leadEngineRouter);
+const { startLeadEngineScheduler } = require('./services/leadEngine');
+try {
+  startLeadEngineScheduler();
+  console.log('[LeadEngine] Scheduler active — pulling leads every 24h');
+} catch (e) {
+  console.warn('[LeadEngine] Scheduler failed to start:', e.message);
+}
+
 // ─── BullMQ Job Queue (replaces all setInterval business logic) ───────────────
 const { initWorkers } = require('./services/queueService');
 try {

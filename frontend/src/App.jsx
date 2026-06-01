@@ -45,6 +45,7 @@ import HeatMap from './pages/HeatMap'
 import DailyBriefing from './pages/DailyBriefing'
 // ── Advanced Acquisition (Features 13-21) ─────────────────────────────────────
 import SmartList from './pages/SmartList'
+import LeadEngine from './pages/LeadEngine'
 import DrivingForDollars from './pages/DrivingForDollars'
 import CallAnalyticsDashboard from './pages/CallAnalyticsDashboard'
 import CallerReputation from './pages/CallerReputation'
@@ -147,6 +148,7 @@ export default function App() {
         <Route path="/briefing" element={<DailyBriefing />} />
         {/* ── Advanced Acquisition (Features 13-21) ────────────────────── */}
         <Route path="/smart-list" element={<SmartList />} />
+        <Route path="/lead-engine" element={<LeadEngine />} />
         <Route path="/dfd" element={<Navigate to="/virtual-dfd" replace />} />
         <Route path="/call-analytics" element={<CallAnalyticsDashboard />} />
         <Route path="/caller-reputation" element={<CallerReputation />} />

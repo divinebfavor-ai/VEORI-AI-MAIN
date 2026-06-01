@@ -362,3 +362,69 @@ CREATE INDEX IF NOT EXISTS idx_dnc_phone           ON dnc_records(phone);
 -- ALTER TABLE deals ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE buyers ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE phone_numbers ENABLE ROW LEVEL SECURITY;
+
+-- ─── LEAD ENGINE ──────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS lead_engine_sources (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id         UUID REFERENCES users(id) ON DELETE CASCADE,
+  source_key      TEXT NOT NULL,           -- 'tax_delinquent' | 'probate' | 'lis_pendens' | 'divorce' | 'code_violation' | 'usda_land' | 'blm_land' | 'bankruptcy'
+  source_label    TEXT NOT NULL,
+  state           TEXT,                    -- 2-letter state code or 'ALL'
+  county          TEXT,
+  is_active       BOOLEAN DEFAULT TRUE,
+  last_run_at     TIMESTAMPTZ,
+  last_run_status TEXT DEFAULT 'never',    -- 'never' | 'running' | 'success' | 'error'
+  last_run_count  INTEGER DEFAULT 0,
+  total_pulled    INTEGER DEFAULT 0,
+  total_qualified INTEGER DEFAULT 0,
+  avg_score       NUMERIC(4,1) DEFAULT 0,
+  error_message   TEXT,
+  config          JSONB DEFAULT '{}',
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS lead_engine_jobs (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  source_key      TEXT NOT NULL,
+  state           TEXT,
+  county          TEXT,
+  started_at      TIMESTAMPTZ DEFAULT NOW(),
+  completed_at    TIMESTAMPTZ,
+  status          TEXT DEFAULT 'running',  -- 'running' | 'success' | 'error' | 'partial'
+  records_found   INTEGER DEFAULT 0,
+  records_new     INTEGER DEFAULT 0,
+  records_skipped INTEGER DEFAULT 0,
+  error_message   TEXT,
+  metadata        JSONB DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS lead_engine_coverage (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  state           TEXT NOT NULL,
+  county          TEXT,
+  source_key      TEXT NOT NULL,
+  is_covered      BOOLEAN DEFAULT FALSE,
+  last_updated    TIMESTAMPTZ DEFAULT NOW(),
+  total_leads     INTEGER DEFAULT 0,
+  UNIQUE(state, county, source_key)
+);
+
+-- Add sourcing columns to existing leads table
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS sourcing_source    TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS sourcing_score     INTEGER DEFAULT 0;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS distress_signals   TEXT[] DEFAULT '{}';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_type          TEXT;    -- 'tax_delinquent' | 'probate' | 'lis_pendens' | 'divorce' | 'code_violation' | 'usda_land' | 'blm_land' | 'bankruptcy'
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS auto_sourced       BOOLEAN DEFAULT FALSE;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS sourced_at         TIMESTAMPTZ;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS county             TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS parcel_id          TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS years_delinquent   NUMERIC(4,1);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS tax_owed           NUMERIC(12,2);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS case_number        TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS filing_date        DATE;
+
+CREATE INDEX IF NOT EXISTS idx_leads_sourcing_score  ON leads(sourcing_score DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_lead_type       ON leads(lead_type);
+CREATE INDEX IF NOT EXISTS idx_leads_auto_sourced    ON leads(auto_sourced);
+CREATE INDEX IF NOT EXISTS idx_leads_sourced_at      ON leads(sourced_at DESC);

@@ -6,7 +6,7 @@ import {
   Calculator, Shield, Phone, Building2,
   Sun, Moon, MessageSquare, BookOpen, Store, Bell,
   ChevronLeft, ChevronRight, Compass,
-  Car, Mail, Home, Video, Camera, Map, Share2, Film, Gift,
+  Car, Mail, Home, Video, Camera, Map, Share2, Film, Gift, Zap,
 } from 'lucide-react'
 import VeoriLogo from '../VeoriLogo'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -18,6 +18,7 @@ import { notifications as notifApi } from '../../services/api'
 const NAV = [
   { to: '/dashboard',        icon: LayoutDashboard, label: 'Command Center' },
   { to: '/leads',            icon: Users,           label: 'Leads' },
+  { to: '/lead-engine',     icon: Zap,             label: 'Lead Engine' },
   { to: '/monitor',          icon: Radio,           label: 'Live Calls',     live: true },
   { to: '/pipeline',         icon: Columns,         label: 'Pipeline' },
   { to: '/campaigns',        icon: Briefcase,       label: 'Campaigns' },
