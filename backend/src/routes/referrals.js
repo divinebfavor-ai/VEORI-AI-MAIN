@@ -263,10 +263,34 @@ router.post('/apply', async (req, res) => {
   }
 });
 
+// ─── Internal-only request guard ─────────────────────────────────────────────
+// Validates that a request originates from within the same backend service.
+// Uses a shared internal secret to prevent external callers from triggering
+// commission payouts or linking referrals.
+function requireInternal(req, res, next) {
+  const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET;
+  const provided        = req.headers['x-internal-secret'];
+
+  if (!INTERNAL_SECRET) {
+    // If not configured, fall back to same-host check (Railway intra-service)
+    const host = req.headers['host'] || '';
+    if (!host.includes('railway') && !host.includes('localhost')) {
+      return res.status(403).json({ success: false, error: 'Internal endpoint' });
+    }
+    return next();
+  }
+
+  if (provided !== INTERNAL_SECRET) {
+    console.warn('[Referrals] Rejected internal-only request — invalid secret from', req.ip);
+    return res.status(403).json({ success: false, error: 'Internal endpoint' });
+  }
+  next();
+}
+
 // ─── POST /api/referrals/trigger ─────────────────────────────────────────────
-// Called by billing webhook when a payment is confirmed
+// Called by billing webhook when a payment is confirmed — INTERNAL ONLY
 // type: 'month1' or 'recurring'
-router.post('/trigger', async (req, res) => {
+router.post('/trigger', requireInternal, async (req, res) => {
   try {
     const { user_id, plan, plan_amount, type = 'month1' } = req.body;
 

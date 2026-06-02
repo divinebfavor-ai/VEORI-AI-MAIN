@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'veori-ai-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET environment variable is not set. Refusing to start — tokens would be insecure.');
+  process.exit(1);
+}
 
 async function requireAuth(req, res, next) {
   const auth = req.headers.authorization;

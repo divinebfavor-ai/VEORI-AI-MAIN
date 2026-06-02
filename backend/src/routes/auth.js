@@ -12,7 +12,7 @@ const audit      = require('../services/auditLog');
 const axios      = require('axios');
 
 const router     = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'veori-ai-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET; // crashes at middleware/auth.js if missing
 const APP_URL    = process.env.FRONTEND_URL || 'https://veori.net';
 const APP_NAME   = 'Veori';
 
@@ -224,7 +224,7 @@ router.post('/login', async (req, res, next) => {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, subscription_status, subscription_plan, subscription_expires_at, monthly_dial_limit, trial_ends_at, email_from_name, email_reply_to, two_fa_enabled, two_fa_method, two_fa_secret, two_fa_phone, password_hash, created_at, referral_code, referred_by, payout_email, payout_method, sms_consent_agreed, sms_consent_agreed_at')
       .eq('email', email.toLowerCase())
       .single();
 
@@ -604,7 +604,8 @@ router.post('/2fa/verify', async (req, res, next) => {
     }
 
     const { data: user } = await supabase.from('users')
-      .select('*').eq('id', decoded.id).single();
+      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, subscription_status, subscription_plan, subscription_expires_at, monthly_dial_limit, trial_ends_at, email_from_name, email_reply_to, two_fa_enabled, two_fa_method, two_fa_secret, two_fa_phone, password_hash, created_at, referral_code, referred_by, payout_email, payout_method, sms_consent_agreed')
+      .eq('id', decoded.id).single();
 
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 

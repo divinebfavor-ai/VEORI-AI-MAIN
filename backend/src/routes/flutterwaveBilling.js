@@ -262,6 +262,14 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       return res.status(402).json({ success: false, error: `Payment ${txData.status}`, status: txData.status });
     }
 
+    // Security: verify this transaction belongs to the authenticated user
+    // Prevents User A from using User B's transaction ID to upgrade their own account
+    const txUserId = txData.meta?.user_id;
+    if (txUserId && txUserId !== req.user.id) {
+      console.error(`[FW Verify] User ${req.user.id} tried to claim transaction belonging to ${txUserId}`);
+      return res.status(403).json({ success: false, error: 'Transaction does not belong to your account' });
+    }
+
     // Extract plan from tx_ref or meta
     const planKey = txData.meta?.plan || txRef.split('_')[1] || null;
     const plan    = PLANS[planKey];
@@ -361,12 +369,19 @@ router.post('/cancel', auth, async (req, res) => {
 // No auth — Flutterwave sends this directly
 router.post('/webhook', express.json(), async (req, res) => {
   try {
-    // Verify webhook signature
+    // Verify webhook signature — ALWAYS required
+    // If FLUTTERWAVE_WEBHOOK_HASH is not set, reject every request.
+    // An empty/missing hash config means the endpoint is unconfigured, not open.
     const hash     = req.headers['verif-hash'];
     const expected = FW_HASH();
 
-    if (expected && hash !== expected) {
-      console.warn('[FW Webhook] Invalid hash');
+    if (!expected) {
+      console.error('[FW Webhook] FLUTTERWAVE_WEBHOOK_HASH not configured — rejecting all webhook requests');
+      return res.status(503).json({ error: 'Webhook not configured' });
+    }
+
+    if (hash !== expected) {
+      console.warn('[FW Webhook] Invalid hash — possible spoofed request');
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -400,11 +415,15 @@ router.post('/webhook', express.json(), async (req, res) => {
 
         const commissionType = (!existingRef || !existingRef.month1_paid) ? 'month1' : 'recurring';
 
-        // Trigger referral commission (fire and forget)
-        fetch(`${process.env.BACKEND_URL || 'https://veori-ai-main-production.up.railway.app'}/api/referrals/trigger`, {
+        // Trigger referral commission (fire and forget — internal only)
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+        fetch(`${backendUrl}/api/referrals/trigger`, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ user_id: userId, plan: planKey, plan_amount: plan.amount, type: commissionType }),
+          headers: {
+            'Content-Type':      'application/json',
+            'x-internal-secret': process.env.INTERNAL_API_SECRET || '',
+          },
+          body: JSON.stringify({ user_id: userId, plan: planKey, plan_amount: plan.amount, type: commissionType }),
         }).catch(e => console.warn('[FW Webhook] Commission trigger failed:', e.message));
 
         console.log(`[FW Webhook] Activated ${planKey} for user ${userId}, commission type: ${commissionType}`);
