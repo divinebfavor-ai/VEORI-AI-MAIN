@@ -492,9 +492,24 @@ async function handleAssistantRequest(event) {
     console.error('[Vapi assistant-request error]', e.message);
   }
 
-  // Return assistant config for this inbound call
-  const assistantConfig = await vapiService.buildInboundAssistantConfig({ callerPhone, operator });
-  return { assistant: assistantConfig };
+  // Return assistant config for this inbound call — wrapped so Vapi gets a valid response even if we error
+  try {
+    const assistantConfig = await vapiService.buildInboundAssistantConfig({ callerPhone, operator });
+    return { assistant: assistantConfig };
+  } catch (e) {
+    console.error('[Vapi Inbound] buildInboundAssistantConfig failed:', e.message);
+    // Return a minimal default so the call doesn't silently fail
+    return {
+      assistant: {
+        name: 'Alex',
+        firstMessage: 'Thank you for calling! This is Alex. Are you calling about selling your property?',
+        model: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', systemPrompt: 'You are Alex, a real estate investor. Someone called in. Ask if they are interested in selling their property.', temperature: 0.7, maxTokens: 400 },
+        voice: { provider: 'vapi', voiceId: 'Elliot' },
+        recordingEnabled: true,
+        silenceTimeoutSeconds: 30,
+      },
+    };
+  }
 }
 
 // POST /api/vapi/assistant — Operator AI Assistant (authenticated)
