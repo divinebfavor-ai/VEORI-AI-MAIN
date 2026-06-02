@@ -271,17 +271,14 @@ function requireInternal(req, res, next) {
   const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET;
   const provided        = req.headers['x-internal-secret'];
 
+  // INTERNAL_API_SECRET must be set — no fallback, no guessing
   if (!INTERNAL_SECRET) {
-    // If not configured, fall back to same-host check (Railway intra-service)
-    const host = req.headers['host'] || '';
-    if (!host.includes('railway') && !host.includes('localhost')) {
-      return res.status(403).json({ success: false, error: 'Internal endpoint' });
-    }
-    return next();
+    console.error('[Referrals] INTERNAL_API_SECRET not configured — blocking all internal-only requests');
+    return res.status(403).json({ success: false, error: 'Internal endpoint not configured' });
   }
 
-  if (provided !== INTERNAL_SECRET) {
-    console.warn('[Referrals] Rejected internal-only request — invalid secret from', req.ip);
+  if (!provided || provided !== INTERNAL_SECRET) {
+    console.warn('[Referrals] Rejected internal-only request from', req.ip);
     return res.status(403).json({ success: false, error: 'Internal endpoint' });
   }
   next();
