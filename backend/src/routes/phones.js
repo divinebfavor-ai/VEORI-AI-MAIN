@@ -304,4 +304,36 @@ router.delete('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/phones/provision-pool — manually provision the full number pool for current plan
+// Useful for existing operators who subscribed before auto-provisioning existed
+router.post('/provision-pool', async (req, res, next) => {
+  try {
+    const { data: user } = await supabase
+      .from('users')
+      .select('subscription_plan, subscription_status')
+      .eq('id', req.user.id)
+      .single();
+
+    if (!user?.subscription_plan || user.subscription_status !== 'active') {
+      return res.status(400).json({ success: false, error: 'Active subscription required to provision number pool' });
+    }
+
+    const { provisionNumberPool } = require('../services/numberProvisioning');
+
+    // Respond immediately — provisioning happens in background
+    res.json({
+      success: true,
+      message: `Provisioning numbers for ${user.subscription_plan} plan. Check back in a few minutes — your numbers will appear automatically.`,
+      plan: user.subscription_plan,
+    });
+
+    // Run provisioning in background
+    provisionNumberPool(req.user.id, user.subscription_plan).then(result => {
+      console.log(`[Phones] Manual pool provision for ${req.user.id}:`, result);
+    }).catch(err => {
+      console.error('[Phones] Manual pool provision error:', err.message);
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

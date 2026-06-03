@@ -1,9 +1,9 @@
 // ─── Phone Number Rotation & Health Service ───────────────────────────────────
 const supabase = require('../config/supabase');
 
-const COOLDOWN_SECONDS = 5;         // beta: minimal cooldown between calls
-const DAILY_MAX        = 99999;     // beta: no daily call limit
-const WEEKLY_MAX       = 99999;     // beta: no weekly limit
+const COOLDOWN_SECONDS = 90;        // 90 seconds between calls on same number — carrier health
+const DAILY_MAX        = 40;        // max 40 calls/number/day before spam-likely risk
+const WEEKLY_MAX       = 200;       // max 200 calls/number/week before mandatory rest
 
 /**
  * Select the best available phone number for a call.
@@ -22,9 +22,10 @@ async function selectBestNumber(userId, sellerState = null, excludeIds = []) {
 
   if (error || !numbers?.length) return null;
 
-  // Filter out numbers on cooldown or at daily limit
+  // Filter out numbers on cooldown, at daily limit, or at weekly limit
   const available = numbers.filter(n => {
-    if (n.daily_calls_made >= (n.daily_call_limit || DAILY_MAX)) return false;
+    if (n.daily_calls_made  >= Math.min(n.daily_call_limit || DAILY_MAX,  DAILY_MAX))  return false;
+    if (n.weekly_calls_made >= Math.min(n.weekly_call_limit || WEEKLY_MAX, WEEKLY_MAX)) return false;
     if (n.cooldown_until && new Date(n.cooldown_until) > new Date()) return false;
     if (excludeIds.includes(n.id)) return false;
     return true;

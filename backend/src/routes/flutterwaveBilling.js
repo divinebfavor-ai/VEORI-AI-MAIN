@@ -293,6 +293,14 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       expiresAt,
     });
 
+    // Auto-provision phone number pool (fire and forget — doesn't block the response)
+    const { handlePlanUpgrade } = require('../services/numberProvisioning');
+    handlePlanUpgrade(req.user.id, planKey).then(result => {
+      console.log(`[FW Verify] Number provisioning for ${planKey}:`, result);
+    }).catch(err => {
+      console.error('[FW Verify] Number provisioning failed:', err.message);
+    });
+
     res.json({
       success:     true,
       plan:        planKey,
@@ -404,6 +412,14 @@ router.post('/webhook', express.json(), async (req, res) => {
           fwCustomerId:     data.customer?.id?.toString() || null,
           fwSubscriptionId: data.plan?.toString() || null,
           expiresAt,
+        });
+
+        // Auto-provision phone number pool for this plan (fire and forget)
+        const { handlePlanUpgrade } = require('../services/numberProvisioning');
+        handlePlanUpgrade(userId, planKey).then(result => {
+          console.log(`[FW Webhook] Number provisioning for ${planKey}:`, result);
+        }).catch(err => {
+          console.error('[FW Webhook] Number provisioning failed:', err.message);
         });
 
         // Determine if this is first payment or recurring

@@ -166,6 +166,25 @@ function PhoneTab({ phoneList, setPhoneList }) {
     }
   }
 
+  const [provisioningPool, setProvisioningPool] = useState(false)
+
+  const handleProvisionPool = async () => {
+    setProvisioningPool(true)
+    try {
+      await phones.provisionPool()
+      toast.success('Provisioning your number pool — numbers will appear here in a few minutes', { duration: 6000 })
+      setTimeout(async () => {
+        const fresh = await phones.getPhones()
+        const raw = fresh.data?.numbers ?? fresh.data?.data ?? fresh.data
+        setPhoneList(Array.isArray(raw) ? raw : [])
+      }, 60000)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to provision numbers')
+    } finally {
+      setProvisioningPool(false)
+    }
+  }
+
   const handleFixWebhooks = async () => {
     setFixingWebhooks(true)
     try {
@@ -306,6 +325,9 @@ function PhoneTab({ phoneList, setPhoneList }) {
             disabled={planStatus && !planStatus.can_provision}
           >
             <Plus size={14} /> Get a Number
+          </Button>
+          <Button variant="secondary" loading={provisioningPool} onClick={handleProvisionPool} title="Auto-provision the right number pool for your plan">
+            Auto-Setup Numbers
           </Button>
           <Button variant="secondary" loading={syncing} onClick={handleSync}>
             Sync Numbers
