@@ -116,7 +116,6 @@ async function notifyOwnerOfSale({ buyerEmail, buyerName, planKey, planName, amo
       title,
       message,
       is_read:     false,
-      created_at:  new Date().toISOString(),
     });
 
     console.log(`[FW] Owner notified of new sale: ${planKey} by ${buyerEmail}`);
