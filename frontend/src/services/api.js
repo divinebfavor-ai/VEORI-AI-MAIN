@@ -294,4 +294,30 @@ export const wealth = {
   updateProgress:     (data)       => api.post('/api/wealth/strategy/progress', data),
 }
 
+// ─── SMS Inbox ────────────────────────────────────────────────────────────────
+export const inbox = {
+  getConversations: ()         => api.get('/api/sms/inbox'),
+  getThread:        (leadId)   => api.get(`/api/sms/conversation/${leadId}`),
+  send:             (lead_id, message) => api.post('/api/sms/send', { lead_id, message }),
+  markRead:         (leadId)   => api.post(`/api/sms/read/${leadId}`),
+}
+
+// ─── Missed Calls ─────────────────────────────────────────────────────────────
+export const missedCalls = {
+  getAll:       (params)  => api.get('/api/missed-calls', { params }),
+  getSettings:  ()        => api.get('/api/missed-calls/settings'),
+  saveSettings: (data)    => api.put('/api/missed-calls/settings', data),
+}
+
+// ─── Appointments ─────────────────────────────────────────────────────────────
+export const appointments = {
+  getAll:           (params)       => api.get('/api/appointments', { params }),
+  create:           (data)         => api.post('/api/appointments', data),
+  update:           (id, data)     => api.put(`/api/appointments/${id}`, data),
+  remove:           (id)           => api.delete(`/api/appointments/${id}`),
+  getAvailability:  ()             => api.get('/api/appointments/availability'),
+  saveAvailability: (data)         => api.post('/api/appointments/availability', data),
+  removeAvailability: (id)         => api.delete(`/api/appointments/availability/${id}`),
+}
+
 export default api

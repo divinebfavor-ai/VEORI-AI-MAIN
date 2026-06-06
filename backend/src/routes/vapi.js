@@ -401,6 +401,39 @@ async function handleCallEnded(call, event) {
   if (callRec.phone_number_id) {
     await updatePhoneHealth(callRec.phone_number_id, duration, outcome);
   }
+
+  // ── Missed call text-back — fires after all other logic, never blocks ────────
+  const MISSED_CALL_OUTCOMES = ['no_answer', 'not_home', 'voicemail'];
+  if (MISSED_CALL_OUTCOMES.includes(outcome) && callRec.user_id) {
+    const { handleMissedCall } = require('../services/missedCallService');
+    // Pass the full callRec (with phone_number field) and the lead
+    const callRecWithPhone = { ...callRec, phone_number: callRec.phone_number || callRec.leads?.phone };
+    handleMissedCall(callRecWithPhone, callRec.leads)
+      .catch(e => console.error('[MissedCall] Non-fatal error:', e.message));
+  }
+
+  // ── Auto-create appointment record when outcome is 'appointment' ─────────────
+  if (outcome === 'appointment' && callRec.lead_id && callRec.user_id) {
+    const leadForAppt = callRec.leads;
+    if (leadForAppt) {
+      const scheduledAt = new Date();
+      scheduledAt.setDate(scheduledAt.getDate() + 1); // default: next day
+      scheduledAt.setHours(10, 0, 0, 0);              // default: 10am
+
+      supabase.from('appointments').insert({
+        user_id:          callRec.user_id,
+        lead_id:          callRec.lead_id,
+        lead_name:        `${leadForAppt.first_name || ''} ${leadForAppt.last_name || ''}`.trim() || 'Unknown',
+        lead_phone:       leadForAppt.phone || callRec.phone_number || null,
+        property_address: leadForAppt.property_address || null,
+        motivation_score: aiAnalysis.motivation_score || null,
+        scheduled_at:     scheduledAt.toISOString(),
+        status:           'scheduled',
+        call_notes:       aiAnalysis.ai_summary || 'Appointment set during AI call.',
+        created_at:       new Date().toISOString(),
+      }).catch(e => console.error('[Appointment] Auto-create failed:', e.message));
+    }
+  }
 }
 
 async function handleStatusUpdate(call) {

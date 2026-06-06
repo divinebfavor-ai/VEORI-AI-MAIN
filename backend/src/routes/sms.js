@@ -222,4 +222,84 @@ router.get('/conversation/:leadId', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/sms/inbox — all SMS conversations grouped by lead, newest first
+router.get('/inbox', requireAuth, async (req, res, next) => {
+  try {
+    // Fetch the most recent message per lead for this user (last 300 messages)
+    const { data: messages, error: msgError } = await supabase
+      .from('sms_messages')
+      .select('lead_id, direction, body, sent_at, is_read')
+      .eq('user_id', req.user.id)
+      .order('sent_at', { ascending: false })
+      .limit(300);
+
+    if (msgError) throw msgError;
+
+    if (!messages || messages.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // Group: build per-lead summary (last message, unread count)
+    const leadMap = {};
+    for (const msg of messages) {
+      if (!msg.lead_id) continue;
+      if (!leadMap[msg.lead_id]) {
+        leadMap[msg.lead_id] = {
+          lead_id:         msg.lead_id,
+          last_message:    msg.body,
+          last_message_at: msg.sent_at,
+          last_direction:  msg.direction,
+          unread_count:    0,
+        };
+      }
+      if (msg.direction === 'inbound' && !msg.is_read) {
+        leadMap[msg.lead_id].unread_count += 1;
+      }
+    }
+
+    // Fetch lead details for all found lead IDs
+    const leadIds = Object.keys(leadMap);
+    if (leadIds.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const { data: leadsData, error: leadsError } = await supabase
+      .from('leads')
+      .select('id, first_name, last_name, phone, motivation_score, property_address, status, pipeline_stage')
+      .eq('user_id', req.user.id)
+      .in('id', leadIds);
+
+    if (leadsError) throw leadsError;
+
+    // Merge lead details into summaries
+    const leadsById = {};
+    for (const lead of (leadsData || [])) {
+      leadsById[lead.id] = lead;
+    }
+
+    const conversations = leadIds
+      .map(id => ({ ...leadMap[id], lead: leadsById[id] || null }))
+      .filter(c => c.lead !== null)
+      .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at));
+
+    res.json({ success: true, data: conversations });
+  } catch (err) { next(err); }
+});
+
+// POST /api/sms/read/:leadId — mark all inbound messages for a lead as read
+router.post('/read/:leadId', requireAuth, async (req, res, next) => {
+  try {
+    const { error } = await supabase
+      .from('sms_messages')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('lead_id', req.params.leadId)
+      .eq('user_id', req.user.id)
+      .eq('direction', 'inbound')
+      .eq('is_read', false);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

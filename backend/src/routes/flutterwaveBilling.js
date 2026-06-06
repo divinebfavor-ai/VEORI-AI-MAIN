@@ -84,6 +84,47 @@ const PLANS = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const OWNER_EMAIL = 'divineqflash@gmail.com';
+
+/**
+ * Notify the platform owner when a new subscription is purchased.
+ * Fire-and-forget — errors are logged but never thrown.
+ */
+async function notifyOwnerOfSale({ buyerEmail, buyerName, planKey, planName, amount, currency }) {
+  try {
+    const { data: owner } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', OWNER_EMAIL)
+      .maybeSingle();
+
+    if (!owner?.id) {
+      console.warn('[FW] Owner account not found — skipping sale notification');
+      return;
+    }
+
+    const amountStr = amount ? `$${Number(amount).toLocaleString()} ${currency || 'USD'}` : '';
+    const title     = `New subscriber: ${planName}`;
+    const message   = [
+      `${buyerName || buyerEmail} just subscribed to the ${planName} plan.`,
+      amountStr ? `Amount: ${amountStr}/month.` : '',
+    ].filter(Boolean).join(' ');
+
+    await supabase.from('notifications').insert({
+      operator_id: owner.id,
+      type:        'new_sale',
+      title,
+      message,
+      is_read:     false,
+      created_at:  new Date().toISOString(),
+    });
+
+    console.log(`[FW] Owner notified of new sale: ${planKey} by ${buyerEmail}`);
+  } catch (err) {
+    console.error('[FW] notifyOwnerOfSale error:', err.message);
+  }
+}
+
 async function fwRequest(method, path, body = null) {
   const res = await fetch(`${FW_BASE}${path}`, {
     method,
@@ -301,6 +342,16 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       console.error('[FW Verify] Number provisioning failed:', err.message);
     });
 
+    // Notify owner of new sale (fire and forget — verify is the buyer's own session)
+    notifyOwnerOfSale({
+      buyerEmail: txData.customer?.email || '',
+      buyerName:  txData.customer?.name  || '',
+      planKey,
+      planName:   plan.name,
+      amount:     plan.amount,
+      currency:   plan.currency || 'USD',
+    });
+
     res.json({
       success:     true,
       plan:        planKey,
@@ -420,6 +471,16 @@ router.post('/webhook', express.json(), async (req, res) => {
           console.log(`[FW Webhook] Number provisioning for ${planKey}:`, result);
         }).catch(err => {
           console.error('[FW Webhook] Number provisioning failed:', err.message);
+        });
+
+        // Notify platform owner of the new sale (fire and forget)
+        notifyOwnerOfSale({
+          buyerEmail: data.customer?.email || '',
+          buyerName:  data.customer?.name  || '',
+          planKey,
+          planName:   plan.name,
+          amount:     plan.amount,
+          currency:   plan.currency || 'USD',
         });
 
         // Determine if this is first payment or recurring

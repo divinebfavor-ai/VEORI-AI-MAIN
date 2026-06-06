@@ -65,6 +65,12 @@ import VirtualTourStudio from './pages/VirtualTourStudio'
 import TourViewer from './pages/TourViewer'
 // ── Property Marketing Engine ─────────────────────────────────────────────────
 import PropertyMarketing from './pages/PropertyMarketing'
+// ── New Features ──────────────────────────────────────────────────────────────
+import Inbox        from './pages/Inbox'
+import LeadPipeline from './pages/LeadPipeline'
+import Sequences    from './pages/Sequences'
+import Appointments from './pages/Appointments'
+import MissedCalls  from './pages/MissedCalls'
 
 const ADMIN_EMAILS = ['divineqflash@gmail.com']
 
@@ -172,6 +178,12 @@ export default function App() {
         <Route path="/referrals" element={<Referrals />} />
         {/* ── Admin ─────────────────────────────────────────────────────── */}
         <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
+        {/* ── New Features ──────────────────────────────────────────────── */}
+        <Route path="/inbox"         element={<Inbox />} />
+        <Route path="/lead-pipeline" element={<LeadPipeline />} />
+        <Route path="/sequences"     element={<Sequences />} />
+        <Route path="/appointments"  element={<Appointments />} />
+        <Route path="/missed-calls"  element={<MissedCalls />} />
       </Route>
 
       {/* Public tour viewer - no auth */}

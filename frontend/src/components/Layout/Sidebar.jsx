@@ -7,6 +7,7 @@ import {
   Brain, Flame, Target, Map, Sun,
   ListOrdered, Car, PhoneOff, ShieldCheck, Hammer,
   Mail, DollarSign, Home, Camera, Video, Calendar,
+  MessageSquare, GitBranch, Zap, PhoneMissed,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
@@ -49,6 +50,12 @@ const NAV = [
   { label: 'Content Studio', icon: Video,            to: '/content-studio' },
   // ── Virtual Tours ─────────────────────────────────────────────────────────
   { label: 'Virtual Tours',  icon: Camera,           to: '/virtual-tours' },
+  // ── Engagement (New Features) ─────────────────────────────────────────────
+  { label: 'Inbox',          icon: MessageSquare,    to: '/inbox' },
+  { label: 'Lead Pipeline',  icon: GitBranch,        to: '/lead-pipeline' },
+  { label: 'Sequences',      icon: Zap,              to: '/sequences' },
+  { label: 'Appointments',   icon: Calendar,         to: '/appointments' },
+  { label: 'Missed Calls',   icon: PhoneMissed,      to: '/missed-calls' },
 ]
 
 export default function Sidebar() {

@@ -382,6 +382,12 @@ async function autoSyncVapiCalls() {
 autoSyncVapiCalls();
 setInterval(autoSyncVapiCalls, 5 * 60 * 1000);
 
+// ─── New Features (Features: Missed Call Text-Back, SMS Inbox, Appointments) ──
+const missedCallsRouter  = require('./routes/missedCalls');
+const appointmentsRouter = require('./routes/appointments');
+app.use('/api/missed-calls',  missedCallsRouter);
+app.use('/api/appointments',  appointmentsRouter);
+
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
