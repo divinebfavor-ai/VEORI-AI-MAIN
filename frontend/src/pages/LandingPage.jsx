@@ -2,8 +2,6 @@ import { motion, useScroll, useTransform } from 'framer-motion'
 import { useRef, useState, useEffect, useId } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const HERO_BG   = 'https://d8j0ntlcm91z4.cloudfront.net/user_3Dh2N4HpfmHr3sqVUsWx08TjMB3/hf_20260520_150728_06f1619c-4b3c-49f4-bd6b-511027068f8b.png'
-const WAVE_BG   = 'https://d8j0ntlcm91z4.cloudfront.net/user_3Dh2N4HpfmHr3sqVUsWx08TjMB3/hf_20260520_153328_75be9237-41b1-40b5-a52e-6b75731a7c61.png'
 const API_URL   = 'https://veori-ai-main-production.up.railway.app/api/fw-billing'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -97,10 +95,10 @@ function LandingNav() {
         <span style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff', fontFamily: 'Inter,sans-serif' }}>VEORI</span>
       </a>
 
-      <ul style={{ listStyle: 'none', display: 'flex', gap: 4, margin: 0, padding: 0 }}>
+      <ul className="lp-nav-links" style={{ listStyle: 'none', display: 'flex', gap: 4, margin: 0, padding: 0 }}>
         {[['How it works', '#how'], ['Platform', '#platform'], ['Pricing', '#pricing']].map(([label, href]) => (
           <li key={label}>
-            <a href={href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.48)', textDecoration: 'none', padding: '6px 12px', borderRadius: 7, display: 'block', transition: 'color 0.2s' }}
+            <a href={href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.48)', textDecoration: 'none', padding: '6px 12px', borderRadius: 7, display: 'block', whiteSpace: 'nowrap', transition: 'color 0.2s' }}
               onMouseEnter={e => e.target.style.color = '#fff'}
               onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.48)'}
             >{label}</a>
@@ -124,92 +122,242 @@ function LandingNav() {
   )
 }
 
+// ─── Ambient background (replaces stock images) ──────────────────────────────
+
+function AuroraBG({ intensity = 1 }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      <div className="lp-aurora-a" style={{ position: 'absolute', top: '-20%', left: '-10%', width: '70%', height: '80%', background: `radial-gradient(ellipse at center, rgba(0,196,123,${0.07 * intensity}) 0%, transparent 65%)`, filter: 'blur(40px)' }} />
+      <div className="lp-aurora-b" style={{ position: 'absolute', bottom: '-25%', right: '-15%', width: '75%', height: '85%', background: `radial-gradient(ellipse at center, rgba(201,168,76,${0.05 * intensity}) 0%, transparent 65%)`, filter: 'blur(50px)' }} />
+      <div className="lp-grid" style={{ position: 'absolute', inset: 0, opacity: 0.5, maskImage: 'radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%)', WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%)' }} />
+    </div>
+  )
+}
+
+// ─── CountUp ──────────────────────────────────────────────────────────────────
+
+function CountUp({ to, prefix = '', suffix = '', duration = 1800 }) {
+  const { ref, visible } = useReveal()
+  const [val, setVal] = useState(0)
+  useEffect(() => {
+    if (!visible) return
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setVal(to); return }
+    let start = null, raf
+    const step = (t) => {
+      if (!start) start = t
+      const p = Math.min(1, (t - start) / duration)
+      setVal(Math.round(to * (1 - Math.pow(1 - p, 3))))
+      if (p < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [visible, to, duration])
+  return <span ref={ref}>{prefix}{val.toLocaleString()}{suffix}</span>
+}
+
+// ─── Live AI call simulation ──────────────────────────────────────────────────
+
+const CALL_SCRIPT = [
+  { role: 'ai',     text: "Hi, is this Maria? I'm reaching out about the property on Elmwood Drive — are you still the owner?", score: 12 },
+  { role: 'seller', text: "Yes, that's me. Who is this?", score: 12 },
+  { role: 'ai',     text: "I work with local cash buyers in your area. Would you consider an offer if the price made sense?", score: 34 },
+  { role: 'seller', text: "Honestly… maybe. The house needs more work than I can handle right now.", score: 68 },
+  { role: 'ai',     text: "Understood. If we could close in 14 days, buy as-is, no repairs and no fees — would that help your situation?", score: 81 },
+  { role: 'seller', text: "That would be a huge relief, actually. What would the next step be?", score: 94 },
+]
+
+function scoreColorFor(s) {
+  if (s >= 70) return '#00C47B'
+  if (s >= 40) return '#C9A84C'
+  return 'rgba(255,255,255,0.45)'
+}
+
+function LiveCallCard() {
+  const [step, setStep]   = useState(-1)   // -1 = dialing
+  const [done, setDone]   = useState(false)
+  const [secs, setSecs]   = useState(0)
+  const scrollRef = useRef(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setStep(CALL_SCRIPT.length - 1); setDone(true); return
+    }
+    let cancelled = false
+    let timers = []
+    const run = () => {
+      setStep(-1); setDone(false); setSecs(0)
+      timers.push(setTimeout(() => { if (!cancelled) setStep(0) }, 1400))
+      CALL_SCRIPT.forEach((_, i) => {
+        if (i === 0) return
+        timers.push(setTimeout(() => { if (!cancelled) setStep(i) }, 1400 + i * 2400))
+      })
+      timers.push(setTimeout(() => { if (!cancelled) setDone(true) }, 1400 + CALL_SCRIPT.length * 2400))
+      timers.push(setTimeout(() => { if (!cancelled) run() }, 1400 + CALL_SCRIPT.length * 2400 + 5200))
+    }
+    run()
+    const tick = setInterval(() => { if (!cancelled) setSecs(s => s + 1) }, 1000)
+    return () => { cancelled = true; timers.forEach(clearTimeout); clearInterval(tick) }
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [step, done])
+
+  const score = step >= 0 ? CALL_SCRIPT[Math.min(step, CALL_SCRIPT.length - 1)].score : 0
+  const mm = String(Math.floor(secs / 60)).padStart(1, '0')
+  const ss = String(secs % 60).padStart(2, '0')
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 32, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.9, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      style={{
+        position: 'relative', width: '100%', maxWidth: 460, margin: '0 auto',
+        background: 'rgba(9,19,36,0.85)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+        border: '1px solid rgba(255,255,255,0.09)', borderRadius: 20,
+        boxShadow: '0 0 0 1px rgba(0,196,123,0.06), 0 0 90px rgba(0,196,123,0.10), 0 32px 80px rgba(0,0,0,0.55)',
+        overflow: 'hidden',
+      }}>
+      <div className="lp-scanline" />
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <PulseDot />
+          <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#00C47B', fontFamily: 'Inter,sans-serif' }}>Live AI Call</span>
+          {!done && step >= 0 && (
+            <span className="lp-eq"><i style={{ height: 6 }} /><i style={{ height: 11 }} /><i style={{ height: 8 }} /><i style={{ height: 13 }} /><i style={{ height: 7 }} /></span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.40)', fontFamily: 'JetBrains Mono, monospace' }}>{mm}:{ss}</span>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter,sans-serif' }}>Dallas, TX</span>
+        </div>
+      </div>
+
+      {/* Transcript */}
+      <div ref={scrollRef} style={{ height: 280, overflowY: 'hidden', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {step === -1 && (
+          <div className="lp-msg" style={{ alignSelf: 'center', marginTop: 90, display: 'flex', alignItems: 'center', gap: 10, color: 'rgba(255,255,255,0.45)', fontSize: 13, fontFamily: 'Inter,sans-serif' }}>
+            <span className="lp-typing"><span /><span /><span /></span>
+            Dialing seller…
+          </div>
+        )}
+        {CALL_SCRIPT.slice(0, step + 1).map((m, i) => (
+          <div key={i} className="lp-msg" style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'ai' ? 'flex-start' : 'flex-end' }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: m.role === 'ai' ? '#00C47B' : 'rgba(255,255,255,0.35)', marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>
+              {m.role === 'ai' ? 'VEORI AI' : 'Seller'}
+            </span>
+            <div style={{
+              maxWidth: '85%', padding: '10px 14px', borderRadius: m.role === 'ai' ? '4px 14px 14px 14px' : '14px 4px 14px 14px',
+              background: m.role === 'ai' ? 'rgba(0,196,123,0.10)' : 'rgba(255,255,255,0.05)',
+              border: m.role === 'ai' ? '1px solid rgba(0,196,123,0.18)' : '1px solid rgba(255,255,255,0.07)',
+              fontSize: 13, lineHeight: 1.55, color: 'rgba(255,255,255,0.82)', fontFamily: 'Inter,sans-serif',
+            }}>{m.text}</div>
+          </div>
+        ))}
+        {done && (
+          <div className="lp-msg" style={{ alignSelf: 'center', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.30)', borderRadius: 100, padding: '8px 18px' }}>
+            <span style={{ color: '#00C47B', fontWeight: 800, fontSize: 13 }}>✓</span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#00C47B', fontFamily: 'Inter,sans-serif' }}>Qualified — appointment booked Thu 2:00 PM</span>
+          </div>
+        )}
+      </div>
+
+      {/* Score footer */}
+      <div style={{ padding: '14px 20px 18px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.40)', fontFamily: 'Inter,sans-serif' }}>Motivation score</span>
+          <span style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em', color: scoreColorFor(score), fontFamily: 'Inter,sans-serif' }}>{score}</span>
+        </div>
+        <div style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 100, overflow: 'hidden' }}>
+          <div style={{ width: `${score}%`, height: '100%', background: `linear-gradient(90deg, ${scoreColorFor(score)}, ${scoreColorFor(score)}cc)`, borderRadius: 100, transition: 'width 1.1s cubic-bezier(0.16,1,0.3,1), background 0.6s', boxShadow: score >= 70 ? '0 0 14px rgba(0,196,123,0.55)' : 'none' }} />
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 // ─── Hero ─────────────────────────────────────────────────────────────────────
 
 function Hero() {
   const ref = useRef(null)
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] })
-  const bgY        = useTransform(scrollYProgress, [0, 1], ['0%', '30%'])
-  const textY      = useTransform(scrollYProgress, [0, 1], ['0%', '18%'])
+  const textY      = useTransform(scrollYProgress, [0, 1], ['0%', '14%'])
   const opacityVal = useTransform(scrollYProgress, [0, 0.7], [1, 0])
 
   return (
-    <section ref={ref} style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-      <motion.div style={{ position: 'absolute', inset: '-10%', y: bgY, backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(6,14,26,0.55) 0%, rgba(6,14,26,0.72) 60%, rgba(6,14,26,0.92) 100%)' }} />
-      <div className="lp-grid" style={{ position: 'absolute', inset: 0, opacity: 0.6 }} />
-      <div style={{ position: 'absolute', top: '10%', left: '50%', transform: 'translateX(-50%)', width: 800, height: 500, background: 'radial-gradient(ellipse at center, rgba(0,196,123,0.09) 0%, transparent 70%)', pointerEvents: 'none', animation: 'lp-glow 4s ease-in-out infinite' }} />
+    <section ref={ref} style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', overflow: 'hidden', background: 'radial-gradient(ellipse 120% 90% at 50% -10%, #0B1A30 0%, #060E1A 55%)' }}>
+      <AuroraBG intensity={1.3} />
 
-      <motion.div style={{ position: 'relative', zIndex: 10, y: textY, opacity: opacityVal, textAlign: 'center', padding: '160px 24px 100px', maxWidth: 900, margin: '0 auto', width: '100%' }}>
+      <motion.div style={{ position: 'relative', zIndex: 10, y: textY, opacity: opacityVal, padding: '140px 32px 90px', maxWidth: 1180, margin: '0 auto', width: '100%' }}>
+        <div className="lp-hero-grid">
 
-        {/* Logo centered */}
-        <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, marginBottom: 40 }}>
-          <VeoriLogo size={72} />
-          <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.06em', color: '#fff', fontFamily: 'Inter,sans-serif', lineHeight: 1 }}>VEORI</span>
-        </motion.div>
+          {/* Left — copy */}
+          <div className="lp-hero-left">
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
+              className="lp-badge-row" style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.28)', borderRadius: 100, padding: '7px 18px' }}>
+                <PulseDot />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#00C47B', letterSpacing: '0.05em', fontFamily: 'Inter,sans-serif', textTransform: 'uppercase' }}>AI Acquisitions Platform</span>
+              </div>
+            </motion.div>
 
-        {/* AI badge */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(0,196,123,0.12)', border: '1px solid rgba(0,196,123,0.30)', borderRadius: 100, padding: '8px 20px', marginBottom: 32 }}>
-          <PulseDot />
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#00C47B', letterSpacing: '0.02em', fontFamily: 'Inter,sans-serif', textTransform: 'uppercase' }}>AI Operating System for Real Estate</span>
-        </motion.div>
+            <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.85, delay: 0.22, ease: [0.16,1,0.3,1] }}
+              style={{ fontSize: 'clamp(40px,5.4vw,68px)', fontWeight: 900, letterSpacing: '-0.045em', lineHeight: 1.04, marginBottom: 22, fontFamily: 'Inter,sans-serif' }}>
+              Your AI calls sellers.<br />
+              <span className="lp-shimmer">You close deals.</span>
+            </motion.h1>
 
-        {/* Headline */}
-        <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.32, ease: [0.22,1,0.36,1] }}
-          style={{ fontSize: 'clamp(38px,6vw,72px)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.06, marginBottom: 24, fontFamily: 'Inter,sans-serif' }}>
-          The AI That Calls Sellers,<br />
-          <span className="lp-shimmer">Closes Deals, While You Sleep.</span>
-        </motion.h1>
+            <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.85, delay: 0.34, ease: [0.16,1,0.3,1] }}
+              style={{ fontSize: 'clamp(15px,1.7vw,18px)', color: 'rgba(255,255,255,0.62)', lineHeight: 1.7, maxWidth: 520, margin: '0 auto 40px', fontFamily: 'Inter,sans-serif' }}>
+              VEORI dials thousands of sellers a month, qualifies them in real conversations, scores their motivation, sends contracts for e-signature, and coordinates title — around the clock, without you on the phone.
+            </motion.p>
 
-        {/* Subheadline */}
-        <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.42, ease: [0.22,1,0.36,1] }}
-          style={{ fontSize: 'clamp(15px,1.8vw,18px)', color: 'rgba(255,255,255,0.65)', lineHeight: 1.75, maxWidth: 560, margin: '0 auto 52px', fontFamily: 'Inter,sans-serif' }}>
-          Veori makes 3,000 AI calls a month, qualifies sellers, sends contracts, coordinates title companies and closes deals. Fully automated, 24 hours a day.
-        </motion.p>
-
-        {/* CTAs */}
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75, delay: 0.52, ease: [0.22,1,0.36,1] }}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <a href="#pricing"
-              style={{ padding: '16px 40px', background: '#00C47B', color: '#000', fontSize: 16, fontWeight: 800, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s', letterSpacing: '-0.01em' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,196,123,0.45)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
-              Get Started Today
-            </a>
-            <a href="#how"
-              style={{ padding: '16px 40px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: 700, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#fff' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}>
-              See How It Works
-            </a>
+            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.85, delay: 0.46, ease: [0.16,1,0.3,1] }}>
+              <div className="lp-cta-row" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 16 }}>
+                <a href="#pricing"
+                  style={{ padding: '16px 38px', background: '#00C47B', color: '#000', fontSize: 15.5, fontWeight: 800, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)', letterSpacing: '-0.01em', boxShadow: '0 8px 32px rgba(0,196,123,0.25)' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 18px 44px rgba(0,196,123,0.45)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,196,123,0.25)' }}>
+                  Start Closing Deals
+                </a>
+                <a href="#how"
+                  style={{ padding: '16px 38px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)', fontSize: 15.5, fontWeight: 700, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.25s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#fff' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}>
+                  See How It Works
+                </a>
+              </div>
+              <div className="lp-badge-row" style={{ display: 'flex', justifyContent: 'center', fontSize: 13, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter,sans-serif' }}>
+                From <strong style={{ color: 'rgba(255,255,255,0.60)', margin: '0 5px' }}>$397/month</strong> · No setup fees · Cancel anytime
+              </div>
+            </motion.div>
           </div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter,sans-serif' }}>
-            From <strong style={{ color: 'rgba(255,255,255,0.60)' }}>$499/month</strong> · No setup fees · Cancel anytime
-          </div>
-        </motion.div>
+
+          {/* Right — live call demo */}
+          <LiveCallCard />
+        </div>
 
         {/* Stats bar */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.75 }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, flexWrap: 'wrap', marginTop: 64, borderRadius: 16, background: 'rgba(8,18,34,0.80)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(16px)', maxWidth: 680, margin: '64px auto 0', overflow: 'hidden' }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.8 }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, flexWrap: 'wrap', borderRadius: 16, background: 'rgba(8,18,34,0.75)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(16px)', maxWidth: 760, margin: '72px auto 0', overflow: 'hidden' }}>
           {[
-            { label: 'AI Dials / Month', value: '3,000', color: '#00C47B' },
-            { label: 'Saves vs VA', value: '$1,421', color: '#C9A84C' },
-            { label: 'Human Required', value: 'Zero', color: '#fff' },
-            { label: 'Works 24/7', value: 'Always', color: '#fff' },
-          ].map(({ label, value, color }, i) => (
-            <div key={label} style={{ flex: 1, minWidth: 140, padding: '22px 20px', textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-              <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 26, fontWeight: 900, color, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 6 }}>{value}</div>
+            { label: 'AI Dials / Month', node: <CountUp to={3000} />, color: '#00C47B' },
+            { label: 'Saved vs Human VA', node: <CountUp to={1421} prefix="$" />, color: '#C9A84C' },
+            { label: 'Hours On The Phone', node: 'Zero', color: '#fff' },
+            { label: 'Coverage', node: '24/7', color: '#fff' },
+          ].map(({ label, node, color }, i) => (
+            <div key={label} style={{ flex: 1, minWidth: 150, padding: '22px 20px', textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+              <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 27, fontWeight: 900, color, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 6 }}>{node}</div>
               <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)', fontFamily: 'Inter,sans-serif' }}>{label}</div>
             </div>
           ))}
         </motion.div>
-
       </motion.div>
 
-      <div style={{ position: 'absolute', bottom: 32, left: '50%', animation: 'lp-float 2.5s ease-in-out infinite', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+      <div className="lp-scroll-hint" style={{ position: 'absolute', bottom: 28, left: '50%', animation: 'lp-float 2.5s ease-in-out infinite', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
         <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', fontFamily: 'Inter,sans-serif' }}>Scroll</div>
         <div style={{ width: 1, height: 32, background: 'linear-gradient(to bottom, rgba(0,196,123,0.6), transparent)' }} />
       </div>
@@ -245,6 +393,134 @@ function Ticker() {
         ))}
       </div>
     </div>
+  )
+}
+
+// ─── Dashboard Preview (product mockup in browser chrome) ───────────────────
+
+const DASH_LEADS = [
+  { name: 'Maria Gonzales',  city: 'Dallas, TX',    score: 94, status: 'Appointment',  sColor: '#00C47B' },
+  { name: 'James Whitfield', city: 'Atlanta, GA',   score: 87, status: 'Offer sent',   sColor: '#00C47B' },
+  { name: 'Linda Okafor',    city: 'Houston, TX',   score: 71, status: 'Follow-up',    sColor: '#C9A84C' },
+  { name: 'Robert Chen',     city: 'Phoenix, AZ',   score: 66, status: 'Nurturing',    sColor: '#C9A84C' },
+  { name: 'Denise Walker',   city: 'Memphis, TN',   score: 38, status: 'Calling',      sColor: 'rgba(255,255,255,0.45)' },
+]
+
+const DASH_NAV = ['Dashboard', 'Leads', 'Live Calls', 'Pipeline', 'Contracts', 'Analytics']
+
+function DashboardPreview() {
+  const { ref, visible } = useReveal()
+  return (
+    <section style={{ position: 'relative', padding: '110px 24px 90px', overflow: 'hidden' }}>
+      <AuroraBG intensity={0.7} />
+      <div style={{ maxWidth: 1100, margin: '0 auto', position: 'relative' }}>
+        <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.16,1,0.3,1] }}
+          style={{ textAlign: 'center', marginBottom: 52 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>The platform</div>
+          <h2 style={{ fontSize: 'clamp(28px,4vw,46px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>
+            Mission control for your<br />entire acquisitions pipeline.
+          </h2>
+          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', maxWidth: 540, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+            Every call, score, contract, and closing in one command center. This is what you log into every morning.
+          </p>
+        </motion.div>
+
+        {/* Browser-chrome framed dashboard */}
+        <div className="lp-dash-wrap">
+          <motion.div
+            initial={{ opacity: 0, y: 48 }} animate={visible ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 1.0, delay: 0.15, ease: [0.16,1,0.3,1] }}
+            className={`lp-dash ${visible ? 'lp-dash-flat' : ''}`}
+            style={{
+              borderRadius: 16, overflow: 'hidden',
+              border: '1px solid rgba(255,255,255,0.10)',
+              boxShadow: '0 0 0 1px rgba(0,196,123,0.05), 0 0 120px rgba(0,196,123,0.08), 0 48px 100px rgba(0,0,0,0.6)',
+              background: '#081120',
+            }}>
+
+            {/* Chrome bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', background: 'rgba(255,255,255,0.025)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', gap: 7 }}>
+                {['#FF5F57', '#FEBC2E', '#28C840'].map(c => <span key={c} style={{ width: 11, height: 11, borderRadius: '50%', background: c, opacity: 0.85 }} />)}
+              </div>
+              <div style={{ flex: 1, maxWidth: 380, margin: '0 auto', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '5px 14px', fontSize: 11.5, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono, monospace', textAlign: 'center' }}>
+                app.veori.net/dashboard
+              </div>
+              <div style={{ width: 47 }} />
+            </div>
+
+            {/* App body */}
+            <div style={{ display: 'flex', minHeight: 380 }}>
+
+              {/* Sidebar */}
+              <div className="lp-dash-side" style={{ width: 168, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.05)', padding: '18px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', marginBottom: 22 }}>
+                  <VeoriLogo size={20} />
+                  <span style={{ fontSize: 12.5, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', fontFamily: 'Inter,sans-serif' }}>VEORI</span>
+                </div>
+                {DASH_NAV.map((item, i) => (
+                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, marginBottom: 2, background: i === 0 ? 'rgba(0,196,123,0.10)' : 'transparent', border: i === 0 ? '1px solid rgba(0,196,123,0.18)' : '1px solid transparent' }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: i === 0 ? '#00C47B' : 'rgba(255,255,255,0.18)' }} />
+                    <span style={{ fontSize: 11.5, fontWeight: i === 0 ? 700 : 500, color: i === 0 ? '#fff' : 'rgba(255,255,255,0.42)', fontFamily: 'Inter,sans-serif' }}>{item}</span>
+                    {item === 'Live Calls' && <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 800, color: '#00C47B', background: 'rgba(0,196,123,0.12)', padding: '1px 6px', borderRadius: 100 }}>4</span>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Main */}
+              <div style={{ flex: 1, padding: '20px 22px', minWidth: 0 }}>
+
+                {/* Stat tiles */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 18 }}>
+                  {[
+                    { label: 'Calls today', value: '312', color: '#00C47B', delta: '+18%' },
+                    { label: 'Hot leads', value: '18', color: '#C9A84C', delta: '+5' },
+                    { label: 'Appointments', value: '7', color: '#fff', delta: '+2' },
+                    { label: 'Contracts out', value: '3', color: '#fff', delta: '' },
+                  ].map(t => (
+                    <div key={t.label} style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 11, padding: '13px 14px' }}>
+                      <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)', marginBottom: 6, fontFamily: 'Inter,sans-serif' }}>{t.label}</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+                        <span style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.03em', color: t.color, fontFamily: 'Inter,sans-serif' }}>{t.value}</span>
+                        {t.delta && <span style={{ fontSize: 10, fontWeight: 700, color: '#00C47B', fontFamily: 'Inter,sans-serif' }}>{t.delta}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Lead table */}
+                <div style={{ background: 'rgba(255,255,255,0.018)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter,sans-serif' }}>Today's qualified sellers</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#00C47B', fontFamily: 'Inter,sans-serif' }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#00C47B' }} /> LIVE
+                    </span>
+                  </div>
+                  {DASH_LEADS.map((l, i) => (
+                    <div key={l.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < DASH_LEADS.length - 1 ? '1px solid rgba(255,255,255,0.035)' : 'none' }}>
+                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,196,123,0.08)', border: '1px solid rgba(0,196,123,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#00C47B', fontFamily: 'Inter,sans-serif', flexShrink: 0 }}>
+                        {l.name.split(' ').map(w => w[0]).join('')}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter,sans-serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</div>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter,sans-serif' }}>{l.city}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <div style={{ width: 54, height: 4, background: 'rgba(255,255,255,0.07)', borderRadius: 100, overflow: 'hidden' }}>
+                          <div style={{ width: `${l.score}%`, height: '100%', background: l.sColor, borderRadius: 100 }} />
+                        </div>
+                        <span style={{ fontSize: 11.5, fontWeight: 800, color: l.sColor, fontFamily: 'JetBrains Mono, monospace', width: 22, textAlign: 'right' }}>{l.score}</span>
+                      </div>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, color: l.sColor, background: `${l.sColor === '#00C47B' ? 'rgba(0,196,123,0.10)' : l.sColor === '#C9A84C' ? 'rgba(201,168,76,0.10)' : 'rgba(255,255,255,0.05)'}`, padding: '3px 9px', borderRadius: 100, whiteSpace: 'nowrap', fontFamily: 'Inter,sans-serif', flexShrink: 0 }}>{l.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -952,8 +1228,7 @@ function FinalCTA() {
   const { ref, visible } = useReveal()
   return (
     <section style={{ position: 'relative', padding: '120px 24px', overflow: 'hidden', textAlign: 'center' }}>
-      <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${WAVE_BG})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.25 }} />
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(6,14,26,0.78)' }} />
+      <AuroraBG intensity={1.4} />
       <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 600, height: 400, background: 'radial-gradient(ellipse at center, rgba(0,196,123,0.10) 0%, transparent 70%)', pointerEvents: 'none', animation: 'lp-glow 4s ease-in-out infinite' }} />
       <motion.div ref={ref} initial={{ opacity: 0, y: 28 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} style={{ position: 'relative', maxWidth: 560, margin: '0 auto' }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 18, fontFamily: 'Inter,sans-serif' }}>Start today</div>
@@ -1036,6 +1311,7 @@ export default function LandingPage() {
       <LandingNav />
       <Hero />
       <Ticker />
+      <DashboardPreview />
       <WhatYouGet />
       <Comparison />
       <ReplaceYourStack />
