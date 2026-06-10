@@ -465,8 +465,9 @@ function toE164(phone) {
 async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
   if (!VAPI_API_KEY) throw new Error('VAPI_API_KEY not configured');
 
-  const aiName  = operator.ai_caller_name || 'Alex';
-  const voiceId = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
+  const aiName      = operator.ai_caller_name || 'Alex';
+  const companyName = operator.company_name || 'a local real estate investment group';
+  const voiceId     = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
 
   // ── STEP 3: Build call payload using operator's number + tag-matched script ──
   // Pull accumulated intelligence from every prior call — this is the data moat
