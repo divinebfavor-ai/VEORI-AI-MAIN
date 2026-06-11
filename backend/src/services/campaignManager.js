@@ -101,7 +101,12 @@ async function dialerTick(campaignId) {
 
       // Phone number selection
       const inUseIds = Array.from(activeCalls.values()).map(c => c.phoneNumberId).filter(Boolean);
-      const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, inUseIds);
+      // Derive the lead's area code for local-presence matching (305 lead → 305 number).
+      const leadDigits   = String(lead.phone || '').replace(/\D/g, '');
+      const leadAreaCode = leadDigits.length === 11 && leadDigits.startsWith('1')
+        ? leadDigits.slice(1, 4)
+        : (leadDigits.length === 10 ? leadDigits.slice(0, 3) : null);
+      const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, inUseIds, leadAreaCode);
       if (!phoneNum) {
         console.log('[Campaign] No healthy numbers available — waiting for next tick');
         leadQueue.unshift(lead); // put lead back, try again next tick

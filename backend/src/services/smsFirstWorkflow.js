@@ -271,7 +271,12 @@ async function triggerPendingCalls(campaignId, userId, campaign) {
     }
 
     try {
-      const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, []);
+      // Derive the lead's area code for local-presence matching (305 lead → 305 number).
+      const leadDigits   = String(lead.phone || '').replace(/\D/g, '');
+      const leadAreaCode = leadDigits.length === 11 && leadDigits.startsWith('1')
+        ? leadDigits.slice(1, 4)
+        : (leadDigits.length === 10 ? leadDigits.slice(0, 3) : null);
+      const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, [], leadAreaCode);
       if (!phoneNum) {
         console.warn('[SMSFirst] No healthy phone numbers available for call');
         session.callQueue.push({ row, lead }); // retry next tick

@@ -94,7 +94,12 @@ ${vmMessage}` }],
   };
 
   // Pick best phone number via rotation (same as regular calls)
-  const phoneNum = await phoneRotation.selectBestNumber(operator.id, lead.property_state)
+  // Derive the lead's area code for local-presence matching (305 lead → 305 number).
+  const leadDigits   = String(lead.phone || '').replace(/\D/g, '');
+  const leadAreaCode = leadDigits.length === 11 && leadDigits.startsWith('1')
+    ? leadDigits.slice(1, 4)
+    : (leadDigits.length === 10 ? leadDigits.slice(0, 3) : null);
+  const phoneNum = await phoneRotation.selectBestNumber(operator.id, lead.property_state, [], leadAreaCode)
     .catch(() => null);
   if (phoneNum?.vapi_phone_id) {
     payload.phoneNumberId = phoneNum.vapi_phone_id;

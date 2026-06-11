@@ -358,9 +358,15 @@ router.get('/health', async (req, res, next) => {
 // POST /api/phones/select — intelligent number selection
 router.post('/select', async (req, res, next) => {
   try {
-    const { seller_state, exclude_ids = [] } = req.body;
+    const { seller_state, exclude_ids = [], seller_phone, seller_area_code } = req.body;
     const phoneRotation = require('../services/phoneRotation');
-    const number = await phoneRotation.selectBestNumber(req.user.id, seller_state, exclude_ids);
+    // Local-presence matching: prefer an explicit seller_area_code, else derive it from seller_phone.
+    let leadAreaCode = seller_area_code || null;
+    if (!leadAreaCode && seller_phone) {
+      const d = String(seller_phone).replace(/\D/g, '');
+      leadAreaCode = d.length === 11 && d.startsWith('1') ? d.slice(1, 4) : (d.length === 10 ? d.slice(0, 3) : null);
+    }
+    const number = await phoneRotation.selectBestNumber(req.user.id, seller_state, exclude_ids, leadAreaCode);
     if (!number) return res.status(404).json({ success: false, error: 'No healthy numbers available' });
     res.json({ success: true, data: number });
   } catch (err) { next(err); }
