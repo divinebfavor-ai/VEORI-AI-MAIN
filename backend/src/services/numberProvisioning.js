@@ -263,6 +263,74 @@ async function provisionNumberPool(userId, plan) {
   return { provisioned, already_had: alreadyHad, target, errors };
 }
 
+// Health math: each number safely handles this many calls/day before spam risk.
+// Must match DAILY_MAX in phoneRotation.js — the enforced rotation cap.
+const CALLS_PER_NUMBER_PER_DAY = 40;
+// Safety clamp so a single huge import can't drain the whole shared pool at once.
+const MAX_AUTO_ASSIGN = 80;
+
+/**
+ * Ensure an operator holds enough toll-free numbers to call their callable leads
+ * while keeping each number healthy (≤40 calls/day). Sizes to ACTUAL callable lead
+ * volume, then assigns the shortfall instantly from the shared pool.
+ *
+ * Pure DB + pool assignment — no Twilio/Vapi API call, so it works even when keys
+ * are unavailable. Idempotent: recounts each call, only assigns what's missing.
+ *
+ * @param {string} userId
+ * @returns {Promise<{callableLeads:number, currentNumbers:number, needed:number, shortfall:number, assigned:number, pool_remaining:number}>}
+ */
+async function ensureCapacity(userId) {
+  const { assignFromPool } = require('./poolService');
+
+  // 1. Count callable leads — not on DNC, has a phone number.
+  const { count: callableLeads } = await supabase
+    .from('leads')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_on_dnc', false)
+    .not('phone', 'is', null);
+
+  const callable = callableLeads || 0;
+
+  // 2. Count active numbers the operator already holds.
+  const { count: currentNumbers } = await supabase
+    .from('phone_numbers')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .is('released_at', null);
+
+  const current = currentNumbers || 0;
+
+  // 3. Health math — numbers needed for this call volume, clamped to the safety cap.
+  const needed    = Math.min(Math.ceil(callable / CALLS_PER_NUMBER_PER_DAY), MAX_AUTO_ASSIGN);
+  const shortfall = Math.max(0, needed - current);
+
+  if (shortfall === 0) {
+    console.log(`[EnsureCapacity] ${userId} — ${callable} callable leads, has ${current}/${needed} numbers — no assignment needed`);
+    return { callableLeads: callable, currentNumbers: current, needed, shortfall: 0, assigned: 0, pool_remaining: null };
+  }
+
+  // 4. Assign the shortfall instantly from the shared pool.
+  const result = await assignFromPool(userId, shortfall);
+
+  if (result.assigned < shortfall) {
+    console.warn(`[EnsureCapacity] ${userId} — pool short: needed ${shortfall}, assigned ${result.assigned}, ${result.pool_remaining} left in pool. REFILL POOL.`);
+  } else {
+    console.log(`[EnsureCapacity] ${userId} — assigned ${result.assigned} number(s) for ${callable} callable leads (${result.pool_remaining} left in pool)`);
+  }
+
+  return {
+    callableLeads:  callable,
+    currentNumbers: current,
+    needed,
+    shortfall,
+    assigned:       result.assigned,
+    pool_remaining: result.pool_remaining,
+  };
+}
+
 /**
  * Handle plan activation / upgrade
  */
@@ -280,6 +348,7 @@ async function handlePlanUpgrade(userId, newPlan) {
 module.exports = {
   provisionNumberPool,
   handlePlanUpgrade,
+  ensureCapacity,
   PLAN_NUMBER_COUNTS,
   STATE_AREA_CODES,
 };

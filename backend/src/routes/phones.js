@@ -167,6 +167,67 @@ router.post('/import-twilio', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Shared toll-free pool (admin only) ───────────────────────────────────────
+// Gate: requires the ADMIN_API_KEY secret in the X-Admin-Key header (on top of
+// requireAuth). Operators can't fill the shared pool — only the platform owner.
+function requireAdmin(req, res, next) {
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey) return res.status(500).json({ success: false, error: 'Admin key not configured' });
+  if (req.get('X-Admin-Key') !== adminKey) {
+    return res.status(403).json({ success: false, error: 'Admin access required' });
+  }
+  next();
+}
+
+// POST /api/phones/pool/load — load verified toll-free numbers into the shared pool
+// body: { numbers: ["+18005551234", ...] }
+router.post('/pool/load', requireAdmin, async (req, res, next) => {
+  try {
+    const { numbers } = req.body;
+    if (!Array.isArray(numbers) || numbers.length === 0) {
+      return res.status(400).json({ success: false, error: 'numbers array required (E.164 toll-free)' });
+    }
+    const { loadPoolNumbers } = require('../services/poolService');
+    const result = await loadPoolNumbers(numbers);
+    res.status(201).json({ success: true, ...result });
+  } catch (err) { next(err); }
+});
+
+// GET /api/phones/pool/status — pool counts (admin only)
+router.get('/pool/status', requireAdmin, async (req, res, next) => {
+  try {
+    const counts = {};
+    for (const status of ['available', 'assigned']) {
+      const { count } = await supabase
+        .from('phone_numbers')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_toll_free', true)
+        .eq('pool_status', status);
+      counts[status] = count || 0;
+    }
+    const { count: pending } = await supabase
+      .from('phone_numbers')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_toll_free', true)
+      .eq('verified_status', 'pending');
+    const { count: available_verified } = await supabase
+      .from('phone_numbers')
+      .select('*', { count: 'exact', head: true })
+      .is('user_id', null)
+      .eq('pool_status', 'available')
+      .eq('is_toll_free', true)
+      .eq('verified_status', 'verified');
+
+    res.json({
+      success: true,
+      available_to_assign: available_verified || 0,
+      available_total:     counts.available,
+      assigned:            counts.assigned,
+      pending_verification: pending || 0,
+    });
+  } catch (err) { next(err); }
+});
+
 // GET /api/phones/plan-status — beta: unlimited numbers
 router.get('/plan-status', async (req, res, next) => {
   try {

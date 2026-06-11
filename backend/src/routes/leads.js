@@ -102,6 +102,13 @@ router.post('/', async (req, res, next) => {
       }
     });
 
+    // Auto-size the operator's toll-free number pool to their callable lead volume
+    // (async — never blocks lead creation, never throws into the response)
+    setImmediate(() => {
+      require('../services/numberProvisioning').ensureCapacity(req.user.id)
+        .catch(err => console.error('[Leads] ensureCapacity error:', err.message));
+    });
+
     res.status(201).json({ success: true, data });
   } catch (err) { next(err); }
 });
@@ -187,6 +194,13 @@ router.post('/bulk', async (req, res, next) => {
         console.log(`[SMS] Opening texts sent to ${newLeads.filter(l => l.phone).length} leads`);
       });
     }
+
+    // Auto-size the operator's toll-free number pool to their callable lead volume
+    // (async — never blocks the import response, never throws)
+    setImmediate(() => {
+      require('../services/numberProvisioning').ensureCapacity(req.user.id)
+        .catch(err => console.error('[Leads] ensureCapacity (bulk) error:', err.message));
+    });
 
     res.status(201).json({
       success: true,
@@ -334,6 +348,13 @@ router.post('/ingest', async (req, res, next) => {
     }).select().single();
 
     if (error) throw error;
+
+    // Auto-size the operator's toll-free number pool to their callable lead volume
+    // (async — never blocks the response, never throws)
+    setImmediate(() => {
+      require('../services/numberProvisioning').ensureCapacity(req.user.id)
+        .catch(err => console.error('[Leads] ensureCapacity (ingest) error:', err.message));
+    });
 
     res.status(201).json({ success: true, seller });
   } catch (err) { next(err); }
