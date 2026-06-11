@@ -162,18 +162,22 @@ router.post('/initiate', async (req, res, next) => {
       return res.status(400).json({ success: false, error: tcpa.reason });
     }
 
-    // TCPA: consent + federal DNC scrub (track + warn — does NOT block the call yet)
+    // TCPA: consent scrub (track + warn — consent is advisory, not a hard block)
     const tcpaWarnings = [];
     if (!lead.consent) {
       tcpaWarnings.push('no_prior_consent');
       await logTcpa(req.user.id, lead.id, lead.phone, 'warn_no_consent', 'No prior express consent on record for this lead');
     }
+
+    // TCPA: federal DNC scrub — HARD BLOCK when the registry confirms the number is listed.
+    // Fails OPEN: if FTC_DNC_API_KEY is unset or the lookup errors, fed.checked is false,
+    // so the call is NEVER blocked until the registry is configured and actively confirms a hit.
     try {
       const { isOnFederalDnc } = require('../services/ftcDncService');
       const fed = await isOnFederalDnc(lead.phone);
       if (fed.checked && fed.onList) {
-        tcpaWarnings.push('federal_dnc');
-        await logTcpa(req.user.id, lead.id, lead.phone, 'warn_federal_dnc', 'Number appears on the FTC National DNC Registry');
+        await logTcpa(req.user.id, lead.id, lead.phone, 'blocked_federal_dnc', 'Number is on the FTC National DNC Registry — call blocked');
+        return res.status(400).json({ success: false, error: 'Number is on the FTC National Do Not Call Registry — call blocked for TCPA compliance' });
       }
     } catch (e) {
       console.warn('[TCPA] Federal DNC check skipped:', e.message);
