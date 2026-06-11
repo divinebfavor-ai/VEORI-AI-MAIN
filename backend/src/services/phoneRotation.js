@@ -18,7 +18,8 @@ async function selectBestNumber(userId, sellerState = null, excludeIds = []) {
     .eq('user_id', userId)
     .eq('is_active', true)
     .not('health_status', 'eq', 'flagged')
-    .not('health_status', 'eq', 'resting');
+    .not('health_status', 'eq', 'resting')
+    .not('is_toll_free', 'is', true);   // calls go out on LOCAL numbers only — toll-free is SMS-only (higher seller answer rate)
 
   if (error || !numbers?.length) return null;
 
