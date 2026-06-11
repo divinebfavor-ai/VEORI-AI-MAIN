@@ -18,10 +18,8 @@ const APP_NAME   = 'Veori';
 
 const geoip = require('geoip-lite');
 
-// ─── Telnyx for 2FA SMS ───────────────────────────────────────────────────────
-const TELNYX_KEY     = process.env.TELNYX_API_KEY;
-const SMS_FROM       = process.env.TELNYX_SMS_NUMBER || '+19197945843';
-const TELNYX_PROFILE = process.env.TELNYX_MESSAGING_PROFILE_ID;
+// ─── Twilio for 2FA SMS ───────────────────────────────────────────────────────
+const { sendSMS } = require('../services/smsService');
 
 function getGeoFromRequest(req) {
   try {
@@ -95,19 +93,8 @@ async function verifyOTP(userId, code) {
 }
 
 async function sendSMSOTP(phone, code) {
-  if (!TELNYX_KEY) throw new Error('SMS not configured');
-  await axios.post('https://api.telnyx.com/v2/messages', {
-    from: SMS_FROM,
-    to:   phone,
-    text: `Your Veori verification code is: ${code}\n\nExpires in 10 minutes. Do not share this code.`,
-    messaging_profile_id: TELNYX_PROFILE,
-  }, {
-    headers: {
-      Authorization:  `Bearer ${TELNYX_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    timeout: 10000,
-  });
+  const sid = await sendSMS(phone, `Your Veori verification code is: ${code}\n\nExpires in 10 minutes. Do not share this code.`);
+  if (!sid) throw new Error('SMS not configured');
 }
 
 async function sendEmailOTP(email, name, code) {

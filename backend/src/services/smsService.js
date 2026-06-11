@@ -1,21 +1,36 @@
 /**
- * SMS Service — Telnyx
+ * SMS Service — Twilio
  * Sends tag-matched opening texts to leads on import.
  * Scores replies via GPT-4o and auto-escalates hot leads (60+) to Vapi voice call.
+ *
+ * This file is the SINGLE Twilio send point for the whole app. Every other module
+ * that sends SMS calls sendSMS() from here.
  */
 
 const axios = require('axios');
+const twilio = require('twilio');
 const supabase = require('../config/supabase');
 
-const TELNYX_KEY      = process.env.TELNYX_API_KEY;
-const TELNYX_PROFILE  = process.env.TELNYX_MESSAGING_PROFILE_ID;
-const SMS_FROM        = process.env.TELNYX_SMS_NUMBER || '+19197945843';
+const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const SMS_FROM     = process.env.TWILIO_PHONE_NUMBER;
 
-const telnyxHttp = axios.create({
-  baseURL: 'https://api.telnyx.com/v2',
-  headers: { Authorization: `Bearer ${TELNYX_KEY}`, 'Content-Type': 'application/json' },
-  timeout: 15000,
-});
+const twilioClient = (TWILIO_SID && TWILIO_TOKEN) ? twilio(TWILIO_SID, TWILIO_TOKEN) : null;
+
+/**
+ * Single Twilio send point. Returns the Twilio message SID, or null on failure.
+ * @param {string} to   E.164 destination number
+ * @param {string} text Message body
+ * @returns {Promise<string|null>} Twilio message SID
+ */
+async function sendSMS(to, text) {
+  if (!twilioClient) {
+    console.warn('[SMS] Twilio not configured (TWILIO_ACCOUNT_SID/AUTH_TOKEN missing) — skipping');
+    return null;
+  }
+  const msg = await twilioClient.messages.create({ from: SMS_FROM, to, body: text });
+  return msg.sid;
+}
 
 // ─── Tag-matched opening messages ────────────────────────────────────────────
 
@@ -50,8 +65,8 @@ function getOpeningMessage(lead) {
 // ─── Send opening SMS to a lead ───────────────────────────────────────────────
 
 async function sendOpeningSMS(lead, userId) {
-  if (!TELNYX_KEY) {
-    console.warn('[SMS] TELNYX_API_KEY not set — skipping');
+  if (!twilioClient) {
+    console.warn('[SMS] Twilio not configured — skipping');
     return null;
   }
 
@@ -75,16 +90,9 @@ async function sendOpeningSMS(lead, userId) {
   const body = getOpeningMessage(lead);
 
   try {
-    const { data } = await telnyxHttp.post('/messages', {
-      from: SMS_FROM,
-      to: phone,
-      text: body,
-      messaging_profile_id: TELNYX_PROFILE,
-    });
+    const msgId = await sendSMS(phone, body);
 
-    const msgId = data?.data?.id;
-
-    // Log in DB
+    // Log in DB (telnyx_message_id column reused to store the Twilio SID)
     await supabase.from('sms_messages').insert({
       user_id:    userId,
       lead_id:    lead.id,
@@ -199,12 +207,7 @@ async function sendReply(toPhone, body, userId, leadId) {
       return null;
     }
 
-    const { data } = await telnyxHttp.post('/messages', {
-      from: SMS_FROM,
-      to: toPhone,
-      text: body,
-      messaging_profile_id: TELNYX_PROFILE,
-    });
+    const msgId = await sendSMS(toPhone, body);
 
     await supabase.from('sms_messages').insert({
       user_id:    userId,
@@ -213,12 +216,12 @@ async function sendReply(toPhone, body, userId, leadId) {
       from_number: SMS_FROM,
       to_number:  toPhone,
       body,
-      telnyx_message_id: data?.data?.id,
+      telnyx_message_id: msgId,
       status:     'sent',
       sent_at:    new Date().toISOString(),
     }).catch(() => {});
 
-    return data?.data?.id;
+    return msgId;
   } catch (err) {
     console.error('[SMS] Reply failed:', err.response?.data || err.message);
     return null;
@@ -277,4 +280,4 @@ async function escalateToCall(lead, userId) {
   }
 }
 
-module.exports = { sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall };
+module.exports = { sendSMS, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall };

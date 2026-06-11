@@ -9,12 +9,11 @@
  *   5. Creates/finds the lead and links the SMS to their conversation
  */
 
-const axios   = require('axios');
 const supabase = require('../config/supabase');
 
-const TELNYX_KEY      = process.env.TELNYX_API_KEY;
-const TELNYX_PROFILE  = process.env.TELNYX_MESSAGING_PROFILE_ID;
-const SMS_FROM        = process.env.TELNYX_SMS_NUMBER || '+19197945843';
+const { sendSMS } = require('./smsService');
+
+const SMS_FROM = process.env.TWILIO_PHONE_NUMBER; // for DB logging only; actual send uses sendSMS()
 
 const MISSED_OUTCOMES = ['no_answer', 'not_home', 'voicemail'];
 
@@ -79,10 +78,6 @@ async function handleMissedCall(callRec, lead) {
 }
 
 async function sendMissedCallSMS(callRec, lead, callerPhone, smsBody, operatorName) {
-  if (!TELNYX_KEY) {
-    console.warn('[MissedCall] TELNYX_API_KEY not set — cannot send SMS');
-    return;
-  }
 
   // Re-check DNC at send time (lead may have opted out since scheduling)
   const { data: dncRecheck } = await supabase
@@ -96,26 +91,13 @@ async function sendMissedCallSMS(callRec, lead, callerPhone, smsBody, operatorNa
     return;
   }
 
-  // Send via Telnyx
+  // Send via Twilio
   let telnyxMessageId = null;
   try {
-    const { data: resp } = await axios.post(
-      'https://api.telnyx.com/v2/messages',
-      {
-        from: SMS_FROM,
-        to: callerPhone,
-        text: smsBody,
-        messaging_profile_id: TELNYX_PROFILE,
-      },
-      {
-        headers: { Authorization: `Bearer ${TELNYX_KEY}`, 'Content-Type': 'application/json' },
-        timeout: 12000,
-      }
-    );
-    telnyxMessageId = resp?.data?.id;
+    telnyxMessageId = await sendSMS(callerPhone, smsBody);
     console.log(`[MissedCall] Auto-SMS sent to ${callerPhone} — msgId: ${telnyxMessageId}`);
   } catch (err) {
-    console.error('[MissedCall] Telnyx send error:', err.response?.data || err.message);
+    console.error('[MissedCall] Twilio send error:', err.message);
     // Log failed attempt, do not rethrow
   }
 

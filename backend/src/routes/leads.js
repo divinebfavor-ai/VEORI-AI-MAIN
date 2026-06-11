@@ -406,12 +406,10 @@ function parseNum(v) { const n = parseFloat(String(v || '').replace(/[^0-9.]/g, 
 
 // ─── Photo request helpers ────────────────────────────────────────────────────
 const crypto = require('crypto');
-const axios  = require('axios');
+const { sendSMS } = require('../services/smsService');
 
-const TELNYX_KEY     = process.env.TELNYX_API_KEY;
-const SMS_FROM       = process.env.TELNYX_SMS_NUMBER || '+19197945843';
-const TELNYX_PROFILE = process.env.TELNYX_MESSAGING_PROFILE_ID;
-const FRONTEND_URL   = process.env.FRONTEND_URL || 'https://veori.net';
+const SMS_ENABLED  = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN;
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://veori.net';
 
 async function generatePhotoToken(leadId, userId, sentVia = 'manual') {
   const token     = crypto.randomBytes(32).toString('hex');
@@ -446,20 +444,12 @@ router.post('/:id/send-photo-request', async (req, res, next) => {
     let delivered = false;
 
     // Try SMS first
-    if (lead.phone && TELNYX_KEY) {
+    if (lead.phone && SMS_ENABLED) {
       const { token, url } = await generatePhotoToken(lead.id, req.user.id, 'sms');
       const message = `Hi ${name}, thanks for speaking with us about ${address || 'your property'}. Please tap the link to send us photos — takes 2 min on your phone:\n\n${url}\n\nThis link expires in 7 days.`;
 
       try {
-        await axios.post('https://api.telnyx.com/v2/messages', {
-          from: SMS_FROM,
-          to:   lead.phone,
-          text: message,
-          messaging_profile_id: TELNYX_PROFILE,
-        }, {
-          headers: { Authorization: `Bearer ${TELNYX_KEY}`, 'Content-Type': 'application/json' },
-          timeout: 10000,
-        });
+        await sendSMS(lead.phone, message);
         sentVia   = 'sms';
         delivered = true;
         return res.json({ success: true, sent_via: 'sms', phone: lead.phone, token, url });

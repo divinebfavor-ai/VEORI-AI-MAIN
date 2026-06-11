@@ -339,18 +339,10 @@ async function handleCallEnded(call, event) {
         const address   = [lead.property_address, lead.property_city, lead.property_state].filter(Boolean).join(', ');
         const message   = `Hi ${name}, thanks for speaking with us about ${address || 'your property'}. Please tap the link to send us photos — takes 2 min:\n\n${uploadUrl}\n\nLink expires in 7 days.`;
 
-        const TELNYX_KEY     = process.env.TELNYX_API_KEY;
-        const SMS_FROM       = process.env.TELNYX_SMS_NUMBER || '+19197945843';
-        const TELNYX_PROFILE = process.env.TELNYX_MESSAGING_PROFILE_ID;
+        const SMS_ENABLED = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN;
 
-        if (lead.phone && TELNYX_KEY) {
-          await require('axios').post('https://api.telnyx.com/v2/messages', {
-            from: SMS_FROM, to: lead.phone, text: message,
-            messaging_profile_id: TELNYX_PROFILE,
-          }, {
-            headers: { Authorization: `Bearer ${TELNYX_KEY}`, 'Content-Type': 'application/json' },
-            timeout: 10000,
-          });
+        if (lead.phone && SMS_ENABLED) {
+          await require('../services/smsService').sendSMS(lead.phone, message);
           console.log(`[PhotoRequest] Auto-sent to ${lead.phone} for lead ${lead.id}`);
         } else if (lead.email) {
           const { sendEmail } = require('../services/emailService');

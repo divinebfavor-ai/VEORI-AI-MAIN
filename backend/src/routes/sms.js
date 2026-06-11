@@ -1,8 +1,9 @@
 const express = require('express');
+const twilio = require('twilio');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
 const {
-  sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall,
+  sendSMS, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall,
 } = require('../services/smsService');
 
 const router = express.Router();
@@ -44,19 +45,8 @@ async function handleOptOut(from, lead, userId, toNumber) {
   }).catch(() => {});
 
   // 4. Send required confirmation reply (CTIA mandates this)
-  const TELNYX_KEY     = process.env.TELNYX_API_KEY;
-  const TELNYX_PROFILE = process.env.TELNYX_MESSAGING_PROFILE_ID;
-  if (TELNYX_KEY && toNumber) {
-    await require('axios').post('https://api.telnyx.com/v2/messages', {
-      from: toNumber,
-      to:   from,
-      text: 'You have been unsubscribed and will receive no further messages from us.',
-      messaging_profile_id: TELNYX_PROFILE,
-    }, {
-      headers: { Authorization: `Bearer ${TELNYX_KEY}`, 'Content-Type': 'application/json' },
-      timeout: 10000,
-    }).catch(e => console.error('[SMS] Opt-out confirmation send failed:', e.message));
-  }
+  await sendSMS(from, 'You have been unsubscribed and will receive no further messages from us.')
+    .catch(e => console.error('[SMS] Opt-out confirmation send failed:', e.message));
 
   console.log(`[SMS] Opt-out processed — ${from} added to DNC`);
 }
@@ -83,18 +73,29 @@ async function handleOptIn(from, lead, userId) {
   console.log(`[SMS] Opt-in processed — ${from} removed from DNC`);
 }
 
-// POST /api/sms/webhook — Telnyx sends inbound SMS here
+// POST /api/sms/webhook — Twilio sends inbound SMS here (form-encoded)
 router.post('/webhook', async (req, res) => {
+  // Verify the request really came from Twilio.
+  // Fails OPEN until TWILIO_AUTH_TOKEN is set, so live SMS isn't broken before config.
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (authToken) {
+    const sig = req.get('X-Twilio-Signature');
+    const url = `https://${req.get('host')}${req.originalUrl}`;
+    const valid = twilio.validateRequest(authToken, sig, url, req.body || {});
+    if (!valid) {
+      console.warn('[SMS] Rejected webhook — invalid Twilio signature');
+      return res.sendStatus(403);
+    }
+  }
+
   res.sendStatus(200); // Acknowledge immediately
 
   try {
-    const event = req.body?.data;
-    if (!event || event.event_type !== 'message.received') return;
-
-    const msg     = event.payload;
-    const from    = msg.from?.phone_number;
-    const body    = msg.text?.trim();
-    const toNumber = msg.to?.[0]?.phone_number;
+    // Twilio posts form-encoded fields: From, Body, To, MessageSid
+    const from     = req.body?.From;
+    const body     = (req.body?.Body || '').trim();
+    const toNumber = req.body?.To;
+    const inboundMsgId = req.body?.MessageSid;
 
     if (!from || !body) return;
 
@@ -136,7 +137,7 @@ router.post('/webhook', async (req, res) => {
       from_number: from,
       to_number:  toNumber,
       body,
-      telnyx_message_id: msg.id,
+      telnyx_message_id: inboundMsgId,
       status:     'received',
       sent_at:    new Date().toISOString(),
     });
