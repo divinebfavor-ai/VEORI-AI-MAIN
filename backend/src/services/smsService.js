@@ -14,6 +14,7 @@ const supabase = require('../config/supabase');
 const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const SMS_FROM     = process.env.TWILIO_PHONE_NUMBER;
+const MSG_SERVICE_SID = process.env.TWILIO_MESSAGING_SERVICE_SID; // A2P 10DLC registered sender (MGxxxx)
 
 const twilioClient = (TWILIO_SID && TWILIO_TOKEN) ? twilio(TWILIO_SID, TWILIO_TOKEN) : null;
 
@@ -23,12 +24,46 @@ const twilioClient = (TWILIO_SID && TWILIO_TOKEN) ? twilio(TWILIO_SID, TWILIO_TO
  * @param {string} text Message body
  * @returns {Promise<string|null>} Twilio message SID
  */
-async function sendSMS(to, text) {
+async function sendSMS(to, text, userId = null) {
   if (!twilioClient) {
     console.warn('[SMS] Twilio not configured (TWILIO_ACCOUNT_SID/AUTH_TOKEN missing) — skipping');
     return null;
   }
-  const msg = await twilioClient.messages.create({ from: SMS_FROM, to, body: text });
+
+  // GHL-style per-operator sender routing:
+  //   1. operator's OWN A2P 10DLC Messaging Service (registered local sender, needs EIN) — best
+  //   2. else operator's toll-free number (toll-free verified, no EIN needed) — default
+  //   3. else global Messaging Service SID, else single from-number — fallback (unchanged behavior)
+  let sender = null;
+
+  if (userId) {
+    const { data: op } = await supabase
+      .from('users')
+      .select('a2p_messaging_service_sid')
+      .eq('id', userId)
+      .single();
+
+    if (op?.a2p_messaging_service_sid) {
+      sender = { messagingServiceSid: op.a2p_messaging_service_sid };
+    } else {
+      const { data: tf } = await supabase
+        .from('phone_numbers')
+        .select('number')
+        .eq('user_id', userId)
+        .eq('is_toll_free', true)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      if (tf?.number) sender = { from: tf.number };
+    }
+  }
+
+  // Fallback chain when the operator has neither a registered service nor a toll-free number yet.
+  if (!sender) {
+    sender = MSG_SERVICE_SID ? { messagingServiceSid: MSG_SERVICE_SID } : { from: SMS_FROM };
+  }
+
+  const msg = await twilioClient.messages.create({ ...sender, to, body: text });
   return msg.sid;
 }
 
@@ -90,7 +125,7 @@ async function sendOpeningSMS(lead, userId) {
   const body = getOpeningMessage(lead);
 
   try {
-    const msgId = await sendSMS(phone, body);
+    const msgId = await sendSMS(phone, body, userId);
 
     // Log in DB (telnyx_message_id column reused to store the Twilio SID)
     await supabase.from('sms_messages').insert({
@@ -207,7 +242,7 @@ async function sendReply(toPhone, body, userId, leadId) {
       return null;
     }
 
-    const msgId = await sendSMS(toPhone, body);
+    const msgId = await sendSMS(toPhone, body, userId);
 
     await supabase.from('sms_messages').insert({
       user_id:    userId,
