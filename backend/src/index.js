@@ -269,6 +269,10 @@ app.use('/api/property-marketing', propertyMarketingRouter);
 const referralsRouter = require('./routes/referrals');
 app.use('/api/referrals', referralsRouter);
 
+// ─── GDPR / CCPA Data Privacy (Compliance Item 4) ────────────────────────────
+const privacyRouter = require('./routes/privacy');
+app.use('/api/privacy', privacyRouter);
+
 // ─── Seller Photo Upload (public — no auth) ───────────────────────────────────
 const photoUploadRouter = require('./routes/photoUpload');
 app.use('/api/photo-upload', photoUploadRouter);
