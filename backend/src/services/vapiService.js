@@ -518,7 +518,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
       model: {
         provider: 'anthropic',
         model: process.env.VAPI_AI_MODEL || 'claude-haiku-4-5-20251001',
-        systemPrompt,
+        messages: [{ role: 'system', content: systemPrompt }],
         temperature: 0.6,
         maxTokens: 500,
         emotionRecognitionEnabled: true,
@@ -686,7 +686,7 @@ RULES:
     assistant: {
       name: aiName,
       transcriber: { provider: 'deepgram', model: 'nova-2' },
-      model: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', systemPrompt, maxTokens: 300, temperature: 0.7 },
+      model: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', messages: [{ role: 'system', content: systemPrompt }], maxTokens: 300, temperature: 0.7 },
       voice: { provider: 'vapi', voiceId },
       firstMessage: `Hi ${buyer.name}, this is ${aiName}. I have an off-market deal in ${deal.property_city || 'your target area'} that I think matches your buy box. Do you have two quick minutes?`,
       recordingEnabled: true,
@@ -734,7 +734,7 @@ Always be warm — they called YOU, which means they have some interest.`;
     model: {
       provider: 'anthropic',
       model: process.env.VAPI_AI_MODEL || 'claude-haiku-4-5-20251001',
-      systemPrompt,
+      messages: [{ role: 'system', content: systemPrompt }],
       temperature: 0.75,
       maxTokens: 600,
     },
