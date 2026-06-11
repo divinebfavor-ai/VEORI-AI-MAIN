@@ -184,7 +184,7 @@ async function handleCallEnded(call, event) {
   const outcome = aiAnalysis.outcome || inferredOutcome || callRec.outcome || 'no_answer';
   console.log(`[Vapi] Final outcome=${outcome} duration=${duration}s`);
 
-  await supabase.from('calls').update({
+  const { error: callUpdateError } = await supabase.from('calls').update({
     status: 'ended',
     ended_at: endedAt,
     duration_seconds: duration,
@@ -196,8 +196,16 @@ async function handleCallEnded(call, event) {
     objections: aiAnalysis.objections ?? null,
     outcome,
     ai_summary: aiAnalysis.ai_summary ?? (inferredOutcome === 'voicemail' ? 'Call went to voicemail.' : inferredOutcome === 'no_answer' ? 'No answer.' : null),
-    offer_made: aiAnalysis.offer_made ?? false,
+    // offer_made is a numeric column (the dollar offer amount, or null). aiAnalysis.offer_made is
+    // "<number or null>" per aiService. Never write a boolean here — Postgres rejects the whole UPDATE.
+    offer_made: typeof aiAnalysis.offer_made === 'number' ? aiAnalysis.offer_made : null,
   }).eq('vapi_call_id', call.id);
+
+  if (callUpdateError) {
+    console.error(`[Vapi] FAILED to write outcome for call ${call.id} (vapi_call_id):`, callUpdateError.message, callUpdateError.details || '', callUpdateError.hint || '');
+  } else {
+    console.log(`[Vapi] Outcome saved for call ${call.id} → ${outcome}`);
+  }
 
   // Always update lead status when call ends — never leave a lead stuck on "calling"
   if (callRec.lead_id) {
