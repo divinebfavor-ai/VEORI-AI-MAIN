@@ -74,13 +74,20 @@ function Waveform({ active = true, color = GREEN, bars = 16 }) {
 
 // ─── WebRTC Listen Mode ────────────────────────────────────────────────────────
 function useListenMode() {
-  const pcRefs    = useRef({})    // RTCPeerConnection per callId
-  const audioRefs = useRef({})    // Audio element per callId
+  const pcRefs     = useRef({})   // RTCPeerConnection per callId
+  const audioRefs  = useRef({})   // Audio element per callId
+  const cancelRefs = useRef({})   // set true to cancel an in-flight connect (per callId)
   const [listening, setListening] = useState({})
+  const [pending,   setPending]   = useState({})   // tapped Listen, waiting for pickup
   const [volumes,   setVolumes]   = useState({})
 
   const connectListen = useCallback(async (callId, dbCallId) => {
     if (!dbCallId) { toast.error('Call not ready yet - try again in a moment'); return }
+
+    // Allow this attempt; tapping Listen again sets this true to cancel the retry loop.
+    cancelRefs.current[callId] = false
+    setPending(p => ({ ...p, [callId]: true }))
+
     try {
       const token = localStorage.getItem('veori_token')
       const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
@@ -102,6 +109,7 @@ function useListenMode() {
       pc.ontrack = (event) => {
         audioEl.srcObject = event.streams[0]
         audioEl.play().catch(() => {})
+        setPending(p => { const n = { ...p }; delete n[callId]; return n })
         setListening(l => ({ ...l, [callId]: true }))
         toast.success('Listening live - seller cannot hear you')
       }
@@ -121,21 +129,45 @@ function useListenMode() {
         setTimeout(resolve, 4000)
       })
 
-      // Send SDP offer to our backend, which proxies to Vapi
-      const res = await fetch(`${BASE}/api/calls/${dbCallId}/listen-join`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sdp: pc.localDescription.sdp }),
-      })
+      // The Vapi listen URL only exists AFTER the seller picks up — while the call is
+      // still ringing the backend returns 404. So we retry every 1.5s (up to ~90s)
+      // until audio is available, then connect. This makes Listen behave like a phone:
+      // tap once, and you hear the seller the moment they answer.
+      const DEADLINE = Date.now() + 90_000
+      let answerSdp = null
 
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}))
+      while (Date.now() < DEADLINE) {
+        if (cancelRefs.current[callId]) { pc.close(); return }   // user tapped Listen again
+
+        const res = await fetch(`${BASE}/api/calls/${dbCallId}/listen-join`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sdp: pc.localDescription.sdp }),
+        })
+
+        if (res.ok) { answerSdp = await res.text(); break }
+
+        // 404 = call still ringing / not connected yet → wait and retry.
+        // Any other error is fatal.
+        if (res.status !== 404) {
+          const e = await res.json().catch(() => ({}))
+          pc.close()
+          throw new Error(e.error || 'Could not connect to call audio')
+        }
+
+        await new Promise(r => setTimeout(r, 1500))
+      }
+
+      if (cancelRefs.current[callId]) { pc.close(); return }
+
+      if (!answerSdp) {
         pc.close()
-        throw new Error(e.error || 'Audio not available - call may still be ringing')
+        setPending(p => { const n = { ...p }; delete n[callId]; return n })
+        toast.error('Call never connected — no audio to listen to')
+        return
       }
 
       // Vapi returns the SDP answer (text/plain or application/sdp)
-      const answerSdp = await res.text()
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
 
       pcRefs.current[callId] = pc
@@ -143,14 +175,17 @@ function useListenMode() {
       pc.onconnectionstatechange = () => {
         if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
           setListening(l => { const n = { ...l }; delete n[callId]; return n })
+          setPending(p => { const n = { ...p }; delete n[callId]; return n })
         }
       }
     } catch (err) {
+      setPending(p => { const n = { ...p }; delete n[callId]; return n })
       toast.error(err.message || 'Could not connect to call audio')
     }
   }, [volumes])
 
   const disconnectListen = useCallback((callId) => {
+    cancelRefs.current[callId] = true   // cancel any in-flight retry loop (call still ringing)
     pcRefs.current[callId]?.close()
     if (audioRefs.current[callId]) {
       audioRefs.current[callId].srcObject = null
@@ -158,6 +193,7 @@ function useListenMode() {
     delete pcRefs.current[callId]
     delete audioRefs.current[callId]
     setListening(l => { const n = { ...l }; delete n[callId]; return n })
+    setPending(p => { const n = { ...p }; delete n[callId]; return n })
   }, [])
 
   const setVolume = useCallback((callId, vol) => {
@@ -166,7 +202,7 @@ function useListenMode() {
   }, [])
 
   useEffect(() => () => Object.keys(pcRefs.current).forEach(disconnectListen), [disconnectListen])
-  return { listening, volumes, connectListen, disconnectListen, setVolume }
+  return { listening, pending, volumes, connectListen, disconnectListen, setVolume }
 }
 
 // ─── Live Call Card ───────────────────────────────────────────────────────────
@@ -178,7 +214,7 @@ function callSubStatus(status) {
   return { label: 'Live', color: GREEN, pulse: true }
 }
 
-function LiveCallCard({ call, isListening, volume, takeover, onListen, onStopListen, onSetVolume, onTakeover, onReturn, onEnd, isSelected, onClick }) {
+function LiveCallCard({ call, isListening, isPending, volume, takeover, onListen, onStopListen, onSetVolume, onTakeover, onReturn, onEnd, isSelected, onClick }) {
   const initials  = (call.lead_name || 'UN').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
   const subStatus = callSubStatus(call.status)
   const isConnected = call.status === 'in-progress'
@@ -239,7 +275,7 @@ function LiveCallCard({ call, isListening, volume, takeover, onListen, onStopLis
           onClick={isListening ? onStopListen : onListen}
           style={{
             flex: 1, height: 36, borderRadius: 8, fontSize: 12, fontWeight: 600,
-            background: isListening ? BLUE : GREEN,
+            background: isListening ? BLUE : isPending ? AMBER : GREEN,
             border: 'none', color: '#000',
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             fontFamily: 'inherit', letterSpacing: '-0.01em',
@@ -249,7 +285,7 @@ function LiveCallCard({ call, isListening, volume, takeover, onListen, onStopLis
           onMouseLeave={e => e.currentTarget.style.opacity = '1'}
         >
           {isListening ? <VolumeX size={13} /> : <Headphones size={13} />}
-          {isListening ? 'Stop' : 'Listen Live'}
+          {isListening ? 'Stop' : isPending ? 'Connecting…' : 'Listen Live'}
         </button>
 
         {/* Volume slider when listening */}
@@ -683,7 +719,7 @@ export default function LiveMonitor() {
   const [selected, setSelected] = useState(null)
   const [takeovers, setTakeovers] = useState({})
   const [showDialer, setShowDialer] = useState(false)
-  const { listening, volumes, connectListen, disconnectListen, setVolume } = useListenMode()
+  const { listening, pending, volumes, connectListen, disconnectListen, setVolume } = useListenMode()
 
   // Load call history
   const loadHistory = useCallback(async () => {
@@ -714,7 +750,8 @@ export default function LiveMonitor() {
 
   const handleListen = async (call) => {
     const callId = call.id
-    if (listening[callId]) { disconnectListen(callId); return }
+    // Tapping again while listening OR while still connecting cancels/stops it.
+    if (listening[callId] || pending[callId]) { disconnectListen(callId); return }
     await connectListen(callId, call.id)
   }
 
@@ -800,6 +837,7 @@ export default function LiveMonitor() {
                   key={callId}
                   call={call}
                   isListening={!!listening[call.id]}
+                  isPending={!!pending[call.id]}
                   volume={volumes[call.id]}
                   takeover={!!takeovers[call.id]}
                   isSelected={selected?.id === call.id}
