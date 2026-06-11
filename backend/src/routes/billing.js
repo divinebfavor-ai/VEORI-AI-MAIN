@@ -55,7 +55,7 @@ const PLANS = {
     stripePriceId:  process.env.STRIPE_SCALE_PRICE_ID || 'price_1Tb1YEAW61xZuN5njVCI31UY',
     name:           'Scale Plan',
     dials:          30000,
-    amount:         299900,
+    amount:         399900,
   },
   enterprise: {
     stripePriceId:  process.env.STRIPE_ENTERPRISE_PRICE_ID || 'price_1Tb1YFAW61xZuN5nQZ9zbss7',

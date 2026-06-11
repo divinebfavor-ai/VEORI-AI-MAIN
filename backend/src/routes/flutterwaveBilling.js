@@ -64,7 +64,7 @@ const PLANS = {
   },
   scale: {
     name:        'Scale',
-    amount:      2999,
+    amount:      3999,
     currency:    'USD',
     interval:    'monthly',
     dials:       30000,
@@ -79,6 +79,16 @@ const PLANS = {
     dials:       50000,
     description: '50,000 AI dials per month',
     fw_plan_id:  process.env.FW_PLAN_ENTERPRISE || null,
+  },
+  custom: {
+    name:        'Custom / High-Volume',
+    amount:      null,           // no fixed price — negotiated via email
+    currency:    'USD',
+    interval:    'monthly',
+    dials:       null,           // set manually after the deal is agreed
+    description: 'High-volume custom pricing — contact us to tailor a plan',
+    custom:      true,
+    contact_email: 'divineqflash@gmail.com',
   },
 };
 
@@ -191,6 +201,12 @@ router.get('/plans', (req, res) => {
     dials:       p.dials,
     description: p.description,
     founding:    p.founding || false,
+    custom:      p.custom   || false,
+    // Custom plans have no checkout — the frontend shows a "Contact us" button
+    // that opens the user's email client to negotiate high-volume pricing.
+    contact_mailto: p.custom
+      ? `mailto:${p.contact_email}?subject=${encodeURIComponent('Veori — Custom / High-Volume Plan')}`
+      : null,
   }));
   res.json({ success: true, plans: plansOut });
 });
@@ -203,6 +219,18 @@ router.post('/create-payment-link', auth, async (req, res) => {
 
     if (!plan) {
       return res.status(400).json({ success: false, error: 'Invalid plan selected' });
+    }
+
+    // Custom / high-volume plans have no fixed price — no checkout link.
+    // Direct the operator to email us so we can tailor a deal.
+    if (plan.custom) {
+      return res.status(400).json({
+        success: false,
+        custom:  true,
+        error:   'Custom plans are arranged by email. Please contact us for high-volume pricing.',
+        contact_email:  plan.contact_email,
+        contact_mailto: `mailto:${plan.contact_email}?subject=${encodeURIComponent('Veori — Custom / High-Volume Plan')}`,
+      });
     }
 
     if (!FW_SECRET()) {
@@ -318,9 +346,19 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Unknown plan in transaction' });
     }
 
-    // Verify amount matches
-    if (txData.amount < plan.amount) {
+    // Custom plans are never sold through checkout — they have no fixed price.
+    if (plan.custom || plan.amount == null) {
+      return res.status(400).json({ success: false, error: 'Custom plans are arranged by email, not checkout' });
+    }
+
+    // Verify amount covers the plan price.
+    if (Number(txData.amount) < plan.amount) {
       return res.status(402).json({ success: false, error: 'Payment amount mismatch' });
+    }
+
+    // Verify currency matches — a weak-currency payment of "3999" units is not $3,999.
+    if ((txData.currency || '').toUpperCase() !== (plan.currency || 'USD').toUpperCase()) {
+      return res.status(402).json({ success: false, error: 'Payment currency mismatch' });
     }
 
     const expiresAt = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
@@ -454,6 +492,33 @@ router.post('/webhook', express.json(), async (req, res) => {
 
       if (userId && planKey && PLANS[planKey]) {
         const plan      = PLANS[planKey];
+
+        // ── Security: validate the payment actually covers this plan ──────────
+        // The webhook body is hash-verified above, but Flutterwave still reports
+        // whatever was charged. Without these checks, a charge with meta.plan
+        // forged to a high tier (or paid in a weak currency) could activate a
+        // plan it didn't pay for. The /verify route does this; the webhook must too.
+        const paidAmount   = Number(data.amount);
+        const paidCurrency = (data.currency || '').toUpperCase();
+
+        // (A) Amount must cover the plan price. Custom plans have no fixed price
+        // and are never sold through checkout, so reject them here outright.
+        if (plan.custom || plan.amount == null) {
+          console.warn(`[FW Webhook] Rejected — '${planKey}' is not a checkout plan (user ${userId})`);
+          return res.json({ status: 'ok' });
+        }
+        if (!Number.isFinite(paidAmount) || paidAmount < plan.amount) {
+          console.warn(`[FW Webhook] Rejected — underpaid: paid ${paidAmount} ${paidCurrency}, plan '${planKey}' needs ${plan.amount} ${plan.currency} (user ${userId}, tx ${data.tx_ref})`);
+          return res.json({ status: 'ok' });
+        }
+
+        // (B) Currency must match the plan currency (USD). A weak-currency payment
+        // of "3999" units is not $3,999 — block the mismatch.
+        if (paidCurrency !== (plan.currency || 'USD').toUpperCase()) {
+          console.warn(`[FW Webhook] Rejected — currency mismatch: paid ${paidCurrency}, plan '${planKey}' is ${plan.currency} (user ${userId}, tx ${data.tx_ref})`);
+          return res.json({ status: 'ok' });
+        }
+
         const expiresAt = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
 
         await updateUserSubscription(userId, {
