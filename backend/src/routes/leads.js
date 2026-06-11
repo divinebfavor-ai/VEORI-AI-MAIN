@@ -45,7 +45,7 @@ router.post('/reset-stale-calling', async (req, res, next) => {
 
     let q = supabase.from('leads').update({ status: 'contacted' })
       .eq('user_id', req.user.id).eq('status', 'calling');
-    if (activeLeadIds.length > 0) q = q.not('id', 'in', `(${activeLeadIds.join(',')})`);
+    if (activeLeadIds.length > 0) q = q.not('id', 'in', activeLeadIds);
 
     const { count } = await q.select('id', { count: 'exact', head: true });
     await q;

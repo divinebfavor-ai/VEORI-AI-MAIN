@@ -162,9 +162,26 @@ router.post('/initiate', async (req, res, next) => {
       return res.status(400).json({ success: false, error: tcpa.reason });
     }
 
+    // TCPA: consent + federal DNC scrub (track + warn — does NOT block the call yet)
+    const tcpaWarnings = [];
+    if (!lead.consent) {
+      tcpaWarnings.push('no_prior_consent');
+      await logTcpa(req.user.id, lead.id, lead.phone, 'warn_no_consent', 'No prior express consent on record for this lead');
+    }
+    try {
+      const { isOnFederalDnc } = require('../services/ftcDncService');
+      const fed = await isOnFederalDnc(lead.phone);
+      if (fed.checked && fed.onList) {
+        tcpaWarnings.push('federal_dnc');
+        await logTcpa(req.user.id, lead.id, lead.phone, 'warn_federal_dnc', 'Number appears on the FTC National DNC Registry');
+      }
+    } catch (e) {
+      console.warn('[TCPA] Federal DNC check skipped:', e.message);
+    }
+
     // Select best phone number if not specified
     const phoneNum = phone_number_id
-      ? (await supabase.from('phone_numbers').select('*').eq('id', phone_number_id).single()).data
+      ? (await supabase.from('phone_numbers').select('*').eq('id', phone_number_id).eq('user_id', req.user.id).single()).data
       : await phoneRotation.selectBestNumber(req.user.id, lead.property_state);
 
     if (!phoneNum) return res.status(400).json({ success: false, error: 'No healthy phone numbers available' });
@@ -220,7 +237,7 @@ router.post('/initiate', async (req, res, next) => {
     // TCPA audit log — call was initiated within compliant hours, not on DNC
     await logTcpa(req.user.id, lead.id, lead.phone, 'call_initiated', `Call placed to ${lead.property_state || 'unknown state'} within TCPA hours. Call ID: ${callId}`);
 
-    res.json({ success: true, data: { ...callRecord, vapi_call_id: vapiCall.id } });
+    res.json({ success: true, data: { ...callRecord, vapi_call_id: vapiCall.id }, tcpa_warnings: tcpaWarnings });
   } catch (err) { next(err); }
 });
 

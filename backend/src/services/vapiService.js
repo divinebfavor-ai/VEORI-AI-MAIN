@@ -168,7 +168,7 @@ ${isLand ? `LAND CALL FLOW
 This is a LAND deal. The conversation is different from a house call.
 
 OPENING (once they confirm they're the owner):
-"${lead.first_name ? `${lead.first_name}, ` : ''}my name is ${aiName} — I'm a local land investor. I came across your parcel at ${lead.property_address || 'the address I have on file'} and just wanted to reach out. I buy raw land and vacant lots for cash. Do you have just a couple minutes?"
+"${lead.first_name ? `${lead.first_name}, ` : ''}my name is ${aiName} — I'm a local land investor. I came across your parcel at ${lead.property_address || 'the address I have on file'} and just wanted to reach out. I buy raw land and vacant lots for cash. Quick heads up — this call may be recorded. Do you have just a couple minutes?"
 
 QUALIFY THE LAND:
 - "How many acres is it, roughly?"
@@ -219,7 +219,7 @@ OFFER CONTEXT:
 ${customIntro ? `OPENING (Custom script):
 ${customIntro}` : `OPENING:
 Once they confirm they're the owner:
-"${lead.first_name ? `${lead.first_name}, ` : ''}my name is ${aiName} — I'm a local real estate investor. I was reaching out about your property at ${lead.property_address || 'your property'}. I buy homes for cash and I just wanted to see if you'd be open to a quick conversation about it. Do you have two or three minutes?"`}
+"${lead.first_name ? `${lead.first_name}, ` : ''}my name is ${aiName} — I'm a local real estate investor. I was reaching out about your property at ${lead.property_address || 'your property'}. I buy homes for cash and I just wanted to see if you'd be open to a quick conversation about it. Quick heads up — this call may be recorded. Do you have two or three minutes?"`}
 
 FIND THE SITUATION:
 - "How long have you had the property?"
