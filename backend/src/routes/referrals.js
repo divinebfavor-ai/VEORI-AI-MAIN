@@ -311,6 +311,14 @@ router.post('/trigger', requireInternal, async (req, res) => {
     // Name shown in the referrer's notification email
     const referredName = user.full_name || user.email || 'Your referral';
 
+    // Idempotency: one commission event = one payment row = one payout.
+    // Key = FW transaction id + commission type. The referral_payments insert
+    // below is the lock; a duplicate /trigger call hits the UNIQUE index (23505)
+    // and bails before any payout/credit. If no key is passed, eventKey is null
+    // and the partial unique index ignores it — behavior identical to before.
+    const { idempotency_key = null } = req.body;
+    const eventKey = idempotency_key ? `${idempotency_key}_${type}` : null;
+
     if (type === 'month1') {
       // First payment — 10% commission, create referral record
       const commission = calcCommission(amount, MONTH1_RATE);
@@ -332,22 +340,40 @@ router.post('/trigger', requireInternal, async (req, res) => {
         }, { onConflict: 'referred_id' })
         .select().single();
 
-      // Notify referrer + trigger payout
+      // Claim this event FIRST — the insert is the lock. If eventKey already
+      // exists, 23505 fires and we bail before any payout or credit.
+      const { data: payRow, error: claimErr } = await supabase
+        .from('referral_payments')
+        .insert({
+          referral_id:     referral?.id,
+          referrer_id:     referrerId,
+          referred_id:     user_id,
+          amount:          commission,
+          type:            'month1',
+          status:          'pending',
+          idempotency_key: eventKey,
+        })
+        .select('id').single();
+
+      if (claimErr) {
+        if (claimErr.code === '23505') {
+          console.log(`[Referrals] Duplicate month1 ignored — event ${eventKey} already paid`);
+          return res.json({ success: true, message: 'Duplicate commission event ignored' });
+        }
+        throw claimErr;
+      }
+
+      // Notify referrer + trigger payout (runs at most once — gated by the claim above)
       const payout = await triggerAutoPayout(
         referrerId, commission,
         `10% first-month commission — ${plan} plan`,
         referredName
       );
 
-      // Log payment
-      await supabase.from('referral_payments').insert({
-        referral_id: referral?.id,
-        referrer_id: referrerId,
-        referred_id: user_id,
-        amount:      commission,
-        type:        'month1',
-        status:      payout.success ? 'paid' : 'pending',
-      });
+      // Mark the claimed row paid if the transfer succeeded
+      if (payout.success && payRow?.id) {
+        await supabase.from('referral_payments').update({ status: 'paid' }).eq('id', payRow.id);
+      }
 
       // Add to referrer credits
       const { data: referrerUser } = await supabase
@@ -383,6 +409,30 @@ router.post('/trigger', requireInternal, async (req, res) => {
       const lockedAmount = parseFloat(referral?.plan_amount || amount);
       const commission   = calcCommission(lockedAmount, RECURRING_RATE);
 
+      // Claim this event FIRST — before incrementing count or paying. If eventKey
+      // already exists, 23505 fires and we bail, so recurring_count/total_earned
+      // can't double-bump and no second payout runs.
+      const { data: payRow, error: claimErr } = await supabase
+        .from('referral_payments')
+        .insert({
+          referral_id:     referral.id,
+          referrer_id:     referrerId,
+          referred_id:     user_id,
+          amount:          commission,
+          type:            'recurring',
+          status:          'pending',
+          idempotency_key: eventKey,
+        })
+        .select('id').single();
+
+      if (claimErr) {
+        if (claimErr.code === '23505') {
+          console.log(`[Referrals] Duplicate recurring ignored — event ${eventKey} already paid`);
+          return res.json({ success: true, message: 'Duplicate commission event ignored' });
+        }
+        throw claimErr;
+      }
+
       // Update total earned and increment recurring count
       await supabase
         .from('referrals')
@@ -393,22 +443,17 @@ router.post('/trigger', requireInternal, async (req, res) => {
         })
         .eq('id', referral.id);
 
-      // Notify referrer + trigger payout
+      // Notify referrer + trigger payout (runs at most once — gated by the claim above)
       const payout = await triggerAutoPayout(
         referrerId, commission,
         `3% recurring commission — month ${recurringCount + 1} of 12 (${plan} plan)`,
         referredName
       );
 
-      // Log payment
-      await supabase.from('referral_payments').insert({
-        referral_id: referral.id,
-        referrer_id: referrerId,
-        referred_id: user_id,
-        amount:      commission,
-        type:        'recurring',
-        status:      payout.success ? 'paid' : 'pending',
-      });
+      // Mark the claimed row paid if the transfer succeeded
+      if (payout.success && payRow?.id) {
+        await supabase.from('referral_payments').update({ status: 'paid' }).eq('id', payRow.id);
+      }
 
       // Add to referrer credits
       const { data: referrerUser } = await supabase

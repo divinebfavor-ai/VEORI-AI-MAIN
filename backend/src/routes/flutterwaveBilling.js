@@ -637,7 +637,7 @@ router.post('/webhook', express.json(), async (req, res) => {
             'Content-Type':      'application/json',
             'x-internal-secret': process.env.INTERNAL_API_SECRET || '',
           },
-          body: JSON.stringify({ user_id: userId, plan: planKey, plan_amount: plan.amount, type: commissionType }),
+          body: JSON.stringify({ user_id: userId, plan: planKey, plan_amount: plan.amount, type: commissionType, idempotency_key: fwTxId }),
         }).catch(e => console.warn('[FW Webhook] Commission trigger failed:', e.message));
 
         console.log(`[FW Webhook] Activated ${planKey} for user ${userId}, commission type: ${commissionType}`);
