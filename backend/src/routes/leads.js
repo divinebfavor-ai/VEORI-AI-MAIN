@@ -201,7 +201,7 @@ router.post('/bulk', async (req, res, next) => {
 // PUT /api/leads/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['first_name','last_name','email','phone','property_address','property_city','property_state','property_zip','property_type','estimated_value','estimated_equity','estimated_arv','source','status','motivation_score','notes','tags'];
+    const allowed = ['first_name','last_name','email','phone','property_address','property_city','property_state','property_zip','property_type','estimated_value','estimated_equity','estimated_arv','source','status','motivation_score','notes','tags','pipeline_stage'];
     const updates = { updated_at: new Date().toISOString() };
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     const { data, error } = await supabase.from('leads').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
