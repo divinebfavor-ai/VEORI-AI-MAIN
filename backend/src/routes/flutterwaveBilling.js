@@ -519,6 +519,37 @@ router.post('/webhook', express.json(), async (req, res) => {
           return res.json({ status: 'ok' });
         }
 
+        // ── (C) Idempotency: skip if we've already processed this transaction ──
+        // Flutterwave retries webhooks. Without this guard, each retry would
+        // re-run activation, re-provision pool numbers, and re-fire referral
+        // commission. data.id is FW's stable, globally-unique transaction id.
+        // Insert-first (not select-then-insert) so two simultaneous retries can't
+        // both pass a check and proceed — the UNIQUE (provider, transaction_id)
+        // constraint lets exactly one win; the loser gets 23505 and bails.
+        const fwTxId = (data.id ?? data.tx_ref ?? '').toString();
+        const { error: claimErr } = await supabase
+          .from('processed_transactions')
+          .insert([{
+            provider:       'flutterwave',
+            transaction_id: fwTxId,
+            tx_ref:         data.tx_ref || null,
+            user_id:        userId,
+            plan:           planKey,
+            amount:         paidAmount,
+            currency:       paidCurrency,
+            event_type:     event.event,
+          }]);
+
+        if (claimErr) {
+          if (claimErr.code === '23505') {
+            console.log(`[FW Webhook] Duplicate ignored — tx ${fwTxId} already processed (user ${userId})`);
+            return res.json({ status: 'ok' });
+          }
+          // Any other DB error: don't half-activate. 500 so FW retries later.
+          console.error('[FW Webhook] Idempotency insert failed:', claimErr.message);
+          return res.status(500).json({ error: 'Idempotency check failed' });
+        }
+
         const expiresAt = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
 
         await updateUserSubscription(userId, {
