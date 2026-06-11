@@ -382,7 +382,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
             <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', margin: '0 0 8px' }}>Release this number?</p>
             <p style={{ fontSize: 13, color: 'var(--t3)', margin: '0 0 6px' }}>{releaseTarget.number}</p>
             <p style={{ fontSize: 12, color: '#D93030', margin: '0 0 20px', lineHeight: 1.5 }}>
-              This will permanently cancel the number in Vapi. Any active campaigns using this number will be interrupted. This cannot be undone.
+              This will permanently release this number. Any active campaigns using this number will be interrupted. This cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button
