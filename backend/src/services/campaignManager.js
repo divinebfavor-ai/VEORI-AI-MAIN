@@ -290,6 +290,21 @@ async function buildLeadQueue(campaignId, userId, filter = {}) {
   if (filter.min_score)          q = q.gte('motivation_score', filter.min_score);
   if (filter.max_score)          q = q.lte('motivation_score', filter.max_score);
   if (filter.source)             q = q.eq('source', filter.source);
+  // Operator-selected lead tags — only call leads matching the chosen tags.
+  // A lead qualifies if a chosen tag is its primary_tag OR appears in secondary_tags.
+  // e.g. filter.tags = ['pre_foreclosure','absentee_owner']. Empty/absent = call all tags.
+  if (Array.isArray(filter.tags) && filter.tags.length > 0) {
+    // Sanitize tag values (only the [a-z_] chars our tagger produces) to keep the
+    // PostgREST .or() filter string safe, then build: primary_tag.in.(...) OR secondary_tags.cs.{tag}
+    const safeTags = filter.tags
+      .map(t => String(t).toLowerCase().replace(/[^a-z_]/g, ''))
+      .filter(Boolean);
+    if (safeTags.length > 0) {
+      const primaryClause   = `primary_tag.in.(${safeTags.join(',')})`;
+      const secondaryClause = safeTags.map(t => `secondary_tags.cs.{${t}}`).join(',');
+      q = q.or(`${primaryClause},${secondaryClause}`);
+    }
+  }
 
   const { data } = await q;
   return data || [];
