@@ -179,10 +179,16 @@ router.post('/initiate', async (req, res, next) => {
       console.warn('[TCPA] Federal DNC check skipped:', e.message);
     }
 
+    // Derive the lead's area code for local-presence matching (305 lead → 305 number).
+    const leadDigits   = String(lead.phone || '').replace(/\D/g, '');
+    const leadAreaCode = leadDigits.length === 11 && leadDigits.startsWith('1')
+      ? leadDigits.slice(1, 4)
+      : (leadDigits.length === 10 ? leadDigits.slice(0, 3) : null);
+
     // Select best phone number if not specified
     const phoneNum = phone_number_id
       ? (await supabase.from('phone_numbers').select('*').eq('id', phone_number_id).eq('user_id', req.user.id).single()).data
-      : await phoneRotation.selectBestNumber(req.user.id, lead.property_state);
+      : await phoneRotation.selectBestNumber(req.user.id, lead.property_state, [], leadAreaCode);
 
     if (!phoneNum) return res.status(400).json({ success: false, error: 'No healthy phone numbers available' });
 

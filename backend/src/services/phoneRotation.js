@@ -9,7 +9,7 @@ const WEEKLY_MAX       = 200;       // max 200 calls/number/week before mandator
  * Select the best available phone number for a call.
  * Priority: geographic match → health score → daily calls used
  */
-async function selectBestNumber(userId, sellerState = null, excludeIds = []) {
+async function selectBestNumber(userId, sellerState = null, excludeIds = [], sellerAreaCode = null) {
   const now = new Date().toISOString();
 
   const { data: numbers, error } = await supabase
@@ -43,14 +43,22 @@ async function selectBestNumber(userId, sellerState = null, excludeIds = []) {
     }
   }
 
-  // Rule 3: Geographic matching — prefer same area code/state as seller
+  // Rule 3: Geographic matching — TRUE local presence boosts answer rates.
+  // Tier 1: exact area-code match (305 lead → 305 number).
+  if (sellerAreaCode) {
+    const acMatch = available.filter(n => n.area_code === String(sellerAreaCode));
+    if (acMatch.length > 0) {
+      return pickHealthiest(acMatch);
+    }
+  }
+  // Tier 2: same state (305 lead → any FL number).
   if (sellerState) {
     const geoMatch = available.filter(n => n.state?.toLowerCase() === sellerState?.toLowerCase());
     if (geoMatch.length > 0) {
       return pickHealthiest(geoMatch);
     }
   }
-
+  // Tier 3: any healthy local number.
   return pickHealthiest(available);
 }
 
