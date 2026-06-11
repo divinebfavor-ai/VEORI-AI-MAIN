@@ -91,12 +91,36 @@ async function dialerTick(campaignId) {
     if (!lead) continue;
 
     try {
-      // DNC check
+      // DNC check (local suppression list)
       const { data: dnc } = await supabase.from('dnc_records').select('id').eq('phone', lead.phone).single();
       if (dnc) {
         await supabase.from('leads').update({ is_on_dnc: true, status: 'dnc' }).eq('id', lead.id);
         session.consecutiveFailures = 0; // DNC skip is not a Vapi failure
         continue;
+      }
+
+      // Federal DNC check (FTC National Registry). Fails OPEN until FTC_DNC_API_KEY
+      // is configured, so this never blocks calls before the operator signs up.
+      try {
+        const { isOnFederalDnc } = require('./ftcDncService');
+        const fed = await isOnFederalDnc(lead.phone);
+        if (fed.checked && fed.onList) {
+          await supabase.from('leads').update({ is_on_dnc: true, status: 'dnc' }).eq('id', lead.id);
+          await supabase.from('tcpa_log').insert({
+            user_id: userId,
+            lead_id: lead.id,
+            phone_number: lead.phone || '',
+            called_at_utc: new Date().toISOString(),
+            within_calling_hours: false,
+            dnc_result: 'blocked',
+            consent_status: 'blocked',
+            local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry — call blocked',
+          }).catch(() => {});
+          session.consecutiveFailures = 0; // DNC skip is not a Vapi failure
+          continue;
+        }
+      } catch (e) {
+        console.warn('[Campaign][TCPA] Federal DNC check skipped:', e.message);
       }
 
       // Phone number selection

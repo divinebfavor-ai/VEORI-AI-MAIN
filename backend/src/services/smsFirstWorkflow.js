@@ -271,6 +271,29 @@ async function triggerPendingCalls(campaignId, userId, campaign) {
     }
 
     try {
+      // Federal DNC check (FTC National Registry). Fails OPEN until FTC_DNC_API_KEY
+      // is configured, so this never blocks calls before the operator signs up.
+      try {
+        const { isOnFederalDnc } = require('./ftcDncService');
+        const fed = await isOnFederalDnc(lead.phone);
+        if (fed.checked && fed.onList) {
+          await supabase.from('leads').update({ is_on_dnc: true, status: 'dnc' }).eq('id', lead.id);
+          await supabase.from('tcpa_log').insert({
+            user_id: userId,
+            lead_id: lead.id,
+            phone_number: lead.phone || '',
+            called_at_utc: new Date().toISOString(),
+            within_calling_hours: true,
+            dnc_result: 'blocked',
+            consent_status: 'blocked',
+            local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry — call blocked',
+          }).catch(() => {});
+          continue; // skip this lead's escalation call
+        }
+      } catch (e) {
+        console.warn('[SMSFirst][TCPA] Federal DNC check skipped:', e.message);
+      }
+
       // Derive the lead's area code for local-presence matching (305 lead → 305 number).
       const leadDigits   = String(lead.phone || '').replace(/\D/g, '');
       const leadAreaCode = leadDigits.length === 11 && leadDigits.startsWith('1')

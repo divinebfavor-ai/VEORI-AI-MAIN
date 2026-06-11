@@ -50,6 +50,30 @@ async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact
     return { simulated: true };
   }
 
+  // Federal DNC check (FTC National Registry). Fails OPEN until FTC_DNC_API_KEY
+  // is configured, so this never blocks drops before the operator signs up.
+  try {
+    const { isOnFederalDnc } = require('./ftcDncService');
+    const fed = await isOnFederalDnc(lead.phone);
+    if (fed.checked && fed.onList) {
+      await supabase.from('leads').update({ is_on_dnc: true, status: 'dnc' }).eq('id', lead.id).catch(() => {});
+      await supabase.from('tcpa_log').insert({
+        user_id: operator.id,
+        lead_id: lead.id,
+        phone_number: lead.phone || '',
+        called_at_utc: new Date().toISOString(),
+        within_calling_hours: false,
+        dnc_result: 'blocked',
+        consent_status: 'blocked',
+        local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry — voicemail blocked',
+      }).catch(() => {});
+      console.log(`[RVM] Federal DNC hit — skipping voicemail drop to ${lead.phone}`);
+      return { skipped: true, reason: 'federal_dnc' };
+    }
+  } catch (e) {
+    console.warn('[RVM][TCPA] Federal DNC check skipped:', e.message);
+  }
+
   const aiName     = operator.ai_caller_name || 'Alex';
   const companyName= operator.company_name   || 'our real estate investment group';
   const voiceId    = operator.ai_voice_id    || process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
