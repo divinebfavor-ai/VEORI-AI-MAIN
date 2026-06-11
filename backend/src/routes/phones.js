@@ -78,6 +78,95 @@ router.post('/provision', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Toll-free import (Twilio → Vapi) ─────────────────────────────────────────
+// US toll-free prefixes (digits after the leading +1). Toll-free bypasses A2P 10DLC.
+const TOLLFREE_PREFIXES = ['800', '833', '844', '855', '866', '877', '888'];
+
+function isUSTollFree(e164) {
+  const digits = (e164 || '').replace(/\D/g, '');
+  if (digits.length !== 11 || digits[0] !== '1') return false;
+  return TOLLFREE_PREFIXES.includes(digits.slice(1, 4));
+}
+
+// POST /api/phones/import-twilio — import an operator-owned toll-free Twilio number into Vapi
+router.post('/import-twilio', async (req, res, next) => {
+  try {
+    const { number, friendly_name } = req.body;
+    if (!number) return res.status(400).json({ success: false, error: 'number is required (E.164, e.g. +18005551234)' });
+
+    // Toll-free ONLY — bypasses A2P 10DLC registration
+    if (!isUSTollFree(number)) {
+      return res.status(400).json({ success: false, error: 'Only US toll-free numbers (800/833/844/855/866/877/888) can be imported' });
+    }
+
+    const vapiKey     = process.env.VAPI_API_KEY;
+    const twilioSid   = process.env.TWILIO_ACCOUNT_SID;
+    const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+    if (!vapiKey) return res.status(500).json({ success: false, error: 'Vapi API key not configured' });
+    if (!twilioSid || !twilioToken) return res.status(500).json({ success: false, error: 'Twilio credentials not configured' });
+
+    // Prevent double-import of the same number for this operator
+    const { data: dupe } = await supabase
+      .from('phone_numbers')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .eq('number', number)
+      .is('released_at', null)
+      .maybeSingle();
+    if (dupe) return res.status(409).json({ success: false, error: 'This number is already imported' });
+
+    const webhookUrl = process.env.VAPI_WEBHOOK_URL
+      || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/vapi/webhook` : null);
+
+    // Import into Vapi
+    let vapiNumber;
+    try {
+      const vapiRes = await axios.post('https://api.vapi.ai/phone-number', {
+        provider: 'twilio',
+        number,
+        twilioAccountSid: twilioSid,
+        twilioAuthToken:  twilioToken,
+        name: friendly_name || `Veori Toll-Free (${number})`,
+        ...(webhookUrl ? { serverUrl: webhookUrl } : {}),
+        ...(process.env.VAPI_WEBHOOK_SECRET ? { serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET } : {}),
+      }, {
+        headers: { Authorization: `Bearer ${vapiKey}`, 'Content-Type': 'application/json' },
+        timeout: 30000,
+      });
+      vapiNumber = vapiRes.data;
+      console.log('[Phone] Vapi toll-free import response:', JSON.stringify(vapiNumber));
+    } catch (vapiErr) {
+      const msg = vapiErr.response?.data?.message || vapiErr.response?.data?.error || vapiErr.message;
+      return res.status(502).json({ success: false, error: `Vapi import error: ${msg}` });
+    }
+
+    // First number for this operator → mark primary
+    const { count: existingCount } = await supabase
+      .from('phone_numbers')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', req.user.id)
+      .is('released_at', null);
+    const isFirstNumber = (existingCount || 0) === 0;
+
+    const { data, error } = await supabase.from('phone_numbers').insert([{
+      id: uuidv4(),
+      user_id: req.user.id,
+      number,
+      friendly_name: friendly_name || number,
+      area_code: number.replace(/\D/g, '').slice(1, 4),
+      vapi_phone_number_id: vapiNumber.id,
+      health_status: 'healthy',
+      is_active: true,
+      daily_call_limit: 50,
+      purchased_at: new Date().toISOString(),
+      is_primary: isFirstNumber,
+    }]).select().single();
+    if (error) throw error;
+
+    res.status(201).json({ success: true, data, vapi_id: vapiNumber.id, number });
+  } catch (err) { next(err); }
+});
+
 // GET /api/phones/plan-status — beta: unlimited numbers
 router.get('/plan-status', async (req, res, next) => {
   try {
