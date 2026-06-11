@@ -69,14 +69,14 @@ async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact
       model: {
         provider: 'anthropic',
         model: 'claude-haiku-4-5-20251001',
-        systemPrompt: `You are leaving a voicemail. Read ONLY the voicemail script below exactly once, then end the call. Do not deviate from the script.
+        messages: [{ role: 'system', content: `You are leaving a voicemail. Read ONLY the voicemail script below exactly once, then end the call. Do not deviate from the script.
 
 VOICEMAIL SCRIPT:
-${vmMessage}`,
+${vmMessage}` }],
         maxTokens: 200,
         temperature: 0.1,
       },
-      voice: { provider: 'elevenlabs', voiceId },
+      voice: { provider: '11labs', voiceId },
       firstMessage: vmMessage,
       firstMessageMode: 'assistant-speaks-first',
       recordingEnabled: true,
