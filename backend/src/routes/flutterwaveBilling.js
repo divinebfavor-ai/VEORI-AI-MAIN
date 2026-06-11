@@ -361,6 +361,48 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       return res.status(402).json({ success: false, error: 'Payment currency mismatch' });
     }
 
+    // ── Idempotency: claim this transaction before provisioning ───────────────
+    // /verify and the webhook can both fire for the SAME transaction (FW redirects
+    // the buyer here AND sends a webhook). They share processed_transactions with
+    // UNIQUE (provider, transaction_id), so whichever runs first claims the row and
+    // provisions; the other sees 23505 and skips. A buyer refreshing the success
+    // page can't re-provision either. Keyed on the same id the webhook uses
+    // (txData.id) so the two paths collide on the same row.
+    const fwTxId = (txData.id ?? transaction_id ?? txRef ?? '').toString();
+    const { error: claimErr } = await supabase
+      .from('processed_transactions')
+      .insert([{
+        provider:       'flutterwave',
+        transaction_id: fwTxId,
+        tx_ref:         txData.tx_ref || txRef || null,
+        user_id:        req.user.id,
+        plan:           planKey,
+        amount:         Number(txData.amount),
+        currency:       (txData.currency || '').toUpperCase(),
+        event_type:     'verify',
+      }]);
+
+    if (claimErr && claimErr.code !== '23505') {
+      // Real DB error — don't half-activate. Surface so the buyer can retry.
+      console.error('[FW Verify] Idempotency insert failed:', claimErr.message);
+      return res.status(500).json({ success: false, error: 'Verification failed. Contact support.' });
+    }
+
+    const alreadyProcessed = claimErr?.code === '23505';
+    if (alreadyProcessed) {
+      // The webhook (or an earlier /verify) already provisioned this transaction.
+      // The account is active — return success without re-provisioning.
+      console.log(`[FW Verify] Already processed — tx ${fwTxId} (user ${req.user.id}), skipping re-provision`);
+      return res.json({
+        success:   true,
+        plan:      planKey,
+        plan_name: plan.name,
+        amount:    txData.amount,
+        currency:  txData.currency,
+        message:   `Welcome to Veori ${plan.name}! Your account is active.`,
+      });
+    }
+
     const expiresAt = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
 
     await updateUserSubscription(req.user.id, {
