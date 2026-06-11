@@ -10,19 +10,30 @@ function statusVariant(s) {
   return m[s?.toLowerCase()] || 'gray'
 }
 
+// Primary lead tags assigned by leadTaggingService — [value, friendly label].
+// Operators pick which tags a campaign calls. None selected = call all leads.
+const LEAD_TAGS = [
+  ['pre_foreclosure', 'Pre-Foreclosure'], ['tax_delinquent', 'Tax Delinquent'],
+  ['inherited',       'Inherited'],        ['probate',        'Probate'],
+  ['vacant',          'Vacant'],           ['absentee_owner', 'Absentee Owner'],
+  ['fsbo',            'FSBO'],             ['free_and_clear', 'Free & Clear'],
+  ['cash_buyer',      'Cash Buyer'],
+]
+
 // ─── Create Campaign Modal ────────────────────────────────────────────────────
 function CreateModal({ onClose, onCreated }) {
   const [step, setStep]       = useState(1)
-  const [form, setForm]       = useState({ name:'', concurrent_lines:1, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
+  const [form, setForm]       = useState({ name:'', tags:[], concurrent_lines:1, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
   const [smsFirst, setSmsFirst] = useState(false)
   const [saving, setSaving]   = useState(false)
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+  const toggleTag = t => setForm(f => ({ ...f, tags: f.tags.includes(t) ? f.tags.filter(x => x !== t) : [...f.tags, t] }))
 
   const launch = async () => {
     if (!form.name) { toast.error('Campaign name required'); return }
     setSaving(true)
     try {
-      const created = await campaigns.createCampaign({ ...form, concurrent_lines: Number(form.concurrent_lines), daily_limit_per_number: Number(form.daily_limit_per_number) })
+      const created = await campaigns.createCampaign({ ...form, concurrent_lines: Number(form.concurrent_lines), daily_limit_per_number: Number(form.daily_limit_per_number), lead_filter: { tags: form.tags } })
       const campaignId = created?.data?.data?.id || created?.data?.id
       if (smsFirst && campaignId) {
         await campaigns.startSMSFirst(campaignId)
@@ -40,7 +51,7 @@ function CreateModal({ onClose, onCreated }) {
       <div className="w-full max-w-[560px] bg-card border border-border-subtle rounded-xl p-8 animate-slide-in-up">
         {/* Step dots */}
         <div className="flex items-center gap-2 mb-8">
-          {[1,2,3].map(n => (
+          {[1,2,3,4].map(n => (
             <div key={n} className={`h-1 flex-1 rounded-full transition-colors ${n <= step ? 'bg-primary' : 'bg-border-subtle'}`} />
           ))}
         </div>
@@ -59,6 +70,33 @@ function CreateModal({ onClose, onCreated }) {
         )}
 
         {step === 2 && (
+          <div>
+            <h2 className="text-[22px] font-medium text-text-primary mb-1">Target leads</h2>
+            <p className="text-[13px] text-text-muted mb-6">Pick which lead types this campaign calls. Leave all unselected to call every lead.</p>
+            <div className="flex flex-wrap gap-2">
+              {LEAD_TAGS.map(([value, label]) => {
+                const active = form.tags.includes(value)
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => toggleTag(value)}
+                    className={`px-3.5 py-2 rounded-full text-[13px] font-medium border transition-colors ${active ? 'border-primary bg-primary/10 text-primary' : 'border-border-subtle text-text-muted hover:border-border-default'}`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-text-muted mt-4">
+              {form.tags.length === 0
+                ? 'All leads will be called.'
+                : `${form.tags.length} tag${form.tags.length !== 1 ? 's' : ''} selected — only matching leads will be called.`}
+            </p>
+          </div>
+        )}
+
+        {step === 3 && (
           <div>
             <h2 className="text-[22px] font-medium text-text-primary mb-1">Calling settings</h2>
             <p className="text-[13px] text-text-muted mb-6">Configure how Alex will dial</p>
@@ -112,13 +150,14 @@ function CreateModal({ onClose, onCreated }) {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div>
             <h2 className="text-[22px] font-medium text-text-primary mb-1">Review & Launch</h2>
             <p className="text-[13px] text-text-muted mb-6">Confirm your campaign settings before launching</p>
             <div className="space-y-1 mb-6">
               {[
                 ['Campaign Name',  form.name],
+                ['Target Leads',   form.tags.length === 0 ? 'All leads' : form.tags.map(t => (LEAD_TAGS.find(([v]) => v === t)?.[1]) || t).join(', ')],
                 ['Mode',           smsFirst ? '💬 SMS First' : '📞 Direct Call'],
                 ['Concurrent Lines', form.concurrent_lines],
                 ['Daily Limit',    `${form.daily_limit_per_number} calls / number`],
@@ -142,7 +181,7 @@ function CreateModal({ onClose, onCreated }) {
           <Button variant="secondary" className="flex-1" onClick={step === 1 ? onClose : () => setStep(s => s-1)}>
             {step === 1 ? 'Cancel' : 'Back'}
           </Button>
-          {step < 3
+          {step < 4
             ? <Button className="flex-1" onClick={() => setStep(s => s+1)}>Continue <ChevronRight size={14} /></Button>
             : <Button className="flex-1" loading={saving} onClick={launch}>Launch Campaign</Button>
           }
