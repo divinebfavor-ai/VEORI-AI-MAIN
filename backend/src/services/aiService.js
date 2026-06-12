@@ -76,11 +76,137 @@ const client = {
   },
 };
 
+// ─── Per-use-case analysis framing ───────────────────────────────────────────
+// The post-call analyzer returns ONE fixed JSON contract (same keys for every
+// use case) so the DB write in vapi.js and all downstream consumers are
+// untouched. Only the interpretation changes per use case:
+//   • motivation_score is ALWAYS a 0-100 integer (reinterpreted as
+//     interest/qualification for non-wholesale use cases).
+//   • outcome is ALWAYS one of the existing enum values — each block maps that
+//     use case's real-world outcomes onto the closest enum value.
+// The wholesale block reproduces the original prompt verbatim, so wholesale
+// behavior (the default, and all existing data) never changes.
+const ANALYSIS_BLOCKS = {
+  wholesale: {
+    role: 'an expert real estate wholesale analyst',
+    subject: 'seller call',
+    scoring: `SCORING GUIDE:
+- 80-100: Extremely motivated — financial pressure, urgency, desperate to sell
+- 60-79: Motivated — open to selling, timeline in mind, has reasons
+- 40-59: Interested — open to offers, no urgency
+- 20-39: Mildly interested — skeptical, no urgency
+- 0-19: Not interested, angry, or not relevant`,
+    outcomeHint: '',
+    extractDeal: true,
+  },
+  agent_listing: {
+    role: 'an expert listing-agent call analyst',
+    subject: 'homeowner listing call',
+    scoring: `SCORING GUIDE (listing intent — higher = more likely to list soon):
+- 80-100: Ready to list — wants a CMA/appointment now, clear timeline
+- 60-79: Strong intent — considering selling, open to an appointment
+- 40-59: Curious — wants their number, no firm timeline
+- 20-39: Just gathering info, not committed
+- 0-19: Not selling / already has an agent / hostile`,
+    outcomeHint: `OUTCOME MAPPING (map to the closest existing enum value):
+- listing appointment booked -> "appointment"
+- agreed to list / ready to sign -> "verbal_yes"
+- gave a CMA / price range but no booking -> "offer_made"
+- wants a callback later -> "callback_requested"
+- declined -> "not_interested" | went to voicemail -> "voicemail" | no live contact -> "not_home"`,
+    extractDeal: false,
+  },
+  buyer_agent: {
+    role: 'an expert buyer-agent call analyst',
+    subject: 'home-buyer call',
+    scoring: `SCORING GUIDE (buyer readiness — higher = more ready to transact):
+- 80-100: Actively buying — pre-approved or ready, clear criteria + timeline
+- 60-79: Motivated buyer — searching now, open to a consultation
+- 40-59: Early — browsing, no financing or timeline yet
+- 20-39: Just curious
+- 0-19: Not buying / already has an agent / hostile`,
+    outcomeHint: `OUTCOME MAPPING (map to the closest existing enum value):
+- buyer consultation booked -> "appointment"
+- agreed to representation -> "verbal_yes"
+- shared budget/criteria but no booking -> "offer_made"
+- wants a callback later -> "callback_requested"
+- declined -> "not_interested" | went to voicemail -> "voicemail" | no live contact -> "not_home"`,
+    extractDeal: false,
+  },
+  landlord_pm: {
+    role: 'an expert property-management outreach analyst',
+    subject: 'rental-owner call',
+    scoring: `SCORING GUIDE (management fit — higher = more frustrated self-manager / better fit):
+- 80-100: Fed-up self-manager, wants help now
+- 60-79: Self-managing with real pain points, open to a call
+- 40-59: Managing okay but curious about cost/benefit
+- 20-39: Content, low interest
+- 0-19: Already has a manager / not a landlord / hostile`,
+    outcomeHint: `OUTCOME MAPPING (map to the closest existing enum value):
+- intro / management call booked -> "appointment"
+- agreed to sign up for management -> "verbal_yes"
+- discussed pricing/terms but no booking -> "offer_made"
+- wants a callback later -> "callback_requested"
+- declined -> "not_interested" | went to voicemail -> "voicemail" | no live contact -> "not_home"`,
+    extractDeal: false,
+  },
+  investor_outreach: {
+    role: 'an expert acquisitions / buyer-list outreach analyst',
+    subject: 'investor (cash buyer) call',
+    scoring: `SCORING GUIDE (buyer-list value — higher = stronger, active buyer):
+- 80-100: Active, well-funded buyer, clear buy box, wants deals now
+- 60-79: Real buyer, defined criteria, open to receiving deals
+- 40-59: Buys occasionally / vague buy box
+- 20-39: Mostly inactive
+- 0-19: Not an investor / hostile`,
+    outcomeHint: `OUTCOME MAPPING (map to the closest existing enum value):
+- call / deal-review booked -> "appointment"
+- agreed to join the buyer list -> "verbal_yes"
+- shared buy box but no commitment -> "offer_made"
+- wants a callback later -> "callback_requested"
+- declined -> "not_interested" | went to voicemail -> "voicemail" | no live contact -> "not_home"`,
+    extractDeal: false,
+  },
+  general: {
+    role: 'an expert real-estate call analyst',
+    subject: 'real estate call',
+    scoring: `SCORING GUIDE (interest — higher = stronger interest / better fit):
+- 80-100: Strong interest, wants a next step now
+- 60-79: Interested, open to a follow-up
+- 40-59: Mildly interested, no commitment
+- 20-39: Low interest
+- 0-19: Not interested / hostile / not relevant`,
+    outcomeHint: `OUTCOME MAPPING (map to the closest existing enum value):
+- a meeting / next step was scheduled -> "appointment"
+- they clearly agreed to proceed -> "verbal_yes"
+- a concrete number / proposal was discussed -> "offer_made"
+- wants a callback later -> "callback_requested"
+- declined -> "not_interested" | went to voicemail -> "voicemail" | no live contact -> "not_home"`,
+    extractDeal: false,
+  },
+};
+
 /**
- * Analyze a completed call transcript
+ * Analyze a completed call transcript.
+ * `useCase` selects the analyst framing (default 'wholesale' — unchanged for
+ * every existing caller). Returns the same JSON contract for all use cases.
  */
-async function analyzeCallTranscript(transcript, lead = {}) {
-  const prompt = `You are an expert real estate wholesale analyst. Analyze this seller call transcript and extract structured data.
+async function analyzeCallTranscript(transcript, lead = {}, useCase = 'wholesale') {
+  const ucKey = ANALYSIS_BLOCKS[String(useCase || '').toLowerCase()]
+    ? String(useCase).toLowerCase()
+    : 'wholesale';
+  const block = ANALYSIS_BLOCKS[ucKey];
+  const isWholesale = ucKey === 'wholesale';
+
+  // estimated_arv / repair_estimate are wholesale-only deal math — force null
+  // for every other use case so the model doesn't hallucinate them.
+  const dealFields = isWholesale
+    ? `  "estimated_arv": <number or null>,
+  "repair_estimate": <number or null>`
+    : `  "estimated_arv": null,
+  "repair_estimate": null`;
+
+  const prompt = `You are ${block.role}. Analyze this ${block.subject} transcript and extract structured data.
 
 LEAD CONTEXT:
 - Name: ${lead?.first_name} ${lead?.last_name}
@@ -100,16 +226,12 @@ Respond with ONLY valid JSON (no markdown, no explanation):
   "offer_made": <number or null>,
   "ai_summary": "<2-3 sentence plain English summary>",
   "recommended_action": "<specific next action>",
-  "estimated_arv": <number or null>,
-  "repair_estimate": <number or null>
+${dealFields}
 }
 
-SCORING GUIDE:
-- 80-100: Extremely motivated — financial pressure, urgency, desperate to sell
-- 60-79: Motivated — open to selling, timeline in mind, has reasons
-- 40-59: Interested — open to offers, no urgency
-- 20-39: Mildly interested — skeptical, no urgency
-- 0-19: Not interested, angry, or not relevant`;
+${block.scoring}${block.outcomeHint ? `
+
+${block.outcomeHint}` : ''}`;
 
   try {
     const msg = await client.messages.create({

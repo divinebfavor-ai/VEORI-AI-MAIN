@@ -1151,4 +1151,6 @@ module.exports = {
   buildAlexPrompt,
   getScriptByLeadTag,
   getVapiVoices,
+  getUseCase,
+  USE_CASE_IDENTITY,
 };

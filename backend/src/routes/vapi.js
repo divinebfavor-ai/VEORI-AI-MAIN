@@ -132,6 +132,31 @@ async function handleTranscript(event) {
   await supabase.from('calls').update({ transcript: fullTranscript, ...scoreUpdate }).eq('vapi_call_id', call.id);
 }
 
+// Resolve the active use case for a call record so the post-call analyzer can
+// frame its scoring/outcome correctly. Reads the operator default
+// (users.ai_use_case) and the optional per-campaign override (campaigns.use_case),
+// then lets vapiService.getUseCase pick the winner. Best-effort: any failure
+// (missing row, null column, DB error) falls back to 'wholesale' — the default —
+// so analysis never breaks on a lookup.
+async function resolveCallUseCase(callRec) {
+  try {
+    let operator = {};
+    if (callRec?.user_id) {
+      const { data } = await supabase.from('users').select('ai_use_case').eq('id', callRec.user_id).single();
+      if (data) operator = data;
+    }
+    let override = null;
+    if (callRec?.campaign_id) {
+      const { data } = await supabase.from('campaigns').select('use_case').eq('id', callRec.campaign_id).single();
+      override = data?.use_case || null;
+    }
+    return vapiService.getUseCase(operator, override);
+  } catch (e) {
+    console.warn('[Vapi] resolveCallUseCase failed — defaulting to wholesale:', e.message);
+    return 'wholesale';
+  }
+}
+
 async function handleCallEnded(call, event) {
   if (!call?.id) return;
 
@@ -197,8 +222,9 @@ async function handleCallEnded(call, event) {
   let aiAnalysis = {};
   if (finalTranscript) {
     try {
-      aiAnalysis = await aiService.analyzeCallTranscript(finalTranscript, callRec.leads);
-      console.log(`[Vapi] AI analysis done — outcome=${aiAnalysis.outcome} score=${aiAnalysis.motivation_score}`);
+      const useCase = await resolveCallUseCase(callRec);
+      aiAnalysis = await aiService.analyzeCallTranscript(finalTranscript, callRec.leads, useCase);
+      console.log(`[Vapi] AI analysis done — useCase=${useCase} outcome=${aiAnalysis.outcome} score=${aiAnalysis.motivation_score}`);
     } catch (e) { console.error('[Vapi] AI analysis error:', e.message); }
   } else {
     console.warn(`[Vapi] No transcript available for call ${call.id} — skipping AI analysis`);
@@ -677,7 +703,8 @@ router.post('/sync-calls', requireAuth, async (req, res, next) => {
       if (finalTranscript && (!existing.transcript || existing.status !== 'ended')) {
         try {
           const { data: lead } = await supabase.from('leads').select('*').eq('id', existing.lead_id).single();
-          aiAnalysis = await aiService.analyzeCallTranscript(finalTranscript, lead);
+          const useCase = await resolveCallUseCase(existing);
+          aiAnalysis = await aiService.analyzeCallTranscript(finalTranscript, lead, useCase);
         } catch (e) { /* non-fatal */ }
       }
 
