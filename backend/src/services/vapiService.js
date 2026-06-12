@@ -487,11 +487,15 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
 
   const systemPrompt = getScriptByLeadTag(lead, operator) + accumulatedIntel;
 
+  // Accept BOTH the [Bracket] tokens shown in the Settings UI and the legacy
+  // {curly} tokens. Case-insensitive. Without [Bracket] support the AI used to
+  // read placeholders like "[FirstName]" aloud verbatim to the seller.
   const firstMessage = operator.ai_intro_script
     ? operator.ai_intro_script
-        .replace(/{first_name}/g, lead.first_name || 'there')
-        .replace(/{property_address}/g, lead.property_address || 'your property')
-        .replace(/{ai_name}/g, aiName)
+        .replace(/\[FirstName\]|\{first_name\}/gi, lead.first_name || 'there')
+        .replace(/\[Address\]|\{property_address\}/gi, lead.property_address || 'your property')
+        .replace(/\[Company\]|\{company\}/gi, companyName)
+        .replace(/\[AIName\]|\{ai_name\}/gi, aiName)
     : `Hi, may I speak with ${lead.first_name || 'the owner of the property'}?`;
 
   // phoneNumberId = operator's Vapi number ID stored in DB (never a hardcoded env var)
