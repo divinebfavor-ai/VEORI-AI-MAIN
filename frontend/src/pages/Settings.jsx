@@ -1138,7 +1138,7 @@ export default function Settings() {
                         {voices.length === 0 && <option value={persona.ai_voice_id || 'Elliot'}>{persona.ai_voice_id || 'Elliot'}</option>}
                         {voices.map(v => (
                           <option key={v.voiceId} value={v.voiceId}>
-                            {v.name}{v.gender ? ` (${v.gender})` : ''}
+                            {v.featured ? '★ ' : ''}{v.name}{v.gender ? ` (${v.gender})` : ''}{v.featured ? ' — Most natural' : ''}
                           </option>
                         ))}
                       </select>

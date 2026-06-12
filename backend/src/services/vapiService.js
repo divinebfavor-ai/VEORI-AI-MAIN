@@ -533,7 +533,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
         provider: 'anthropic',
         model: process.env.VAPI_AI_MODEL || 'claude-haiku-4-5-20251001',
         messages: [{ role: 'system', content: systemPrompt }],
-        temperature: 0.6,
+        temperature: 0.7,
         maxTokens: 500,
         emotionRecognitionEnabled: true,
         tools: [
@@ -564,8 +564,8 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
       recordingEnabled: true,
       endCallFunctionEnabled: true,   // let the AI hang up when the conversation is done
       silenceTimeoutSeconds: 30,
-      responseDelaySeconds: 0.4,
-      llmRequestDelaySeconds: 0.1,
+      responseDelaySeconds: 0.7,   // wait ~0.7s before replying — human turn-taking, not eager-robot
+      llmRequestDelaySeconds: 0.3,  // small "thinking" beat after seller stops talking; reduces interruptions
       maxDurationSeconds: 1800,
       backgroundDenoisingEnabled: true,
       modelOutputInMessagesEnabled: true,
@@ -783,10 +783,11 @@ ${getToneStyle(operator)}`;
 // If Vapi adds/retires a voice, update this list manually.
 const VOICE_PREVIEW_BASE = 'https://xqllxyoeftkbufoungcz.supabase.co/storage/v1/object/public/voice-previews';
 const VAPI_VOICES = [
-  { voiceId: 'Clara',    name: 'Clara',    gender: 'female', previewUrl: `${VOICE_PREVIEW_BASE}/clara.wav` },
+  // Featured first: Vapi's most natural-sounding conversational voices.
+  { voiceId: 'Elliot',   name: 'Elliot',   gender: 'male',   featured: true, previewUrl: `${VOICE_PREVIEW_BASE}/elliot.wav` },
+  { voiceId: 'Savannah', name: 'Savannah', gender: 'female', featured: true, previewUrl: `${VOICE_PREVIEW_BASE}/savannah.wav` },
+  { voiceId: 'Clara',    name: 'Clara',    gender: 'female', featured: true, previewUrl: `${VOICE_PREVIEW_BASE}/clara.wav` },
   { voiceId: 'Godfrey',  name: 'Godfrey',  gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/godfrey.wav` },
-  { voiceId: 'Elliot',   name: 'Elliot',   gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/elliot.wav` },
-  { voiceId: 'Savannah', name: 'Savannah', gender: 'female', previewUrl: `${VOICE_PREVIEW_BASE}/savannah.wav` },
   { voiceId: 'Nico',     name: 'Nico',     gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/nico.wav` },
   { voiceId: 'Kai',      name: 'Kai',      gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/kai.wav` },
   { voiceId: 'Emma',     name: 'Emma',     gender: 'female', previewUrl: `${VOICE_PREVIEW_BASE}/emma.wav` },
