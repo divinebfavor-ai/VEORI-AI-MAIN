@@ -716,6 +716,7 @@ export default function Settings() {
     'Title confirmation overdue': true,
   })
   const [persona, setPersona]     = useState({})
+  const [voices, setVoices]       = useState([])
   const [bankAccounts, setBankAccounts] = useState([])
   const [showAddBank, setShowAddBank]   = useState(false)
   const [profileForm, setProfileForm] = useState({ full_name: '', company_name: '', email: '', phone: '', email_from_name: '', email_reply_to: '' })
@@ -821,6 +822,10 @@ export default function Settings() {
     }
     if (tab === 'persona') {
       operatorApi.getProfile().then(r => setPersona(r.data?.profile || {})).catch(() => {})
+      operatorApi.getVoices().then(r => {
+        const raw = r.data?.voices ?? r.data?.data ?? r.data
+        setVoices(Array.isArray(raw) ? raw : [])
+      }).catch(() => {})
     }
     if (tab === 'banking') {
       operatorApi.getBankAccounts().then(r => {
@@ -1124,6 +1129,31 @@ export default function Settings() {
                 <div className="space-y-4">
                   <Input label="AI Caller Name" defaultValue={persona.ai_caller_name || 'Alex'} placeholder="Alex"
                     onChange={e => setPersona(p => ({ ...p, ai_caller_name: e.target.value }))} />
+                  <div>
+                    <label className="label-caps block mb-2">AI Voice</label>
+                    <div className="flex items-center gap-2">
+                      <select value={persona.ai_voice_id || (voices[0]?.voiceId || 'Elliot')}
+                        onChange={e => setPersona(p => ({ ...p, ai_voice_id: e.target.value }))}
+                        className="h-[44px] flex-1 bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
+                        {voices.length === 0 && <option value={persona.ai_voice_id || 'Elliot'}>{persona.ai_voice_id || 'Elliot'}</option>}
+                        {voices.map(v => (
+                          <option key={v.voiceId} value={v.voiceId}>
+                            {v.name}{v.gender ? ` (${v.gender})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {(() => {
+                        const sel = voices.find(v => v.voiceId === (persona.ai_voice_id || voices[0]?.voiceId))
+                        return sel?.previewUrl ? (
+                          <button type="button"
+                            onClick={() => { try { new Audio(sel.previewUrl).play() } catch {} }}
+                            className="h-[44px] px-3 rounded-[6px] border border-border-subtle text-[13px] text-text-primary hover:border-primary whitespace-nowrap">
+                            ▶ Preview
+                          </button>
+                        ) : null
+                      })()}
+                    </div>
+                  </div>
                   <div>
                     <label className="label-caps block mb-2">Personality Tone</label>
                     <select value={persona.ai_personality_tone || 'Professional'}

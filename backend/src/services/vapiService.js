@@ -774,6 +774,47 @@ ${getToneStyle(operator)}`;
   };
 }
 
+// ─── Voice catalog (live from Vapi, cached) ──────────────────────────────────
+// Powers the Settings → Persona voice dropdown. Sourced live from Vapi so the
+// list is always current and we never hardcode voice IDs that may be retired.
+let _voiceCache = { at: 0, voices: null };
+const VOICE_CACHE_MS = 60 * 60 * 1000; // 1 hour
+
+// Fallback contains ONLY the voice already in production use (the default), so a
+// Vapi outage degrades the dropdown to the known-working voice — never a guess.
+const FALLBACK_VAPI_VOICES = [
+  { voiceId: 'Elliot', name: 'Elliot', gender: 'male', previewUrl: null },
+];
+
+async function getVapiVoices() {
+  const now = Date.now();
+  if (_voiceCache.voices && now - _voiceCache.at < VOICE_CACHE_MS) {
+    return _voiceCache.voices;
+  }
+  if (!VAPI_API_KEY) return FALLBACK_VAPI_VOICES;
+
+  try {
+    // Vapi voice-library endpoint, filtered to the native 'vapi' provider.
+    const { data } = await vapiHttp.get('/voice-library?provider=vapi');
+    const list = Array.isArray(data) ? data : (data?.voices || data?.results || []);
+    const voices = list
+      .map(v => ({
+        voiceId:    v.voiceId || v.id || v.slug || v.name,
+        name:       v.name || v.voiceName || v.voiceId || v.id,
+        gender:     v.gender || v.voiceGender || null,
+        previewUrl: v.previewUrl || v.preview_url || v.sampleUrl || null,
+      }))
+      .filter(v => v.voiceId);
+
+    const result = voices.length ? voices : FALLBACK_VAPI_VOICES;
+    _voiceCache = { at: now, voices: result };
+    return result;
+  } catch (e) {
+    console.warn('[Vapi] getVapiVoices failed, using fallback:', e.message);
+    return FALLBACK_VAPI_VOICES;
+  }
+}
+
 module.exports = {
   initiateCall,
   getCall,
@@ -786,4 +827,5 @@ module.exports = {
   buildInboundAssistantConfig,
   buildAlexPrompt,
   getScriptByLeadTag,
+  getVapiVoices,
 };

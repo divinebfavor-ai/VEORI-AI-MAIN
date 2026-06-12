@@ -192,6 +192,7 @@ export const ai = {
 export const operator = {
   getProfile:       ()         => api.get('/api/operator/profile'),
   updateProfile:    (data)     => api.put('/api/operator/profile', data),
+  getVoices:        ()         => api.get('/api/operator/voices'),
   getBankAccounts:  ()         => api.get('/api/operator/bank-accounts'),
   addBankAccount:   (data)     => api.post('/api/operator/bank-accounts', data),
   deleteBankAccount:(id)       => api.delete(`/api/operator/bank-accounts/${id}`),

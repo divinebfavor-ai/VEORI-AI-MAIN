@@ -1,7 +1,16 @@
 const express = require('express');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
+const vapiService = require('../services/vapiService');
 const router = express.Router();
+
+// GET /api/operator/voices — live Vapi voice catalog for the persona picker
+router.get('/voices', requireAuth, async (req, res, next) => {
+  try {
+    const voices = await vapiService.getVapiVoices();
+    res.json({ success: true, voices });
+  } catch (err) { next(err); }
+});
 
 // GET /api/operator/profile
 router.get('/profile', requireAuth, async (req, res, next) => {
