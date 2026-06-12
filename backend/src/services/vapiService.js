@@ -16,36 +16,40 @@ const vapiHttp = axios.create({
   timeout: 30000,
 });
 
+// ─── Personality tone adapters (shared across outbound / buyer / inbound) ─────
+// Keyed lowercase. The Settings dropdown sends Professional/Friendly/Direct/Warm,
+// so we normalize to lowercase and alias 'warm' → empathetic. Without this, any
+// tone but 'professional' silently fell back to default.
+const TONE_INSTRUCTIONS = {
+  professional: `- Speak professionally and crisply. Get to the point quickly.
+- Use measured language: "I appreciate your time", "I respect that"
+- Mirror the other person's pace — if they're formal, be formal`,
+  friendly: `- Be warm, relaxed, and conversational. Use their first name often.
+- Light humor is okay once rapport is built — never forced
+- Sound like a neighbor talking, not a salesperson`,
+  direct: `- Cut to the chase. Less small talk, more business.
+- Short sentences. Don't over-explain.
+- Ask closed questions to move forward: "Would Tuesday work?"`,
+  empathetic: `- Lead with empathy. Acknowledge their situation first.
+- Phrases: "I can hear that", "That sounds really tough", "I'm glad you picked up"
+- Make them feel heard before making any business proposition`,
+};
+
+function getToneStyle(operator = {}) {
+  const tone = operator.ai_personality_tone || 'professional';
+  const toneKey = String(tone).toLowerCase() === 'warm'
+    ? 'empathetic'
+    : String(tone).toLowerCase();
+  return TONE_INSTRUCTIONS[toneKey] || TONE_INSTRUCTIONS.professional;
+}
+
 // ─── Alex AI Full System Prompt ───────────────────────────────────────────────
 function buildAlexPrompt({ operator = {}, lead = {} }) {
   const aiName     = operator.ai_caller_name     || 'Alex';
   const companyName= operator.company_name        || 'a local real estate investment group';
-  const tone       = operator.ai_personality_tone || 'professional';
   const customIntro= operator.ai_intro_script;
 
-  // Tone-specific personality adapters
-  const toneInstructions = {
-    professional: `- Speak professionally and crisply. Get to the point quickly.
-- Use measured language: "I appreciate your time", "I respect that"
-- Mirror the seller's pace — if they're formal, be formal`,
-    friendly: `- Be warm, relaxed, and conversational. Use the seller's first name often.
-- Light humor is okay once rapport is built — never forced
-- Sound like a neighbor talking, not a salesperson`,
-    direct: `- Cut to the chase. Less small talk, more business.
-- Short sentences. Don't over-explain.
-- Ask closed questions to move forward: "Would Tuesday work?"`,
-    empathetic: `- Lead with empathy. Acknowledge their situation first.
-- Phrases: "I can hear that", "That sounds really tough", "I'm glad you picked up"
-- Make them feel heard before making any business proposition`,
-  };
-
-  // Normalize tone to lowercase and alias 'warm' → empathetic so the Settings
-  // dropdown values (Professional/Friendly/Direct/Warm) match these lowercase
-  // keys. Without this, any tone but 'professional' silently fell back to default.
-  const toneKey = String(tone).toLowerCase() === 'warm'
-    ? 'empathetic'
-    : String(tone).toLowerCase();
-  const personalityStyle = toneInstructions[toneKey] || toneInstructions.professional;
+  const personalityStyle = getToneStyle(operator);
 
   const isLand = (lead.property_type || '').toLowerCase().includes('land') ||
                  (lead.property_type || '').toLowerCase().includes('lot') ||
@@ -695,7 +699,10 @@ RULES:
 - Be brief and confident. Buyers are busy.
 - Never pitch a rental buyer on flip profit. Never pitch a flipper on cap rate.
 - Create urgency without lying: "We have interest from other buyers"
-- Get a commitment: "Will you review it today or tomorrow?"`;
+- Get a commitment: "Will you review it today or tomorrow?"
+
+PERSONALITY STYLE:
+${getToneStyle(operator)}`;
 
   const payload = {
     type: 'outboundPhoneCall',
@@ -742,8 +749,11 @@ If yes: Proceed with full seller discovery (property address, condition, motivat
 If callback/follow-up: "Of course — can I get your name and the property address you're calling about?"
 If wrong number/not interested: "No problem at all — sorry to bother you. Have a great day!"
 
-Apply the same personality detection and call flow as outbound calls.
-Always be warm — they called YOU, which means they have some interest.`;
+Apply the same call flow as outbound calls.
+Always be warm — they called YOU, which means they have some interest.
+
+PERSONALITY STYLE:
+${getToneStyle(operator)}`;
 
   return {
     name: aiName,
