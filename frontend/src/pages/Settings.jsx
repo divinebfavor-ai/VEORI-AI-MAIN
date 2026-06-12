@@ -1169,6 +1169,17 @@ export default function Settings() {
                     </div>
                   </div>
                   <div>
+                    <label className="label-caps block mb-2">Use Case</label>
+                    <select value={persona.ai_use_case || 'wholesale'}
+                      onChange={e => setPersona(p => ({ ...p, ai_use_case: e.target.value }))}
+                      className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
+                      <option value="wholesale">Wholesaler / Cash Investor</option>
+                      <option value="agent_listing">Real Estate Agent — Listing</option>
+                      <option value="general">General Real Estate</option>
+                    </select>
+                    <p className="text-[11px] text-text-muted mt-1">Sets how your AI runs the call: wholesaler makes cash offers, agent books listing appointments, general adapts to your custom script.</p>
+                  </div>
+                  <div>
                     <label className="label-caps block mb-2">Personality Tone</label>
                     <select value={persona.ai_personality_tone || 'Professional'}
                       onChange={e => setPersona(p => ({ ...p, ai_personality_tone: e.target.value }))}
