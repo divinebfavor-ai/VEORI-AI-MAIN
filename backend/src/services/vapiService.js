@@ -574,7 +574,13 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
         machineDetectionSpeechEndThreshold: 2500,
         machineDetectionSilenceTimeout: 5000,
       },
-      voicemailMessage: `Hi ${lead.first_name || 'there'}, this is ${aiName} from ${companyName}. I was reaching out about your property at ${lead.property_address || 'your property'}. Please give me a call back when you get a chance. Have a great day.`,
+      voicemailMessage: operator.ai_voicemail_script
+        ? operator.ai_voicemail_script
+            .replace(/\[FirstName\]|\{first_name\}/gi, lead.first_name || 'there')
+            .replace(/\[Address\]|\{property_address\}/gi, lead.property_address || 'your property')
+            .replace(/\[Company\]|\{company\}/gi, companyName)
+            .replace(/\[AIName\]|\{ai_name\}/gi, aiName)
+        : `Hi ${lead.first_name || 'there'}, this is ${aiName} from ${companyName}. I was reaching out about your property at ${lead.property_address || 'your property'}. Please give me a call back when you get a chance. Have a great day.`,
       endCallPhrases: [
         'your message has been sent',
         'thank you for using',
