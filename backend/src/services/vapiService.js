@@ -39,7 +39,13 @@ function buildAlexPrompt({ operator = {}, lead = {} }) {
 - Make them feel heard before making any business proposition`,
   };
 
-  const personalityStyle = toneInstructions[tone] || toneInstructions.professional;
+  // Normalize tone to lowercase and alias 'warm' → empathetic so the Settings
+  // dropdown values (Professional/Friendly/Direct/Warm) match these lowercase
+  // keys. Without this, any tone but 'professional' silently fell back to default.
+  const toneKey = String(tone).toLowerCase() === 'warm'
+    ? 'empathetic'
+    : String(tone).toLowerCase();
+  const personalityStyle = toneInstructions[toneKey] || toneInstructions.professional;
 
   const isLand = (lead.property_type || '').toLowerCase().includes('land') ||
                  (lead.property_type || '').toLowerCase().includes('lot') ||
