@@ -152,10 +152,12 @@ async function dialerTick(campaignId) {
       // Stagger concurrent calls
       if (i > 0) await new Promise(r => setTimeout(r, 1500));
 
-      // Initiate Vapi call — pass operator so Alex uses right voice/settings
+      // Initiate Vapi call — pass operator so Alex uses right voice/settings.
+      // campaign.use_case (if set) overrides the operator's default use case for
+      // this campaign only; otherwise the operator default applies.
       let vapiCall;
       try {
-        vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId, operator });
+        vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId, operator, useCaseOverride: campaign.use_case || null });
       } catch (vapiErr) {
         const errData = vapiErr?.response?.data;
         const msg = errData?.message || errData?.error || vapiErr.message || 'Unknown Vapi error';

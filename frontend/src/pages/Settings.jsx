@@ -1175,6 +1175,9 @@ export default function Settings() {
                       className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
                       <option value="wholesale">Wholesaler / Cash Investor</option>
                       <option value="agent_listing">Real Estate Agent — Listing</option>
+                      <option value="buyer_agent">Buyer's Agent</option>
+                      <option value="landlord_pm">Property Management</option>
+                      <option value="investor_outreach">Investor Outreach</option>
                       <option value="general">General Real Estate</option>
                     </select>
                     <p className="text-[11px] text-text-muted mt-1">Sets how your AI runs the call: wholesaler makes cash offers, agent books listing appointments, general adapts to your custom script.</p>

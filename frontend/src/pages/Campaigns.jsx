@@ -23,7 +23,7 @@ const LEAD_TAGS = [
 // ─── Create Campaign Modal ────────────────────────────────────────────────────
 function CreateModal({ onClose, onCreated }) {
   const [step, setStep]       = useState(1)
-  const [form, setForm]       = useState({ name:'', tags:[], concurrent_lines:1, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
+  const [form, setForm]       = useState({ name:'', tags:[], use_case:'', concurrent_lines:1, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
   const [smsFirst, setSmsFirst] = useState(false)
   const [saving, setSaving]   = useState(false)
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
@@ -33,7 +33,7 @@ function CreateModal({ onClose, onCreated }) {
     if (!form.name) { toast.error('Campaign name required'); return }
     setSaving(true)
     try {
-      const created = await campaigns.createCampaign({ ...form, concurrent_lines: Number(form.concurrent_lines), daily_limit_per_number: Number(form.daily_limit_per_number), lead_filter: { tags: form.tags } })
+      const created = await campaigns.createCampaign({ ...form, use_case: form.use_case || null, concurrent_lines: Number(form.concurrent_lines), daily_limit_per_number: Number(form.daily_limit_per_number), lead_filter: { tags: form.tags } })
       const campaignId = created?.data?.data?.id || created?.data?.id
       if (smsFirst && campaignId) {
         await campaigns.startSMSFirst(campaignId)
@@ -65,6 +65,21 @@ function CreateModal({ onClose, onCreated }) {
               <input value={form.name} onChange={set('name')} placeholder="Detroit Absentee Owner Blast"
                 className="h-[44px] bg-surface border border-border-subtle rounded-[6px] px-4 text-[15px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary"
               />
+            </div>
+            <div className="flex flex-col gap-1.5 mt-5">
+              <label className="label-caps">Use Case</label>
+              <select value={form.use_case} onChange={set('use_case')}
+                className="h-[44px] bg-surface border border-border-subtle rounded-[6px] px-4 text-[15px] text-text-primary focus:outline-none focus:border-primary"
+              >
+                <option value="">Use my default (from Settings)</option>
+                <option value="wholesale">Wholesaler / Cash Investor</option>
+                <option value="agent_listing">Real Estate Agent — Listing</option>
+                <option value="buyer_agent">Buyer's Agent</option>
+                <option value="landlord_pm">Property Management</option>
+                <option value="investor_outreach">Investor Outreach</option>
+                <option value="general">General Real Estate</option>
+              </select>
+              <p className="text-[11px] text-text-muted mt-1">Overrides your account default just for this campaign. Sets how the AI runs the call.</p>
             </div>
           </div>
         )}
@@ -157,6 +172,7 @@ function CreateModal({ onClose, onCreated }) {
             <div className="space-y-1 mb-6">
               {[
                 ['Campaign Name',  form.name],
+                ['Use Case',       ({ wholesale:'Wholesaler / Cash Investor', agent_listing:'Real Estate Agent — Listing', buyer_agent:"Buyer's Agent", landlord_pm:'Property Management', investor_outreach:'Investor Outreach', general:'General Real Estate' }[form.use_case]) || 'Account default'],
                 ['Target Leads',   form.tags.length === 0 ? 'All leads' : form.tags.map(t => (LEAD_TAGS.find(([v]) => v === t)?.[1]) || t).join(', ')],
                 ['Mode',           smsFirst ? '💬 SMS First' : '📞 Direct Call'],
                 ['Concurrent Lines', form.concurrent_lines],

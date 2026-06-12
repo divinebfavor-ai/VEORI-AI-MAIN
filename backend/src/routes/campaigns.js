@@ -57,7 +57,7 @@ router.post('/', async (req, res, next) => {
   try {
     const { name, concurrent_lines = 1, daily_limit_per_number = 50, calling_hours_start = '09:00',
       calling_hours_end = '20:00', retry_attempts = 3, call_delay_seconds = 8,
-      daily_spend_limit, lead_filter = {}, phone_number_ids = [] } = req.body;
+      daily_spend_limit, lead_filter = {}, phone_number_ids = [], use_case = null } = req.body;
 
     if (!name) return res.status(400).json({ success: false, error: 'name required' });
 
@@ -74,6 +74,7 @@ router.post('/', async (req, res, next) => {
       call_delay_seconds,
       daily_spend_limit,
       lead_filter,
+      use_case,
     }]).select().single();
 
     if (error) throw error;
@@ -84,7 +85,7 @@ router.post('/', async (req, res, next) => {
 // PUT /api/campaigns/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['name','concurrent_lines','daily_limit_per_number','calling_hours_start','calling_hours_end','status','retry_attempts','call_delay_seconds','daily_spend_limit','lead_filter'];
+    const allowed = ['name','concurrent_lines','daily_limit_per_number','calling_hours_start','calling_hours_end','status','retry_attempts','call_delay_seconds','daily_spend_limit','lead_filter','use_case'];
     const updates = { updated_at: new Date().toISOString() };
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     const { data, error } = await supabase.from('campaigns').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
