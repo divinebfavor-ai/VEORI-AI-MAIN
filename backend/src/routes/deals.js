@@ -74,7 +74,7 @@ router.post('/', async (req, res, next) => {
       id: uuidv4(), user_id: req.user.id, lead_id,
       property_address, property_city, property_state, property_zip,
       arv, repair_estimate, mao, offer_price,
-      status: status || 'new',
+      status: status || 'lead',
       ...sellerInfo,
     }]).select().single();
     if (error) throw error;
@@ -338,7 +338,7 @@ router.post('/create', async (req, res, next) => {
       mao,
       offer_price: parseFloat(offer_price) || null,
       title_company_id: title_company_id || null,
-      status: 'new',
+      status: 'lead',
     }).select().single();
     if (error) throw error;
 
@@ -484,7 +484,7 @@ router.get('/:id/velocity-score', async (req, res, next) => {
     const motivationScore   = (deal.motivation_score || 50) * 0.35;
     const recencyScore      = Math.max(0, 100 - (daysSinceContact * 3)) * 0.20;
     const touchScore        = Math.min(100, (touchCount || 0) * 10) * 0.15;
-    const stageScore        = (['offer made','under_contract','sent_to_title'].includes(deal.status) ? 80 : 40) * 0.15;
+    const stageScore        = (['offer_sent','under_contract','sent_to_title'].includes(deal.status) ? 80 : 40) * 0.15;
     const buyerDepthScore   = 50 * 0.10; // default — update with buyer pool query if needed
     const complianceScore   = 70 * 0.05; // default
 
@@ -539,8 +539,10 @@ router.post('/:id/start-buyer-campaign', async (req, res, next) => {
       .or(`buy_box_states.cs.{"${deal.property_state}"},buy_box_states.eq.{}`)
       .lte('max_price', deal.buyer_price || (deal.offer_price ? Math.round(deal.offer_price * 1.1) : 9999999));
 
-    // Log in deals table that buyer search is active
-    await supabase.from('deals').update({ status: 'buyer search', updated_at: new Date().toISOString() })
+    // Log in deals table that buyer search is active. Use the official 'under_contract'
+    // stage (a deal in buyer search is already under contract) so the pipeline board
+    // can render the card — 'buyer search' was an off-spec status the board can't group.
+    await supabase.from('deals').update({ status: 'under_contract', updated_at: new Date().toISOString() })
       .eq('id', req.params.id).eq('user_id', req.user.id);
     const campaign = { id: req.params.id, status: 'active' };
 
