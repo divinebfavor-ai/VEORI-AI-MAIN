@@ -548,6 +548,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {} }) {
         voiceId,
       },
       recordingEnabled: true,
+      endCallFunctionEnabled: true,   // let the AI hang up when the conversation is done
       silenceTimeoutSeconds: 30,
       responseDelaySeconds: 0.4,
       llmRequestDelaySeconds: 0.1,
@@ -741,6 +742,7 @@ Always be warm — they called YOU, which means they have some interest.`;
     voice: { provider: 'vapi', voiceId },
     firstMessage: `Thank you for calling! This is ${aiName}. Are you calling about selling your property?`,
     recordingEnabled: true,
+    endCallFunctionEnabled: true,   // let the AI hang up when the conversation is done
     silenceTimeoutSeconds: 30,
     maxDurationSeconds: 1800,
   };

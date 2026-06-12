@@ -80,6 +80,40 @@ function useListenMode() {
   const [listening, setListening] = useState({})
   const [pending,   setPending]   = useState({})   // tapped Listen, waiting for pickup
   const [volumes,   setVolumes]   = useState({})
+  const ringRefs   = useRef({})   // ringback tone (AudioContext) per callId
+
+  // Stop the ringback tone for a call (safe to call even if none is playing).
+  const stopRingback = (callId) => {
+    const r = ringRefs.current[callId]
+    if (r) {
+      clearInterval(r.timer)
+      r.ctx.close().catch(() => {})
+      delete ringRefs.current[callId]
+    }
+  }
+
+  // Play a phone-style ringback tone (deep brrr...brrr...) until the seller picks up.
+  const startRingback = (callId) => {
+    try {
+      stopRingback(callId)
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const gain = ctx.createGain()
+      gain.gain.value = 0
+      gain.connect(ctx.destination)
+      // US ringback = two tones (440Hz + 480Hz), 2s on / 4s off
+      const o1 = ctx.createOscillator(); o1.frequency.value = 440; o1.connect(gain)
+      const o2 = ctx.createOscillator(); o2.frequency.value = 480; o2.connect(gain)
+      o1.start(); o2.start()
+      const cadence = () => {
+        const t = ctx.currentTime
+        gain.gain.setValueAtTime(0.18, t)
+        gain.gain.setValueAtTime(0,    t + 2)
+      }
+      cadence()
+      const timer = setInterval(cadence, 6000)
+      ringRefs.current[callId] = { ctx, timer }
+    } catch { /* AudioContext unavailable — silent fallback */ }
+  }
 
   const connectListen = useCallback(async (callId, dbCallId) => {
     if (!dbCallId) { toast.error('Call not ready yet - try again in a moment'); return }
@@ -107,6 +141,7 @@ function useListenMode() {
       audioRefs.current[callId] = audioEl
 
       pc.ontrack = (event) => {
+        stopRingback(callId)   // seller picked up — silence the dial tone
         audioEl.srcObject = event.streams[0]
         audioEl.play().catch(() => {})
         setPending(p => { const n = { ...p }; delete n[callId]; return n })
@@ -136,8 +171,10 @@ function useListenMode() {
       const DEADLINE = Date.now() + 90_000
       let answerSdp = null
 
+      startRingback(callId)   // play dial tone while the seller's phone is ringing
+
       while (Date.now() < DEADLINE) {
-        if (cancelRefs.current[callId]) { pc.close(); return }   // user tapped Listen again
+        if (cancelRefs.current[callId]) { stopRingback(callId); pc.close(); return }   // user tapped Listen again
 
         const res = await fetch(`${BASE}/api/calls/${dbCallId}/listen-join`, {
           method: 'POST',
@@ -151,6 +188,7 @@ function useListenMode() {
         // Any other error is fatal.
         if (res.status !== 404) {
           const e = await res.json().catch(() => ({}))
+          stopRingback(callId)
           pc.close()
           throw new Error(e.error || 'Could not connect to call audio')
         }
@@ -158,9 +196,10 @@ function useListenMode() {
         await new Promise(r => setTimeout(r, 1500))
       }
 
-      if (cancelRefs.current[callId]) { pc.close(); return }
+      if (cancelRefs.current[callId]) { stopRingback(callId); pc.close(); return }
 
       if (!answerSdp) {
+        stopRingback(callId)
         pc.close()
         setPending(p => { const n = { ...p }; delete n[callId]; return n })
         toast.error('Call never connected — no audio to listen to')
@@ -179,6 +218,7 @@ function useListenMode() {
         }
       }
     } catch (err) {
+      stopRingback(callId)
       setPending(p => { const n = { ...p }; delete n[callId]; return n })
       toast.error(err.message || 'Could not connect to call audio')
     }
@@ -186,6 +226,7 @@ function useListenMode() {
 
   const disconnectListen = useCallback((callId) => {
     cancelRefs.current[callId] = true   // cancel any in-flight retry loop (call still ringing)
+    stopRingback(callId)                // silence the dial tone if it's still playing
     pcRefs.current[callId]?.close()
     if (audioRefs.current[callId]) {
       audioRefs.current[callId].srcObject = null
