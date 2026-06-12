@@ -137,7 +137,30 @@ async function handleCallEnded(call, event) {
 
   console.log(`[Vapi] handleCallEnded fired — vapiCallId=${call.id} endedReason=${event.endedReason}`);
 
-  const { data: callRec } = await supabase.from('calls').select('*, leads(*)').eq('vapi_call_id', call.id).single();
+  let { data: callRec } = await supabase.from('calls').select('*, leads(*)').eq('vapi_call_id', call.id).single();
+
+  // FALLBACK: if vapi_call_id was never saved on this row, recover the call by the
+  // phone number Vapi dialed. This rescues outcomes that would otherwise be lost
+  // when the initial vapi_call_id write (calls.js) didn't land on the row.
+  if (!callRec) {
+    const digits = (s) => String(s || '').replace(/\D/g, '').slice(-10); // last 10 digits
+    const dialed = digits(call.customer?.number || event.call?.customer?.number);
+    if (dialed) {
+      const { data: candidates } = await supabase
+        .from('calls')
+        .select('*, leads(*)')
+        .is('outcome', null)
+        .neq('status', 'ended')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      callRec = (candidates || []).find(c => c.leads && digits(c.leads.phone) === dialed) || null;
+      if (callRec) {
+        console.log(`[Vapi] Recovered call ${callRec.id} via phone fallback — backfilling vapi_call_id=${call.id}`);
+        await supabase.from('calls').update({ vapi_call_id: call.id }).eq('id', callRec.id);
+      }
+    }
+  }
+
   if (!callRec) {
     console.warn(`[Vapi] No call record found for vapiCallId=${call.id} — skipping end handler`);
     return;
