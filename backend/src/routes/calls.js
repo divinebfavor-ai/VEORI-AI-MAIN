@@ -205,7 +205,7 @@ router.post('/initiate', async (req, res, next) => {
 
     // Load operator profile for personalized AI
     const { data: operatorProfile } = await supabase.from('users')
-      .select('ai_caller_name, ai_voice_id, ai_personality_tone, ai_intro_script, company_name, id')
+      .select('ai_caller_name, ai_voice_id, ai_personality_tone, ai_intro_script, ai_voicemail_script, company_name, id')
       .eq('id', req.user.id).single();
 
     // Send SMS disclosure before calling — TCPA best practice
