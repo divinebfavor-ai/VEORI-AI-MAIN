@@ -781,19 +781,22 @@ ${getToneStyle(operator)}`;
 // This list is sourced directly from the operator's Vapi Voice Settings picker
 // (verified present in-account) so the Settings dropdown matches reality.
 // If Vapi adds/retires a voice, update this list manually.
+const VOICE_PREVIEW_BASE = 'https://xqllxyoeftkbufoungcz.supabase.co/storage/v1/object/public/voice-previews';
 const VAPI_VOICES = [
-  { voiceId: 'Clara',    name: 'Clara',    gender: 'female', previewUrl: null },
-  { voiceId: 'Godfrey',  name: 'Godfrey',  gender: 'male',   previewUrl: null },
-  { voiceId: 'Elliot',   name: 'Elliot',   gender: 'male',   previewUrl: null },
-  { voiceId: 'Savannah', name: 'Savannah', gender: 'female', previewUrl: null },
-  { voiceId: 'Nico',     name: 'Nico',     gender: 'male',   previewUrl: null },
-  { voiceId: 'Kai',      name: 'Kai',      gender: 'male',   previewUrl: null },
-  { voiceId: 'Emma',     name: 'Emma',     gender: 'female', previewUrl: null },
-  { voiceId: 'Sagar',    name: 'Sagar',    gender: 'male',   previewUrl: null },
-  { voiceId: 'Neil',     name: 'Neil',     gender: 'male',   previewUrl: null },
-  { voiceId: 'Layla',    name: 'Layla',    gender: 'female', previewUrl: null },
-  { voiceId: 'Sid',      name: 'Sid',      gender: 'male',   previewUrl: null },
-  { voiceId: 'Naina',    name: 'Naina',    gender: 'female', previewUrl: null },
+  { voiceId: 'Clara',    name: 'Clara',    gender: 'female', previewUrl: `${VOICE_PREVIEW_BASE}/clara.wav` },
+  { voiceId: 'Godfrey',  name: 'Godfrey',  gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/godfrey.wav` },
+  { voiceId: 'Elliot',   name: 'Elliot',   gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/elliot.wav` },
+  { voiceId: 'Savannah', name: 'Savannah', gender: 'female', previewUrl: `${VOICE_PREVIEW_BASE}/savannah.wav` },
+  { voiceId: 'Nico',     name: 'Nico',     gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/nico.wav` },
+  { voiceId: 'Kai',      name: 'Kai',      gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/kai.wav` },
+  { voiceId: 'Emma',     name: 'Emma',     gender: 'female', previewUrl: `${VOICE_PREVIEW_BASE}/emma.wav` },
+  { voiceId: 'Sagar',    name: 'Sagar',    gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/sagar.wav` },
+  { voiceId: 'Neil',     name: 'Neil',     gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/neil.wav` },
+  { voiceId: 'Layla',    name: 'Layla',    gender: 'female', previewUrl: `${VOICE_PREVIEW_BASE}/layla.wav` },
+  { voiceId: 'Sid',      name: 'Sid',      gender: 'male',   previewUrl: `${VOICE_PREVIEW_BASE}/sid.wav` },
+  { voiceId: 'Naina',    name: 'Naina',    gender: 'female', previewUrl: `${VOICE_PREVIEW_BASE}/naina.wav` },
+  // Gustavo & Rohan exist in Vapi but have no hosted preview clip → previewUrl stays null
+  // (frontend hides the preview button when previewUrl is falsy).
   { voiceId: 'Gustavo',  name: 'Gustavo',  gender: 'male',   previewUrl: null },
   { voiceId: 'Rohan',    name: 'Rohan',    gender: 'male',   previewUrl: null },
 ];
