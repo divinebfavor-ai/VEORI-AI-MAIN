@@ -774,45 +774,33 @@ ${getToneStyle(operator)}`;
   };
 }
 
-// ─── Voice catalog (live from Vapi, cached) ──────────────────────────────────
-// Powers the Settings → Persona voice dropdown. Sourced live from Vapi so the
-// list is always current and we never hardcode voice IDs that may be retired.
-let _voiceCache = { at: 0, voices: null };
-const VOICE_CACHE_MS = 60 * 60 * 1000; // 1 hour
-
-// Fallback contains ONLY the voice already in production use (the default), so a
-// Vapi outage degrades the dropdown to the known-working voice — never a guess.
-const FALLBACK_VAPI_VOICES = [
-  { voiceId: 'Elliot', name: 'Elliot', gender: 'male', previewUrl: null },
+// ─── Voice catalog (verified from Vapi dashboard) ────────────────────────────
+// Vapi's REST API has NO endpoint to list native voices — confirmed against
+// their live OpenAPI spec (0 voice paths). Native voices live only in the
+// dashboard and are referenced by NAME at call time (voiceId: 'Elliot').
+// This list is sourced directly from the operator's Vapi Voice Settings picker
+// (verified present in-account) so the Settings dropdown matches reality.
+// If Vapi adds/retires a voice, update this list manually.
+const VAPI_VOICES = [
+  { voiceId: 'Clara',    name: 'Clara',    gender: 'female', previewUrl: null },
+  { voiceId: 'Godfrey',  name: 'Godfrey',  gender: 'male',   previewUrl: null },
+  { voiceId: 'Elliot',   name: 'Elliot',   gender: 'male',   previewUrl: null },
+  { voiceId: 'Savannah', name: 'Savannah', gender: 'female', previewUrl: null },
+  { voiceId: 'Nico',     name: 'Nico',     gender: 'male',   previewUrl: null },
+  { voiceId: 'Kai',      name: 'Kai',      gender: 'male',   previewUrl: null },
+  { voiceId: 'Emma',     name: 'Emma',     gender: 'female', previewUrl: null },
+  { voiceId: 'Sagar',    name: 'Sagar',    gender: 'male',   previewUrl: null },
+  { voiceId: 'Neil',     name: 'Neil',     gender: 'male',   previewUrl: null },
+  { voiceId: 'Layla',    name: 'Layla',    gender: 'female', previewUrl: null },
+  { voiceId: 'Sid',      name: 'Sid',      gender: 'male',   previewUrl: null },
+  { voiceId: 'Naina',    name: 'Naina',    gender: 'female', previewUrl: null },
+  { voiceId: 'Gustavo',  name: 'Gustavo',  gender: 'male',   previewUrl: null },
+  { voiceId: 'Rohan',    name: 'Rohan',    gender: 'male',   previewUrl: null },
 ];
 
+// Async signature kept so callers/route (await getVapiVoices()) stay unchanged.
 async function getVapiVoices() {
-  const now = Date.now();
-  if (_voiceCache.voices && now - _voiceCache.at < VOICE_CACHE_MS) {
-    return _voiceCache.voices;
-  }
-  if (!VAPI_API_KEY) return FALLBACK_VAPI_VOICES;
-
-  try {
-    // Vapi voice-library endpoint, filtered to the native 'vapi' provider.
-    const { data } = await vapiHttp.get('/voice-library?provider=vapi');
-    const list = Array.isArray(data) ? data : (data?.voices || data?.results || []);
-    const voices = list
-      .map(v => ({
-        voiceId:    v.voiceId || v.id || v.slug || v.name,
-        name:       v.name || v.voiceName || v.voiceId || v.id,
-        gender:     v.gender || v.voiceGender || null,
-        previewUrl: v.previewUrl || v.preview_url || v.sampleUrl || null,
-      }))
-      .filter(v => v.voiceId);
-
-    const result = voices.length ? voices : FALLBACK_VAPI_VOICES;
-    _voiceCache = { at: now, voices: result };
-    return result;
-  } catch (e) {
-    console.warn('[Vapi] getVapiVoices failed, using fallback:', e.message);
-    return FALLBACK_VAPI_VOICES;
-  }
+  return VAPI_VOICES;
 }
 
 module.exports = {
