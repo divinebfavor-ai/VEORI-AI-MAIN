@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2, Mail, QrCode, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
@@ -717,6 +717,9 @@ export default function Settings() {
   })
   const [persona, setPersona]     = useState({})
   const [voices, setVoices]       = useState([])
+  const previewAudioRef           = useRef(null)   // shared <Audio> so a new preview stops the previous one
+  const [scriptIdea, setScriptIdea]   = useState('')      // operator's plain-English description for AI script generation
+  const [genningScript, setGenningScript] = useState(false)
   const [bankAccounts, setBankAccounts] = useState([])
   const [showAddBank, setShowAddBank]   = useState(false)
   const [profileForm, setProfileForm] = useState({ full_name: '', company_name: '', email: '', phone: '', email_from_name: '', email_reply_to: '' })
@@ -1146,7 +1149,18 @@ export default function Settings() {
                         const sel = voices.find(v => v.voiceId === (persona.ai_voice_id || voices[0]?.voiceId))
                         return sel?.previewUrl ? (
                           <button type="button"
-                            onClick={() => { try { new Audio(sel.previewUrl).play() } catch {} }}
+                            onClick={() => {
+                              try {
+                                // Stop whatever is currently previewing before starting the new clip.
+                                if (previewAudioRef.current) {
+                                  previewAudioRef.current.pause()
+                                  previewAudioRef.current.currentTime = 0
+                                }
+                                const a = new Audio(sel.previewUrl)
+                                previewAudioRef.current = a
+                                a.play()
+                              } catch {}
+                            }}
                             className="h-[44px] px-3 rounded-[6px] border border-border-subtle text-[13px] text-text-primary hover:border-primary whitespace-nowrap">
                             ▶ Preview
                           </button>
@@ -1177,7 +1191,41 @@ export default function Settings() {
                       onChange={e => setPersona(p => ({ ...p, ai_voicemail_script: e.target.value }))}
                       className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2.5 text-[14px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary resize-none" />
                   </div>
-                  <Button onClick={() => operatorApi.updateProfile(persona).then(() => toast.success('Persona saved')).catch(() => toast.error('Failed to save'))}>
+                  <div>
+                    <label className="label-caps block mb-2">Custom AI Script (optional)</label>
+                    <p className="text-[12px] text-text-muted mb-2">Tell the AI how you want it to talk to <em>your</em> leads — your approach, tone, and strategy for the kind of sellers you work. Paste your own, or describe it and let AI draft one for you.</p>
+                    <div className="flex gap-2 mb-2">
+                      <input value={scriptIdea}
+                        placeholder="e.g. Tired landlords with vacant rentals — be calm, lead with their headache, no hard sell"
+                        onChange={e => setScriptIdea(e.target.value)}
+                        className="h-[44px] flex-1 bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary" />
+                      <button type="button" disabled={genningScript || !scriptIdea.trim()}
+                        onClick={async () => {
+                          if (!scriptIdea.trim()) return
+                          setGenningScript(true)
+                          try {
+                            const { data } = await operatorApi.generateScript(scriptIdea.trim())
+                            if (data?.script) {
+                              setPersona(p => ({ ...p, ai_custom_instructions: data.script }))
+                              if (data.fraud_warning) toast.error(`Heads up: ${data.fraud_warning}`)
+                              else toast.success('Script generated — review and edit below')
+                            } else {
+                              toast.error('Could not generate a script')
+                            }
+                          } catch { toast.error('Could not generate a script') }
+                          finally { setGenningScript(false) }
+                        }}
+                        className="h-[44px] px-4 rounded-[6px] bg-primary text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap">
+                        {genningScript ? 'Generating…' : '✨ Generate with AI'}
+                      </button>
+                    </div>
+                    <textarea rows={6} value={persona.ai_custom_instructions || ''}
+                      placeholder="Paste your own script, or use 'Generate with AI' above. This steers how the AI talks to your leads — it never overrides our compliance rules (AI disclosure, Do-Not-Call, no pressure)."
+                      onChange={e => setPersona(p => ({ ...p, ai_custom_instructions: e.target.value }))}
+                      className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2.5 text-[14px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary resize-none" />
+                    <p className="text-[11px] text-text-muted mt-1">Compliance always wins: the AI will still identify as AI when asked, honor opt-outs, and never threaten or mislead — no matter what's written here.</p>
+                  </div>
+                  <Button onClick={() => operatorApi.updateProfile(persona).then(r => { toast.success('Persona saved'); if (r?.data?.fraud_warning) toast.error(`Flagged for review: ${r.data.fraud_warning}`) }).catch(() => toast.error('Failed to save'))}>
                     Save Persona
                   </Button>
                 </div>

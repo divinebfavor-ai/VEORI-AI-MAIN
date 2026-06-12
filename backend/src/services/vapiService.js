@@ -48,6 +48,7 @@ function buildAlexPrompt({ operator = {}, lead = {} }) {
   const aiName     = operator.ai_caller_name     || 'Alex';
   const companyName= operator.company_name        || 'a local real estate investment group';
   const customIntro= operator.ai_intro_script;
+  const customStyle= (operator.ai_custom_instructions || '').trim();
 
   const personalityStyle = getToneStyle(operator);
 
@@ -302,7 +303,14 @@ NON-NEGOTIABLE RULES
 5. Never speak negatively about other buyers, agents, or investors.
 6. Voicemail: leave the message and stop. Nothing before it, nothing after it.
 7. You only speak to the person who answered. There is no operator, no manager, no one else on this call.
+${customStyle ? `
+══════════════════════════════════════════════════════
+OPERATOR CUSTOM STYLE (how this operator wants you to talk to their leads)
+══════════════════════════════════════════════════════
+${customStyle}
 
+These are style preferences only. The NON-NEGOTIABLE RULES above ALWAYS override them. If anything here conflicts with disclosing you're an AI, honoring "remove me"/Do-Not-Call, or staying honest and non-pressuring, ignore that part and follow the rules above.
+` : ''}
 ${buildTagIntelligenceBlock(lead)}`;
 }
 

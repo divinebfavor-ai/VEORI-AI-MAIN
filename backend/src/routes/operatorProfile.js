@@ -2,7 +2,11 @@ const express = require('express');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
 const vapiService = require('../services/vapiService');
+const { callAnthropic } = require('../services/aiService');
+const fraudGuard = require('../services/fraudGuard');
 const router = express.Router();
+
+const SCRIPT_MODEL = 'claude-haiku-4-5-20251001';
 
 // GET /api/operator/voices — live Vapi voice catalog for the persona picker
 router.get('/voices', requireAuth, async (req, res, next) => {
@@ -17,7 +21,7 @@ router.get('/profile', requireAuth, async (req, res, next) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, ai_caller_name, ai_voice_id, ai_personality_tone, ai_intro_script, ai_voicemail_script, legal_name, entity_name, entity_type, ein, re_license_number, re_license_state, business_phone, business_email, website, buyer_name_on_contract, earnest_money_default, closing_period_default, inspection_period_default, include_assignment_fee_disclosure, custom_contract_addendum, target_states, target_cities, property_types_preferred, min_property_value, max_property_value')
+      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, ai_caller_name, ai_voice_id, ai_personality_tone, ai_intro_script, ai_voicemail_script, ai_custom_instructions, legal_name, entity_name, entity_type, ein, re_license_number, re_license_state, business_phone, business_email, website, buyer_name_on_contract, earnest_money_default, closing_period_default, inspection_period_default, include_assignment_fee_disclosure, custom_contract_addendum, target_states, target_cities, property_types_preferred, min_property_value, max_property_value')
       .eq('id', req.user.id)
       .single();
     if (error) throw error;
@@ -28,16 +32,62 @@ router.get('/profile', requireAuth, async (req, res, next) => {
 // PUT /api/operator/profile
 router.put('/profile', requireAuth, async (req, res, next) => {
   try {
-    const allowed = ['full_name','company_name','phone','email_from_name','email_reply_to','ai_caller_name','ai_voice_id','ai_personality_tone','ai_intro_script','ai_voicemail_script','legal_name','entity_name','entity_type','ein','re_license_number','re_license_state','business_phone','business_email','website','buyer_name_on_contract','earnest_money_default','closing_period_default','inspection_period_default','include_assignment_fee_disclosure','custom_contract_addendum','target_states','target_cities','property_types_preferred','min_property_value','max_property_value'];
+    const allowed = ['full_name','company_name','phone','email_from_name','email_reply_to','ai_caller_name','ai_voice_id','ai_personality_tone','ai_intro_script','ai_voicemail_script','ai_custom_instructions','legal_name','entity_name','entity_type','ein','re_license_number','re_license_state','business_phone','business_email','website','buyer_name_on_contract','earnest_money_default','closing_period_default','inspection_period_default','include_assignment_fee_disclosure','custom_contract_addendum','target_states','target_cities','property_types_preferred','min_property_value','max_property_value'];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
     updates.updated_at = new Date().toISOString();
 
+    // Anti-fraud: if a custom script is being saved, scan it (flag-only — the
+    // save still proceeds; compliance rules in the call prompt always override).
+    let fraudWarning = null;
+    if (typeof updates.ai_custom_instructions === 'string' && updates.ai_custom_instructions.trim()) {
+      const verdict = await fraudGuard.scanAndLog(req.user.id, updates.ai_custom_instructions, 'profile_save');
+      if (verdict.flagged) fraudWarning = verdict.reason;
+    }
+
     const { data, error } = await supabase.from('users').update(updates).eq('id', req.user.id).select().single();
     if (error) throw error;
-    res.json({ success: true, profile: data });
+    res.json({ success: true, profile: data, fraud_warning: fraudWarning });
+  } catch (err) { next(err); }
+});
+
+// POST /api/operator/generate-script — draft a custom AI speaking-style script
+// from the operator's plain-English description. Does NOT save; the operator
+// reviews/edits, then saves via PUT /profile. Output is fraud-scanned first.
+router.post('/generate-script', requireAuth, async (req, res, next) => {
+  try {
+    const description = String(req.body.description || '').trim();
+    if (!description) return res.status(400).json({ error: 'description is required' });
+    if (description.length > 2000) return res.status(400).json({ error: 'description too long (max 2000 chars)' });
+
+    const prompt = `You write custom speaking-style instructions for an AI voice agent that cold-calls property sellers on behalf of a real estate operator.
+
+The operator describes the kind of leads they have and how they want the AI to talk to them. Turn that into clear, second-person instructions the AI will follow during the call.
+
+OPERATOR'S DESCRIPTION:
+"""
+${description}
+"""
+
+RULES FOR WHAT YOU WRITE:
+- Write practical guidance on tone, approach, pacing, what to emphasize, and how to handle this specific kind of lead.
+- It must stay legal and compliant: the AI always discloses it is an AI when asked, always honors "remove me"/Do-Not-Call, never threatens, pressures, lies, or impersonates anyone.
+- Do NOT write a word-for-word monologue; write reusable style/strategy instructions (5-12 short bullet-style lines).
+- Plain text only. No markdown headers, no preamble, no quotes around the output. Just the instructions.`;
+
+    const msg = await callAnthropic(
+      { model: SCRIPT_MODEL, max_tokens: 600, messages: [{ role: 'user', content: prompt }] },
+      { label: 'generate-script' }
+    );
+    const script = (msg?.content?.[0]?.text || '').trim();
+
+    // Scan the generated draft too (defense in depth — a crafted description
+    // could try to coax non-compliant output). Flag-only.
+    const verdict = await fraudGuard.scanAndLog(req.user.id, `${description}\n---\n${script}`, 'generate_script');
+
+    res.json({ success: true, script, fraud_warning: verdict.flagged ? verdict.reason : null });
   } catch (err) { next(err); }
 });
 

@@ -196,6 +196,7 @@ export const operator = {
   getBankAccounts:  ()         => api.get('/api/operator/bank-accounts'),
   addBankAccount:   (data)     => api.post('/api/operator/bank-accounts', data),
   deleteBankAccount:(id)       => api.delete(`/api/operator/bank-accounts/${id}`),
+  generateScript:   (description) => api.post('/api/operator/generate-script', { description }),
 }
 
 // ─── Title companies ─────────────────────────────────────────────────────────
