@@ -168,6 +168,13 @@ function useListenMode() {
         if (res.ok) {
           const d = await res.json().catch(() => ({}))
           if (d.listen_url) { wsUrl = d.listen_url; break }
+        } else if (res.status === 409) {
+          // Call ENDED while we were waiting for pickup. Stop the dial tone NOW —
+          // otherwise it keeps "ringing" after the call is already over.
+          stopRingback(callId)
+          setPending(p => { const n = { ...p }; delete n[callId]; return n })
+          toast('Call ended', { icon: '📴' })
+          return
         } else if (res.status !== 404) {
           const e = await res.json().catch(() => ({}))
           stopRingback(callId)
@@ -243,6 +250,7 @@ function useListenMode() {
       }
 
       ws.onclose = () => {
+        stopRingback(callId)   // belt-and-braces: never leave a dial tone ringing
         setListening(l => { const n = { ...l }; delete n[callId]; return n })
         setPending(p => { const n = { ...p }; delete n[callId]; return n })
         audioCtx.close().catch(() => {})

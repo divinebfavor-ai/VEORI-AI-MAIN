@@ -332,7 +332,24 @@ router.get('/:id/listen', async (req, res, next) => {
     if (!vapiCallId) return res.status(400).json({ success: false, error: 'No Vapi call ID — call may not have connected yet' });
 
     const listenUrl = await vapiService.getListenUrl(vapiCallId);
-    if (!listenUrl) return res.status(404).json({ success: false, error: 'Audio not available yet — call is still connecting' });
+    if (!listenUrl) {
+      // No listen URL can mean two very different things:
+      //   (a) the call is still ringing (audio not up yet) → frontend should keep
+      //       polling with the dial tone, OR
+      //   (b) the call has ENDED → there will never be audio. The frontend's
+      //       retry loop must stop immediately and silence the ringback; if we
+      //       return a plain 404 it keeps "ringing" for the full 90s deadline.
+      // Disambiguate by asking Vapi for the call's live status.
+      let ended = false;
+      try {
+        const vc = await vapiService.getCall(vapiCallId);
+        ended = vc?.status === 'ended' || !!vc?.endedAt || !!vc?.endedReason;
+      } catch { /* if the lookup fails, fall through as "still connecting" */ }
+      if (ended) {
+        return res.status(409).json({ success: false, ended: true, error: 'Call has ended — no live audio' });
+      }
+      return res.status(404).json({ success: false, error: 'Audio not available yet — call is still connecting' });
+    }
 
     res.json({ success: true, listen_url: listenUrl });
   } catch (err) { next(err); }
