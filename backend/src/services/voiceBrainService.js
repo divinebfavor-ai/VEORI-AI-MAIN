@@ -31,6 +31,7 @@
 
 const Anthropic = require('@anthropic-ai/sdk');
 const vapiService = require('./vapiService');
+const supabase = require('../config/supabase');
 
 // ── Anthropic client (lazy, mirrors dualAIService.js) ────────────────────────
 let anthropicClient = null;
@@ -75,6 +76,39 @@ const GOODBYE_CUES = [
 // messages is the running transcript handed to Claude each turn (assistant =
 // agent lines, user = seller speech). Cleared when the call ends.
 const sessions = new Map();
+
+// ── Module 8: durable transcript ─────────────────────────────────────────────
+// Render the in-memory message list into the same plain "Speaker: line" format
+// the Vapi path stored in calls.transcript, so aiService.analyzeCallTranscript
+// and the existing UI read Twilio transcripts identically. assistant -> "Agent",
+// user -> "Seller"; the silence placeholder is dropped so it never pollutes the
+// stored transcript or the score.
+function formatTranscript(messages = []) {
+  return messages
+    .filter((m) => m && m.content && m.content !== '(no response / silence)')
+    .map((m) => `${m.role === 'assistant' ? 'Agent' : 'Seller'}: ${m.content}`)
+    .join('\n');
+}
+
+// Persist the running transcript to calls.transcript after each turn (best-effort).
+// Keyed by callId (= calls.id, which the brain holds). This is what lets the
+// /status call-end hook score even after the in-memory session is deleted
+// (sentinel/goodbye/max-turns) or the process restarts mid-call. Never throws —
+// a persistence miss must never break a live turn.
+async function persistTranscript(callId, messages) {
+  if (!callId) return;
+  try {
+    const transcript = formatTranscript(messages);
+    if (!transcript) return;
+    const { error } = await supabase
+      .from('calls')
+      .update({ transcript })
+      .eq('id', callId);
+    if (error) console.warn('[voiceBrain] persistTranscript failed:', error.message);
+  } catch (err) {
+    console.warn('[voiceBrain] persistTranscript error:', err.message);
+  }
+}
 
 /** Append the appended-to-system end-call directive onto the base script. */
 function withEndDirective(systemPrompt) {
@@ -147,8 +181,12 @@ async function nextTurn(args = {}) {
 
   // Seller explicitly opted out — close immediately and politely, no model call.
   if (heardLower && GOODBYE_CUES.some((c) => heardLower.includes(c))) {
+    const closer = 'No problem at all — I appreciate your time. Have a great day.';
+    session.messages.push({ role: 'user', content: heard });
+    session.messages.push({ role: 'assistant', content: closer });
+    await persistTranscript(callId, session.messages); // flush before discarding
     sessions.delete(callId);
-    return { reply: 'No problem at all — I appreciate your time. Have a great day.', end: true };
+    return { reply: closer, end: true };
   }
 
   // Record the seller's turn (skip empty/silence so we don't feed Claude blanks).
@@ -161,11 +199,11 @@ async function nextTurn(args = {}) {
 
   // Hard safety cap — always terminate eventually.
   if (session.turns >= MAX_TURNS) {
+    const closer = "I appreciate you taking the time with me today. I'll follow up shortly. Take care.";
+    session.messages.push({ role: 'assistant', content: closer });
+    await persistTranscript(callId, session.messages); // flush before discarding
     sessions.delete(callId);
-    return {
-      reply: "I appreciate you taking the time with me today. I'll follow up shortly. Take care.",
-      end: true,
-    };
+    return { reply: closer, end: true };
   }
 
   try {
@@ -200,6 +238,10 @@ async function nextTurn(args = {}) {
 
     // Thread the agent's line back into the transcript for the next turn.
     session.messages.push({ role: 'assistant', content: reply });
+
+    // Durable per-turn snapshot so the call-end scorer always has the transcript,
+    // even if this turn is the last one (sentinel) or the process restarts.
+    await persistTranscript(callId, session.messages);
 
     if (end) sessions.delete(callId);
     return { reply, end };

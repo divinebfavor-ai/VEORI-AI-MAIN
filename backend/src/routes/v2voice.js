@@ -31,6 +31,8 @@ const supabase = require('../config/supabase');
 const twilioCallService = require('../services/twilioCallService');
 const elevenLabs = require('../services/elevenLabsService');
 const voiceBrain = require('../services/voiceBrainService');
+const aiService = require('../services/aiService');
+const vapiService = require('../services/vapiService');
 
 const router = express.Router();
 
@@ -99,6 +101,90 @@ function renderVoicemailScript(lead = {}, operator = {}) {
   return `Hi ${firstName}, this is ${aiName} from ${companyName}. ` +
     `I was reaching out about your property at ${address}. ` +
     `Please give me a call back when you get a chance. Have a great day.`;
+}
+
+// Resolve the active use case for a call so the post-call analyzer frames its
+// scoring/outcome correctly. Mirrors vapi.js resolveCallUseCase (which is local
+// to that file, not exported): operator default (users.ai_use_case) + optional
+// per-campaign override (campaigns.use_case), arbitrated by vapiService.getUseCase.
+// Best-effort — any miss falls back to 'wholesale' so scoring never breaks.
+async function resolveCallUseCase(callRec) {
+  try {
+    let operator = {};
+    if (callRec?.user_id) {
+      const { data } = await supabase.from('users').select('ai_use_case').eq('id', callRec.user_id).single();
+      if (data) operator = data;
+    }
+    let override = null;
+    if (callRec?.campaign_id) {
+      const { data } = await supabase.from('campaigns').select('use_case').eq('id', callRec.campaign_id).single();
+      override = data?.use_case || null;
+    }
+    return vapiService.getUseCase(operator, override);
+  } catch (e) {
+    console.warn('[v2voice] resolveCallUseCase failed — defaulting to wholesale:', e.message);
+    return 'wholesale';
+  }
+}
+
+// Module 8: run end-of-call PMI scoring + persistence for a finished Twilio call.
+// Mirrors vapi.js handleCallEnded's write shape EXACTLY so Twilio calls light up
+// the same UI/leads/analytics. Reads the durable transcript the brain persisted
+// per-turn (calls.transcript), runs the canonical aiService.analyzeCallTranscript,
+// and writes the same calls columns. Keyed by the Twilio Call SID (vapi_call_id).
+// Best-effort and idempotent-ish: only scores rows that have a transcript and
+// haven't already been scored (motivation_score still null).
+async function scoreTwilioCall(callSid) {
+  if (!callSid) return;
+  try {
+    const { data: callRec } = await supabase
+      .from('calls')
+      .select('*, leads(*)')
+      .eq('vapi_call_id', callSid)
+      .maybeSingle();
+    if (!callRec) {
+      console.warn(`[v2voice] scoreTwilioCall: no call row for sid=${callSid}`);
+      return;
+    }
+
+    // Already scored — don't re-spend tokens or overwrite a prior analysis.
+    if (callRec.motivation_score != null) {
+      console.log(`[v2voice] scoreTwilioCall: sid=${callSid} already scored — skipping`);
+      return;
+    }
+
+    const transcript = callRec.transcript;
+    if (!transcript) {
+      // No conversation captured (no-answer / immediate hangup / voicemail).
+      // Leave outcome to whatever the status/AMD path set; nothing to analyze.
+      console.log(`[v2voice] scoreTwilioCall: sid=${callSid} no transcript — skipping AI analysis`);
+      return;
+    }
+
+    const useCase = await resolveCallUseCase(callRec);
+    const aiAnalysis = await aiService.analyzeCallTranscript(transcript, callRec.leads, useCase);
+    const outcome = aiAnalysis.outcome || callRec.outcome || 'not_home';
+
+    const { error } = await supabase.from('calls').update({
+      motivation_score: aiAnalysis.motivation_score ?? null,
+      seller_personality: aiAnalysis.seller_personality ?? null,
+      key_signals: aiAnalysis.key_signals ?? null,
+      objections: aiAnalysis.objections ?? null,
+      outcome,
+      ai_summary: aiAnalysis.ai_summary ?? null,
+      // offer_made is a NUMERIC column (dollar amount or null). aiAnalysis.offer_made
+      // is "<number or null>". Never write a boolean — Postgres rejects the UPDATE.
+      offer_made: typeof aiAnalysis.offer_made === 'number' ? aiAnalysis.offer_made : null,
+    }).eq('vapi_call_id', callSid);
+
+    if (error) {
+      console.error(`[v2voice] scoreTwilioCall write failed sid=${callSid}:`, error.message);
+    } else {
+      console.log(`[v2voice] scored sid=${callSid} useCase=${useCase} outcome=${outcome} score=${aiAnalysis.motivation_score}`);
+    }
+  } catch (e) {
+    console.warn('[v2voice] scoreTwilioCall error:', e.message);
+  }
 }
 
 // Load the lead + operator behind a calls.id so a webhook can personalise the
@@ -302,6 +388,13 @@ router.post('/status', async (req, res) => {
 
     console.log(`[v2voice] status sid=${callSid} ${callStatus}->${mapped}` +
       (answeredBy ? ` answeredBy=${answeredBy}` : ''));
+
+    // Module 8: on the authoritative call-end event, run PMI scoring + persistence
+    // off the durable transcript the brain wrote per-turn. Awaited so the work
+    // completes within this handler invocation (the 200 already went out above).
+    if (callStatus === 'completed') {
+      await scoreTwilioCall(callSid);
+    }
   } catch (e) {
     console.warn('[v2voice] status handler error:', e.message);
   }
