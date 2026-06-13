@@ -105,6 +105,12 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
   // Per-call lifecycle callbacks (ringing/answered/completed) → updates calls row.
   const statusUrl = `${PUBLIC_BASE}/api/v2/voice/status`;
 
+  // Async AMD callback (Module 4). callId rides along so the /amd handler can
+  // personalise the voicemail drop. Async (not blocking) so a human answer goes
+  // straight into the live conversation without waiting for the beep timeout.
+  const amdUrl = new URL(`${PUBLIC_BASE}/api/v2/voice/amd`);
+  amdUrl.searchParams.set('callId', callId || '');
+
   const call = await client.calls.create({
     to,
     from,
@@ -113,9 +119,13 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
     statusCallback: statusUrl,
     statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
     statusCallbackMethod: 'POST',
-    // Twilio-native answering-machine detection. The result is delivered to the
-    // status callback as AnsweredBy; Module 4 acts on it (voicemail drop).
+    // Async Twilio-native AMD: the live call connects immediately; the AMD result
+    // is POSTed to amdStatusCallback when it resolves. /api/v2/voice/amd redirects
+    // the call to the voicemail TwiML when answeredBy is machine_*.
     machineDetection: 'DetectMessageEnd',
+    asyncAmd: 'true',
+    asyncAmdStatusCallback: amdUrl.toString(),
+    asyncAmdStatusCallbackMethod: 'POST',
     machineDetectionTimeout: 30,
     record: true,                             // recording handled/stored in Module 5
     recordingStatusCallback: `${PUBLIC_BASE}/api/v2/voice/recording`,
@@ -148,10 +158,30 @@ async function endCall(callSid) {
   return client.calls(callSid).update({ status: 'completed' });
 }
 
+/**
+ * Redirect a live (in-progress) call to a new TwiML document.
+ * Used by the AMD handler (Module 4) to send a machine-answered call into the
+ * voicemail drop. Accepts an absolute URL or a path relative to PUBLIC_BASE.
+ * @param {string} callSid
+ * @param {string} twimlUrlOrPath  e.g. '/api/v2/voice/twiml-voicemail?callId=...'
+ */
+async function redirectCall(callSid, twimlUrlOrPath) {
+  const client = getClient();
+  if (!client) throw new Error('Twilio not configured');
+  if (!callSid || !twimlUrlOrPath) throw new Error('redirectCall requires callSid and a TwiML URL');
+
+  const absoluteUrl = /^https?:\/\//i.test(twimlUrlOrPath)
+    ? twimlUrlOrPath
+    : `${PUBLIC_BASE || ''}${twimlUrlOrPath}`;
+
+  return client.calls(callSid).update({ url: absoluteUrl, method: 'POST' });
+}
+
 module.exports = {
   initiateCall,
   getCall,
   endCall,
+  redirectCall,
   toE164,
   resolveFromNumber,
 };

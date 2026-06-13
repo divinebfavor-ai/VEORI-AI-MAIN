@@ -20,8 +20,58 @@
 const express = require('express');
 const twilio = require('twilio');
 const supabase = require('../config/supabase');
+const twilioCallService = require('../services/twilioCallService');
 
 const router = express.Router();
+
+// Render an operator's voicemail script with the same token vocabulary the Vapi
+// path uses (vapiService.js ~L955), so a voicemail an operator wrote once works
+// identically whichever engine dials. Falls back to a sane default line.
+// lead: { first_name, property_address }, operator: { ai_voicemail_script, ai_caller_name, company_name }
+function renderVoicemailScript(lead = {}, operator = {}) {
+  const aiName = operator.ai_caller_name || 'Alex';
+  const companyName = operator.company_name || 'a local real estate group';
+  const firstName = lead.first_name || 'there';
+  const address = lead.property_address || 'your property';
+
+  if (operator.ai_voicemail_script) {
+    return operator.ai_voicemail_script
+      .replace(/\[FirstName\]|\{first_name\}/gi, firstName)
+      .replace(/\[Address\]|\{property_address\}/gi, address)
+      .replace(/\[Company\]|\{company\}/gi, companyName)
+      .replace(/\[AIName\]|\{ai_name\}/gi, aiName);
+  }
+  return `Hi ${firstName}, this is ${aiName} from ${companyName}. ` +
+    `I was reaching out about your property at ${address}. ` +
+    `Please give me a call back when you get a chance. Have a great day.`;
+}
+
+// Load the lead + operator behind a calls.id so a webhook can personalise the
+// voicemail. One round trip: read the call row, then the lead and operator it
+// points at. Returns { lead, operator } with empty objects on any miss.
+async function loadCallContext(callId) {
+  if (!callId) return { lead: {}, operator: {} };
+  const { data: call } = await supabase
+    .from('calls')
+    .select('lead_id, user_id, lead_name, property_address')
+    .eq('id', callId)
+    .maybeSingle();
+  if (!call) return { lead: {}, operator: {} };
+
+  const [{ data: lead }, { data: operator }] = await Promise.all([
+    call.lead_id
+      ? supabase.from('leads').select('first_name, property_address').eq('id', call.lead_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    call.user_id
+      ? supabase.from('users').select('ai_caller_name, company_name, ai_voicemail_script').eq('id', call.user_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  return {
+    lead: lead || { first_name: call.lead_name, property_address: call.property_address },
+    operator: operator || {},
+  };
+}
 
 // POST /api/v2/voice/twiml — returned when the seller picks up.
 // Module 3 placeholder: a short hold line. Module 6 swaps the body for a
@@ -39,6 +89,62 @@ router.post('/twiml', (req, res) => {
   vr.pause({ length: 2 });
 
   console.log(`[v2voice] TwiML served for callId=${callId}`);
+  res.type('text/xml').send(vr.toString());
+});
+
+// POST /api/v2/voice/amd — Twilio async answering-machine-detection result.
+// Twilio runs AMD in parallel with the live call (asyncAmd) and POSTs the result
+// here when it resolves. On a machine, we redirect the still-live call to the
+// voicemail TwiML so the operator's script is left; on a human we do nothing and
+// the conversation path (twiml) keeps running. callId rides in the query.
+router.post('/amd', async (req, res) => {
+  // 200 fast — Twilio retries on non-2xx; do the redirect work after responding.
+  res.sendStatus(200);
+
+  try {
+    const callSid = req.body.CallSid;
+    const answeredBy = req.body.AnsweredBy;        // human|machine_start|machine_end_beep|machine_end_silence|machine_end_other|fax|unknown
+    const callId = req.query.callId || '';
+    if (!callSid || !answeredBy) return;
+
+    const isMachine = answeredBy.startsWith('machine');
+    console.log(`[v2voice] amd sid=${callSid} answeredBy=${answeredBy} machine=${isMachine}`);
+
+    if (!isMachine) return; // human (or fax/unknown) — leave the live call alone.
+
+    // Redirect the in-progress call to the voicemail TwiML (REST update).
+    await twilioCallService.redirectCall(
+      callSid,
+      `/api/v2/voice/twiml-voicemail?callId=${encodeURIComponent(callId)}`,
+    );
+    console.log(`[v2voice] voicemail redirect sent sid=${callSid} callId=${callId}`);
+  } catch (e) {
+    console.warn('[v2voice] amd handler error:', e.message);
+  }
+});
+
+// POST /api/v2/voice/twiml-voicemail — spoken voicemail drop.
+// Reached only when AMD redirected the call here (machine answered). Loads the
+// lead+operator behind callId, renders the operator's voicemail script, and
+// speaks it. ElevenLabs <Play> is the future upgrade (needs hosted audio, lands
+// with the Module 5 storage work); Twilio <Say> keeps this self-contained today.
+router.post('/twiml-voicemail', async (req, res) => {
+  const callId = req.query.callId || req.body.CallSid || '';
+  const vr = new twilio.twiml.VoiceResponse();
+
+  try {
+    const { lead, operator } = await loadCallContext(req.query.callId);
+    const message = renderVoicemailScript(lead, operator);
+    // Small lead-in pause so the start of the message isn't clipped by the beep.
+    vr.pause({ length: 1 });
+    vr.say({ voice: 'Polly.Joanna' }, message);
+    console.log(`[v2voice] voicemail spoken callId=${callId} len=${message.length}`);
+  } catch (e) {
+    console.warn('[v2voice] voicemail render error:', e.message);
+    vr.say({ voice: 'Polly.Joanna' }, 'Sorry we missed you. Please call us back when you get a chance.');
+  }
+
+  vr.hangup();
   res.type('text/xml').send(vr.toString());
 });
 
