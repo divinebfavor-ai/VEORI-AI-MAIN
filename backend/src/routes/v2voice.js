@@ -2,16 +2,23 @@
  * /api/v2/voice — Twilio voice webhooks for the Twilio + ElevenLabs call layer.
  *
  * These are the endpoints twilioCallService points the outbound call at:
- *   POST /twiml      — TwiML returned when the callee answers (what to say/do)
+ *   POST /twiml      — TwiML when the callee answers: opens the live conversation
+ *   POST /gather     — one conversational turn (seller speech → agent reply)
+ *   POST /amd        — async answering-machine-detection result (→ voicemail)
+ *   POST /twiml-voicemail — spoken voicemail drop
  *   POST /status     — per-call lifecycle callbacks (ringing/answered/completed)
- *   POST /recording  — recording-ready callback (stores the recording URL)
+ *   POST /recording  — recording-ready callback (re-hosts + stores the URL)
  *
- * MODULE 3 SCOPE: minimal but REAL handlers so an outbound call connects and the
- * calls row tracks lifecycle. The live two-way audio (<Connect><Stream> ↔ STT ↔
- * Claude ↔ ElevenLabs) replaces the placeholder TwiML in Module 6-7; voicemail
- * branching (AnsweredBy) is added in Module 4; recording storage hardens in
- * Module 5. These are NOT auth'd routes — Twilio calls them server-to-server
- * (signature validation is added alongside the live audio in a later module).
+ * LIVE CONVERSATION ARCHITECTURE (Module 6): turn-based, NOT a raw-audio stream.
+ * Twilio's built-in speech recognition (<Gather input="speech">) handles STT —
+ * no extra STT key or cost. Each turn: agent speaks (ElevenLabs <Play>, Twilio
+ * <Say> fallback) → <Gather> captures the seller's reply → Twilio POSTs the
+ * transcript to /gather → the brain (voiceBrainService) returns the next line →
+ * loop. Module 7 swaps the stubbed brain for the real Claude prompt; the brain's
+ * public shape (openingLine/nextTurn) stays fixed so this file won't change again.
+ * Module 4 added AMD→voicemail branching; Module 5 hardened recording storage.
+ * These are NOT auth'd routes — Twilio calls them server-to-server (signature
+ * validation is added in a later module).
  *
  * NO auth middleware here (Twilio is the caller, not a logged-in operator).
  * Mounted at /api/v2/voice in index.js, parallel to everything else.
@@ -22,8 +29,50 @@ const axios = require('axios');
 const twilio = require('twilio');
 const supabase = require('../config/supabase');
 const twilioCallService = require('../services/twilioCallService');
+const elevenLabs = require('../services/elevenLabsService');
+const voiceBrain = require('../services/voiceBrainService');
 
 const router = express.Router();
+
+// Polly fallback voice used whenever ElevenLabs <Play> isn't available (no key,
+// synth failure). Keeps the call audible so a turn is never silent.
+const FALLBACK_SAY_VOICE = 'Polly.Joanna';
+
+// Speak one line of agent text inside a TwiML response. Tries ElevenLabs first
+// (synthesize → store → <Play> the public MP3 URL); on any miss falls back to
+// Twilio <Say>. Mutates the passed VoiceResponse. Returns nothing.
+// This is the single seam where ElevenLabs audio enters the live conversation.
+async function speakLine(vr, text, { voiceId, callSid } = {}) {
+  if (!text) return;
+  let url = null;
+  try {
+    url = await elevenLabs.synthesizeToUrl(text, { voiceId, callSid });
+  } catch (e) {
+    console.warn('[v2voice] speakLine synth error:', e.message);
+  }
+  if (url) {
+    vr.play(url);
+  } else {
+    vr.say({ voice: FALLBACK_SAY_VOICE }, text);
+  }
+}
+
+// Build the <Gather input="speech"> that captures the seller's next turn and
+// POSTs the transcript (SpeechResult) back to /gather. Uses Twilio's built-in
+// speech recognition — no extra STT key/cost (the cash-constrained launch path).
+// action carries callId so the turn handler can reload context + thread Claude.
+function appendListen(vr, callId) {
+  const action = `/api/v2/voice/gather?callId=${encodeURIComponent(callId || '')}`;
+  vr.gather({
+    input: 'speech',
+    action,
+    method: 'POST',
+    speechTimeout: 'auto',     // Twilio auto-detects end of speech
+    speechModel: 'phone_call', // tuned for 8kHz telephony audio
+    actionOnEmptyResult: true, // still POST on silence so we can reprompt/close
+    language: 'en-US',
+  });
+}
 
 // Supabase Storage bucket that permanently holds call recordings (Module 5).
 // Create once in Supabase (public bucket named 'call-recordings'); recordings are
@@ -53,48 +102,104 @@ function renderVoicemailScript(lead = {}, operator = {}) {
 }
 
 // Load the lead + operator behind a calls.id so a webhook can personalise the
-// voicemail. One round trip: read the call row, then the lead and operator it
-// points at. Returns { lead, operator } with empty objects on any miss.
+// voicemail AND run the live conversation. One round trip: read the call row,
+// then the lead and operator it points at. Returns { call, lead, operator,
+// operatorId, leadId, voiceId } with safe fallbacks on any miss. voiceId is the
+// operator's chosen ElevenLabs voice (resolved through the v2 settings table).
 async function loadCallContext(callId) {
-  if (!callId) return { lead: {}, operator: {} };
+  if (!callId) return { call: {}, lead: {}, operator: {}, operatorId: null, leadId: null, voiceId: null };
   const { data: call } = await supabase
     .from('calls')
     .select('lead_id, user_id, lead_name, property_address')
     .eq('id', callId)
     .maybeSingle();
-  if (!call) return { lead: {}, operator: {} };
+  if (!call) return { call: {}, lead: {}, operator: {}, operatorId: null, leadId: null, voiceId: null };
 
-  const [{ data: lead }, { data: operator }] = await Promise.all([
+  const [{ data: lead }, { data: operator }, voiceId] = await Promise.all([
     call.lead_id
       ? supabase.from('leads').select('first_name, property_address').eq('id', call.lead_id).maybeSingle()
       : Promise.resolve({ data: null }),
     call.user_id
       ? supabase.from('users').select('ai_caller_name, company_name, ai_voicemail_script').eq('id', call.user_id).maybeSingle()
       : Promise.resolve({ data: null }),
+    call.user_id
+      ? elevenLabs.resolveOperatorVoiceId(call.user_id).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   return {
+    call,
     lead: lead || { first_name: call.lead_name, property_address: call.property_address },
     operator: operator || {},
+    operatorId: call.user_id || null,
+    leadId: call.lead_id || null,
+    voiceId: voiceId || null,
   };
 }
 
 // POST /api/v2/voice/twiml — returned when the seller picks up.
-// Module 3 placeholder: a short hold line. Module 6 swaps the body for a
-// <Connect><Stream> that bridges the call to our media-stream WebSocket where
-// Claude + ElevenLabs run the conversation.
-router.post('/twiml', (req, res) => {
+// Module 6: opens the live, turn-based conversation. Speaks the agent's opening
+// line (ElevenLabs <Play>, Twilio <Say> fallback) then hands the mic to the
+// seller via <Gather input="speech">. Twilio transcribes their reply and POSTs
+// it to /gather, which threads it to the brain and speaks the response — looping
+// the conversation. Module 7 swaps the stubbed brain for the real Claude prompt.
+router.post('/twiml', async (req, res) => {
   const callId = req.query.callId || req.body.CallSid || '';
+  const callSid = req.body.CallSid || '';
   const vr = new twilio.twiml.VoiceResponse();
 
-  // Placeholder hold message. Intentionally brief — replaced by live audio in M6.
-  vr.say(
-    { voice: 'Polly.Joanna' },
-    'One moment please while I connect you.'
-  );
-  vr.pause({ length: 2 });
+  try {
+    const ctx = await loadCallContext(req.query.callId);
+    const opening = voiceBrain.openingLine(ctx);
+    await speakLine(vr, opening, { voiceId: ctx.voiceId, callSid });
+    appendListen(vr, callId);
+    console.log(`[v2voice] twiml opened conversation callId=${callId}`);
+  } catch (e) {
+    console.warn('[v2voice] twiml open error:', e.message);
+    // Never leave the line dead — at least greet + listen with the fallback voice.
+    vr.say({ voice: FALLBACK_SAY_VOICE }, 'Hi, thanks for taking my call. How are you doing today?');
+    appendListen(vr, callId);
+  }
 
-  console.log(`[v2voice] TwiML served for callId=${callId}`);
+  res.type('text/xml').send(vr.toString());
+});
+
+// POST /api/v2/voice/gather — one conversational turn.
+// Twilio POSTs here after each <Gather> with the seller's transcribed speech in
+// SpeechResult. We load context, ask the brain for the next line (Module 7 wires
+// Claude here), speak it, and re-arm the <Gather> to keep the conversation going.
+// When the brain signals the call should end, we speak the closer and <Hangup>.
+router.post('/gather', async (req, res) => {
+  const callId = req.query.callId || '';
+  const callSid = req.body.CallSid || '';
+  const speech = (req.body.SpeechResult || '').trim();
+  const confidence = req.body.Confidence ? parseFloat(req.body.Confidence) : null;
+  const vr = new twilio.twiml.VoiceResponse();
+
+  try {
+    const ctx = await loadCallContext(callId);
+    console.log(`[v2voice] gather callId=${callId} heard="${speech}" conf=${confidence ?? 'n/a'}`);
+
+    // Ask the brain for the next turn. Stub today (Module 6); real Claude in M7.
+    const { reply, end } = await voiceBrain.nextTurn({
+      ...ctx, callId, callSid, speech, confidence,
+    });
+
+    await speakLine(vr, reply, { voiceId: ctx.voiceId, callSid });
+
+    if (end) {
+      vr.hangup();
+      console.log(`[v2voice] gather closing call callId=${callId}`);
+    } else {
+      appendListen(vr, callId);
+    }
+  } catch (e) {
+    console.warn('[v2voice] gather handler error:', e.message);
+    // On error, say a graceful line and keep listening rather than dropping.
+    vr.say({ voice: FALLBACK_SAY_VOICE }, 'Sorry, could you say that again?');
+    appendListen(vr, callId);
+  }
+
   res.type('text/xml').send(vr.toString());
 });
 

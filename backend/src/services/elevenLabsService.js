@@ -126,10 +126,81 @@ async function resolveOperatorVoiceId(operatorId) {
   return process.env.ELEVENLABS_VOICE_ID || null;
 }
 
+// Default ElevenLabs model + voice settings for phone-call TTS. eleven_turbo_v2_5
+// is the low-latency model ElevenLabs recommends for real-time/telephony; the
+// voice_settings keep delivery natural without over-stylising.
+const TTS_MODEL_ID = process.env.ELEVENLABS_TTS_MODEL || 'eleven_turbo_v2_5';
+const TTS_VOICE_SETTINGS = { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true };
+// Supabase Storage bucket that holds the short TTS clips we hand to Twilio <Play>.
+// Public bucket (created manually); clips are cheap, disposable per-turn audio.
+const TTS_BUCKET = process.env.ELEVENLABS_TTS_BUCKET || 'call-tts';
+
+/**
+ * Synthesize a line of text to MP3 via the ElevenLabs REST TTS endpoint.
+ * Returns a Buffer of MP3 bytes, or null if no API key / on failure (caller
+ * falls back to Twilio <Say> so the call never goes silent).
+ *
+ * Uses the documented POST /v1/text-to-speech/{voice_id} endpoint with
+ * output_format=mp3_44100_128 (Twilio <Play> plays standard MP3 fine).
+ * @param {string} text       the line to speak
+ * @param {string} voiceId    ElevenLabs voice_id (falls back to ELEVENLABS_VOICE_ID)
+ * @returns {Promise<Buffer|null>}
+ */
+async function synthesizeSpeech(text, voiceId) {
+  const client = getClient();
+  const vId = voiceId || process.env.ELEVENLABS_VOICE_ID;
+  if (!client || !vId || !text) {
+    if (!client) console.warn('[ElevenLabs] synthesizeSpeech skipped — no API key');
+    return null;
+  }
+  try {
+    const { data } = await client.post(
+      `/text-to-speech/${vId}`,
+      { text, model_id: TTS_MODEL_ID, voice_settings: TTS_VOICE_SETTINGS },
+      { params: { output_format: 'mp3_44100_128' }, responseType: 'arraybuffer' },
+    );
+    return Buffer.from(data);
+  } catch (err) {
+    const detail = err.response?.data ? Buffer.from(err.response.data).toString('utf8').slice(0, 200) : err.message;
+    console.warn('[ElevenLabs] synthesizeSpeech failed:', detail);
+    return null;
+  }
+}
+
+/**
+ * Synthesize text and upload the MP3 to Supabase Storage, returning a public URL
+ * Twilio <Play> can fetch. Returns null on any failure so the caller falls back
+ * to Twilio <Say> (the call is never left silent).
+ *
+ * @param {string} text             line to speak
+ * @param {object} [opts]
+ * @param {string} [opts.voiceId]   ElevenLabs voice_id
+ * @param {string} [opts.callSid]   used to namespace the storage path
+ * @returns {Promise<string|null>}  public MP3 URL, or null
+ */
+async function synthesizeToUrl(text, { voiceId, callSid } = {}) {
+  const mp3 = await synthesizeSpeech(text, voiceId);
+  if (!mp3) return null;
+  try {
+    const path = `${callSid || 'tts'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp3`;
+    const { error: uploadErr } = await supabase.storage
+      .from(TTS_BUCKET)
+      .upload(path, mp3, { contentType: 'audio/mpeg', upsert: true });
+    if (uploadErr) throw uploadErr;
+    const { data: pub } = supabase.storage.from(TTS_BUCKET).getPublicUrl(path);
+    return pub?.publicUrl || null;
+  } catch (err) {
+    console.warn('[ElevenLabs] synthesizeToUrl upload failed:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   fetchVoicesFromApi,
   getVoiceLibrary,
   syncVoiceLibrary,
   resolveOperatorVoiceId,
   normaliseVoice,
+  synthesizeSpeech,
+  synthesizeToUrl,
 };
