@@ -48,6 +48,8 @@ const smsFirstRouter         = require('./routes/smsFirst');
 const wealthRouter           = require('./routes/wealth');
 const billingRouter          = require('./routes/billing');
 const feedbackRouter         = require('./routes/feedback');
+// ─── Twilio + ElevenLabs calling layer (v2) — NEW, parallel to Vapi ──────────
+const v2VoicesRouter         = require('./routes/v2voices');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -201,6 +203,7 @@ app.use('/api/waitlist',        waitlistRouter);
 app.use('/api/notifications',   notificationsRouter);
 app.use('/api/sms',             smsRouter);
 app.use('/api/sms-first',       smsFirstRouter);
+app.use('/api/v2/voices',       v2VoicesRouter); // Twilio+ElevenLabs voice layer (parallel to Vapi)
 app.use('/api/wealth',          wealthRouter);
 app.use('/api/billing',         billingRouter);
 app.use('/api/feedback',        feedbackRouter);
