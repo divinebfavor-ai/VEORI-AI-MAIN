@@ -49,7 +49,7 @@ async function initiateCall({ lead, phoneNumber, callId }) {
     assistant: {
       transcriber: { provider: 'deepgram', model: 'nova-2', language: 'en-US' },
       model: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', systemPrompt: ALEX_SYSTEM_PROMPT.replace(/{first_name}/g, firstName).replace(/{property_address}/g, address), temperature: 0.7, maxTokens: 500 },
-      voice: { provider: 'elevenlabs', voiceId: process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB', stability: 0.5, similarityBoost: 0.75 },
+      voice: { provider: 'vapi', voiceId: process.env.VAPI_VOICE_ID || 'Elliot' },
       firstMessage,
       recordingEnabled: true,
       silenceTimeoutSeconds: 30,
@@ -75,7 +75,7 @@ async function initiateBuyerCall({ buyer, deal, phoneNumber, callId }) {
     assistant: {
       transcriber: { provider: 'deepgram', model: 'nova-2' },
       model: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', systemPrompt, maxTokens: 300 },
-      voice: { provider: 'elevenlabs', voiceId: process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB' },
+      voice: { provider: 'vapi', voiceId: process.env.VAPI_VOICE_ID || 'Elliot' },
       firstMessage: `Hi ${buyer.name}, this is Alex. I have an off-market deal that fits your buy box. Quick minute?`,
       recordingEnabled: true, maxDurationSeconds: 600,
       metadata: { callId, buyerId: buyer.id, dealId: deal.id, type: 'buyer' },

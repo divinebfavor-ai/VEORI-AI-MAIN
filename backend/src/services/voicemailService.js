@@ -76,7 +76,9 @@ async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact
 
   const aiName     = operator.ai_caller_name || 'Alex';
   const companyName= operator.company_name   || 'our real estate investment group';
-  const voiceId    = operator.ai_voice_id    || process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+  // Vapi-native voice (same as live calls). Falls back to Elliot so the voicemail
+  // sounds identical to the operator's outbound voice.
+  const voiceId    = operator.ai_voice_id    || process.env.VAPI_VOICE_ID || 'Elliot';
 
   const templateFn = VOICEMAIL_TEMPLATES[templateKey] || VOICEMAIL_TEMPLATES.first_contact;
   const vmMessage  = templateFn(aiName, lead.first_name, companyName);
@@ -100,7 +102,7 @@ ${vmMessage}` }],
         maxTokens: 200,
         temperature: 0.1,
       },
-      voice: { provider: '11labs', voiceId },
+      voice: { provider: 'vapi', voiceId },
       firstMessage: vmMessage,
       firstMessageMode: 'assistant-speaks-first',
       recordingEnabled: true,

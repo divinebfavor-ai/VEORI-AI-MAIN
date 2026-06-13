@@ -13,7 +13,6 @@
 | Frontend | React + Vite + Tailwind | Vercel |
 | Voice AI | Vapi.ai (concurrent calls) | Vapi |
 | AI Brain | Anthropic Claude Haiku 4.5 | API |
-| Voice | ElevenLabs | API |
 | Telephony | Twilio | API |
 
 ---
@@ -40,7 +39,7 @@ Set these in Railway dashboard:
 - `VAPI_API_KEY`
 - `VAPI_PHONE_NUMBER_ID`
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`
-- `ELEVENLABS_API_KEY`
+- `VAPI_VOICE_ID` (optional, e.g. `Elliot`) — Vapi-native voice for calls/voicemail
 - `ALLOWED_ORIGINS` = your Vercel URL
 
 ### 3. Frontend (Vercel)
