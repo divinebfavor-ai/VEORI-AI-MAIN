@@ -121,4 +121,31 @@ router.post('/selection', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/v2/voices/sync — one-time / on-demand seed of veori_voice_library
+// from the live ElevenLabs catalog. Runs on Railway (which holds the key), so no
+// local key or standalone script is needed. Gated by SYNC_ADMIN_TOKEN (set on
+// Railway) on TOP of requireAuth: the caller must send X-Sync-Token matching the
+// env value. If SYNC_ADMIN_TOKEN is unset the route is disabled (503) rather than
+// left open — fail closed, never expose a catalog write to any logged-in operator.
+router.post('/sync', requireAuth, async (req, res, next) => {
+  try {
+    const expected = process.env.SYNC_ADMIN_TOKEN;
+    if (!expected) {
+      return res.status(503).json({ success: false, error: 'sync disabled — SYNC_ADMIN_TOKEN not configured' });
+    }
+    const provided = req.headers['x-sync-token'];
+    if (!provided || provided !== expected) {
+      return res.status(403).json({ success: false, error: 'invalid or missing X-Sync-Token' });
+    }
+
+    const result = await elevenLabs.syncVoiceLibrary();
+    res.json({
+      success: true,
+      synced: result.synced,
+      note: result.note || undefined,
+      sample: (result.voices || []).slice(0, 20).map((v) => ({ voice_id: v.voice_id, voice_name: v.voice_name })),
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
