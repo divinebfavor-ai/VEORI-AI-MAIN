@@ -932,6 +932,11 @@ export default function LiveMonitor() {
   }
 
   const handleEnd = async (call) => {
+    // Tear down live-listen FIRST. Otherwise the browser WebSocket + AudioContext
+    // keep running after the hangup and the buffered PCM keeps replaying — the
+    // operator hears an echo/"botting" loop and the row appears to keep counting
+    // until the next poll. Stopping the stream here makes End feel instant.
+    disconnectListen(call.id)
     try {
       await callsApi.endCall(call.id)
       toast.success('Call ended')

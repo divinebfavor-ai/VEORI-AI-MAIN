@@ -77,8 +77,12 @@ router.get('/', async (req, res, next) => {
 // GET /api/calls/live — all active calls
 router.get('/live', async (req, res, next) => {
   try {
+    // A call that already has ended_at set is NOT live, even if a stale status
+    // (e.g. an inbound row stuck on 'ringing') was never flipped to 'ended'.
+    // Without this guard such rows show in LiveMonitor forever and keep counting.
     const { data, error } = await supabase.from('calls').select('*, leads(first_name, last_name, phone, property_address, motivation_score, primary_tag), phone_numbers(number)')
-      .eq('user_id', req.user.id).in('status', ['initiated', 'ringing', 'in-progress']);
+      .eq('user_id', req.user.id).in('status', ['initiated', 'ringing', 'in-progress'])
+      .is('ended_at', null);
     if (error) throw error;
     const flat = (data || []).map(c => ({
       ...c,
