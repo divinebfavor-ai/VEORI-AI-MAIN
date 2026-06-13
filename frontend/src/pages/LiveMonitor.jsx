@@ -95,8 +95,7 @@ function Waveform({ active = true, color = GREEN, bars = 16 }) {
 
 // ─── WebRTC Listen Mode ────────────────────────────────────────────────────────
 function useListenMode() {
-  const pcRefs     = useRef({})   // RTCPeerConnection per callId
-  const audioRefs  = useRef({})   // Audio element per callId
+  const audioRefs  = useRef({})   // { ws, audioCtx, gainNode } per callId
   const cancelRefs = useRef({})   // set true to cancel an in-flight connect (per callId)
   const [listening, setListening] = useState({})
   const [pending,   setPending]   = useState({})   // tapped Listen, waiting for pickup
@@ -147,96 +146,107 @@ function useListenMode() {
       const token = localStorage.getItem('veori_token')
       const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-      // Build a WebRTC peer connection - receive audio only
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
-      })
+      // Vapi's monitor.listenUrl is a WebSocket (wss://) that streams raw 16-bit
+      // little-endian PCM (mono). It is NOT a WebRTC/SDP endpoint — the old code
+      // POSTed an SDP offer to it, which always failed ("something went wrong").
+      // Correct path: fetch the wss URL, open a browser WebSocket, decode the PCM
+      // frames, and play them through the Web Audio API.
 
-      // When Vapi sends the audio track, play it
-      const audioEl = new Audio()
-      audioEl.autoplay = true
-      audioEl.volume   = (volumes[callId] ?? 100) / 100
-      audioRefs.current[callId] = audioEl
-
-      pc.ontrack = (event) => {
-        stopRingback(callId)   // seller picked up — silence the dial tone
-        audioEl.srcObject = event.streams[0]
-        audioEl.play().catch(() => {})
-        setPending(p => { const n = { ...p }; delete n[callId]; return n })
-        setListening(l => ({ ...l, [callId]: true }))
-        toast.success('Listening live - seller cannot hear you')
-      }
-
-      // Receive-only audio
-      pc.addTransceiver('audio', { direction: 'recvonly' })
-
-      // Create offer
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-
-      // Wait for ICE gathering (max 4 seconds)
-      await new Promise((resolve) => {
-        if (pc.iceGatheringState === 'complete') { resolve(); return }
-        const onState = () => { if (pc.iceGatheringState === 'complete') resolve() }
-        pc.addEventListener('icegatheringstatechange', onState)
-        setTimeout(resolve, 4000)
-      })
-
-      // The Vapi listen URL only exists AFTER the seller picks up — while the call is
-      // still ringing the backend returns 404. So we retry every 1.5s (up to ~90s)
-      // until audio is available, then connect. This makes Listen behave like a phone:
-      // tap once, and you hear the seller the moment they answer.
+      // The listen URL only exists AFTER the seller picks up — while the call is
+      // still ringing the backend returns 404. Retry every 1.5s (up to ~90s).
+      startRingback(callId)   // dial tone while the seller's phone is ringing
       const DEADLINE = Date.now() + 90_000
-      let answerSdp = null
-
-      startRingback(callId)   // play dial tone while the seller's phone is ringing
+      let wsUrl = null
 
       while (Date.now() < DEADLINE) {
-        if (cancelRefs.current[callId]) { stopRingback(callId); pc.close(); return }   // user tapped Listen again
+        if (cancelRefs.current[callId]) { stopRingback(callId); return }   // user tapped Listen again
 
-        const res = await fetch(`${BASE}/api/calls/${dbCallId}/listen-join`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sdp: pc.localDescription.sdp }),
+        const res = await fetch(`${BASE}/api/calls/${dbCallId}/listen`, {
+          headers: { Authorization: `Bearer ${token}` },
         })
 
-        if (res.ok) { answerSdp = await res.text(); break }
-
-        // 404 = call still ringing / not connected yet → wait and retry.
-        // Any other error is fatal.
-        if (res.status !== 404) {
+        if (res.ok) {
+          const d = await res.json().catch(() => ({}))
+          if (d.listen_url) { wsUrl = d.listen_url; break }
+        } else if (res.status !== 404) {
           const e = await res.json().catch(() => ({}))
           stopRingback(callId)
-          pc.close()
           throw new Error(e.error || 'Could not connect to call audio')
         }
-
         await new Promise(r => setTimeout(r, 1500))
       }
 
-      if (cancelRefs.current[callId]) { stopRingback(callId); pc.close(); return }
-
-      if (!answerSdp) {
+      if (cancelRefs.current[callId]) { stopRingback(callId); return }
+      if (!wsUrl) {
         stopRingback(callId)
-        pc.close()
         setPending(p => { const n = { ...p }; delete n[callId]; return n })
         toast.error('Call never connected — no audio to listen to')
         return
       }
 
-      // Vapi returns the SDP answer (text/plain or application/sdp)
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+      // ── Web Audio playback chain: ws → PCM16 → scheduled AudioBuffers → gain ──
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      const audioCtx = new Ctx()
+      const gainNode = audioCtx.createGain()
+      gainNode.gain.value = (volumes[callId] ?? 100) / 100
+      gainNode.connect(audioCtx.destination)
 
-      pcRefs.current[callId] = pc
+      // Vapi defaults to 16kHz mono PCM; if a JSON config frame arrives first it
+      // may override the sample rate. We schedule chunks back-to-back to avoid gaps.
+      let sampleRate = 16000
+      let nextTime = 0
+      const ws = new WebSocket(wsUrl)
+      ws.binaryType = 'arraybuffer'
 
-      pc.onconnectionstatechange = () => {
-        if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
-          setListening(l => { const n = { ...l }; delete n[callId]; return n })
-          setPending(p => { const n = { ...p }; delete n[callId]; return n })
+      const playPcm = (arrayBuf) => {
+        const pcm = new Int16Array(arrayBuf)
+        if (!pcm.length) return
+        const f32 = new Float32Array(pcm.length)
+        for (let i = 0; i < pcm.length; i++) f32[i] = pcm[i] / 32768  // i16 → [-1,1]
+        const buf = audioCtx.createBuffer(1, f32.length, sampleRate)
+        buf.copyToChannel(f32, 0)
+        const src = audioCtx.createBufferSource()
+        src.buffer = buf
+        src.connect(gainNode)
+        const now = audioCtx.currentTime
+        if (nextTime < now) nextTime = now + 0.05   // small lead-in / resync on underrun
+        src.start(nextTime)
+        nextTime += buf.duration
+      }
+
+      ws.onopen = () => {
+        if (cancelRefs.current[callId]) { ws.close(); return }
+        stopRingback(callId)   // connected — silence the dial tone
+        audioRefs.current[callId] = { ws, audioCtx, gainNode }
+        setPending(p => { const n = { ...p }; delete n[callId]; return n })
+        setListening(l => ({ ...l, [callId]: true }))
+        toast.success('Listening live - seller cannot hear you')
+      }
+
+      ws.onmessage = (ev) => {
+        if (typeof ev.data === 'string') {
+          // Optional JSON config frame (e.g. { sampleRate, channels }).
+          try {
+            const cfg = JSON.parse(ev.data)
+            if (cfg.sampleRate) sampleRate = cfg.sampleRate
+          } catch { /* ignore non-JSON text frames */ }
+          return
         }
+        playPcm(ev.data)
+      }
+
+      ws.onerror = () => {
+        stopRingback(callId)
+        setPending(p => { const n = { ...p }; delete n[callId]; return n })
+        setListening(l => { const n = { ...l }; delete n[callId]; return n })
+        toast.error('Live audio connection failed')
+      }
+
+      ws.onclose = () => {
+        setListening(l => { const n = { ...l }; delete n[callId]; return n })
+        setPending(p => { const n = { ...p }; delete n[callId]; return n })
+        audioCtx.close().catch(() => {})
+        delete audioRefs.current[callId]
       }
     } catch (err) {
       stopRingback(callId)
@@ -248,22 +258,23 @@ function useListenMode() {
   const disconnectListen = useCallback((callId) => {
     cancelRefs.current[callId] = true   // cancel any in-flight retry loop (call still ringing)
     stopRingback(callId)                // silence the dial tone if it's still playing
-    pcRefs.current[callId]?.close()
-    if (audioRefs.current[callId]) {
-      audioRefs.current[callId].srcObject = null
+    const a = audioRefs.current[callId]
+    if (a) {
+      try { a.ws?.close() } catch { /* already closed */ }
+      a.audioCtx?.close().catch(() => {})
     }
-    delete pcRefs.current[callId]
     delete audioRefs.current[callId]
     setListening(l => { const n = { ...l }; delete n[callId]; return n })
     setPending(p => { const n = { ...p }; delete n[callId]; return n })
   }, [])
 
   const setVolume = useCallback((callId, vol) => {
-    if (audioRefs.current[callId]) audioRefs.current[callId].volume = vol / 100
+    const a = audioRefs.current[callId]
+    if (a?.gainNode) a.gainNode.gain.value = vol / 100
     setVolumes(v => ({ ...v, [callId]: vol }))
   }, [])
 
-  useEffect(() => () => Object.keys(pcRefs.current).forEach(disconnectListen), [disconnectListen])
+  useEffect(() => () => Object.keys(audioRefs.current).forEach(disconnectListen), [disconnectListen])
   return { listening, pending, volumes, connectListen, disconnectListen, setVolume }
 }
 
@@ -629,6 +640,24 @@ function useLiveTranscript(call) {
 function CallDetailPanel({ call }) {
   const navigate = useNavigate()
   const liveTranscript = useLiveTranscript(call)
+
+  // Transcript auto-scroll — but only when the operator is already at the bottom.
+  // The old inline `ref={el => el.scrollTop = el.scrollHeight}` ran on EVERY render
+  // (every 2s poll), yanking the view back down so you could never scroll up to
+  // read from the start. Now: stick to the latest line only if you haven't
+  // scrolled away; the moment you scroll up to read history, it leaves you there.
+  const transcriptRef = useRef(null)
+  const stickRef = useRef(true)
+  const onTranscriptScroll = () => {
+    const el = transcriptRef.current
+    if (!el) return
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+  }
+  useEffect(() => {
+    const el = transcriptRef.current
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight
+  }, [liveTranscript])
+
   if (!call) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
@@ -701,7 +730,8 @@ function CallDetailPanel({ call }) {
             )}
           </div>
           <div
-            ref={el => { if (el) el.scrollTop = el.scrollHeight }}
+            ref={transcriptRef}
+            onScroll={onTranscriptScroll}
             style={{ background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}
           >
             {liveTranscript ? liveTranscript.split('\n').filter(Boolean).map((line, i) => {
