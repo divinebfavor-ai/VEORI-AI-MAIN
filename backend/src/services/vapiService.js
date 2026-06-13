@@ -821,44 +821,63 @@ function toE164(phone) {
 
 // ─── Initiate outbound call (Steps 1→3 of the Veori call spec) ───────────────
 // MODULE 9 — SINGLE SWAP POINT.
-// VAPI DISABLED - Rerouted to Twilio + ElevenLabs. Every caller still calls
-// vapiService.initiateCall({ lead, phoneNumber, callId, operator, useCaseOverride })
-// and uses result.id — but the dial now goes through the Twilio + ElevenLabs +
-// Claude engine instead of Vapi. The signature and the { id } return contract are
-// IDENTICAL, so the 6 callers (smsService, smsFirstWorkflow, followUpProcessor×2,
-// campaignManager, calls.js) are untouched. The operator's ElevenLabs voice is
-// resolved inside the /api/v2/voice TwiML handler at speak time
-// (elevenLabsService.resolveOperatorVoiceId) — no voice logic needed here.
-// Lazy require avoids any circular-import risk at module load.
+// Every caller calls vapiService.initiateCall({ lead, phoneNumber, callId,
+// operator, useCaseOverride }) and uses result.id. The { id } return contract is
+// IDENTICAL across both engines, so the 6 callers (smsService, smsFirstWorkflow,
+// followUpProcessor×2, campaignManager, calls.js) are untouched regardless of which
+// engine is live. Lazy require avoids any circular-import risk at module load.
 //
 // VOICE_ENGINE — hidden ADMIN switch (operators never see this; it is not exposed
-// in any API or UI). Default 'elevenlabs' = the live Twilio + ElevenLabs + Claude
-// engine that ships today. Vapi stays in the codebase, isolated and DORMANT (zero
-// spend, no operator surface) purely as the admin's instant flip-back lever: if
-// ElevenLabs can't be made human enough, set VOICE_ENGINE=vapi on Railway,
-// uncomment the initiateCall_VAPI_DISABLED body below, and the outbound dial
-// returns to Vapi with no caller changes (identical { id } contract).
+// in any API or UI):
+//   • unset / anything ≠ 'vapi'  → Twilio + ElevenLabs + Claude engine (the cheap
+//        TTS path; operator ElevenLabs voice resolved in the /api/v2/voice TwiML
+//        handler at speak time via elevenLabsService.resolveOperatorVoiceId).
+//   • 'vapi'                     → Vapi real-time conversational engine
+//        (initiateCallVapi below). Used because ElevenLabs TTS sounds robotic on
+//        live calls. Needs VAPI_API_KEY + operator numbers carrying a stored
+//        vapi_phone_number_id (verified present for all 5 numbers).
+// Flip in either direction is a Railway env change only — no code edit, no redeploy
+// of new code required.
 async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null }) {
   const engine = (process.env.VOICE_ENGINE || 'elevenlabs').toLowerCase();
   if (engine === 'vapi') {
-    // Dormant fallback path. The Vapi outbound body lives in
-    // initiateCall_VAPI_DISABLED (kept commented below). To activate: uncomment
-    // that function, then call it here. Left intentionally unwired so a stray
-    // VOICE_ENGINE=vapi can never spend Vapi credits before the admin opts in.
-    throw new Error('VOICE_ENGINE=vapi requested but the Vapi engine is dormant — uncomment initiateCall_VAPI_DISABLED to re-enable.');
+    // ACTIVE Vapi outbound path. Real-time conversational engine — used when the
+    // admin sets VOICE_ENGINE=vapi on Railway because ElevenLabs TTS sounds robotic
+    // on live calls. Identical { id } return contract, so the 6 callers stay
+    // untouched. Fail-fast below so a misconfigured flip is OBVIOUS in Railway logs
+    // (a loud, specific error) instead of a silent dead call.
+    if (!VAPI_API_KEY) {
+      console.error('[engine=vapi] ABORT — VOICE_ENGINE=vapi but VAPI_API_KEY is not set on Railway. Set the key, or unset VOICE_ENGINE to fall back to ElevenLabs.');
+      throw new Error('VOICE_ENGINE=vapi but VAPI_API_KEY is missing — set it on Railway.');
+    }
+    const hasVapiNumber = !!(phoneNumber?.vapi_phone_number_id || phoneNumber?.vapi_phone_id);
+    if (!hasVapiNumber && !phoneNumber?.number) {
+      console.error(`[engine=vapi] ABORT — operator number has no vapi_phone_number_id and no fallback number (callId=${callId}).`);
+      throw new Error('No active phone number found for this operator. Go to Settings → Phone Numbers to provision one.');
+    }
+    console.log(`[engine=vapi] dialing lead=${lead?.id} callId=${callId} via Vapi`);
+    return initiateCallVapi({ lead, phoneNumber, callId, operator, useCaseOverride });
   }
-  // Default: live Twilio + ElevenLabs engine (what operators hear today).
+  // Default: live Twilio + ElevenLabs engine (unchanged — only runs when
+  // VOICE_ENGINE is unset or anything other than 'vapi').
+  console.log(`[engine=elevenlabs] dialing lead=${lead?.id} callId=${callId} via Twilio+ElevenLabs`);
   const twilioCallService = require('./twilioCallService');
   return twilioCallService.initiateCall({ lead, phoneNumber, callId, operator, useCaseOverride });
 }
 
-/* VAPI DISABLED - Rerouted to Twilio + ElevenLabs (original Vapi outbound body, kept for reference)
-async function initiateCall_VAPI_DISABLED({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null }) {
+// ─── Vapi outbound body (ACTIVE when VOICE_ENGINE=vapi) ──────────────────────
+async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null }) {
   if (!VAPI_API_KEY) throw new Error('VAPI_API_KEY not configured');
 
   const aiName      = operator.ai_caller_name || 'Alex';
   const companyName = operator.company_name || 'a local real estate investment group';
-  const voiceId     = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
+  // Vapi voice selection. NOTE: operator.ai_voice_id now holds an ElevenLabs voice
+  // ID (from the operator picker) which is NOT a valid Vapi voice — so it is NOT used
+  // here; passing it to Vapi would break the call. The admin controls the Vapi voice
+  // centrally via VAPI_VOICE_ID on Railway. Default 'Elliot' (warm, natural Vapi
+  // voice). Change VAPI_VOICE_ID to retune the call voice with no code change.
+  const voiceId     = process.env.VAPI_VOICE_ID || 'Elliot';
+  console.log(`[engine=vapi] voice=${voiceId} aiName=${aiName} callId=${callId}`);
 
   // ── STEP 3: Build call payload using operator's number + tag-matched script ──
   // Pull accumulated intelligence from every prior call — this is the data moat
@@ -954,24 +973,31 @@ async function initiateCall_VAPI_DISABLED({ lead, phoneNumber, callId, operator 
       // truly finish a sentence (smart endpointing, not just a pause), murmurs
       // "mm-hm / right" while they talk, doesn't cut off on brief words, and
       // sits over a faint office room-tone instead of dead digital silence.
+      // ── Human-pacing dials (all env-overridable — tune the human feel on Railway
+      //    with NO code redeploy, same pattern as ELEVENLABS_TTS_*) ───────────────
+      //   VAPI_WAIT_SECONDS      — beat before the AI replies (lower = snappier)
+      //   VAPI_STOP_NUM_WORDS    — words a seller must say to interrupt (higher = AI
+      //                            isn't cut off by "okay/right" acks)
+      //   VAPI_RESPONSE_DELAY    — overall turn-taking presence
+      //   VAPI_BACKGROUND_SOUND  — 'office' room-tone vs 'off' (set 'off' to disable)
       backchannelingEnabled: true,
-      backgroundSound: 'office',
+      backgroundSound: process.env.VAPI_BACKGROUND_SOUND || 'office',
       startSpeakingPlan: {
         // Confident humans answer with barely a beat — long gaps read as a machine
         // "buffering". Tight, sure turn-taking. Still smart-endpointed so we don't
         // talk over a seller who's mid-sentence.
-        waitSeconds: 0.4,
+        waitSeconds: process.env.VAPI_WAIT_SECONDS ? parseFloat(process.env.VAPI_WAIT_SECONDS) : 0.4,
         smartEndpointingPlan: { provider: 'livekit' },
       },
       stopSpeakingPlan: {
-        numWords: 2,            // ignore one-word acks ("okay","right") — don't cut the seller off
+        numWords: process.env.VAPI_STOP_NUM_WORDS ? parseInt(process.env.VAPI_STOP_NUM_WORDS, 10) : 2, // ignore one-word acks — don't cut the seller off
         voiceSeconds: 0.2,
         backoffSeconds: 1.0,    // graceful recovery after an interruption
       },
       recordingEnabled: true,
       endCallFunctionEnabled: true,   // let the AI hang up when the conversation is done
       silenceTimeoutSeconds: 30,
-      responseDelaySeconds: 0.3,   // confident, present turn-taking — not eager, not hesitant
+      responseDelaySeconds: process.env.VAPI_RESPONSE_DELAY ? parseFloat(process.env.VAPI_RESPONSE_DELAY) : 0.3,   // confident, present turn-taking
       llmRequestDelaySeconds: 0.1,  // tiny think-beat; kept small so replies feel immediate
       maxDurationSeconds: 1800,
       backgroundDenoisingEnabled: true,
@@ -1020,7 +1046,7 @@ async function initiateCall_VAPI_DISABLED({ lead, phoneNumber, callId, operator 
   const { data } = await vapiHttp.post('/call/phone', payload);
   return data;
 }
-*/ // END VAPI DISABLED - Rerouted to Twilio + ElevenLabs
+// END Vapi outbound body
 
 // ─── Get live call status + listen URL ───────────────────────────────────────
 async function getCall(vapiCallId) {
