@@ -61,6 +61,15 @@ async function dialerTick(campaignId) {
     return;
   }
 
+  // Monthly dial-limit enforcement — pause the campaign when the operator has
+  // used their plan's monthly dials. Resets on the 1st of each new month.
+  const cap = await checkMonthlyCap(userId);
+  if (cap.reached) {
+    console.log(`[Campaign ${campaignId}] Monthly dial limit reached (${cap.used}/${cap.limit})`);
+    await pauseWithError(campaignId, `Monthly dial limit reached (${cap.limit.toLocaleString()} dials). Upgrade your plan for more.`);
+    return;
+  }
+
   if (campaign.daily_spend_limit) {
     const todayCost = (campaign.leads_called || 0) * 0.25;
     if (todayCost >= campaign.daily_spend_limit) {
@@ -202,6 +211,16 @@ async function dialerTick(campaignId) {
         updated_at: new Date().toISOString(),
       }).eq('id', campaignId);
 
+      // Increment the operator's monthly dial counter (atomic via RPC, falls
+      // back to read-modify-write). Drives the monthly_dial_limit enforcement.
+      supabase.rpc('increment_calls_used', { p_user_id: userId }).then(({ error }) => {
+        if (error) {
+          supabase.from('users').select('calls_used').eq('id', userId).single()
+            .then(({ data }) => supabase.from('users').update({ calls_used: (data?.calls_used || 0) + 1 }).eq('id', userId))
+            .catch(() => {});
+        }
+      }).catch(() => {});
+
       pollCallStatus(campaignId, callId, vapiCall.id);
 
       console.log(`[Campaign ${campaignId}] ✅ Call initiated → ${lead.first_name} ${lead.last_name} | ${phoneNum.number} → ${lead.phone}`);
@@ -239,6 +258,45 @@ async function pollCallStatus(campaignId, callId, vapiCallId) {
       session.activeCalls.delete(callId);
     }
   }, 5000);
+}
+
+/**
+ * Monthly dial-cap check for the campaign dialer.
+ * - Resets `calls_used` to 0 on the first tick of a new calendar month
+ *   (tracked via `dials_reset_date`, a date column on users).
+ * - Only enforces for subscribed operators with a positive monthly_dial_limit;
+ *   free/trial users are gated by the per-call route's free-limit logic instead.
+ * Fails OPEN on any error (never blocks dialing on a transient DB hiccup).
+ */
+async function checkMonthlyCap(userId) {
+  try {
+    const { data: u } = await supabase
+      .from('users')
+      .select('calls_used, monthly_dial_limit, subscription_status, dials_reset_date')
+      .eq('id', userId)
+      .single();
+    if (!u) return { reached: false, used: 0, limit: 0 };
+
+    const limit = u.monthly_dial_limit || 0;
+    if (u.subscription_status !== 'active' || limit <= 0) {
+      return { reached: false, used: u.calls_used || 0, limit };
+    }
+
+    // Month rollover — zero the counter on the first tick of a new month.
+    const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const lastMonth = (u.dials_reset_date || '').slice(0, 7);
+    if (lastMonth !== thisMonth) {
+      const firstOfMonth = `${thisMonth}-01`;
+      await supabase.from('users').update({ calls_used: 0, dials_reset_date: firstOfMonth }).eq('id', userId);
+      return { reached: false, used: 0, limit };
+    }
+
+    const used = u.calls_used || 0;
+    return { reached: used >= limit, used, limit };
+  } catch (e) {
+    console.warn('[Campaign] checkMonthlyCap failed — allowing dial:', e.message);
+    return { reached: false, used: 0, limit: 0 };
+  }
 }
 
 async function pauseWithError(campaignId, errorMessage) {

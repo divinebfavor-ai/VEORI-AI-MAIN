@@ -6,12 +6,13 @@
  * of their actual leads. If they have 60% FL leads and 40% TX leads, they get
  * 60% FL area codes and 40% TX area codes.
  *
- * Numbers needed per plan (based on 40 calls/number/day, 22 working days/month):
- *   Founding / Starter  (3,000 dials)  →  6 calling numbers
- *   Growth              (7,000 dials)  → 12 calling numbers
- *   Pro                (15,000 dials)  → 25 calling numbers
- *   Scale              (30,000 dials)  → 50 calling numbers
- *   Enterprise         (50,000 dials)  → 80 calling numbers
+ * Numbers needed per plan (based on 60 calls/number/day, 22 working days/month
+ * = 1,320 dials/number/month):
+ *   Founding / Starter  (3,000 dials)  →  3 calling numbers
+ *   Growth              (7,000 dials)  →  6 calling numbers
+ *   Pro                (15,000 dials)  → 12 calling numbers
+ *   Scale              (30,000 dials)  → 23 calling numbers
+ *   Enterprise         (50,000 dials)  → 38 calling numbers
  */
 
 const axios    = require('axios');
@@ -20,12 +21,12 @@ const supabase = require('../config/supabase');
 
 // Numbers needed per plan
 const PLAN_NUMBER_COUNTS = {
-  founding_member: 6,
-  starter:         6,
-  growth:          12,
-  pro:             25,
-  scale:           50,
-  enterprise:      80,
+  founding_member: 3,
+  starter:         3,
+  growth:          6,
+  pro:             12,
+  scale:           23,
+  enterprise:      38,
 };
 
 // State → area codes (local numbers for geographic matching)
@@ -265,7 +266,7 @@ async function provisionNumberPool(userId, plan) {
 
 // Health math: each number safely handles this many calls/day before spam risk.
 // Must match DAILY_MAX in phoneRotation.js — the enforced rotation cap.
-const CALLS_PER_NUMBER_PER_DAY = 40;
+const CALLS_PER_NUMBER_PER_DAY = 60;
 // Safety clamp so a single huge import can't drain the whole shared pool at once.
 const MAX_AUTO_ASSIGN = 80;
 

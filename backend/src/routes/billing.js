@@ -250,8 +250,21 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           updated_at:             new Date().toISOString(),
         };
         const { data: existing } = await getSupabase().from('users').select('id').eq('email', email).maybeSingle();
-        if (existing) await getSupabase().from('users').update(update).eq('id', existing.id);
-        else await getSupabase().from('users').insert({ email, full_name: session.metadata?.name || '', ...update });
+        let userId = existing?.id || null;
+        if (existing) {
+          await getSupabase().from('users').update(update).eq('id', existing.id);
+        } else {
+          const { data: created } = await getSupabase().from('users').insert({ email, full_name: session.metadata?.name || '', ...update }).select('id').maybeSingle();
+          userId = created?.id || null;
+        }
+
+        // Auto-provision phone number pool for the plan (fire and forget — mirrors Flutterwave flow)
+        if (userId) {
+          const { handlePlanUpgrade } = require('../services/numberProvisioning');
+          handlePlanUpgrade(userId, plan)
+            .then(result => console.log(`[Stripe webhook] Number provisioning for ${plan}:`, result))
+            .catch(err => console.error('[Stripe webhook] Number provisioning failed:', err.message));
+        }
       }
     }
     if (event.type === 'customer.subscription.deleted') {
