@@ -192,7 +192,9 @@ export const ai = {
 export const operator = {
   getProfile:       ()         => api.get('/api/operator/profile'),
   updateProfile:    (data)     => api.put('/api/operator/profile', data),
-  getVoices:        ()         => api.get('/api/operator/voices'),
+  // (Vapi voice catalog removed from the operator surface — the voice picker now
+  // runs entirely off the ElevenLabs library at `v2voices` below. Operators never
+  // see Vapi; it stays dormant in the engine as the admin's flip-back lever.)
   getBankAccounts:  ()         => api.get('/api/operator/bank-accounts'),
   addBankAccount:   (data)     => api.post('/api/operator/bank-accounts', data),
   deleteBankAccount:(id)       => api.delete(`/api/operator/bank-accounts/${id}`),

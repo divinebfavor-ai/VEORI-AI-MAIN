@@ -830,8 +830,24 @@ function toE164(phone) {
 // resolved inside the /api/v2/voice TwiML handler at speak time
 // (elevenLabsService.resolveOperatorVoiceId) — no voice logic needed here.
 // Lazy require avoids any circular-import risk at module load.
-// To re-enable Vapi, delete this delegation block and uncomment the body below.
+//
+// VOICE_ENGINE — hidden ADMIN switch (operators never see this; it is not exposed
+// in any API or UI). Default 'elevenlabs' = the live Twilio + ElevenLabs + Claude
+// engine that ships today. Vapi stays in the codebase, isolated and DORMANT (zero
+// spend, no operator surface) purely as the admin's instant flip-back lever: if
+// ElevenLabs can't be made human enough, set VOICE_ENGINE=vapi on Railway,
+// uncomment the initiateCall_VAPI_DISABLED body below, and the outbound dial
+// returns to Vapi with no caller changes (identical { id } contract).
 async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null }) {
+  const engine = (process.env.VOICE_ENGINE || 'elevenlabs').toLowerCase();
+  if (engine === 'vapi') {
+    // Dormant fallback path. The Vapi outbound body lives in
+    // initiateCall_VAPI_DISABLED (kept commented below). To activate: uncomment
+    // that function, then call it here. Left intentionally unwired so a stray
+    // VOICE_ENGINE=vapi can never spend Vapi credits before the admin opts in.
+    throw new Error('VOICE_ENGINE=vapi requested but the Vapi engine is dormant — uncomment initiateCall_VAPI_DISABLED to re-enable.');
+  }
+  // Default: live Twilio + ElevenLabs engine (what operators hear today).
   const twilioCallService = require('./twilioCallService');
   return twilioCallService.initiateCall({ lead, phoneNumber, callId, operator, useCaseOverride });
 }

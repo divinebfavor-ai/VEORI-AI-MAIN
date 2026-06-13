@@ -136,9 +136,15 @@ async function resolveOperatorVoiceId(operatorId) {
 // the phone line. These are tunable per-deploy via ELEVENLABS_* env vars below.
 const TTS_MODEL_ID = process.env.ELEVENLABS_TTS_MODEL || 'eleven_multilingual_v2';
 const TTS_VOICE_SETTINGS = {
-  stability:        process.env.ELEVENLABS_TTS_STABILITY ? parseFloat(process.env.ELEVENLABS_TTS_STABILITY) : 0.4,
-  similarity_boost: process.env.ELEVENLABS_TTS_SIMILARITY ? parseFloat(process.env.ELEVENLABS_TTS_SIMILARITY) : 0.8,
-  style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.35,
+  // Human conversational profile (tuned to kill the "sounds so AI" monotone):
+  //   stability 0.30  — lower = more natural prosody/variation (high = flat, robotic)
+  //   similarity 0.85 — stays true to the chosen voice's character
+  //   style 0.55      — higher = real emotional inflection (low = dead read)
+  // Every value is still env-overridable so the live delivery can be nudged on
+  // Railway WITHOUT a redeploy of code — set ELEVENLABS_TTS_* and it wins.
+  stability:        process.env.ELEVENLABS_TTS_STABILITY ? parseFloat(process.env.ELEVENLABS_TTS_STABILITY) : 0.30,
+  similarity_boost: process.env.ELEVENLABS_TTS_SIMILARITY ? parseFloat(process.env.ELEVENLABS_TTS_SIMILARITY) : 0.85,
+  style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.55,
   use_speaker_boost: true,
 };
 // Warm, natural default voice when no operator selection and no ELEVENLABS_VOICE_ID
