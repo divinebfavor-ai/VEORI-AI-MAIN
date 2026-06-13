@@ -185,6 +185,23 @@ Real humans use the seller's first name naturally — not every sentence, but ev
 
 Silence is okay. If you need a second to think, pause. Don't fill the pause with words. A half-second of silence is 10x better than "let me think about that for a moment."
 
+══════════════════════════════════════════════════════
+HOW YOU CARRY YOURSELF — DELIVERY & CONFIDENCE
+══════════════════════════════════════════════════════
+This is not your first call. You have had this exact conversation a thousand times.
+You are relaxed because you KNOW what you're doing. Carry that.
+
+- Speak with quiet confidence, never timid, never apologetic for calling. You belong on this call.
+- Lead, don't ask permission to exist. "Hey, it's ${aiName}" — warm and sure — not "Um, hi, sorry to bother you, is this maybe a bad time?"
+- Vary your rhythm like a real person: some quick lines, some slower. Monotone pacing is what makes a voice sound like a machine reading.
+- Land your sentences. Don't trail off uncertainly. Finish the thought and stop.
+- One idea per breath. Don't stack three sentences into one long run-on — that's reading, not talking.
+- Use contractions ALWAYS: "I'm", "you're", "that's", "we'll", "I'd", "gonna", "kinda". Nobody says "I am going to" out loud.
+- Drop a natural filler now and then — "honestly", "look", "I mean", "you know" — the way a confident person does, not nervously.
+- React in the moment. If they say something surprising, sound surprised. If it's good news, sound a little pleased. Flat affect = robot.
+- When you give a number or make your offer, say it like you're sure of it. No hedging, no "I think maybe around". You know your numbers.
+- Never sound like you're rushing to get through a list. You have all the time in the world for THIS person right now.
+
 ${personalityStyle}
 
 ══════════════════════════════════════════════════════
@@ -825,9 +842,15 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
   // Accept BOTH the [Bracket] tokens shown in the Settings UI and the legacy
   // {curly} tokens. Case-insensitive. Without [Bracket] support the AI used to
   // read placeholders like "[FirstName]" aloud verbatim to the seller.
+  // When a lead has no first name, substituting "there" breaks mid-sentence
+  // ("...may I speak with there?"). "the homeowner" reads correctly in the
+  // positions [FirstName] actually appears in intro scripts ("speak with the
+  // homeowner", "is this the homeowner"). Greeting-only scripts ("Hi [FirstName]")
+  // are rare; the no-name default below avoids that case entirely.
+  const firstNameOrFallback = lead.first_name || 'the homeowner';
   const firstMessage = operator.ai_intro_script
     ? operator.ai_intro_script
-        .replace(/\[FirstName\]|\{first_name\}/gi, lead.first_name || 'there')
+        .replace(/\[FirstName\]|\{first_name\}/gi, firstNameOrFallback)
         .replace(/\[Address\]|\{property_address\}/gi, lead.property_address || 'your property')
         .replace(/\[Company\]|\{company\}/gi, companyName)
         .replace(/\[AIName\]|\{ai_name\}/gi, aiName)
@@ -901,19 +924,22 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
       backchannelingEnabled: true,
       backgroundSound: 'office',
       startSpeakingPlan: {
-        waitSeconds: 0.8,                              // calm beat before speaking — unhurried
-        smartEndpointingPlan: { provider: 'livekit' }, // wait for a real sentence end
+        // Confident humans answer with barely a beat — long gaps read as a machine
+        // "buffering". Tight, sure turn-taking. Still smart-endpointed so we don't
+        // talk over a seller who's mid-sentence.
+        waitSeconds: 0.4,
+        smartEndpointingPlan: { provider: 'livekit' },
       },
       stopSpeakingPlan: {
         numWords: 2,            // ignore one-word acks ("okay","right") — don't cut the seller off
         voiceSeconds: 0.2,
-        backoffSeconds: 1.2,    // graceful recovery after an interruption
+        backoffSeconds: 1.0,    // graceful recovery after an interruption
       },
       recordingEnabled: true,
       endCallFunctionEnabled: true,   // let the AI hang up when the conversation is done
       silenceTimeoutSeconds: 30,
-      responseDelaySeconds: 0.8,   // unhurried turn-taking — calm human, not eager-robot
-      llmRequestDelaySeconds: 0.3,  // small "thinking" beat after seller stops talking; reduces interruptions
+      responseDelaySeconds: 0.3,   // confident, present turn-taking — not eager, not hesitant
+      llmRequestDelaySeconds: 0.1,  // tiny think-beat; kept small so replies feel immediate
       maxDurationSeconds: 1800,
       backgroundDenoisingEnabled: true,
       modelOutputInMessagesEnabled: true,
@@ -1131,20 +1157,21 @@ ${getToneStyle(operator)}`;
       maxTokens: 600,
     },
     voice: { provider: 'vapi', voiceId },
-    // Same human-pacing pack as outbound — calm beat, smart endpointing,
-    // backchanneling, no cut-offs, faint office room-tone. (See initiateCall.)
+    // Same human-pacing pack as outbound — confident, present turn-taking, smart
+    // endpointing, backchanneling, no cut-offs, faint office room-tone. (See initiateCall.)
     backchannelingEnabled: true,
     backgroundSound: 'office',
     startSpeakingPlan: {
-      waitSeconds: 0.8,
+      waitSeconds: 0.4,
       smartEndpointingPlan: { provider: 'livekit' },
     },
     stopSpeakingPlan: {
       numWords: 2,
       voiceSeconds: 0.2,
-      backoffSeconds: 1.2,
+      backoffSeconds: 1.0,
     },
-    responseDelaySeconds: 0.8,
+    responseDelaySeconds: 0.3,
+    llmRequestDelaySeconds: 0.1,
     firstMessage: `Thank you for calling! This is ${aiName}. Are you calling about selling your property?`,
     recordingEnabled: true,
     endCallFunctionEnabled: true,   // let the AI hang up when the conversation is done
