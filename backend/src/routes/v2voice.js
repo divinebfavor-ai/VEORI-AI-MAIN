@@ -18,11 +18,17 @@
  */
 
 const express = require('express');
+const axios = require('axios');
 const twilio = require('twilio');
 const supabase = require('../config/supabase');
 const twilioCallService = require('../services/twilioCallService');
 
 const router = express.Router();
+
+// Supabase Storage bucket that permanently holds call recordings (Module 5).
+// Create once in Supabase (public bucket named 'call-recordings'); recordings are
+// re-hosted here so playback never depends on Twilio auth or Twilio retention.
+const RECORDINGS_BUCKET = 'call-recordings';
 
 // Render an operator's voicemail script with the same token vocabulary the Vapi
 // path uses (vapiService.js ~L955), so a voicemail an operator wrote once works
@@ -196,24 +202,66 @@ router.post('/status', async (req, res) => {
   }
 });
 
+// Re-host a Twilio recording into Supabase Storage and return the permanent
+// public URL. Twilio's RecordingUrl needs the account's Basic Auth to fetch and
+// is subject to Twilio retention, so we copy the bytes once into our own bucket.
+// Returns the public Supabase URL, or null if any step fails (caller falls back
+// to the Twilio URL so a recording is never lost).
+async function rehostRecording({ callSid, recordingSid, recordingUrl }) {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (!sid || !token) {
+    console.warn('[v2voice] rehost skipped — Twilio creds missing');
+    return null;
+  }
+
+  // Twilio serves the media when you append a format extension; .mp3 is compact.
+  const mediaUrl = `${recordingUrl}.mp3`;
+  const { data } = await axios.get(mediaUrl, {
+    responseType: 'arraybuffer',
+    auth: { username: sid, password: token },
+    timeout: 30000,
+  });
+
+  const path = `${callSid}/${recordingSid || Date.now()}.mp3`;
+  const { error: uploadErr } = await supabase.storage
+    .from(RECORDINGS_BUCKET)
+    .upload(path, Buffer.from(data), { contentType: 'audio/mpeg', upsert: true });
+  if (uploadErr) throw uploadErr;
+
+  const { data: pub } = supabase.storage.from(RECORDINGS_BUCKET).getPublicUrl(path);
+  return pub?.publicUrl || null;
+}
+
 // POST /api/v2/voice/recording — Twilio recording-ready callback.
-// Stores the recording URL on the calls row. Module 5 adds permanent re-hosting
-// to Supabase Storage; Module 3 just captures Twilio's hosted URL.
+// Re-hosts the recording into Supabase Storage (permanent, no Twilio auth needed)
+// and stores that URL on the calls row. If re-hosting fails for any reason we
+// store Twilio's hosted URL instead so the recording link is never lost.
 router.post('/recording', async (req, res) => {
   res.sendStatus(200);
 
   try {
     const callSid = req.body.CallSid;
-    const recordingUrl = req.body.RecordingUrl;    // Twilio-hosted .mp3/.wav (append extension to fetch)
+    const recordingSid = req.body.RecordingSid;
+    const recordingUrl = req.body.RecordingUrl;    // Twilio-hosted (append .mp3 to fetch)
     if (!callSid || !recordingUrl) return;
+
+    let finalUrl = recordingUrl;
+    let source = 'twilio';
+    try {
+      const hosted = await rehostRecording({ callSid, recordingSid, recordingUrl });
+      if (hosted) { finalUrl = hosted; source = 'supabase'; }
+    } catch (rehostErr) {
+      console.warn(`[v2voice] recording rehost failed sid=${callSid}, falling back to Twilio URL:`, rehostErr.message);
+    }
 
     const { error } = await supabase
       .from('calls')
-      .update({ recording_url: recordingUrl })
+      .update({ recording_url: finalUrl })
       .eq('vapi_call_id', callSid);
     if (error) console.warn('[v2voice] recording update failed:', error.message);
 
-    console.log(`[v2voice] recording sid=${callSid} url stored`);
+    console.log(`[v2voice] recording sid=${callSid} stored (${source})`);
   } catch (e) {
     console.warn('[v2voice] recording handler error:', e.message);
   }
