@@ -864,7 +864,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
         provider: 'anthropic',
         model: process.env.VAPI_AI_MODEL || 'claude-haiku-4-5-20251001',
         messages: [{ role: 'system', content: systemPrompt }],
-        temperature: 0.7,
+        temperature: 0.8,   // slightly looser phrasing — less scripted, more conversational
         maxTokens: 500,
         emotionRecognitionEnabled: true,
         tools: [
@@ -892,10 +892,27 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
         provider: 'vapi',
         voiceId,
       },
+      // ── Human-pacing pack ──────────────────────────────────────────────────
+      // Makes the AI feel like a calm person on the phone instead of an eager
+      // robot: it gives a natural beat before replying, waits for the seller to
+      // truly finish a sentence (smart endpointing, not just a pause), murmurs
+      // "mm-hm / right" while they talk, doesn't cut off on brief words, and
+      // sits over a faint office room-tone instead of dead digital silence.
+      backchannelingEnabled: true,
+      backgroundSound: 'office',
+      startSpeakingPlan: {
+        waitSeconds: 0.8,                              // calm beat before speaking — unhurried
+        smartEndpointingPlan: { provider: 'livekit' }, // wait for a real sentence end
+      },
+      stopSpeakingPlan: {
+        numWords: 2,            // ignore one-word acks ("okay","right") — don't cut the seller off
+        voiceSeconds: 0.2,
+        backoffSeconds: 1.2,    // graceful recovery after an interruption
+      },
       recordingEnabled: true,
       endCallFunctionEnabled: true,   // let the AI hang up when the conversation is done
       silenceTimeoutSeconds: 30,
-      responseDelaySeconds: 0.7,   // wait ~0.7s before replying — human turn-taking, not eager-robot
+      responseDelaySeconds: 0.8,   // unhurried turn-taking — calm human, not eager-robot
       llmRequestDelaySeconds: 0.3,  // small "thinking" beat after seller stops talking; reduces interruptions
       maxDurationSeconds: 1800,
       backgroundDenoisingEnabled: true,
@@ -1114,6 +1131,20 @@ ${getToneStyle(operator)}`;
       maxTokens: 600,
     },
     voice: { provider: 'vapi', voiceId },
+    // Same human-pacing pack as outbound — calm beat, smart endpointing,
+    // backchanneling, no cut-offs, faint office room-tone. (See initiateCall.)
+    backchannelingEnabled: true,
+    backgroundSound: 'office',
+    startSpeakingPlan: {
+      waitSeconds: 0.8,
+      smartEndpointingPlan: { provider: 'livekit' },
+    },
+    stopSpeakingPlan: {
+      numWords: 2,
+      voiceSeconds: 0.2,
+      backoffSeconds: 1.2,
+    },
+    responseDelaySeconds: 0.8,
     firstMessage: `Thank you for calling! This is ${aiName}. Are you calling about selling your property?`,
     recordingEnabled: true,
     endCallFunctionEnabled: true,   // let the AI hang up when the conversation is done
