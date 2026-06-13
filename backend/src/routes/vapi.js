@@ -534,23 +534,19 @@ function mapOutcomeToStatus(outcome) {
 async function handleAssistantRequest(event) {
   const { call } = event;
   const callerPhone = call?.customer?.number;
-
-  // TEMP DIAGNOSTIC — full inbound payload shape (remove after debug)
-  try {
-    console.log('[Vapi Inbound DEBUG] keys=%s', Object.keys(call || {}).join(','));
-    console.log('[Vapi Inbound DEBUG] phoneNumber=%j', call?.phoneNumber);
-    console.log('[Vapi Inbound DEBUG] phoneNumberId=%s destination=%j customer=%j',
-      call?.phoneNumberId, call?.destination, call?.customer);
-  } catch (_) {}
+  // On inbound assistant-request Vapi sends the destination number id as the
+  // top-level `call.phoneNumberId` string; the nested `call.phoneNumber` object
+  // is null. Support both shapes so the operator lookup actually resolves.
+  const vapiNumberId = call?.phoneNumber?.id || call?.phoneNumberId || null;
 
   // Default to first active user (single-tenant) or look up by phone number
   let operator = {};
   try {
     // Try to match inbound Vapi number → user
-    if (call?.phoneNumber?.id) {
+    if (vapiNumberId) {
       const { data: phone } = await supabase.from('phone_numbers')
         .select('user_id, users(ai_caller_name, ai_voice_id, ai_personality_tone, company_name, id)')
-        .eq('vapi_phone_number_id', call.phoneNumber.id)
+        .eq('vapi_phone_number_id', vapiNumberId)
         .single();
       if (phone?.users) operator = phone.users;
     }
@@ -575,8 +571,9 @@ async function handleAssistantRequest(event) {
         started_at: new Date().toISOString(),
       }).select().single();
 
-      // Tag Vapi call with our DB id via metadata
-      console.log(`[Vapi Inbound] ${callerPhone} → known lead: ${existingLead?.first_name || 'Unknown'}`);
+      console.log(`[Vapi Inbound] row created — ${callerPhone} → ${existingLead?.first_name || 'Unknown'} (call ${call?.id})`);
+    } else {
+      console.warn(`[Vapi Inbound] no operator resolved for vapiNumberId=${vapiNumberId} — inbound row NOT written (call ${call?.id})`);
     }
   } catch (e) {
     console.error('[Vapi assistant-request error]', e.message);
