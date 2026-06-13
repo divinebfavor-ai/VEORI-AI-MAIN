@@ -108,13 +108,13 @@ async function syncVoiceLibrary() {
 /**
  * Resolve the ElevenLabs voice_id to use for a given operator.
  * Priority: veori_operator_voice_settings.selected_voice_id
- *        -> users.ai_voice_id (existing column)
  *        -> ELEVENLABS_VOICE_ID env
- *        -> null (caller decides default).
+ *        -> DEFAULT_VOICE_ID (warm 'Brian', never null — avoids the robotic
+ *           Polly fallback when no voice is configured).
  * Read-only helper used by the call engine in later modules.
  */
 async function resolveOperatorVoiceId(operatorId) {
-  if (!operatorId) return process.env.ELEVENLABS_VOICE_ID || null;
+  if (!operatorId) return process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
 
   const { data: settings } = await supabase
     .from('veori_operator_voice_settings')
@@ -123,14 +123,29 @@ async function resolveOperatorVoiceId(operatorId) {
     .maybeSingle();
 
   if (settings?.selected_voice_id) return settings.selected_voice_id;
-  return process.env.ELEVENLABS_VOICE_ID || null;
+  return process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
 }
 
-// Default ElevenLabs model + voice settings for phone-call TTS. eleven_turbo_v2_5
-// is the low-latency model ElevenLabs recommends for real-time/telephony; the
-// voice_settings keep delivery natural without over-stylising.
-const TTS_MODEL_ID = process.env.ELEVENLABS_TTS_MODEL || 'eleven_turbo_v2_5';
-const TTS_VOICE_SETTINGS = { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true };
+// Default ElevenLabs model + voice settings for phone-call TTS.
+// eleven_multilingual_v2 is markedly more human/expressive than the flat
+// eleven_turbo_v2_5 — it removes the robotic, monotone timbre while keeping
+// telephony latency acceptable. Override with ELEVENLABS_TTS_MODEL on Railway.
+// voice_settings: lower stability (more natural prosody/variation), higher
+// similarity_boost (stays true to the chosen voice), a touch of style (warmth /
+// expressiveness instead of a dead read). use_speaker_boost lifts presence on
+// the phone line. These are tunable per-deploy via ELEVENLABS_* env vars below.
+const TTS_MODEL_ID = process.env.ELEVENLABS_TTS_MODEL || 'eleven_multilingual_v2';
+const TTS_VOICE_SETTINGS = {
+  stability:        process.env.ELEVENLABS_TTS_STABILITY ? parseFloat(process.env.ELEVENLABS_TTS_STABILITY) : 0.4,
+  similarity_boost: process.env.ELEVENLABS_TTS_SIMILARITY ? parseFloat(process.env.ELEVENLABS_TTS_SIMILARITY) : 0.8,
+  style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.35,
+  use_speaker_boost: true,
+};
+// Warm, natural default voice when no operator selection and no ELEVENLABS_VOICE_ID
+// env is set. 'Brian' (nPczCjzI2devNBz1zQrb) is ElevenLabs' conversational,
+// human-sounding male — deliberately NOT the deep, robotic stock 'Adam'
+// (pNInz6obpgDQGcFmaJgB). Operators can still pick any voice from the library.
+const DEFAULT_VOICE_ID = process.env.ELEVENLABS_DEFAULT_VOICE_ID || 'nPczCjzI2devNBz1zQrb';
 // Supabase Storage bucket that holds the short TTS clips we hand to Twilio <Play>.
 // Public bucket (created manually); clips are cheap, disposable per-turn audio.
 const TTS_BUCKET = process.env.ELEVENLABS_TTS_BUCKET || 'call-tts';
@@ -148,7 +163,7 @@ const TTS_BUCKET = process.env.ELEVENLABS_TTS_BUCKET || 'call-tts';
  */
 async function synthesizeSpeech(text, voiceId) {
   const client = getClient();
-  const vId = voiceId || process.env.ELEVENLABS_VOICE_ID;
+  const vId = voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
   if (!client || !vId || !text) {
     if (!client) console.warn('[ElevenLabs] synthesizeSpeech skipped — no API key');
     return null;
