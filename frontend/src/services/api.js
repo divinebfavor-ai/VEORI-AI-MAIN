@@ -199,6 +199,18 @@ export const operator = {
   generateScript:   (description) => api.post('/api/operator/generate-script', { description }),
 }
 
+// ─── v2 voice library (ElevenLabs) ───────────────────────────────────────────
+// The new Twilio + ElevenLabs picker. getLibrary lists the seeded voices the
+// operator can choose; getSelection/saveSelection read+write the per-operator
+// choice in veori_operator_voice_settings — the SAME table the call engine
+// resolves the live call voice from (resolveOperatorVoiceId).
+export const v2voices = {
+  getLibrary:    ()                       => api.get('/api/v2/voices'),
+  getSelection:  ()                       => api.get('/api/v2/voices/selection'),
+  saveSelection: (selected_voice_id, ai_caller_name) =>
+    api.post('/api/v2/voices/selection', { selected_voice_id, ai_caller_name }),
+}
+
 // ─── Title companies ─────────────────────────────────────────────────────────
 export const titleCompanies = {
   getAll:  ()          => api.get('/api/title-companies'),

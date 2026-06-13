@@ -6,7 +6,7 @@ import Input from '../components/ui/Input'
 import Badge from '../components/ui/Badge'
 import useAuthStore from '../store/authStore'
 import useThemeStore from '../store/themeStore'
-import { phones, operator as operatorApi, auth, twoFA } from '../services/api'
+import { phones, operator as operatorApi, v2voices, auth, twoFA } from '../services/api'
 
 const SOCIAL_PLATFORMS = [
   { id: 'facebook',  label: 'Facebook',  icon: '📘', color: '#1877F2', hint: 'Post to your Facebook page and groups' },
@@ -716,7 +716,8 @@ export default function Settings() {
     'Title confirmation overdue': true,
   })
   const [persona, setPersona]     = useState({})
-  const [voices, setVoices]       = useState([])
+  const [voices, setVoices]       = useState([])     // ElevenLabs voice library (veori_voice_library)
+  const [selectedVoiceId, setSelectedVoiceId] = useState('')  // operator's saved choice (veori_operator_voice_settings)
   const previewAudioRef           = useRef(null)   // shared <Audio> so a new preview stops the previous one
   const [scriptIdea, setScriptIdea]   = useState('')      // operator's plain-English description for AI script generation
   const [genningScript, setGenningScript] = useState(false)
@@ -825,10 +826,13 @@ export default function Settings() {
     }
     if (tab === 'persona') {
       operatorApi.getProfile().then(r => setPersona(r.data?.profile || {})).catch(() => {})
-      operatorApi.getVoices().then(r => {
+      // New ElevenLabs library (Twilio + ElevenLabs calling layer). The dropdown,
+      // Preview button, and saved selection all run off /api/v2/voices now.
+      v2voices.getLibrary().then(r => {
         const raw = r.data?.voices ?? r.data?.data ?? r.data
         setVoices(Array.isArray(raw) ? raw : [])
       }).catch(() => {})
+      v2voices.getSelection().then(r => setSelectedVoiceId(r.data?.selected_voice_id || '')).catch(() => {})
     }
     if (tab === 'banking') {
       operatorApi.getBankAccounts().then(r => {
@@ -1135,19 +1139,26 @@ export default function Settings() {
                   <div>
                     <label className="label-caps block mb-2">AI Voice</label>
                     <div className="flex items-center gap-2">
-                      <select value={persona.ai_voice_id || (voices[0]?.voiceId || 'Elliot')}
-                        onChange={e => setPersona(p => ({ ...p, ai_voice_id: e.target.value }))}
+                      <select value={selectedVoiceId || voices[0]?.voice_id || ''}
+                        onChange={e => {
+                          const id = e.target.value
+                          setSelectedVoiceId(id)
+                          // Persist immediately to the table the call engine reads.
+                          v2voices.saveSelection(id, persona.ai_caller_name || undefined)
+                            .then(() => toast.success('Voice saved'))
+                            .catch(() => toast.error('Failed to save voice'))
+                        }}
                         className="h-[44px] flex-1 bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
-                        {voices.length === 0 && <option value={persona.ai_voice_id || 'Elliot'}>{persona.ai_voice_id || 'Elliot'}</option>}
+                        {voices.length === 0 && <option value="">Loading voices…</option>}
                         {voices.map(v => (
-                          <option key={v.voiceId} value={v.voiceId}>
-                            {v.featured ? '★ ' : ''}{v.name}{v.gender ? ` (${v.gender})` : ''}{v.featured ? ' — Most natural' : ''}
+                          <option key={v.voice_id} value={v.voice_id}>
+                            {v.voice_name}{v.voice_gender ? ` (${v.voice_gender}` : ''}{v.voice_accent ? `, ${v.voice_accent})` : (v.voice_gender ? ')' : '')}
                           </option>
                         ))}
                       </select>
                       {(() => {
-                        const sel = voices.find(v => v.voiceId === (persona.ai_voice_id || voices[0]?.voiceId))
-                        return sel?.previewUrl ? (
+                        const sel = voices.find(v => v.voice_id === (selectedVoiceId || voices[0]?.voice_id))
+                        return sel?.voice_preview_url ? (
                           <button type="button"
                             onClick={() => {
                               try {
@@ -1156,7 +1167,7 @@ export default function Settings() {
                                   previewAudioRef.current.pause()
                                   previewAudioRef.current.currentTime = 0
                                 }
-                                const a = new Audio(sel.previewUrl)
+                                const a = new Audio(sel.voice_preview_url)
                                 previewAudioRef.current = a
                                 a.play()
                               } catch {}
