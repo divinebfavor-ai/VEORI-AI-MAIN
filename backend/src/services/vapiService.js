@@ -820,7 +820,24 @@ function toE164(phone) {
 }
 
 // ─── Initiate outbound call (Steps 1→3 of the Veori call spec) ───────────────
+// MODULE 9 — SINGLE SWAP POINT.
+// VAPI DISABLED - Rerouted to Twilio + ElevenLabs. Every caller still calls
+// vapiService.initiateCall({ lead, phoneNumber, callId, operator, useCaseOverride })
+// and uses result.id — but the dial now goes through the Twilio + ElevenLabs +
+// Claude engine instead of Vapi. The signature and the { id } return contract are
+// IDENTICAL, so the 6 callers (smsService, smsFirstWorkflow, followUpProcessor×2,
+// campaignManager, calls.js) are untouched. The operator's ElevenLabs voice is
+// resolved inside the /api/v2/voice TwiML handler at speak time
+// (elevenLabsService.resolveOperatorVoiceId) — no voice logic needed here.
+// Lazy require avoids any circular-import risk at module load.
+// To re-enable Vapi, delete this delegation block and uncomment the body below.
 async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null }) {
+  const twilioCallService = require('./twilioCallService');
+  return twilioCallService.initiateCall({ lead, phoneNumber, callId, operator, useCaseOverride });
+}
+
+/* VAPI DISABLED - Rerouted to Twilio + ElevenLabs (original Vapi outbound body, kept for reference)
+async function initiateCall_VAPI_DISABLED({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null }) {
   if (!VAPI_API_KEY) throw new Error('VAPI_API_KEY not configured');
 
   const aiName      = operator.ai_caller_name || 'Alex';
@@ -987,6 +1004,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
   const { data } = await vapiHttp.post('/call/phone', payload);
   return data;
 }
+*/ // END VAPI DISABLED - Rerouted to Twilio + ElevenLabs
 
 // ─── Get live call status + listen URL ───────────────────────────────────────
 async function getCall(vapiCallId) {
