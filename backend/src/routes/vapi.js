@@ -535,6 +535,10 @@ async function handleAssistantRequest(event) {
   const { call } = event;
   const callerPhone = call?.customer?.number;
 
+  // TEMP DIAGNOSTIC — inbound payload shape (remove after debug)
+  console.log('[Vapi Inbound DEBUG] phoneNumber.id=%s phoneNumber.number=%s customer=%s callId=%s',
+    call?.phoneNumber?.id, call?.phoneNumber?.number, callerPhone, call?.id);
+
   // Default to first active user (single-tenant) or look up by phone number
   let operator = {};
   try {
