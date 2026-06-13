@@ -222,6 +222,11 @@ async function buyLocalTwilioNumber(userId, areaCode, label) {
   const vapiId = await importToVapi(number, label);
   if (!vapiId) throw new Error('Vapi import returned no id (check VAPI_API_KEY)');
 
+  // Wire the number for inbound (assistant-request mode). Non-fatal — outbound
+  // works regardless; this just lets sellers call the number back into Veori.
+  await require('./vapiService').configureInboundNumber(vapiId).catch((e) =>
+    console.warn(`[NumberProvisioning] inbound wiring failed for ${number}: ${e.message}`));
+
   // 5. Derive the real area code from the purchased number (fallback path may
   //    have changed it) and persist.
   const boughtAreaCode = number.replace(/\D/g, '').slice(1, 4);
@@ -284,6 +289,10 @@ async function provisionSingleNumber(userId, areaCode, label) {
 
   const resolvedNumber = vapiNumber.number || vapiNumber.phoneNumber || vapiNumber.id;
   const numberState    = stateForAreaCode(areaCode);
+
+  // Wire the Vapi-owned number for inbound too. Non-fatal.
+  await require('./vapiService').configureInboundNumber(vapiNumber.id).catch((e) =>
+    console.warn(`[NumberProvisioning] inbound wiring failed for ${resolvedNumber}: ${e.message}`));
 
   await supabase.from('phone_numbers').insert([{
     id:                   uuidv4(),

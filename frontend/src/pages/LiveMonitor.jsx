@@ -38,6 +38,27 @@ function statusMeta(status, outcome) {
   return { label: status?.toUpperCase() || '-', color: 'var(--t4)', icon: Clock }
 }
 
+// ─── IN / OUT direction badge ──────────────────────────────────────────────────
+// Small pill prefixed to a call's name so operators instantly see whether a
+// seller called in (IN, accent blue) or Veori dialed out (OUT, subdued).
+function DirectionBadge({ direction }) {
+  const inbound = direction === 'inbound'
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      flexShrink: 0,
+      fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+      padding: '1px 5px', borderRadius: 4, lineHeight: 1.4,
+      color: inbound ? BLUE : 'var(--t4)',
+      background: inbound ? 'rgba(77,158,255,0.14)' : 'var(--bg3)',
+      border: `1px solid ${inbound ? 'rgba(77,158,255,0.35)' : 'var(--border)'}`,
+    }}>
+      {inbound ? <PhoneIncoming size={9} /> : <PhoneCall size={9} />}
+      {inbound ? 'IN' : 'OUT'}
+    </span>
+  )
+}
+
 // ─── Live duration counter ─────────────────────────────────────────────────────
 function Duration({ startedAt }) {
   const [secs, setSecs] = useState(0)
@@ -246,6 +267,71 @@ function useListenMode() {
   return { listening, pending, volumes, connectListen, disconnectListen, setVolume }
 }
 
+// ─── Inbound call alert ────────────────────────────────────────────────────────
+// Diffs successive live-call snapshots (from the existing 1.5s poll). When a NEW
+// call with direction==='inbound' first appears, fire a toast + short tone so the
+// operator knows a seller dialed in — without opening the Vapi dashboard. Tracks
+// seen ids in a ref so each inbound call alerts exactly once.
+function useInboundAlert(liveCalls) {
+  const seen = useRef(new Set())
+  const primed = useRef(false)
+
+  useEffect(() => {
+    if (!Array.isArray(liveCalls)) return
+
+    // First snapshot only records what's already on screen — no alert on mount.
+    if (!primed.current) {
+      liveCalls.forEach(c => c?.id && seen.current.add(c.id))
+      primed.current = true
+      return
+    }
+
+    for (const c of liveCalls) {
+      if (!c?.id || seen.current.has(c.id)) continue
+      seen.current.add(c.id)
+      if (c.direction === 'inbound') {
+        const who = c.lead_name || c.from_number || c.customer_number || 'a seller'
+        toast(`Incoming call from ${who}`, {
+          icon: '📞',
+          duration: 6000,
+          style: { background: '#0b1220', color: '#fff', border: `1px solid ${BLUE}55` },
+        })
+        playInboundTone()
+      }
+    }
+
+    // Forget ids that have dropped off the live list so a later call with a
+    // recycled id (unlikely, but safe) can re-alert.
+    const liveIds = new Set(liveCalls.map(c => c?.id).filter(Boolean))
+    for (const id of seen.current) if (!liveIds.has(id)) seen.current.delete(id)
+  }, [liveCalls])
+}
+
+// Short two-note ring using the Web Audio API — no asset file needed. Best-effort:
+// browsers may block audio until the user has interacted with the page.
+function playInboundTone() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const notes = [880, 1320]
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      const t0 = ctx.currentTime + i * 0.22
+      gain.gain.setValueAtTime(0.0001, t0)
+      gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.03)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2)
+      osc.connect(gain).connect(ctx.destination)
+      osc.start(t0)
+      osc.stop(t0 + 0.22)
+    })
+    setTimeout(() => ctx.close().catch(() => {}), 800)
+  } catch { /* audio blocked — toast still shows */ }
+}
+
 // ─── Live Call Card ───────────────────────────────────────────────────────────
 // ─── Call sub-status label ─────────────────────────────────────────────────────
 function callSubStatus(status) {
@@ -289,8 +375,9 @@ function LiveCallCard({ call, isListening, isPending, volume, takeover, onListen
           }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--t1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {call.lead_name || 'Unknown Seller'}
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--t1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <DirectionBadge direction={call.direction} />
+            {call.lead_name || (call.direction === 'inbound' ? 'Incoming Caller' : 'Unknown Seller')}
           </p>
           <p style={{ margin: 0, fontSize: 11, color: 'var(--t4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {call.property_address || 'Address unknown'}
@@ -399,7 +486,8 @@ function CallRow({ call, isSelected, onClick, onDelete }) {
 
       {/* Name + address */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--t1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--t1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <DirectionBadge direction={call.direction} />
           {name}
         </p>
         <p style={{ margin: 0, fontSize: 11, color: 'var(--t4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -755,6 +843,7 @@ function InitiateCallModal({ onClose }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function LiveMonitor() {
   const { calls: liveCalls }   = useLiveCalls()
+  useInboundAlert(liveCalls)   // toast + tone when a seller calls in
   const [history, setHistory]  = useState([])
   const [histLoading, setHistLoading] = useState(true)
   const [selected, setSelected] = useState(null)

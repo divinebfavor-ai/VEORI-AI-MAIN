@@ -59,12 +59,13 @@ async function logTcpa(userId, leadId, phone, action, reason) {
 // GET /api/calls — list with filters
 router.get('/', async (req, res, next) => {
   try {
-    const { lead_id, status, campaign_id, limit = 50, offset = 0, date_from, date_to } = req.query;
+    const { lead_id, status, campaign_id, direction, limit = 50, offset = 0, date_from, date_to } = req.query;
     let q = supabase.from('calls').select('*, leads(first_name, last_name, phone, property_address), phone_numbers(number, friendly_name)', { count: 'exact' })
       .eq('user_id', req.user.id).order('created_at', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
     if (lead_id)  q = q.eq('lead_id', lead_id);
     if (status)   q = q.eq('status', status);
+    if (direction) q = q.eq('direction', direction);
     if (date_from) q = q.gte('created_at', date_from);
     if (date_to)   q = q.lte('created_at', date_to);
     const { data, error, count } = await q;
@@ -408,6 +409,32 @@ router.post('/return-to-ai', async (req, res, next) => {
     if (!call) return res.status(404).json({ success: false, error: 'Call not found' });
     await vapiService.unmuteAssistant(call.vapi_call_id);
     res.json({ success: true, message: 'AI back in control' });
+  } catch (err) { next(err); }
+});
+
+// POST /api/calls/wire-inbound — one-time: put all of THIS operator's Vapi
+// numbers into assistant-request (inbound) mode so sellers can call them back
+// into Veori. Idempotent. Scoped to the caller's own numbers only.
+router.post('/wire-inbound', async (req, res, next) => {
+  try {
+    const { data: numbers, error } = await supabase.from('phone_numbers')
+      .select('number, vapi_phone_number_id')
+      .eq('user_id', req.user.id)
+      .not('vapi_phone_number_id', 'is', null);
+    if (error) throw error;
+
+    const results = [];
+    for (const n of numbers || []) {
+      try {
+        await vapiService.configureInboundNumber(n.vapi_phone_number_id);
+        results.push({ number: n.number, ok: true });
+      } catch (e) {
+        results.push({ number: n.number, ok: false, error: e.response?.data?.message || e.message });
+      }
+    }
+
+    const wired = results.filter(r => r.ok).length;
+    res.json({ success: true, wired, total: results.length, results });
   } catch (err) { next(err); }
 });
 

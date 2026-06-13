@@ -963,6 +963,23 @@ async function getListenUrl(vapiCallId) {
   return url;
 }
 
+// ─── Wire a number for inbound (assistant-request mode) ──────────────────────
+// Point a Vapi number's server at our webhook so Vapi POSTs an 'assistant-request'
+// on every inbound call (handleAssistantRequest then returns a per-caller assistant
+// and writes the inbound call row). Idempotent — safe to re-run. Returns the
+// updated number object, or null if no id given.
+async function configureInboundNumber(vapiPhoneNumberId) {
+  if (!vapiPhoneNumberId) return null;
+  const { data } = await vapiHttp.patch(`/phone-number/${vapiPhoneNumberId}`, {
+    server: {
+      url: WEBHOOK_URL,
+      ...(process.env.VAPI_WEBHOOK_SECRET ? { secret: process.env.VAPI_WEBHOOK_SECRET } : {}),
+    },
+  });
+  console.log(`[Vapi] Wired inbound for number ${vapiPhoneNumberId} → ${WEBHOOK_URL}`);
+  return data;
+}
+
 // ─── End a call ───────────────────────────────────────────────────────────────
 async function endCall(vapiCallId) {
   const { data } = await vapiHttp.delete(`/call/${vapiCallId}`);
@@ -1142,6 +1159,7 @@ module.exports = {
   initiateCall,
   getCall,
   getListenUrl,
+  configureInboundNumber,
   endCall,
   muteAssistant,
   unmuteAssistant,
