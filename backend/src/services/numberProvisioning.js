@@ -162,10 +162,108 @@ async function buildAreaCodeListFromLeads(userId, needed) {
   return areaCodes;
 }
 
+// Derive the US state for an area code (for DB storage / local-presence matching).
+function stateForAreaCode(areaCode) {
+  return Object.entries(STATE_AREA_CODES).find(([, codes]) =>
+    codes.includes(String(areaCode))
+  )?.[0] || null;
+}
+
 /**
- * Provision a single Vapi number with the given area code
+ * Buy a LOCAL number from Twilio in the given area code and import it into Vapi.
+ *
+ * This is the uncapped cold-calling path: Twilio owns the number (no Vapi
+ * per-account number/concurrency cap), Vapi just dials through it via the
+ * provider:'twilio' import. Used whenever Twilio creds are present.
+ *
+ * Falls back to a nearby/any US local number if the exact area code is sold out,
+ * so provisioning never hard-fails on a single unavailable area code.
+ *
+ * @returns {Promise<{number, state, area_code, vapi_phone_number_id}>}
+ * @throws if Twilio can't find/buy a number or Vapi import fails
+ */
+async function buyLocalTwilioNumber(userId, areaCode, label) {
+  const twilioSid   = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!twilioSid || !twilioToken) throw new Error('Twilio credentials not configured');
+
+  const twilio = require('twilio')(twilioSid, twilioToken);
+
+  // 1. Search for an available local number in the requested area code.
+  let candidates = [];
+  try {
+    candidates = await twilio.availablePhoneNumbers('US').local.list({
+      areaCode:     parseInt(areaCode, 10),
+      voiceEnabled: true,
+      limit:        5,
+    });
+  } catch (e) {
+    console.warn(`[NumberProvisioning][Twilio] area-code ${areaCode} search failed: ${e.message}`);
+  }
+
+  // 2. Fallback — any voice-capable US local number (keeps provisioning moving
+  //    when a specific area code is exhausted).
+  if (!candidates.length) {
+    candidates = await twilio.availablePhoneNumbers('US').local.list({ voiceEnabled: true, limit: 5 });
+  }
+  if (!candidates.length) throw new Error(`No available Twilio local numbers for ${areaCode}`);
+
+  const chosen = candidates[0].phoneNumber; // E.164, e.g. +13055551234
+
+  // 3. Buy it on Twilio.
+  const purchased = await twilio.incomingPhoneNumbers.create({
+    phoneNumber:  chosen,
+    friendlyName: label,
+  });
+  const number = purchased.phoneNumber || chosen;
+
+  // 4. Import into Vapi (provider:'twilio'). Reuses the single Vapi import point.
+  const { importToVapi } = require('./poolService');
+  const vapiId = await importToVapi(number, label);
+  if (!vapiId) throw new Error('Vapi import returned no id (check VAPI_API_KEY)');
+
+  // 5. Derive the real area code from the purchased number (fallback path may
+  //    have changed it) and persist.
+  const boughtAreaCode = number.replace(/\D/g, '').slice(1, 4);
+  const numberState    = stateForAreaCode(boughtAreaCode);
+
+  await supabase.from('phone_numbers').insert([{
+    id:                   uuidv4(),
+    user_id:              userId,
+    number,
+    friendly_name:        label,
+    area_code:            boughtAreaCode,
+    state:                numberState,
+    vapi_phone_number_id: vapiId,
+    provider:             'twilio',
+    is_toll_free:         false,
+    verified_status:      'verified',
+    health_status:        'healthy',
+    is_active:            true,
+    daily_call_limit:     60,
+    spam_score:           100,
+    purchased_at:         new Date().toISOString(),
+  }]);
+
+  return { number, state: numberState, area_code: boughtAreaCode, vapi_phone_number_id: vapiId };
+}
+
+/**
+ * Provision a single cold-calling number for the given area code.
+ *
+ * Dispatcher:
+ *   - Twilio creds present  → buy a LOCAL Twilio number + import to Vapi (uncapped).
+ *   - Twilio creds missing  → fall back to a Vapi-owned number (provider:'vapi',
+ *     capped) so provisioning still works before Twilio is connected.
  */
 async function provisionSingleNumber(userId, areaCode, label) {
+  // Preferred path: local Twilio number imported into Vapi (no Vapi caps).
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    return buyLocalTwilioNumber(userId, areaCode, label);
+  }
+
+  // Fallback path: Vapi-owned number (capped ~10/account). Keeps the system
+  // working until Twilio creds are set on Railway.
   const vapiKey    = process.env.VAPI_API_KEY;
   const webhookUrl = process.env.VAPI_WEBHOOK_URL
     || (process.env.RAILWAY_PUBLIC_DOMAIN
@@ -185,11 +283,7 @@ async function provisionSingleNumber(userId, areaCode, label) {
   });
 
   const resolvedNumber = vapiNumber.number || vapiNumber.phoneNumber || vapiNumber.id;
-
-  // Derive state from area code for DB storage
-  const numberState = Object.entries(STATE_AREA_CODES).find(([, codes]) =>
-    codes.includes(String(areaCode))
-  )?.[0] || null;
+  const numberState    = stateForAreaCode(areaCode);
 
   await supabase.from('phone_numbers').insert([{
     id:                   uuidv4(),
@@ -199,9 +293,11 @@ async function provisionSingleNumber(userId, areaCode, label) {
     area_code:            String(areaCode),
     state:                numberState,
     vapi_phone_number_id: vapiNumber.id,
+    provider:             'vapi',
+    is_toll_free:         false,
     health_status:        'healthy',
     is_active:            true,
-    daily_call_limit:     40,
+    daily_call_limit:     60,
     spam_score:           100,
     purchased_at:         new Date().toISOString(),
   }]);
@@ -348,6 +444,8 @@ async function handlePlanUpgrade(userId, newPlan) {
 
 module.exports = {
   provisionNumberPool,
+  provisionSingleNumber,
+  buyLocalTwilioNumber,
   handlePlanUpgrade,
   ensureCapacity,
   PLAN_NUMBER_COUNTS,

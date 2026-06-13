@@ -223,4 +223,5 @@ module.exports = {
   assignFromPool,
   poolAvailableCount,
   isUSTollFree,
+  importToVapi,
 };
