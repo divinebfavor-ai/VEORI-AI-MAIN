@@ -16,58 +16,6 @@ const vapiHttp = axios.create({
   timeout: 30000,
 });
 
-// ─── Voice resolution (human-sounding by default) ────────────────────────────
-// Vapi-native voices (Elliot, Savannah…) sound synthetic. ElevenLabs is the most
-// human TTS Vapi supports and works on Vapi's built-in credits (no separate key
-// required). We map the operator's saved voice to a real ElevenLabs voice and
-// fall back to "Brian" — a calm, natural American male, ideal for a real-estate
-// caller. Tuned for warmth + consistency (low style, high similarity).
-//
-// IMPORTANT: an operator's stored ai_voice_id may still be a legacy Vapi name
-// like "Elliot". Passing that to the 11labs provider would error, so we translate
-// it here. A raw 20-char ElevenLabs ID is passed straight through.
-const ELEVEN_VOICES = {
-  // ElevenLabs default-library voiceIds (verified, stable public IDs).
-  brian:    'nPczCjzI2devNBz1zQrb', // calm, deep, natural American male  (default)
-  bill:     'pqHfZKP75CvOlQylNhV4', // older, warm American male
-  chris:    'iP95p4xoKVk53GoZ742B', // casual, conversational American male
-  will:     'bIHbv24MWmeRgasZH58o', // friendly young American male
-  eric:     'cjVigY5qzO86Huf0OWal', // smooth American male
-  sarah:    'EXAVITQu4vr4xnSDxMaL', // soft, warm American female
-  jessica:  'cgSgspJ2msm6clMCkdW9', // upbeat American female
-  matilda:  'XrExE9yKIg1WjnnlVkGX', // warm, professional American female
-};
-// Legacy Vapi-native names → closest natural ElevenLabs voice (so saved settings
-// don't break and everyone gets a human voice without re-choosing).
-const LEGACY_VOICE_MAP = {
-  elliot: 'brian', godfrey: 'bill', nico: 'chris', kai: 'will', neil: 'eric',
-  sid: 'chris', sagar: 'chris', rohan: 'will', gustavo: 'eric',
-  savannah: 'sarah', clara: 'jessica', emma: 'matilda', layla: 'sarah', naina: 'jessica',
-};
-
-function resolveVoice(rawVoiceId) {
-  const raw = String(rawVoiceId || process.env.VAPI_VOICE_ID || 'brian').trim();
-
-  // A raw ElevenLabs voiceId (20-char alphanumeric) → use as-is.
-  let elevenId = /^[A-Za-z0-9]{20}$/.test(raw) ? raw : null;
-
-  if (!elevenId) {
-    const key = raw.toLowerCase();
-    const mapped = ELEVEN_VOICES[key] ? key : LEGACY_VOICE_MAP[key] || 'brian';
-    elevenId = ELEVEN_VOICES[mapped];
-  }
-
-  return {
-    provider: '11labs',
-    voiceId: elevenId,
-    model: 'eleven_turbo_v2_5', // low-latency, high-quality — best for live calls
-    stability: 0.45,            // a touch of natural variation (not flat/robotic)
-    similarityBoost: 0.8,       // stay true to the voice's natural timbre
-    style: 0.0,                 // no exaggerated "acting" — calm and real
-    useSpeakerBoost: true,
-  };
-}
-
 // ─── Personality tone adapters (shared across outbound / buyer / inbound) ─────
 // Keyed lowercase. The Settings dropdown sends Professional/Friendly/Direct/Warm,
 // so we normalize to lowercase and alias 'warm' → empathetic. Without this, any
@@ -940,7 +888,10 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
           },
         ],
       },
-      voice: resolveVoice(voiceId),
+      voice: {
+        provider: 'vapi',
+        voiceId,
+      },
       // ── Human-pacing pack ──────────────────────────────────────────────────
       // Makes the AI feel like a calm person on the phone instead of an eager
       // robot: it gives a natural beat before replying, waits for the seller to
@@ -1125,7 +1076,7 @@ ${getToneStyle(operator)}`;
       name: aiName,
       transcriber: { provider: 'deepgram', model: 'nova-2' },
       model: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', messages: [{ role: 'system', content: systemPrompt }], maxTokens: 300, temperature: 0.7 },
-      voice: resolveVoice(voiceId),
+      voice: { provider: 'vapi', voiceId },
       firstMessage: `Hi ${buyer.name}, this is ${aiName}. I have an off-market deal in ${deal.property_city || 'your target area'} that I think matches your buy box. Do you have two quick minutes?`,
       recordingEnabled: true,
       maxDurationSeconds: 600,
@@ -1179,7 +1130,7 @@ ${getToneStyle(operator)}`;
       temperature: 0.75,
       maxTokens: 600,
     },
-    voice: resolveVoice(voiceId),
+    voice: { provider: 'vapi', voiceId },
     // Same human-pacing pack as outbound — calm beat, smart endpointing,
     // backchanneling, no cut-offs, faint office room-tone. (See initiateCall.)
     backchannelingEnabled: true,
