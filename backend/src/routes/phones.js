@@ -78,6 +78,63 @@ router.post('/provision', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/phones/buy-local — operator OVERRIDE: buy a specific area-code local
+// number on demand (real Twilio number imported into Vapi, uncapped path).
+// Body: { area_code: "305", friendly_name?: string }.
+// Used when the operator doesn't want the automatic lead-geo matching and wants
+// to pick the area code themselves. Falls back to a nearby/any US local number
+// if the exact area code is sold out (same behavior as auto-provisioning).
+router.post('/buy-local', async (req, res, next) => {
+  try {
+    const areaCode = String(req.body.area_code || '').replace(/\D/g, '').slice(0, 3);
+    if (areaCode.length !== 3) {
+      return res.status(400).json({ success: false, error: 'area_code must be a 3-digit US area code (e.g. 305)' });
+    }
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+      return res.status(503).json({ success: false, error: 'Twilio not configured — cannot buy a local number yet' });
+    }
+
+    const { buyLocalTwilioNumber } = require('../services/numberProvisioning');
+    const label = req.body.friendly_name || `Veori Line (${areaCode})`;
+
+    const result = await buyLocalTwilioNumber(req.user.id, areaCode, label);
+    res.status(201).json({
+      success: true,
+      number: result.number,
+      area_code: result.area_code,
+      state: result.state,
+      vapi_id: result.vapi_phone_number_id,
+      requested_area_code: areaCode,
+      fell_back: result.area_code !== areaCode,
+    });
+  } catch (err) {
+    const msg = err.message || 'Failed to buy local number';
+    res.status(502).json({ success: false, error: msg });
+  }
+});
+
+// POST /api/phones/buy-tollfree — operator OVERRIDE: buy a toll-free number on
+// demand (Twilio toll-free imported into Vapi). Body: { friendly_name?: string }.
+router.post('/buy-tollfree', async (req, res, next) => {
+  try {
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+      return res.status(503).json({ success: false, error: 'Twilio not configured — cannot buy a toll-free number yet' });
+    }
+    const { buyTollFreeTwilioNumber } = require('../services/numberProvisioning');
+    const label = req.body.friendly_name || 'Veori Toll-Free';
+    const result = await buyTollFreeTwilioNumber(req.user.id, label);
+    res.status(201).json({
+      success: true,
+      number: result.number,
+      area_code: result.area_code,
+      vapi_id: result.vapi_phone_number_id,
+      is_toll_free: true,
+    });
+  } catch (err) {
+    res.status(502).json({ success: false, error: err.message || 'Failed to buy toll-free number' });
+  }
+});
+
 // ── Toll-free import (Twilio → Vapi) ─────────────────────────────────────────
 // US toll-free prefixes (digits after the leading +1). Toll-free bypasses A2P 10DLC.
 const TOLLFREE_PREFIXES = ['800', '833', '844', '855', '866', '877', '888'];

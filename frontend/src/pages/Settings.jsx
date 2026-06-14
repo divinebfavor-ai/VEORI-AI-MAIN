@@ -140,6 +140,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
   const [fixingWebhooks, setFixingWebhooks] = useState(false)
   const [provisionForm, setProvisionForm] = useState({ area_code: '', friendly_name: '' })
   const [showProvision, setShowProvision] = useState(false)
+  const [buyingTollFree, setBuyingTollFree] = useState(false)
   const [releaseTarget, setReleaseTarget] = useState(null) // phone to release
   const [releasing, setReleasing] = useState(false)
 
@@ -197,18 +198,45 @@ function PhoneTab({ phoneList, setPhoneList }) {
     }
   }
 
+  // Operator OVERRIDE: buy a LOCAL number for a specific area code (real Twilio
+  // path). This is the manual escape hatch from the automatic geo-matched pool.
   const handleProvision = async () => {
     setProvisioning(true)
     try {
-      const { data } = await phones.provision(provisionForm.area_code || '415', provisionForm.friendly_name || undefined)
-      setPhoneList(prev => [...prev, data.data || data])
+      const { data } = await phones.buyLocal(provisionForm.area_code, provisionForm.friendly_name || undefined)
+      setPhoneList(prev => [...prev, data.number ? data : (data.data || data)])
       setShowProvision(false)
       setProvisionForm({ area_code: '', friendly_name: '' })
-      toast.success('Phone number purchased and ready to use!')
+      toast.success(
+        data.fell_back
+          ? `No number in ${data.requested_area_code} — bought ${data.number} (${data.area_code}) instead`
+          : 'Phone number purchased and ready to use!'
+      )
+      const fresh = await phones.getPhones()
+      const raw = fresh.data?.numbers ?? fresh.data?.data ?? fresh.data
+      if (Array.isArray(raw)) setPhoneList(raw)
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to provision number')
+      toast.error(err.response?.data?.error || 'Failed to buy local number')
     } finally {
       setProvisioning(false)
+    }
+  }
+
+  // Operator OVERRIDE: buy a TOLL-FREE number on demand (inbound / trust line).
+  const handleBuyTollFree = async () => {
+    setBuyingTollFree(true)
+    try {
+      const { data } = await phones.buyTollFree(provisionForm.friendly_name || undefined)
+      toast.success(`Toll-free number ${data.number} purchased and ready!`)
+      setShowProvision(false)
+      setProvisionForm({ area_code: '', friendly_name: '' })
+      const fresh = await phones.getPhones()
+      const raw = fresh.data?.numbers ?? fresh.data?.data ?? fresh.data
+      if (Array.isArray(raw)) setPhoneList(raw)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to buy toll-free number')
+    } finally {
+      setBuyingTollFree(false)
     }
   }
 
@@ -344,10 +372,14 @@ function PhoneTab({ phoneList, setPhoneList }) {
       ) : (
         <div style={{ borderRadius: 12, padding: 20, background: 'rgba(0,195,122,0.04)', border: '1px solid rgba(0,195,122,0.18)' }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', marginBottom: 4 }}>Buy a Real Phone Number</p>
-          <p style={{ fontSize: 12, color: 'var(--t4)', marginBottom: 16 }}>Enter the area code for the state you're targeting. You'll get a real local number (e.g. +17045551234) that sellers will see on their phone.</p>
+          <p style={{ fontSize: 12, color: 'var(--t4)', marginBottom: 16 }}>
+            Your plan auto-buys the right mix of local + toll-free numbers. Override that here:
+            enter an area code to buy a <strong>local</strong> number (e.g. +17045551234) sellers will see on
+            their phone, or buy a <strong>toll-free</strong> line for inbound / trust.
+          </p>
           <div className="grid grid-cols-2 gap-3 mb-4">
             <Input
-              label="Area Code *"
+              label="Area Code (local only)"
               value={provisionForm.area_code}
               onChange={e => setProvisionForm(p => ({ ...p, area_code: e.target.value.replace(/\D/, '').slice(0, 3) }))}
               placeholder="704 = Charlotte NC"
@@ -360,8 +392,13 @@ function PhoneTab({ phoneList, setPhoneList }) {
               placeholder="NC Outreach Line"
             />
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button onClick={handleProvision} loading={provisioning}>Buy Number</Button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button onClick={handleProvision} loading={provisioning} disabled={provisionForm.area_code.length !== 3}>
+              Buy Local Number
+            </Button>
+            <Button variant="secondary" onClick={handleBuyTollFree} loading={buyingTollFree} title="Buy a toll-free number (no area code needed)">
+              Buy Toll-Free
+            </Button>
             <Button variant="ghost" onClick={() => setShowProvision(false)}>Cancel</Button>
           </div>
         </div>

@@ -29,6 +29,35 @@ const PLAN_NUMBER_COUNTS = {
   enterprise:      38,
 };
 
+// ── Toll-free vs. local split ────────────────────────────────────────────────
+// Best-practice split for real-estate cold calling (decided with the owner):
+//   * The BULK of every plan is LOCAL — local presence (seller's own area code)
+//     gets the most answers on OUTBOUND cold calls. These are lead-geo matched.
+//   * A SMALL FIXED number of TOLL-FREE lines provide a stable, A2P-10DLC-bypassing
+//     "call us back" / inbound + caller-ID-trust line. Toll-free does NOT scale
+//     linearly with dial volume — a couple is enough at any plan size.
+// Monday's pricing reshape only needs to touch THIS map (single source of truth).
+const PLAN_TOLLFREE_COUNTS = {
+  founding_member: 1,
+  starter:         1,
+  growth:          1,
+  pro:             2,
+  scale:           2,
+  enterprise:      2,
+};
+
+/**
+ * Split a plan's total number allotment into { tollFree, local }.
+ * tollFree is the small fixed count above (capped so it never exceeds the plan
+ * total); local is everything else, which is what gets lead-geo matched.
+ */
+function splitNumberCounts(plan) {
+  const total    = PLAN_NUMBER_COUNTS[plan] || 0;
+  const tollFree  = Math.min(PLAN_TOLLFREE_COUNTS[plan] || 0, total);
+  const local     = Math.max(0, total - tollFree);
+  return { total, tollFree, local };
+}
+
 // State → area codes (local numbers for geographic matching)
 const STATE_AREA_CODES = {
   AL: ['205', '251', '256'],
@@ -254,6 +283,78 @@ async function buyLocalTwilioNumber(userId, areaCode, label) {
 }
 
 /**
+ * Buy a US TOLL-FREE number from Twilio and import it into Vapi.
+ *
+ * Mirrors buyLocalTwilioNumber but searches Twilio's toll-free inventory
+ * (800/833/844/855/866/877/888). Toll-free bypasses A2P 10DLC and gives the
+ * operator a stable inbound / "call us back" line. Inserted with
+ * is_toll_free:true so health math + rotation treat it correctly.
+ *
+ * @returns {Promise<{number, area_code, vapi_phone_number_id, is_toll_free:true}>}
+ * @throws if Twilio can't find/buy a toll-free number or Vapi import fails
+ */
+async function buyTollFreeTwilioNumber(userId, label) {
+  const twilioSid   = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!twilioSid || !twilioToken) throw new Error('Twilio credentials not configured');
+
+  const twilio = require('twilio')(twilioSid, twilioToken);
+
+  // 1. Search Twilio's toll-free inventory (voice-capable).
+  let candidates = [];
+  try {
+    candidates = await twilio.availablePhoneNumbers('US').tollFree.list({
+      voiceEnabled: true,
+      limit:        5,
+    });
+  } catch (e) {
+    console.warn(`[NumberProvisioning][Twilio] toll-free search failed: ${e.message}`);
+  }
+  if (!candidates.length) throw new Error('No available Twilio toll-free numbers');
+
+  const chosen = candidates[0].phoneNumber; // E.164, e.g. +18335551234
+
+  // 2. Buy it on Twilio.
+  const purchased = await twilio.incomingPhoneNumbers.create({
+    phoneNumber:  chosen,
+    friendlyName: label,
+  });
+  const number = purchased.phoneNumber || chosen;
+
+  // 3. Import into Vapi (provider:'twilio'). Reuses the single Vapi import point.
+  const { importToVapi } = require('./poolService');
+  const vapiId = await importToVapi(number, label);
+  if (!vapiId) throw new Error('Vapi import returned no id (check VAPI_API_KEY)');
+
+  // 4. Wire inbound (assistant-request mode). Non-fatal.
+  await require('./vapiService').configureInboundNumber(vapiId).catch((e) =>
+    console.warn(`[NumberProvisioning] inbound wiring failed for ${number}: ${e.message}`));
+
+  const boughtPrefix = number.replace(/\D/g, '').slice(1, 4);
+
+  await supabase.from('phone_numbers').insert([{
+    id:                   uuidv4(),
+    user_id:              userId,
+    number,
+    friendly_name:        label,
+    area_code:            boughtPrefix,
+    state:                null,            // toll-free is not geographic
+    vapi_phone_number_id: vapiId,
+    provider:             'twilio',
+    is_toll_free:         true,
+    pool_status:          'assigned',
+    verified_status:      'verified',
+    health_status:        'healthy',
+    is_active:            true,
+    daily_call_limit:     40,              // toll-free runs a lower health cap
+    spam_score:           100,
+    purchased_at:         new Date().toISOString(),
+  }]);
+
+  return { number, area_code: boughtPrefix, vapi_phone_number_id: vapiId, is_toll_free: true };
+}
+
+/**
  * Provision a single cold-calling number for the given area code.
  *
  * Dispatcher:
@@ -316,57 +417,93 @@ async function provisionSingleNumber(userId, areaCode, label) {
 
 /**
  * Provision the full number pool for a plan.
- * Numbers are geographically matched to the operator's lead distribution.
- * Safe to call multiple times — only provisions what's missing.
+ *
+ * The plan total is split into { tollFree, local } (see splitNumberCounts):
+ *   - LOCAL numbers are geographically matched to the operator's lead distribution
+ *     (the bulk — best answer rates on outbound).
+ *   - TOLL-FREE numbers are a small fixed count (stable inbound / call-back line).
+ *
+ * Idempotent: counts existing toll-free and local SEPARATELY and only buys the
+ * shortfall of each type. Safe to call multiple times (purchase + upgrade + manual).
  */
 async function provisionNumberPool(userId, plan) {
-  const target = PLAN_NUMBER_COUNTS[plan];
-  if (!target) {
+  const { total, tollFree: tollFreeTarget, local: localTarget } = splitNumberCounts(plan);
+  if (!total) {
     console.log(`[NumberProvisioning] Unknown plan: ${plan} — skipping`);
     return { provisioned: 0, already_had: 0, target: 0 };
   }
 
-  // Count active numbers already owned
-  const { count: existing } = await supabase
-    .from('phone_numbers')
-    .select('*', { count: 'exact', head: true })
+  // Count active numbers already owned, split by type so each target is honored.
+  const baseFilter = (q) => q
     .eq('user_id', userId)
     .eq('is_active', true)
     .is('released_at', null);
 
-  const alreadyHad = existing || 0;
-  const needed     = Math.max(0, target - alreadyHad);
+  const { count: existingTotal } = await baseFilter(
+    supabase.from('phone_numbers').select('*', { count: 'exact', head: true })
+  );
+  const { count: existingTollFree } = await baseFilter(
+    supabase.from('phone_numbers').select('*', { count: 'exact', head: true })
+  ).eq('is_toll_free', true);
 
-  if (needed === 0) {
-    console.log(`[NumberProvisioning] User ${userId} already has ${alreadyHad}/${target} numbers for ${plan}`);
-    return { provisioned: 0, already_had: alreadyHad, target };
+  const alreadyHad      = existingTotal || 0;
+  const haveTollFree    = existingTollFree || 0;
+  const haveLocal       = Math.max(0, alreadyHad - haveTollFree);
+
+  const tollFreeNeeded  = Math.max(0, tollFreeTarget - haveTollFree);
+  const localNeeded     = Math.max(0, localTarget - haveLocal);
+
+  if (tollFreeNeeded === 0 && localNeeded === 0) {
+    console.log(`[NumberProvisioning] User ${userId} already has ${alreadyHad}/${total} numbers for ${plan} (TF ${haveTollFree}/${tollFreeTarget}, local ${haveLocal}/${localTarget})`);
+    return { provisioned: 0, already_had: alreadyHad, target: total, tollFree: 0, local: 0 };
   }
 
-  console.log(`[NumberProvisioning] Provisioning ${needed} numbers for user ${userId} (${plan})`);
+  console.log(`[NumberProvisioning] Provisioning for ${userId} (${plan}): ${tollFreeNeeded} toll-free + ${localNeeded} local`);
 
-  // Build area code list matched to operator's lead geography
-  const areaCodes = await buildAreaCodeListFromLeads(userId, needed);
+  let provisioned        = 0;
+  let tollFreeProvisioned = 0;
+  let localProvisioned    = 0;
+  const errors           = [];
 
-  let provisioned = 0;
-  const errors    = [];
-
-  for (let i = 0; i < needed; i++) {
-    const areaCode = areaCodes[i];
-    const label    = `Veori Line ${alreadyHad + i + 1} (${areaCode})`;
+  // 1. Toll-free first (Twilio-only — needs Twilio creds; skipped cleanly if absent).
+  const canBuyTwilio = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
+  for (let i = 0; i < tollFreeNeeded; i++) {
+    const label = `Veori Toll-Free ${haveTollFree + i + 1}`;
+    if (!canBuyTwilio) {
+      errors.push({ type: 'toll_free', error: 'Twilio credentials not configured — toll-free skipped' });
+      break;
+    }
     try {
-      const result = await provisionSingleNumber(userId, areaCode, label);
-      console.log(`[NumberProvisioning] ✅ ${result.number} — ${result.state || areaCode}`);
-      provisioned++;
-      // Stagger to avoid Vapi rate limits
-      if (i < needed - 1) await new Promise(r => setTimeout(r, 1500));
+      const result = await buyTollFreeTwilioNumber(userId, label);
+      console.log(`[NumberProvisioning] ✅ toll-free ${result.number}`);
+      provisioned++; tollFreeProvisioned++;
+      await new Promise(r => setTimeout(r, 1500));
     } catch (err) {
-      console.error(`[NumberProvisioning] ❌ Area code ${areaCode}: ${err.message}`);
-      errors.push({ areaCode, error: err.message });
+      console.error(`[NumberProvisioning] ❌ toll-free: ${err.message}`);
+      errors.push({ type: 'toll_free', error: err.message });
     }
   }
 
-  console.log(`[NumberProvisioning] Complete — ${provisioned}/${needed} provisioned for ${userId}`);
-  return { provisioned, already_had: alreadyHad, target, errors };
+  // 2. Local numbers matched to lead geography (the bulk).
+  if (localNeeded > 0) {
+    const areaCodes = await buildAreaCodeListFromLeads(userId, localNeeded);
+    for (let i = 0; i < localNeeded; i++) {
+      const areaCode = areaCodes[i];
+      const label    = `Veori Line ${haveLocal + i + 1} (${areaCode})`;
+      try {
+        const result = await provisionSingleNumber(userId, areaCode, label);
+        console.log(`[NumberProvisioning] ✅ ${result.number} — ${result.state || areaCode}`);
+        provisioned++; localProvisioned++;
+        if (i < localNeeded - 1) await new Promise(r => setTimeout(r, 1500));
+      } catch (err) {
+        console.error(`[NumberProvisioning] ❌ Area code ${areaCode}: ${err.message}`);
+        errors.push({ type: 'local', areaCode, error: err.message });
+      }
+    }
+  }
+
+  console.log(`[NumberProvisioning] Complete — ${provisioned}/${tollFreeNeeded + localNeeded} provisioned for ${userId} (TF ${tollFreeProvisioned}, local ${localProvisioned})`);
+  return { provisioned, already_had: alreadyHad, target: total, tollFree: tollFreeProvisioned, local: localProvisioned, errors };
 }
 
 // Health math: each number safely handles this many calls/day before spam risk.
@@ -455,8 +592,11 @@ module.exports = {
   provisionNumberPool,
   provisionSingleNumber,
   buyLocalTwilioNumber,
+  buyTollFreeTwilioNumber,
+  splitNumberCounts,
   handlePlanUpgrade,
   ensureCapacity,
   PLAN_NUMBER_COUNTS,
+  PLAN_TOLLFREE_COUNTS,
   STATE_AREA_CODES,
 };
