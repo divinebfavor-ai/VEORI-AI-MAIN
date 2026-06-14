@@ -6,7 +6,7 @@ import Input from '../components/ui/Input'
 import Badge from '../components/ui/Badge'
 import useAuthStore from '../store/authStore'
 import useThemeStore from '../store/themeStore'
-import { phones, operator as operatorApi, v2voices, auth, twoFA } from '../services/api'
+import { phones, operator as operatorApi, v2voices, vapiVoices, auth, twoFA } from '../services/api'
 
 const SOCIAL_PLATFORMS = [
   { id: 'facebook',  label: 'Facebook',  icon: '📘', color: '#1877F2', hint: 'Post to your Facebook page and groups' },
@@ -825,14 +825,26 @@ export default function Settings() {
       }).catch(() => {})
     }
     if (tab === 'persona') {
-      operatorApi.getProfile().then(r => setPersona(r.data?.profile || {})).catch(() => {})
-      // New ElevenLabs library (Twilio + ElevenLabs calling layer). The dropdown,
-      // Preview button, and saved selection all run off /api/v2/voices now.
-      v2voices.getLibrary().then(r => {
-        const raw = r.data?.voices ?? r.data?.data ?? r.data
-        setVoices(Array.isArray(raw) ? raw : [])
+      // Load the operator profile; ai_voice_id holds the saved Vapi voice pick.
+      operatorApi.getProfile().then(r => {
+        const p = r.data?.profile || {}
+        setPersona(p)
+        setSelectedVoiceId(p.ai_voice_id || '')
       }).catch(() => {})
-      v2voices.getSelection().then(r => setSelectedVoiceId(r.data?.selected_voice_id || '')).catch(() => {})
+      // Live call engine runs on Vapi, so the voice picker lists Vapi's native
+      // voices (Elliot, Savannah, …). Normalise the catalog's field names into
+      // the shape the dropdown + Preview button already expect (voice_id /
+      // voice_name / voice_gender / voice_preview_url) so no JSX change is needed.
+      vapiVoices.getCatalog().then(r => {
+        const raw = r.data?.voices ?? r.data?.data ?? r.data
+        const list = (Array.isArray(raw) ? raw : []).map(v => ({
+          voice_id:          v.voiceId,
+          voice_name:        v.name,
+          voice_gender:      v.gender,
+          voice_preview_url: v.previewUrl || null,
+        }))
+        setVoices(list)
+      }).catch(() => {})
     }
     if (tab === 'banking') {
       operatorApi.getBankAccounts().then(r => {
@@ -1143,8 +1155,10 @@ export default function Settings() {
                         onChange={e => {
                           const id = e.target.value
                           setSelectedVoiceId(id)
-                          // Persist immediately to the table the call engine reads.
-                          v2voices.saveSelection(id, persona.ai_caller_name || undefined)
+                          setPersona(p => ({ ...p, ai_voice_id: id }))
+                          // Persist immediately to users.ai_voice_id — the column
+                          // the Vapi call engine reads to pick this operator's voice.
+                          operatorApi.updateProfile({ ai_voice_id: id })
                             .then(() => toast.success('Voice saved'))
                             .catch(() => toast.error('Failed to save voice'))
                         }}

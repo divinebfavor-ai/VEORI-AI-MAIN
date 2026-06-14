@@ -871,12 +871,12 @@ async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useC
 
   const aiName      = operator.ai_caller_name || 'Alex';
   const companyName = operator.company_name || 'a local real estate investment group';
-  // Vapi voice selection. NOTE: operator.ai_voice_id now holds an ElevenLabs voice
-  // ID (from the operator picker) which is NOT a valid Vapi voice — so it is NOT used
-  // here; passing it to Vapi would break the call. The admin controls the Vapi voice
-  // centrally via VAPI_VOICE_ID on Railway. Default 'Elliot' (warm, natural Vapi
-  // voice). Change VAPI_VOICE_ID to retune the call voice with no code change.
-  const voiceId     = process.env.VAPI_VOICE_ID || 'Elliot';
+  // Vapi voice selection. operator.ai_voice_id now holds a VAPI voice name
+  // (e.g. 'Elliot', 'Savannah') chosen by the operator in Settings → Persona,
+  // sourced from the Vapi catalog (getVapiVoices). Each operator's pick drives
+  // their own calls. Falls back to VAPI_VOICE_ID (admin override on Railway),
+  // then 'Elliot' (warm, natural default) if neither is set.
+  const voiceId     = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
   console.log(`[engine=vapi] voice=${voiceId} aiName=${aiName} callId=${callId}`);
 
   // ── STEP 3: Build call payload using operator's number + tag-matched script ──

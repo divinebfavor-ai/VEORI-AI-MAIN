@@ -213,6 +213,15 @@ export const v2voices = {
     api.post('/api/v2/voices/selection', { selected_voice_id, ai_caller_name }),
 }
 
+// ─── Vapi voice catalog (active picker) ──────────────────────────────────────
+// The live call engine runs on Vapi (VOICE_ENGINE=vapi), so the persona voice
+// picker now lists Vapi's native voices (Elliot, Savannah, Clara, …) from the
+// backend catalog. The operator's pick saves to users.ai_voice_id (via
+// operator.updateProfile) — the SAME column the Vapi engine reads at call time.
+export const vapiVoices = {
+  getCatalog: () => api.get('/api/operator/voices'),
+}
+
 // ─── Title companies ─────────────────────────────────────────────────────────
 export const titleCompanies = {
   getAll:  ()          => api.get('/api/title-companies'),
