@@ -110,6 +110,94 @@ const PLANS = {
   },
 };
 
+// ─── TOP-UP blocks ────────────────────────────────────────────────────────────
+// One-time outreach-credit purchases, tier-locked to the operator's CURRENT plan.
+// An operator can only buy their own tier's block (cannot buy a different tier's).
+// block = outreach credits granted; price = USD for ONE block (whole dollars).
+// Credits expire at the next monthly reset (do not roll over).
+const TOPUP_BLOCKS = {
+  starter:    { block: 2500,  price: 449  },
+  solo:       { block: 5000,  price: 699  },
+  operator:   { block: 10000, price: 999  },
+  scale:      { block: 25000, price: 1999 },
+  enterprise: { block: 50000, price: 2999 },
+};
+
+// Multi-block discount on the TOTAL: 1 block full price, 2 blocks 5% off,
+// 3+ blocks 10% off. Returns whole-dollar total + the unit/discount breakdown.
+function topupPricing(planKey, blocks) {
+  const b = TOPUP_BLOCKS[planKey];
+  if (!b) return null;
+  const n = Math.max(1, parseInt(blocks, 10) || 1);
+  const gross = b.price * n;
+  const discountPct = n >= 3 ? 0.10 : (n === 2 ? 0.05 : 0);
+  const total = Math.round(gross * (1 - discountPct));
+  return {
+    plan_id:      planKey,
+    block_size:   b.block,
+    unit_price:   b.price,
+    blocks:       n,
+    credits:      b.block * n,
+    gross,
+    discount_pct: discountPct,
+    total,
+    currency:     'USD',
+  };
+}
+
+// YYYY-MM marker for the cycle a top-up belongs to (expires at next reset).
+function currentBillingCycleId() {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Grant top-up outreach credits to an operator and log the purchase. Shared by
+ * the redirect /verify-topup path and the webhook so both stay identical.
+ * Idempotency is enforced UPSTREAM via processed_transactions (caller claims the
+ * tx first); this only runs once per transaction. Also un-pauses outreach.
+ */
+async function grantTopupCredits({ userId, planKey, blocks, total, fwTxId }) {
+  const pricing = topupPricing(planKey, blocks);
+  if (!pricing) throw new Error(`Unknown top-up plan: ${planKey}`);
+
+  // Read current top-up counters to increment (fire-and-forget read; default 0).
+  const { data: u } = await supabase
+    .from('users')
+    .select('topup_credits_available, topup_purchases_this_cycle, topup_spend_this_cycle')
+    .eq('id', userId)
+    .single();
+
+  const newAvailable = (u?.topup_credits_available || 0) + pricing.credits;
+  const newCount     = (u?.topup_purchases_this_cycle || 0) + 1;
+  const newSpend     = Number(u?.topup_spend_this_cycle || 0) + (total ?? pricing.total);
+
+  await supabase.from('users').update({
+    topup_credits_available:    newAvailable,
+    topup_purchases_this_cycle: newCount,
+    topup_spend_this_cycle:     newSpend,
+    outreach_paused:            false,   // credits available again → resume outreach
+  }).eq('id', userId);
+
+  // Purchase history + idempotency surface (uniq_topup_fw_tx on flutterwave_tx_id).
+  await supabase.from('topup_purchases').insert({
+    operator_id:       userId,
+    plan_id:           planKey,
+    block_size:        pricing.block_size,
+    blocks:            pricing.blocks,
+    price_paid:        total ?? pricing.total,
+    credits_added:     pricing.credits,
+    billing_cycle_id:  currentBillingCycleId(),
+    flutterwave_tx_id: fwTxId || null,
+    status:            'active',
+  }).catch((e) => {
+    // Duplicate (already logged) is fine; anything else just warns — credits granted.
+    if (e?.code !== '23505') console.warn('[FW Topup] purchase log failed:', e.message);
+  });
+
+  return { credits_added: pricing.credits, topup_balance: newAvailable, purchases_this_cycle: newCount };
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const OWNER_EMAIL = 'divineqflash@gmail.com';
@@ -203,6 +291,23 @@ async function updateUserSubscription(userId, { plan, status, fwCustomerId, fwSu
 
   if (plan && PLANS[plan]) {
     updates.monthly_dial_limit = PLANS[plan].dials;
+
+    // Outreach meter — provision the monthly allocation for this plan and start
+    // a fresh cycle on activation (zero usage, unpause, clear notify flags,
+    // stamp the rollover marker). Top-up balance is intentionally NOT cleared
+    // here — top-ups expire only at the natural monthly reset, not on a plan
+    // change. PLANS[plan].outreach is null for the custom tier → skip.
+    if (PLANS[plan].outreach != null) {
+      const firstOfMonth = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1))
+        .toISOString().slice(0, 10);
+      updates.monthly_allocation      = PLANS[plan].outreach;
+      updates.outreach_used           = 0;
+      updates.outreach_paused         = false;
+      updates.outreach_reset_date     = firstOfMonth;
+      updates.notified_at_80_percent  = false;
+      updates.notified_at_95_percent  = false;
+      updates.notified_at_100_percent = false;
+    }
   }
 
   const { error } = await supabase.from('users').update(updates).eq('id', userId);
@@ -466,12 +571,214 @@ router.get('/verify/:txRef', auth, async (req, res) => {
   }
 });
 
+// ─── GET /api/fw-billing/topup-pricing ───────────────────────────────────────
+// Returns the operator's tier-locked top-up block + multi-block discount preview.
+router.get('/topup-pricing', auth, async (req, res) => {
+  try {
+    const { data: user } = await supabase
+      .from('users')
+      .select('subscription_plan, subscription_status')
+      .eq('id', req.user.id)
+      .single();
+
+    const planKey = user?.subscription_plan;
+    const block   = planKey ? TOPUP_BLOCKS[planKey] : null;
+    if (!block) {
+      return res.status(400).json({
+        success: false,
+        error:   'Top-ups require an active paid plan. Upgrade first to buy outreach top-ups.',
+      });
+    }
+
+    // Show the 1 / 2 / 3-block ladder so the UI can render the discount tiers.
+    const ladder = [1, 2, 3].map(n => topupPricing(planKey, n));
+    res.json({
+      success:    true,
+      plan:       planKey,
+      block_size: block.block,
+      unit_price: block.price,
+      currency:   'USD',
+      ladder,
+    });
+  } catch (err) {
+    console.error('[FW] topup-pricing error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to load top-up pricing' });
+  }
+});
+
+// ─── POST /api/fw-billing/create-topup-link ──────────────────────────────────
+// One-time top-up checkout (NOT a recurring plan). Tier-locked to current plan.
+router.post('/create-topup-link', auth, async (req, res) => {
+  try {
+    const blocks = Math.max(1, parseInt(req.body?.blocks, 10) || 1);
+
+    const { data: user, error: userErr } = await supabase
+      .from('users')
+      .select('id, email, full_name, company_name, phone, subscription_plan, subscription_status')
+      .eq('id', req.user.id)
+      .single();
+
+    if (userErr || !user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const planKey = user.subscription_plan;
+    if (user.subscription_status !== 'active' || !TOPUP_BLOCKS[planKey]) {
+      return res.status(400).json({
+        success: false,
+        error:   'Top-ups require an active paid plan. No top-up block exists for your current plan.',
+      });
+    }
+
+    if (!FW_SECRET()) {
+      return res.status(503).json({ success: false, error: 'Payment system not configured' });
+    }
+
+    const pricing = topupPricing(planKey, blocks);
+    const txRef   = `veori_topup_${planKey}_${user.id}_${Date.now()}`;
+
+    // One-time payment — deliberately NO payment_plan (top-ups don't recur).
+    const resp = await fwRequest('POST', '/payments', {
+      tx_ref:       txRef,
+      amount:       pricing.total,
+      currency:     pricing.currency,
+      redirect_url: `${FRONTEND_URL}/billing/verify-topup?plan=${planKey}&blocks=${blocks}`,
+      customer: {
+        email:       user.email,
+        name:        user.full_name || user.company_name || user.email,
+        phonenumber: user.phone || '',
+      },
+      customizations: {
+        title:       'Veori AI — Outreach Top-Up',
+        description: `${pricing.credits.toLocaleString()} outreach credits (${blocks} block${blocks > 1 ? 's' : ''})`,
+        logo:        `${FRONTEND_URL}/logo.png`,
+      },
+      meta: {
+        user_id: user.id,
+        plan:    planKey,
+        type:    'topup',     // ← distinguishes top-up charges from subscription charges
+        blocks,
+      },
+    });
+
+    if (resp.status !== 'success' || !resp.data?.link) {
+      console.error('[FW] Top-up link error:', resp.message);
+      return res.status(502).json({ success: false, error: resp.message || 'Failed to create top-up link' });
+    }
+
+    res.json({
+      success:     true,
+      payment_url: resp.data.link,
+      tx_ref:      txRef,
+      plan:        planKey,
+      blocks,
+      credits:     pricing.credits,
+      amount:      pricing.total,
+      public_key:  FW_PUBLIC(),
+    });
+  } catch (err) {
+    console.error('[FW] create-topup-link error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to create top-up. Please try again.' });
+  }
+});
+
+// ─── GET /api/fw-billing/verify-topup/:txRef ─────────────────────────────────
+// Called after the user returns from the top-up Flutterwave redirect.
+router.get('/verify-topup/:txRef', auth, async (req, res) => {
+  try {
+    const { txRef } = req.params;
+    const { transaction_id } = req.query;
+
+    let txData = null;
+    if (transaction_id) {
+      const r = await fwRequest('GET', `/transactions/${transaction_id}/verify`);
+      if (r.status === 'success') txData = r.data;
+    }
+    if (!txData) {
+      const r = await fwRequest('GET', `/transactions?tx_ref=${txRef}`);
+      if (r.status === 'success' && r.data?.length > 0) txData = r.data[0];
+    }
+    if (!txData)                       return res.status(404).json({ success: false, error: 'Transaction not found' });
+    if (txData.status !== 'successful') return res.status(402).json({ success: false, error: `Payment ${txData.status}`, status: txData.status });
+
+    // Ownership guard — same as subscription verify.
+    const txUserId = txData.meta?.user_id;
+    if (txUserId && txUserId !== req.user.id) {
+      console.error(`[FW Topup Verify] User ${req.user.id} tried to claim tx of ${txUserId}`);
+      return res.status(403).json({ success: false, error: 'Transaction does not belong to your account' });
+    }
+
+    const planKey = txData.meta?.plan || txRef.split('_')[2] || null;
+    const blocks  = parseInt(txData.meta?.blocks, 10) || 1;
+    const pricing = topupPricing(planKey, blocks);
+    if (!pricing) return res.status(400).json({ success: false, error: 'Unknown top-up plan in transaction' });
+
+    // Amount + currency must cover the (possibly discounted) total.
+    if (Number(txData.amount) < pricing.total) {
+      return res.status(402).json({ success: false, error: 'Payment amount mismatch' });
+    }
+    if ((txData.currency || '').toUpperCase() !== pricing.currency) {
+      return res.status(402).json({ success: false, error: 'Payment currency mismatch' });
+    }
+
+    // ── Idempotency: claim before granting (shared with the webhook) ──────────
+    const fwTxId = (txData.id ?? transaction_id ?? txRef ?? '').toString();
+    const { error: claimErr } = await supabase
+      .from('processed_transactions')
+      .insert([{
+        provider:       'flutterwave',
+        transaction_id: fwTxId,
+        tx_ref:         txData.tx_ref || txRef || null,
+        user_id:        req.user.id,
+        plan:           planKey,
+        amount:         Number(txData.amount),
+        currency:       (txData.currency || '').toUpperCase(),
+        event_type:     'topup_verify',
+      }]);
+
+    if (claimErr && claimErr.code !== '23505') {
+      console.error('[FW Topup Verify] Idempotency insert failed:', claimErr.message);
+      return res.status(500).json({ success: false, error: 'Verification failed. Contact support.' });
+    }
+
+    if (claimErr?.code === '23505') {
+      // Webhook (or an earlier verify) already granted. Return current balance.
+      const bal = await require('../services/outreachCredits').getBalance(req.user.id);
+      return res.json({
+        success:       true,
+        already:       true,
+        credits_added: pricing.credits,
+        topup_balance: bal?.topupLeft ?? null,
+        message:       'Top-up already applied. Your outreach credits are active.',
+      });
+    }
+
+    const result = await grantTopupCredits({
+      userId: req.user.id, planKey, blocks, total: Number(txData.amount), fwTxId,
+    });
+
+    res.json({
+      success:       true,
+      plan:          planKey,
+      blocks,
+      credits_added: result.credits_added,
+      topup_balance: result.topup_balance,
+      amount:        txData.amount,
+      currency:      txData.currency,
+      message:       `${result.credits_added.toLocaleString()} outreach credits added. Outreach resumed.`,
+    });
+  } catch (err) {
+    console.error('[FW] verify-topup error:', err.message);
+    res.status(500).json({ success: false, error: 'Top-up verification failed. Contact support.' });
+  }
+});
+
 // ─── GET /api/fw-billing/subscription ────────────────────────────────────────
 router.get('/subscription', auth, async (req, res) => {
   try {
     const { data: user, error: userErr } = await supabase
       .from('users')
-      .select('id, email, subscription_plan, subscription_status, subscription_expires_at, monthly_dial_limit, fw_subscription_id, calls_used, overage_enabled, overage_dials_used')
+      .select('id, email, subscription_plan, subscription_status, subscription_expires_at, monthly_dial_limit, fw_subscription_id, calls_used, overage_enabled, overage_dials_used, monthly_allocation, outreach_used, topup_credits_available, topup_credits_used, outreach_paused')
       .eq('id', req.user.id)
       .single();
 
@@ -486,6 +793,12 @@ router.get('/subscription', auth, async (req, res) => {
     const dialLimit = user.monthly_dial_limit || 0;
     const dialsUsed = user.calls_used || 0;
     const usagePct  = dialLimit ? Math.round((dialsUsed / dialLimit) * 100) : 0;
+
+    // Outreach meter (SMS lead-outreach) — separate from the dial meter.
+    const allocation    = user.monthly_allocation || 0;
+    const outreachUsed  = user.outreach_used || 0;
+    const topupLeft     = user.topup_credits_available || 0;
+    const outreachPct   = allocation ? Math.round((outreachUsed / allocation) * 100) : 0;
 
     res.json({
       success:     true,
@@ -502,6 +815,17 @@ router.get('/subscription', auth, async (req, res) => {
         percent:            usagePct,
         overage_enabled:    !!user.overage_enabled,
         overage_dials_used: user.overage_dials_used || 0,
+      },
+      // Outreach (SMS) meter + top-up balance.
+      outreach: {
+        allocation:       allocation,
+        used:             outreachUsed,
+        monthly_left:     Math.max(0, allocation - outreachUsed),
+        topup_available:  topupLeft,
+        topup_used:       user.topup_credits_used || 0,
+        total_left:       Math.max(0, allocation - outreachUsed) + topupLeft,
+        percent:          outreachPct,
+        paused:           !!user.outreach_paused,
       },
     });
   } catch (err) {
@@ -559,6 +883,69 @@ router.post('/webhook', express.json(), async (req, res) => {
     const data  = event.data;
 
     console.log('[FW Webhook] event:', event.event, '| tx:', data?.tx_ref);
+
+    // ── TOP-UP charge (one-time outreach credits) ────────────────────────────
+    // A top-up is also a 'charge.completed' event; distinguish it by meta.type
+    // (or a topup_ tx_ref prefix) and handle it BEFORE the subscription branch.
+    const isTopup = event.event === 'charge.completed'
+      && data?.status === 'successful'
+      && (data.meta?.type === 'topup' || (data.tx_ref || '').startsWith('veori_topup_'));
+
+    if (isTopup) {
+      const userId  = data.meta?.user_id || null;
+      const planKey = data.meta?.plan || (data.tx_ref || '').split('_')[2] || null;
+      const blocks  = parseInt(data.meta?.blocks, 10) || 1;
+      const pricing = planKey ? topupPricing(planKey, blocks) : null;
+
+      if (!userId || !pricing) {
+        console.warn('[FW Webhook] Top-up rejected — missing user/plan (tx', data.tx_ref, ')');
+        return res.json({ status: 'ok' });
+      }
+
+      const paidAmount   = Number(data.amount);
+      const paidCurrency = (data.currency || '').toUpperCase();
+      if (!Number.isFinite(paidAmount) || paidAmount < pricing.total) {
+        console.warn(`[FW Webhook] Top-up underpaid: paid ${paidAmount}, needs ${pricing.total} (user ${userId})`);
+        return res.json({ status: 'ok' });
+      }
+      if (paidCurrency !== pricing.currency) {
+        console.warn(`[FW Webhook] Top-up currency mismatch: ${paidCurrency} vs ${pricing.currency} (user ${userId})`);
+        return res.json({ status: 'ok' });
+      }
+
+      // Idempotency — same processed_transactions surface as everything else.
+      const fwTxId = (data.id ?? data.tx_ref ?? '').toString();
+      const { error: claimErr } = await supabase
+        .from('processed_transactions')
+        .insert([{
+          provider:       'flutterwave',
+          transaction_id: fwTxId,
+          tx_ref:         data.tx_ref || null,
+          user_id:        userId,
+          plan:           planKey,
+          amount:         paidAmount,
+          currency:       paidCurrency,
+          event_type:     'topup_webhook',
+        }]);
+
+      if (claimErr) {
+        if (claimErr.code === '23505') {
+          console.log(`[FW Webhook] Top-up duplicate ignored — tx ${fwTxId} (user ${userId})`);
+          return res.json({ status: 'ok' });
+        }
+        console.error('[FW Webhook] Top-up idempotency insert failed:', claimErr.message);
+        return res.status(500).json({ error: 'Idempotency check failed' });
+      }
+
+      try {
+        const r = await grantTopupCredits({ userId, planKey, blocks, total: paidAmount, fwTxId });
+        console.log(`[FW Webhook] Top-up granted ${r.credits_added} credits to ${userId} (balance ${r.topup_balance})`);
+      } catch (e) {
+        console.error('[FW Webhook] grantTopupCredits failed:', e.message);
+        return res.status(500).json({ error: 'Top-up grant failed' });
+      }
+      return res.json({ status: 'ok' });
+    }
 
     if (event.event === 'charge.completed' && data?.status === 'successful') {
       const planKey = data.meta?.plan || data.tx_ref?.split('_')[1] || null;

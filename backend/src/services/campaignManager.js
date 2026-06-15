@@ -288,12 +288,35 @@ async function checkMonthlyCap(userId) {
     if (lastMonth !== thisMonth) {
       const firstOfMonth = `${thisMonth}-01`;
       // New cycle: zero the plan meter, the overage allowance, and the warning marker.
+      // Also reset the OUTREACH meter in the same write: zero usage, EXPIRE any
+      // unused top-up credits (they do not roll over), clear the fire-once
+      // notification flags, un-pause outreach, and stamp the outreach reset marker.
       await supabase.from('users').update({
-        calls_used:             0,
-        overage_dials_used:     0,
-        last_usage_warning_pct: 0,
-        dials_reset_date:       firstOfMonth,
+        calls_used:              0,
+        overage_dials_used:      0,
+        last_usage_warning_pct:  0,
+        dials_reset_date:        firstOfMonth,
+        // Outreach meter rollover
+        outreach_used:           0,
+        topup_credits_available: 0,   // top-ups expire at reset
+        topup_purchases_this_cycle: 0,
+        topup_spend_this_cycle:  0,
+        outreach_paused:         false,
+        notified_at_80_percent:  false,
+        notified_at_95_percent:  false,
+        notified_at_100_percent: false,
+        notified_topup_expiry:   false,
+        outreach_reset_date:     firstOfMonth,
       }).eq('id', userId);
+
+      // Mark any still-active top-up purchase rows for this operator as expired
+      // (audit trail — the live balance is already zeroed above).
+      supabase.from('topup_purchases')
+        .update({ status: 'expired' })
+        .eq('operator_id', userId)
+        .eq('status', 'active')
+        .catch(() => {});
+
       return { reached: false, used: 0, limit };
     }
 

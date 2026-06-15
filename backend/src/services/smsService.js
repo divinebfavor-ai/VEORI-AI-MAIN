@@ -122,6 +122,27 @@ async function sendOpeningSMS(lead, userId) {
     return null;
   }
 
+  // Outreach credit gate — opening SMS is metered lead outreach.
+  // 1 SMS = 1 credit; monthly allocation first, then top-up. Blocked when both
+  // are exhausted. Compliance/transactional SMS go through sendSMS() directly
+  // and are NEVER gated here.
+  const outreachCredits = require('./outreachCredits');
+  const reservation = await outreachCredits.reserve(userId, 1);
+  if (!reservation.allowed) {
+    await supabase.from('sms_messages').insert({
+      user_id:    userId,
+      lead_id:    lead.id,
+      direction:  'outbound',
+      from_number: SMS_FROM,
+      to_number:  phone,
+      body:       getOpeningMessage(lead),
+      status:     'blocked_no_credits',
+      sent_at:    new Date().toISOString(),
+    }).catch(() => {});
+    console.warn(`[SMS] Opening blocked — outreach credits ${reservation.reason} (lead: ${lead.id})`);
+    return null;
+  }
+
   const body = getOpeningMessage(lead);
 
   try {
@@ -239,6 +260,24 @@ async function sendReply(toPhone, body, userId, leadId) {
         created_at: new Date().toISOString(),
       }).catch(() => {});
       console.warn(`[SMS] Reply blocked — ${toPhone} is on DNC`);
+      return null;
+    }
+
+    // Outreach credit gate — AI outreach replies are metered lead outreach.
+    const outreachCredits = require('./outreachCredits');
+    const reservation = await outreachCredits.reserve(userId, 1);
+    if (!reservation.allowed) {
+      await supabase.from('sms_messages').insert({
+        user_id:    userId,
+        lead_id:    leadId,
+        direction:  'outbound',
+        from_number: SMS_FROM,
+        to_number:  toPhone,
+        body,
+        status:     'blocked_no_credits',
+        sent_at:    new Date().toISOString(),
+      }).catch(() => {});
+      console.warn(`[SMS] Reply blocked — outreach credits ${reservation.reason} (lead: ${leadId})`);
       return null;
     }
 
