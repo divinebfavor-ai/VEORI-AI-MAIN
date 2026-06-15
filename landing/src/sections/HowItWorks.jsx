@@ -4,8 +4,8 @@ import { useReveal } from '../components/useReveal'
 const steps = [
   {
     num: '01',
-    title: 'Pay $197 today',
-    body: 'Lock in founding operator pricing permanently. Standard pricing is $297/month after beta closes. Your rate never changes.',
+    title: 'Pick your plan',
+    body: 'Plans start at $1,499/month and scale with your deal volume. Every plan includes every feature — no gates, no upgrade fees. Cancel anytime.',
   },
   {
     num: '02',

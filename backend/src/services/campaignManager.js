@@ -272,7 +272,7 @@ async function checkMonthlyCap(userId) {
   try {
     const { data: u } = await supabase
       .from('users')
-      .select('calls_used, monthly_dial_limit, subscription_status, dials_reset_date')
+      .select('calls_used, monthly_dial_limit, subscription_status, dials_reset_date, overage_enabled')
       .eq('id', userId)
       .single();
     if (!u) return { reached: false, used: 0, limit: 0 };
@@ -287,12 +287,20 @@ async function checkMonthlyCap(userId) {
     const lastMonth = (u.dials_reset_date || '').slice(0, 7);
     if (lastMonth !== thisMonth) {
       const firstOfMonth = `${thisMonth}-01`;
-      await supabase.from('users').update({ calls_used: 0, dials_reset_date: firstOfMonth }).eq('id', userId);
+      // New cycle: zero the plan meter, the overage allowance, and the warning marker.
+      await supabase.from('users').update({
+        calls_used:             0,
+        overage_dials_used:     0,
+        last_usage_warning_pct: 0,
+        dials_reset_date:       firstOfMonth,
+      }).eq('id', userId);
       return { reached: false, used: 0, limit };
     }
 
     const used = u.calls_used || 0;
-    return { reached: used >= limit, used, limit };
+    // Overage on => never "reached": the campaign keeps dialing into the allowance
+    // (over-limit dials are tracked separately by the per-call route).
+    return { reached: used >= limit && !u.overage_enabled, used, limit };
   } catch (e) {
     console.warn('[Campaign] checkMonthlyCap failed — allowing dial:', e.message);
     return { reached: false, used: 0, limit: 0 };

@@ -331,7 +331,7 @@ function Hero() {
                 </a>
               </div>
               <div className="lp-badge-row" style={{ display: 'flex', justifyContent: 'center', fontSize: 13, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter,sans-serif' }}>
-                From <strong style={{ color: 'rgba(255,255,255,0.60)', margin: '0 5px' }}>$397/month</strong> · No setup fees · Cancel anytime
+                From <strong style={{ color: 'rgba(255,255,255,0.60)', margin: '0 5px' }}>$1,499/month</strong> · No setup fees · Cancel anytime
               </div>
             </motion.div>
           </div>
@@ -599,7 +599,7 @@ const HUMAN_ROWS = [
   { label: 'Training required', value: 'Always', bad: true },
 ]
 const VEORI_ROWS = [
-  { label: 'Monthly cost', value: 'From $499/month', good: true },
+  { label: 'Monthly cost', value: 'From $1,499/month', good: true },
   { label: 'Calls per day', value: '100+ dials', good: true },
   { label: 'Calls per week', value: '750 dials', good: true },
   { label: 'Calls per month', value: '3,000 dials', good: true },
@@ -642,7 +642,7 @@ function Comparison() {
             More calls. Better results.<br />Up to $1,421 less per month.
           </h2>
           <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', maxWidth: 520, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
-            A human VA makes 1,800 calls a month and costs $1,280-$1,920. Veori makes 3,000 calls for $499. Works nights. Works weekends. Never quits.
+            A human VA makes 1,800 calls a month and costs $1,280-$1,920. Veori makes 3,000 calls for $1,499. Works nights. Works weekends. Never quits.
           </p>
         </motion.div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
@@ -662,7 +662,7 @@ function Comparison() {
 // ─── How It Works ─────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { num: '01', title: 'Choose your plan', body: 'Pick the plan that fits your deal volume - from 3,000 dials/month on Starter up to 50,000 on Enterprise. Secure checkout. Account activates within 48 hours.' },
+  { num: '01', title: 'Choose your plan', body: 'Pick the plan that fits your deal volume - from 10,000 outreach/month on Starter up to 200,000 on Enterprise. Secure checkout. Account activates within 48 hours.' },
   { num: '02', title: 'Account activates in 48 hours', body: 'Create your own login inside the VEORI platform. We send you a setup link. No waiting on someone to manually onboard you.' },
   { num: '03', title: 'Upload your seller list', body: 'Drop in a CSV with your leads. Names, numbers, addresses. VEORI starts calling automatically. Natural conversations, handles objections, scores every seller 0 to 100.' },
   { num: '04', title: 'VEORI qualifies and makes offers', body: 'Hot sellers are flagged by motivation score. VEORI makes cash offers based on your criteria. Consistent pitch every time. No variance, no emotion, just execution.' },
@@ -724,11 +724,11 @@ function HowItWorks() {
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 
 const PLANS = [
-  { key: 'starter',    name: 'Starter',    price: 499,  dials: '3,000'  },
-  { key: 'growth',     name: 'Growth',     price: 999,  dials: '7,000',  popular: true },
-  { key: 'pro',        name: 'Pro',        price: 1799, dials: '15,000' },
-  { key: 'scale',      name: 'Scale',      price: 2999, dials: '30,000' },
-  { key: 'enterprise', name: 'Enterprise', price: 5999, dials: '50,000' },
+  { key: 'starter',    name: 'Starter',    price: 1499,  outreach: '10,000'  },
+  { key: 'solo',       name: 'Solo',       price: 2999,  outreach: '25,000'  },
+  { key: 'operator',   name: 'Operator',   price: 4999,  outreach: '50,000',  popular: true },
+  { key: 'scale',      name: 'Scale',      price: 8999,  outreach: '100,000' },
+  { key: 'enterprise', name: 'Enterprise', price: 14999, outreach: '200,000' },
 ]
 
 const PLAN_FEATURES = [
@@ -741,119 +741,6 @@ const PLAN_FEATURES = [
   'Number health monitoring',
   'Cancel anytime',
 ]
-
-const FOUNDING_BONUSES = [
-  'Locked at $397/month forever - price never increases',
-  'Direct access to founder for product feedback',
-  'Shape the product roadmap',
-  'Founding Member badge on profile',
-]
-
-function FoundingMemberCard({ onSelect }) {
-  const { ref, visible } = useReveal()
-  return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 28 }} animate={visible ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }}
-      whileHover={{ y: -4, transition: { duration: 0.22 } }}
-      style={{
-        background: 'linear-gradient(135deg, #0F1A0A 0%, #0A1205 100%)',
-        border: '1px solid rgba(201,168,76,0.55)',
-        borderRadius: 20,
-        overflow: 'hidden',
-        position: 'relative',
-        boxShadow: '0 0 80px rgba(201,168,76,0.12), 0 0 40px rgba(201,168,76,0.06), 0 24px 64px rgba(0,0,0,0.40)',
-        marginBottom: 20,
-      }}>
-
-      {/* Gold top bar */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, transparent 0%, #C9A84C 30%, #F0C96E 50%, #C9A84C 70%, transparent 100%)' }} />
-
-      {/* Corner glow */}
-      <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, background: 'radial-gradient(circle, rgba(201,168,76,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: -40, left: -40, width: 160, height: 160, background: 'radial-gradient(circle, rgba(201,168,76,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
-
-      <div style={{ padding: '36px 40px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 32 }}>
-
-        {/* Left - pricing */}
-        <div style={{ borderRight: '1px solid rgba(201,168,76,0.15)', paddingRight: 32 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 100, padding: '4px 14px', marginBottom: 20 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', boxShadow: '0 0 8px rgba(201,168,76,0.8)', animation: 'lp-pulse-ring 2s ease-out infinite', display: 'inline-block' }} />
-            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#C9A84C', fontFamily: 'Inter,sans-serif' }}>Limited - First 20 Spots Only</span>
-          </div>
-
-          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>Founding Member</div>
-
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 3, marginBottom: 6 }}>
-            <span style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.50)', marginTop: 8, fontFamily: 'Inter,sans-serif' }}>$</span>
-            <span style={{ fontSize: 64, fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1, color: '#F0C96E', fontFamily: 'Inter,sans-serif' }}>397</span>
-          </div>
-          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', marginBottom: 6, fontFamily: 'Inter,sans-serif' }}>/month, billed monthly</div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through', textDecorationColor: 'rgba(255,80,80,0.6)', fontFamily: 'Inter,sans-serif' }}>$499/mo (Starter)</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#00C47B', background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.25)', padding: '2px 8px', borderRadius: 100, fontFamily: 'Inter,sans-serif' }}>20% off</span>
-          </div>
-
-          <div style={{ fontSize: 13, color: '#C9A84C', fontWeight: 700, marginBottom: 24, fontFamily: 'Inter,sans-serif' }}>
-            3,000 dials/month
-          </div>
-
-          {/* Scarcity bar */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', fontFamily: 'Inter,sans-serif' }}>Spots remaining</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#C9A84C', fontFamily: 'Inter,sans-serif' }}>Only 20 available</span>
-            </div>
-            <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 100, overflow: 'hidden' }}>
-              <div style={{ width: '70%', height: '100%', background: 'linear-gradient(90deg, #C9A84C, #F0C96E)', borderRadius: 100 }} />
-            </div>
-          </div>
-
-          <button onClick={() => onSelect({ key: 'founding_member', name: 'Founding Member', price: 397, dials: '3,000' })}
-            style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg, #C9A84C 0%, #F0C96E 50%, #C9A84C 100%)', backgroundSize: '200% 100%', color: '#000', fontSize: 15, fontWeight: 900, border: 'none', borderRadius: 12, cursor: 'pointer', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em', transition: 'all 0.3s', boxShadow: '0 8px 32px rgba(201,168,76,0.35)' }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundPosition = '100% 0'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(201,168,76,0.55)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundPosition = '0% 0'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(201,168,76,0.35)'; e.currentTarget.style.transform = '' }}>
-            Claim Your Spot →
-          </button>
-          <p style={{ fontSize: 11.5, color: 'rgba(201,168,76,0.55)', textAlign: 'center', marginTop: 10, fontFamily: 'Inter,sans-serif' }}>
-            Rate locked forever. Cancel anytime.
-          </p>
-        </div>
-
-        {/* Middle - Growth features */}
-        <div style={{ borderRight: '1px solid rgba(201,168,76,0.15)', paddingRight: 32 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>Everything in Growth</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {PLAN_FEATURES.map(f => (
-              <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-                <span style={{ color: '#00C47B', fontWeight: 700, flexShrink: 0, marginTop: 1, fontSize: 13 }}>✓</span>
-                <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13.5, lineHeight: 1.4, fontFamily: 'Inter,sans-serif' }}>{f}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right - Founding bonuses */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: '#C9A84C', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>Founding Member Bonuses</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {FOUNDING_BONUSES.map(b => (
-              <div key={b} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-                <span style={{ color: '#C9A84C', fontWeight: 700, flexShrink: 0, marginTop: 1, fontSize: 14 }}>★</span>
-                <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, lineHeight: 1.4, fontFamily: 'Inter,sans-serif' }}>{b}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 28, padding: '16px 20px', background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 12 }}>
-            <div style={{ fontSize: 12, color: '#C9A84C', fontWeight: 700, marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>Why founding pricing?</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
-              The first 20 members help shape VEORI into the tool you actually need. In return, you get Growth plan access at 60% off - permanently.
-            </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
 
 function CheckoutModal({ plan, onClose }) {
   const [name, setName] = useState('')
@@ -889,7 +776,7 @@ function CheckoutModal({ plan, onClose }) {
           onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.35)'}>&times;</button>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 10, fontFamily: 'Inter,sans-serif' }}>Get started</div>
         <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>{plan.name} Plan</div>
-        <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.45)', marginBottom: 28, fontFamily: 'Inter,sans-serif' }}>${plan.price.toLocaleString()}/month · {plan.dials} dials</div>
+        <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.45)', marginBottom: 28, fontFamily: 'Inter,sans-serif' }}>${plan.price.toLocaleString()}/month · {plan.outreach} outreach</div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input type="text" placeholder="Your full name" value={name} onChange={e => setName(e.target.value)} required
             style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontSize: 14, fontFamily: 'Inter,sans-serif', outline: 'none', boxSizing: 'border-box' }}
@@ -917,8 +804,8 @@ function CheckoutModal({ plan, onClose }) {
 function ROISection() {
   const { ref, visible } = useReveal()
   const stats = [
-    { number: '$499', label: 'Starter plan per month', sub: 'Everything included' },
-    { number: '3,000', label: 'AI dials per month', sub: 'Works 24/7, never stops' },
+    { number: '$1,499', label: 'Starter plan per month', sub: 'Everything included' },
+    { number: '10,000', label: 'Outreach per month', sub: 'Works 24/7, never stops' },
     { number: '1 deal', label: 'Average closes per month', sub: 'Conservative estimate' },
     { number: '$10K-$25K', label: 'Average deal profit', sub: 'Wholesale assignment fee' },
   ]
@@ -929,7 +816,7 @@ function ROISection() {
           style={{ textAlign: 'center', marginBottom: 52 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 12, fontFamily: 'Inter,sans-serif' }}>The ROI</div>
           <h2 style={{ fontSize: 'clamp(26px,4vw,44px)', fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 12, fontFamily: 'Inter,sans-serif' }}>
-            For every $1 you spend on Veori,<br />you make back $20 to $50.
+            For every $1 you spend on Veori,<br />you make back $6 to $16.
           </h2>
           <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
             One closed wholesale deal covers your entire subscription for the month. Everything after that is pure profit.
@@ -949,10 +836,10 @@ function ROISection() {
           style={{ background: 'linear-gradient(135deg, rgba(201,168,76,0.10), rgba(201,168,76,0.04))', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 16, padding: '28px 32px', display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', fontFamily: 'Inter,sans-serif', marginBottom: 6 }}>
-              One deal pays for 20 months of Veori.
+              One deal pays for 6 months of Veori.
             </div>
             <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.50)', fontFamily: 'Inter,sans-serif' }}>
-              The average wholesale assignment fee is $10,000. Your Starter plan is $499/month.
+              The average wholesale assignment fee is $10,000. Your Starter plan is $1,499/month.
             </div>
           </div>
           <a href="#pricing" style={{ background: '#C9A84C', color: '#000', fontSize: 14, fontWeight: 800, padding: '14px 28px', borderRadius: 10, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -982,17 +869,7 @@ function Pricing() {
           </p>
         </motion.div>
 
-        {/* Founding Member - full-width hero card */}
-        <FoundingMemberCard onSelect={setSelectedPlan} />
-
-        {/* Divider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.25)', fontFamily: 'Inter,sans-serif' }}>Standard plans</span>
-          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
-        </div>
-
-        {/* Standard plan grid */}
+        {/* Plan grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
           {PLANS.map((plan, i) => (
             <PlanCard key={plan.key} plan={plan} index={i} onSelect={setSelectedPlan} />
@@ -1043,7 +920,7 @@ function PlanCard({ plan, index, onSelect }) {
       <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.38)', marginBottom: 6, fontFamily: 'Inter,sans-serif' }}>/month</div>
 
       <div style={{ fontSize: 12.5, color: '#00C47B', fontWeight: 700, marginBottom: 22, fontFamily: 'Inter,sans-serif' }}>
-        {plan.dials} dials/month
+        {plan.outreach} outreach/month
       </div>
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 18, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
@@ -1205,7 +1082,7 @@ function ReplaceYourStack() {
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(0,196,123,0.08)', borderTop: '1px solid rgba(0,196,123,0.15)' }}>
                 <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', fontFamily: 'Inter,sans-serif' }}>Total per month</span>
-                <span style={{ fontSize: 16, fontWeight: 900, color: '#00C47B', fontFamily: 'JetBrains Mono, monospace' }}>From $499</span>
+                <span style={{ fontSize: 16, fontWeight: 900, color: '#00C47B', fontFamily: 'JetBrains Mono, monospace' }}>From $1,499</span>
               </div>
             </div>
 

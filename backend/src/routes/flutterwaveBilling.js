@@ -23,68 +23,86 @@ const FW_HASH      = () => process.env.FLUTTERWAVE_WEBHOOK_HASH || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://veori.net';
 
 // ─── Plans ────────────────────────────────────────────────────────────────────
-// Amounts in USD (Flutterwave uses whole numbers, not cents)
+// Amounts in USD (Flutterwave uses whole numbers, not cents).
+//
+// PRICING MODEL (board-approved):
+//   * The operator-facing metric is `outreach` (motivated sellers contacted/month).
+//   * Internally the platform meters voice DIALS — `dials` is the real quota that
+//     drives `monthly_dial_limit` and the number-pool size. The SMS-first outreach
+//     pipeline is not built yet, so `outreach` is the label and `dials` is the
+//     enforced cap. Keep both fields in sync when the pipeline ships.
+//   * `amount`        = monthly USD price.
+//   * `amount_annual` = upfront yearly USD (= 10 months — 2 months free).
+//   * NO Founding Member tier (removed permanently). `growth`/`pro` retired; their
+//     dial tiers carry forward under the new `solo`/`operator` names.
 const PLANS = {
-  founding_member: {
-    name:        'Founding Member',
-    amount:      397,
-    currency:    'USD',
-    interval:    'monthly',
-    dials:       3000,
-    description: 'Founding member rate — locked in forever',
-    founding:    true,
-    fw_plan_id:  process.env.FW_PLAN_FOUNDING || null,
-  },
   starter: {
-    name:        'Starter',
-    amount:      499,
-    currency:    'USD',
-    interval:    'monthly',
-    dials:       3000,
-    description: '3,000 AI dials per month',
-    fw_plan_id:  process.env.FW_PLAN_STARTER || null,
+    name:         'Starter',
+    amount:       1499,
+    amount_annual: 14990,
+    currency:     'USD',
+    interval:     'monthly',
+    outreach:     10000,
+    dials:        3000,
+    description:  '10,000 outreach per month',
+    fw_plan_id:        process.env.FW_PLAN_STARTER        || null,
+    fw_plan_id_annual: process.env.FW_PLAN_STARTER_ANNUAL || null,
   },
-  growth: {
-    name:        'Growth',
-    amount:      999,
-    currency:    'USD',
-    interval:    'monthly',
-    dials:       7000,
-    description: '7,000 AI dials per month',
-    fw_plan_id:  process.env.FW_PLAN_GROWTH || null,
+  solo: {
+    name:         'Solo',
+    amount:       2999,
+    amount_annual: 29990,
+    currency:     'USD',
+    interval:     'monthly',
+    outreach:     25000,
+    dials:        7000,
+    description:  '25,000 outreach per month',
+    fw_plan_id:        process.env.FW_PLAN_SOLO        || null,
+    fw_plan_id_annual: process.env.FW_PLAN_SOLO_ANNUAL || null,
   },
-  pro: {
-    name:        'Pro',
-    amount:      1799,
-    currency:    'USD',
-    interval:    'monthly',
-    dials:       15000,
-    description: '15,000 AI dials per month',
-    fw_plan_id:  process.env.FW_PLAN_PRO || null,
+  operator: {
+    name:         'Operator',
+    amount:       4999,
+    amount_annual: 49990,
+    currency:     'USD',
+    interval:     'monthly',
+    outreach:     50000,
+    dials:        15000,
+    description:  '50,000 outreach per month',
+    popular:      true,
+    fw_plan_id:        process.env.FW_PLAN_OPERATOR        || null,
+    fw_plan_id_annual: process.env.FW_PLAN_OPERATOR_ANNUAL || null,
   },
   scale: {
-    name:        'Scale',
-    amount:      3999,
-    currency:    'USD',
-    interval:    'monthly',
-    dials:       30000,
-    description: '30,000 AI dials per month',
-    fw_plan_id:  process.env.FW_PLAN_SCALE || null,
+    name:         'Scale',
+    amount:       8999,
+    amount_annual: 89990,
+    currency:     'USD',
+    interval:     'monthly',
+    outreach:     100000,
+    dials:        30000,
+    description:  '100,000 outreach per month',
+    fw_plan_id:        process.env.FW_PLAN_SCALE        || null,
+    fw_plan_id_annual: process.env.FW_PLAN_SCALE_ANNUAL || null,
   },
   enterprise: {
-    name:        'Enterprise',
-    amount:      5999,
-    currency:    'USD',
-    interval:    'monthly',
-    dials:       50000,
-    description: '50,000 AI dials per month',
-    fw_plan_id:  process.env.FW_PLAN_ENTERPRISE || null,
+    name:         'Enterprise',
+    amount:       14999,
+    amount_annual: 149990,
+    currency:     'USD',
+    interval:     'monthly',
+    outreach:     200000,
+    dials:        50000,
+    description:  '200,000 outreach per month',
+    fw_plan_id:        process.env.FW_PLAN_ENTERPRISE        || null,
+    fw_plan_id_annual: process.env.FW_PLAN_ENTERPRISE_ANNUAL || null,
   },
   custom: {
     name:        'Custom / High-Volume',
     amount:      null,           // no fixed price — negotiated via email
     currency:    'USD',
     interval:    'monthly',
+    outreach:    null,
     dials:       null,           // set manually after the deal is agreed
     description: 'High-volume custom pricing — contact us to tailor a plan',
     custom:      true,
@@ -195,13 +213,15 @@ async function updateUserSubscription(userId, { plan, status, fwCustomerId, fwSu
 router.get('/plans', (req, res) => {
   const plansOut = Object.entries(PLANS).map(([key, p]) => ({
     key,
-    name:        p.name,
-    amount:      p.amount,
-    currency:    p.currency,
-    dials:       p.dials,
-    description: p.description,
-    founding:    p.founding || false,
-    custom:      p.custom   || false,
+    name:          p.name,
+    amount:        p.amount,
+    amount_annual: p.amount_annual || null,
+    currency:      p.currency,
+    outreach:      p.outreach ?? null,
+    dials:         p.dials,
+    description:   p.description,
+    popular:       p.popular  || false,
+    custom:        p.custom   || false,
     // Custom plans have no checkout — the frontend shows a "Contact us" button
     // that opens the user's email client to negotiate high-volume pricing.
     contact_mailto: p.custom
@@ -451,7 +471,7 @@ router.get('/subscription', auth, async (req, res) => {
   try {
     const { data: user, error: userErr } = await supabase
       .from('users')
-      .select('id, email, subscription_plan, subscription_status, subscription_expires_at, monthly_dial_limit, fw_subscription_id')
+      .select('id, email, subscription_plan, subscription_status, subscription_expires_at, monthly_dial_limit, fw_subscription_id, calls_used, overage_enabled, overage_dials_used')
       .eq('id', req.user.id)
       .single();
 
@@ -463,14 +483,26 @@ router.get('/subscription', auth, async (req, res) => {
     const planKey = user.subscription_plan;
     const plan    = PLANS[planKey] || null;
 
+    const dialLimit = user.monthly_dial_limit || 0;
+    const dialsUsed = user.calls_used || 0;
+    const usagePct  = dialLimit ? Math.round((dialsUsed / dialLimit) * 100) : 0;
+
     res.json({
       success:     true,
       plan:        planKey,
       plan_name:   plan?.name   || null,
       status:      user.subscription_status || 'inactive',
       expires_at:  user.subscription_expires_at || null,
-      dials:       user.monthly_dial_limit || 0,
+      dials:       dialLimit,
       amount:      plan?.amount || 0,
+      // Live usage meter for the in-app billing/usage UI.
+      usage: {
+        dials_used:         dialsUsed,
+        dials_limit:        dialLimit,
+        percent:            usagePct,
+        overage_enabled:    !!user.overage_enabled,
+        overage_dials_used: user.overage_dials_used || 0,
+      },
     });
   } catch (err) {
     console.error('[FW] subscription error:', err.message);

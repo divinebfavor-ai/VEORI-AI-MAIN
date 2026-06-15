@@ -12,7 +12,7 @@ const humanRows = [
 ]
 
 const veoriRows = [
-  { label: 'Cost', value: '$197/month', good: true },
+  { label: 'Cost', value: 'From $1,499/mo', good: true },
   { label: 'Availability', value: '24/7/365', good: true },
   { label: 'Consistency', value: 'Perfect every call', good: true },
   { label: 'Sick days', value: 'Never', good: true },
@@ -71,10 +71,10 @@ export default function Comparison() {
         >
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14 }}>The math</div>
           <h2 style={{ fontSize: 'clamp(26px,4vw,44px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14 }}>
-            Same result. Better consistency.<br />$1,303 less per month.
+            One VA. 80 calls a day.<br />VEORI does 500 — and never quits.
           </h2>
           <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', maxWidth: 460, margin: '0 auto', lineHeight: 1.65 }}>
-            A human VA costs more, works less, and quits eventually. VEORI doesn't.
+            For about what one human VA costs, VEORI works 24/7, stays perfectly consistent, and never needs training. Then it scales.
           </p>
         </motion.div>
 

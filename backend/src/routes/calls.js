@@ -113,7 +113,13 @@ router.post('/initiate', async (req, res, next) => {
     if (!lead_id) return res.status(400).json({ success: false, error: 'lead_id required' });
 
     // Check call quota for this operator
-    const { data: opUser } = await supabase.from('users').select('calls_used, calls_limit, subscription_status, subscription_plan, monthly_dial_limit, trial_ends_at, free_calls_today, free_calls_date').eq('id', req.user.id).single();
+    const { data: opUser } = await supabase.from('users').select('calls_used, calls_limit, subscription_status, subscription_plan, monthly_dial_limit, trial_ends_at, free_calls_today, free_calls_date, overage_enabled, overage_dials_used, last_usage_warning_pct').eq('id', req.user.id).single();
+
+    // Usage-pipeline signals computed in the quota gate below and attached to the response.
+    let usagePercent = null;   // 0-100+ of the monthly dial meter (subscribed plans only)
+    let usageWarning = null;   // 'approaching_limit' (80%) | 'critical' (95%) | 'over_limit'
+    let isOverLimit  = false;  // true when this dial is being served from the overage allowance
+
     if (opUser) {
       const isTrialExpired = opUser.subscription_status === 'trial' && opUser.trial_ends_at && new Date(opUser.trial_ends_at) < new Date();
       if (isTrialExpired) return res.status(403).json({ success: false, error: 'Your trial has ended. Upgrade your plan to keep calling.' });
@@ -143,10 +149,40 @@ router.post('/initiate', async (req, res, next) => {
           free_calls_date:  today,
         }).eq('id', req.user.id);
       } else {
-        // Subscribed: check monthly limit
+        // Subscribed: meter against the plan's monthly dial limit.
         const monthlyLimit = opUser.monthly_dial_limit || opUser.calls_limit || 0;
-        if (monthlyLimit && (opUser.calls_used || 0) >= monthlyLimit) {
-          return res.status(403).json({ success: false, error: `Monthly call limit reached (${monthlyLimit.toLocaleString()} calls). Upgrade your plan for more.` });
+        const used         = opUser.calls_used || 0;
+
+        if (monthlyLimit) {
+          usagePercent = Math.round((used / monthlyLimit) * 100);
+
+          if (used >= monthlyLimit) {
+            // At/over the meter. Overage OFF = hard block (unchanged). ON = serve from
+            // the overage allowance (tracked separately, no plan reset needed).
+            if (!opUser.overage_enabled) {
+              return res.status(403).json({
+                success:    false,
+                error:      `Monthly call limit reached (${monthlyLimit.toLocaleString()} calls). Upgrade your plan for more.`,
+                error_code: 'DIAL_LIMIT_REACHED',
+                limit:      monthlyLimit,
+                used,
+              });
+            }
+            isOverLimit  = true;
+            usageWarning = 'over_limit';
+          } else if (usagePercent >= 95) {
+            usageWarning = 'critical';
+          } else if (usagePercent >= 80) {
+            usageWarning = 'approaching_limit';
+          }
+
+          // Fire each threshold warning once per month, not on every dial.
+          // Tracks the highest threshold already announced this cycle.
+          const crossedPct = isOverLimit ? 100 : (usagePercent >= 95 ? 95 : (usagePercent >= 80 ? 80 : 0));
+          if (crossedPct > (opUser.last_usage_warning_pct || 0)) {
+            supabase.from('users').update({ last_usage_warning_pct: crossedPct }).eq('id', req.user.id).catch(() => {});
+            console.log(`[Usage] Operator ${req.user.id} crossed ${crossedPct}% of dial meter (${used}/${monthlyLimit})`);
+          }
         }
       }
     }
@@ -246,13 +282,23 @@ router.post('/initiate', async (req, res, next) => {
     await phoneRotation.recordCallStart(phoneNum.id);
     await supabase.from('leads').update({ call_count: (lead.call_count || 0) + 1, last_call_date: new Date().toISOString(), status: 'calling' }).eq('id', lead_id);
 
-    // Increment calls_used counter for quota tracking
-    supabase.from('users').update({ calls_used: (opUser?.calls_used || 0) + 1 }).eq('id', req.user.id).catch(() => {});
+    // Increment the right meter. Over-limit dials (overage allowance) are tracked
+    // separately so the plan meter stays an honest count of in-plan usage.
+    if (isOverLimit) {
+      supabase.from('users').update({ overage_dials_used: (opUser?.overage_dials_used || 0) + 1 }).eq('id', req.user.id).catch(() => {});
+    } else {
+      supabase.from('users').update({ calls_used: (opUser?.calls_used || 0) + 1 }).eq('id', req.user.id).catch(() => {});
+    }
 
     // TCPA audit log — call was initiated within compliant hours, not on DNC
     await logTcpa(req.user.id, lead.id, lead.phone, 'call_initiated', `Call placed to ${lead.property_state || 'unknown state'} within TCPA hours. Call ID: ${callId}`);
 
-    res.json({ success: true, data: { ...callRecord, vapi_call_id: vapiCall.id }, tcpa_warnings: tcpaWarnings });
+    res.json({
+      success: true,
+      data: { ...callRecord, vapi_call_id: vapiCall.id },
+      tcpa_warnings: tcpaWarnings,
+      usage: { percent: usagePercent, warning: usageWarning, over_limit: isOverLimit },
+    });
   } catch (err) { next(err); }
 });
 

@@ -70,7 +70,7 @@ export default function Nav() {
           }}
           onMouseEnter={e => { e.target.style.background = '#00d986'; e.target.style.boxShadow = '0 6px 22px rgba(0,196,123,0.38)'; }}
           onMouseLeave={e => { e.target.style.background = '#00C47B'; e.target.style.boxShadow = 'none'; }}
-        >Get founding access</a>
+        >Get started</a>
       </div>
     </motion.nav>
   )

@@ -5,6 +5,7 @@
  *   GET /api/admin/users        - all users with geo + plan data
  *   GET /api/admin/countries    - users by country
  *   GET /api/admin/revenue      - revenue breakdown
+ *   GET /api/admin/legacy-plans - subscribers still on retired tiers (read-only)
  */
 
 const router   = require('express').Router();
@@ -41,9 +42,11 @@ router.get('/stats', async (req, res) => {
     ]);
 
     const subs = subRes.data || [];
+    // Monthly USD by plan. New 5-plan pricing + retired tiers kept at their
+    // OLD amounts so any legacy subscriber still counts correctly toward MRR.
     const planAmounts = {
-      founding_member: 397, starter: 499, growth: 999,
-      pro: 1799, scale: 2999, enterprise: 5999,
+      starter: 1499, solo: 2999, operator: 4999, scale: 8999, enterprise: 14999,
+      founding_member: 397, growth: 999, pro: 1799, // retired — legacy MRR only
     };
     const mrr = subs.reduce((s, u) => s + (planAmounts[u.subscription_plan] || 0), 0);
 
@@ -123,9 +126,11 @@ router.get('/revenue', async (req, res) => {
 
     if (error) throw error;
 
+    // Monthly USD by plan. New 5-plan pricing + retired tiers kept at their
+    // OLD amounts so any legacy subscriber still counts correctly toward MRR.
     const planAmounts = {
-      founding_member: 397, starter: 499, growth: 999,
-      pro: 1799, scale: 2999, enterprise: 5999,
+      starter: 1499, solo: 2999, operator: 4999, scale: 8999, enterprise: 14999,
+      founding_member: 397, growth: 999, pro: 1799, // retired — legacy MRR only
     };
 
     const breakdown = {};
@@ -149,6 +154,50 @@ router.get('/revenue', async (req, res) => {
   } catch (err) {
     console.error('[Admin] revenue error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to load revenue' });
+  }
+});
+
+// GET /api/admin/legacy-plans
+// Read-only. Lists anyone still on a RETIRED tier so they can be migrated to a
+// current plan. Touches nothing — pure visibility into stranded subscribers.
+router.get('/legacy-plans', async (req, res) => {
+  try {
+    const RETIRED = ['founding_member', 'growth', 'pro'];
+    // Suggested landing tier for each retired plan (closest current equivalent).
+    const MIGRATE_TO = { founding_member: 'starter', growth: 'starter', pro: 'solo' };
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, full_name, email, subscription_plan, subscription_status, monthly_dial_limit, calls_used, created_at, subscription_expires_at')
+      .in('subscription_plan', RETIRED)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    const users = (data || []).map(u => ({
+      ...u,
+      suggested_plan: MIGRATE_TO[u.subscription_plan] || 'starter',
+    }));
+
+    // Count stranded users per retired tier (active subs first — they're the priority).
+    const byPlan = {};
+    for (const u of users) {
+      const p = u.subscription_plan;
+      if (!byPlan[p]) byPlan[p] = { plan: p, total: 0, active: 0, suggested_plan: MIGRATE_TO[p] || 'starter' };
+      byPlan[p].total++;
+      if (u.subscription_status === 'active') byPlan[p].active++;
+    }
+
+    res.json({
+      success:       true,
+      retired_plans: RETIRED,
+      total:         users.length,
+      summary:       Object.values(byPlan),
+      users,
+    });
+  } catch (err) {
+    console.error('[Admin] legacy-plans error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to load legacy plans' });
   }
 });
 

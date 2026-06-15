@@ -24,44 +24,46 @@ function getSupabase() {
 const { requireAuth: auth } = require('../middleware/auth');
 
 // ─── Plan config ──────────────────────────────────────────────────────────────
-// stripePriceId = Stripe price ID
+// stripePriceId = Stripe price ID. amount in CENTS (Stripe convention).
+// outreach = operator-facing label; dials = enforced quota / number-pool size.
+// New 5-tier pricing. Stripe price IDs must be created in the Stripe dashboard
+// and set via env before the Stripe switch — fallbacks here are placeholders.
 const PLANS = {
-  founding_member: {
-    stripePriceId:  process.env.STRIPE_FOUNDING_MEMBER_PRICE_ID || 'price_1Tb3xAAW61xZuN5nilAyqg7j',
-    name:           'Founding Member',
-    dials:          7000,
-    amount:         39700,
-    founding:       true,
-  },
   starter: {
-    stripePriceId:  process.env.STRIPE_STARTER_PRICE_ID || 'price_1Tb1UhAW61xZuN5nBiMP6Spu',
-    name:           'Starter Plan',
+    stripePriceId:  process.env.STRIPE_STARTER_PRICE_ID || null,
+    name:           'Starter',
+    outreach:       10000,
     dials:          3000,
-    amount:         49900,
+    amount:         149900,
   },
-  growth: {
-    stripePriceId:  process.env.STRIPE_GROWTH_PRICE_ID || 'price_1Tb1Y8AW61xZuN5nim5LCiud',
-    name:           'Growth Plan',
+  solo: {
+    stripePriceId:  process.env.STRIPE_SOLO_PRICE_ID || null,
+    name:           'Solo',
+    outreach:       25000,
     dials:          7000,
-    amount:         99900,
+    amount:         299900,
   },
-  pro: {
-    stripePriceId:  process.env.STRIPE_PRO_PRICE_ID || 'price_1Tb1YBAW61xZuN5nD6W0YZgB',
-    name:           'Pro Plan',
+  operator: {
+    stripePriceId:  process.env.STRIPE_OPERATOR_PRICE_ID || null,
+    name:           'Operator',
+    outreach:       50000,
     dials:          15000,
-    amount:         179900,
+    amount:         499900,
+    popular:        true,
   },
   scale: {
-    stripePriceId:  process.env.STRIPE_SCALE_PRICE_ID || 'price_1Tb1YEAW61xZuN5njVCI31UY',
-    name:           'Scale Plan',
+    stripePriceId:  process.env.STRIPE_SCALE_PRICE_ID || null,
+    name:           'Scale',
+    outreach:       100000,
     dials:          30000,
-    amount:         399900,
+    amount:         899900,
   },
   enterprise: {
-    stripePriceId:  process.env.STRIPE_ENTERPRISE_PRICE_ID || 'price_1Tb1YFAW61xZuN5nQZ9zbss7',
-    name:           'Enterprise Plan',
+    stripePriceId:  process.env.STRIPE_ENTERPRISE_PRICE_ID || null,
+    name:           'Enterprise',
+    outreach:       200000,
     dials:          50000,
-    amount:         599900,
+    amount:         1499900,
   },
 };
 
@@ -94,7 +96,7 @@ async function createStripeCheckout({ email, name, plan, planConfig }) {
 // ─── POST /api/billing/checkout ───────────────────────────────────────────────
 router.post('/checkout', async (req, res) => {
   try {
-    const { name, email, plan = 'founding_member' } = req.body;
+    const { name, email, plan = 'starter' } = req.body;
 
     if (!email || !name) {
       return res.status(400).json({ error: 'Name and email are required.' });
@@ -124,7 +126,7 @@ router.post('/checkout', async (req, res) => {
 // Alias used in some frontend calls — identical logic, just a different path
 router.post('/create-checkout-session', async (req, res) => {
   try {
-    const plan = req.body.plan || req.body.planName?.toLowerCase() || 'founding_member';
+    const plan = req.body.plan || req.body.planName?.toLowerCase() || 'starter';
     const { name, email } = req.body;
 
     if (!email || !name) return res.status(400).json({ error: 'Name and email are required.' });
@@ -183,7 +185,7 @@ router.get('/status', auth, async (req, res) => {
   try {
     const { data: profile } = await getSupabase()
       .from('users')
-      .select('stripe_customer_id, stripe_subscription_id, subscription_plan, subscription_status, subscription_current_period_end, monthly_dial_limit')
+      .select('stripe_customer_id, stripe_subscription_id, subscription_plan, subscription_status, subscription_current_period_end, monthly_dial_limit, calls_used, overage_enabled, overage_dials_used')
       .eq('id', req.user.id)
       .single();
 
@@ -193,15 +195,27 @@ router.get('/status', auth, async (req, res) => {
       return res.json({ subscribed: false, plan: null, status: 'none' });
     }
 
-    const plan = profile.subscription_plan;
+    const plan      = profile.subscription_plan;
+    const dialLimit = profile.monthly_dial_limit || PLANS[plan]?.dials || 0;
+    const dialsUsed = profile.calls_used || 0;
+    const usagePct  = dialLimit ? Math.round((dialsUsed / dialLimit) * 100) : 0;
+
     res.json({
       subscribed:  ['active', 'trialing'].includes(profile.subscription_status),
       plan,
       status:      profile.subscription_status,
       periodEnd:   profile.subscription_current_period_end,
-      dialLimit:   profile.monthly_dial_limit || PLANS[plan]?.dials || 0,
+      dialLimit,
       planDetails: PLANS[plan]  || null,
       provider:    'stripe',
+      // Live usage meter for the in-app billing/usage UI.
+      usage: {
+        dials_used:         dialsUsed,
+        dials_limit:        dialLimit,
+        percent:            usagePct,
+        overage_enabled:    !!profile.overage_enabled,
+        overage_dials_used: profile.overage_dials_used || 0,
+      },
     });
   } catch (err) {
     console.error('[billing/status]', err.message);
@@ -216,11 +230,11 @@ router.get('/plans', (_req, res) => {
     provider: 'stripe',
     plans:    Object.entries(PLANS).map(([key, p]) => ({
       key,
-      name:    p.name,
-      price:   p.amount / 100,
-      dials:   p.dials,
-      popular: key === 'growth',
-      founding: p.founding || false,
+      name:     p.name,
+      price:    p.amount / 100,
+      outreach: p.outreach ?? null,
+      dials:    p.dials,
+      popular:  p.popular || false,
     })),
   });
 });

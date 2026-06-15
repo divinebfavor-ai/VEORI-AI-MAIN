@@ -35,8 +35,9 @@ const COUNTRY_NAMES = {
 }
 
 const PLAN_COLORS = {
-  founding_member: '#C9A84C', starter: '#00C37A', growth: '#00C37A',
-  pro: '#60A5FA', scale: '#A78BFA', enterprise: '#F87171',
+  starter: '#00C37A', solo: '#34D399', operator: '#60A5FA',
+  scale: '#A78BFA', enterprise: '#F87171',
+  founding_member: '#C9A84C', growth: '#00C37A', pro: '#93C5FD', // retired tiers — legacy rows
 }
 
 export default function Admin() {

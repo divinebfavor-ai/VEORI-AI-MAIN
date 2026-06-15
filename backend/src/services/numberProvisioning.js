@@ -19,14 +19,21 @@ const axios    = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const supabase = require('../config/supabase');
 
-// Numbers needed per plan
+// Numbers needed per plan.
+// Sized from each plan's monthly DIAL limit at the documented health rate of
+// 1,320 dials/number/month (60 dials/number/day × 22 working days):
+//   starter 3k→3 · solo 7k→6 · operator 15k→12 · scale 30k→23 · enterprise 50k→38.
+// (Dial tiers are unchanged from the prior plan set — only the names changed —
+//  so these counts carry forward 1:1.) `founding_member` is kept ONLY as a safe
+// fallback for any legacy subscriber still on that retired tier; it is no longer
+// an offered plan.
 const PLAN_NUMBER_COUNTS = {
-  founding_member: 3,
   starter:         3,
-  growth:          6,
-  pro:             12,
+  solo:            6,
+  operator:        12,
   scale:           23,
   enterprise:      38,
+  founding_member: 3,   // retired tier — fallback only
 };
 
 // ── Toll-free vs. local split ────────────────────────────────────────────────
@@ -38,12 +45,12 @@ const PLAN_NUMBER_COUNTS = {
 //     linearly with dial volume — a couple is enough at any plan size.
 // Monday's pricing reshape only needs to touch THIS map (single source of truth).
 const PLAN_TOLLFREE_COUNTS = {
-  founding_member: 1,
   starter:         1,
-  growth:          1,
-  pro:             2,
+  solo:            1,
+  operator:        2,
   scale:           2,
   enterprise:      2,
+  founding_member: 1,   // retired tier — fallback only
 };
 
 /**

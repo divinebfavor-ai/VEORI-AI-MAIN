@@ -79,10 +79,10 @@ export default function ComingSoon() {
         >
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A84C', marginBottom: 14 }}>Coming soon</div>
           <h2 style={{ fontSize: 'clamp(26px,4vw,42px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.1, marginBottom: 14 }}>
-            The roadmap is already built.<br />Founding operators get it all free.
+            The roadmap is already built.<br />Every operator gets it all.
           </h2>
           <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.48)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65 }}>
-            These features are in active development. Every founding operator gets them automatically at no extra cost.
+            These features are in active development. Every plan gets them automatically at no extra cost.
           </p>
         </motion.div>
 
@@ -97,7 +97,7 @@ export default function ComingSoon() {
           transition={{ duration: 0.7, delay: 0.4 }}
           style={{ textAlign: 'center', marginTop: 40, fontSize: 14, color: 'rgba(255,255,255,0.38)' }}
         >
-          Founding operators get every future feature unlocked automatically. <strong style={{ color: '#C9A84C' }}>No upgrade fees. Ever.</strong>
+          Every operator gets every future feature unlocked automatically. <strong style={{ color: '#C9A84C' }}>No upgrade fees. Ever.</strong>
         </motion.div>
       </div>
     </section>

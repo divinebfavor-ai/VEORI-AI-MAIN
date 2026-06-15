@@ -13,15 +13,14 @@ function authHeaders() {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
 }
 
-const PLAN_ORDER = ['founding_member', 'starter', 'growth', 'pro', 'scale', 'enterprise']
+const PLAN_ORDER = ['starter', 'solo', 'operator', 'scale', 'enterprise']
 
 const PLAN_HIGHLIGHTS = {
-  founding_member: ['3,000 AI dials/month', 'All features included', 'Rate locked forever', 'Priority support'],
-  starter:         ['3,000 AI dials/month', 'All features included', 'Email support'],
-  growth:          ['7,000 AI dials/month', 'All features included', 'Priority support'],
-  pro:             ['15,000 AI dials/month', 'All features included', 'Priority support', 'Custom sequences'],
-  scale:           ['30,000 AI dials/month', 'All features included', 'Dedicated support', 'Custom sequences'],
-  enterprise:      ['50,000 AI dials/month', 'All features included', 'Dedicated account manager', 'White-glove setup'],
+  starter:    ['10,000 outreach/month', 'All features included', 'Email support'],
+  solo:       ['25,000 outreach/month', 'All features included', 'Priority support'],
+  operator:   ['50,000 outreach/month', 'All features included', 'Priority support', 'Custom sequences'],
+  scale:      ['100,000 outreach/month', 'All features included', 'Dedicated support', 'Custom sequences'],
+  enterprise: ['200,000 outreach/month', 'All features included', 'Dedicated account manager', 'White-glove setup'],
 }
 
 export default function Billing() {
@@ -124,7 +123,7 @@ export default function Billing() {
                 {subscription.plan_name || currentPlan}
               </div>
               <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: 4 }}>
-                {subscription.dials?.toLocaleString()} dials/month
+                {(subscription.outreach ?? subscription.dials)?.toLocaleString()} outreach/month
                 {subscription.expires_at && ` · Renews ${new Date(subscription.expires_at).toLocaleDateString()}`}
               </div>
             </div>
@@ -144,7 +143,7 @@ export default function Billing() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
             {plans.map(plan => {
               const isCurrent   = plan.key === currentPlan && isActive
-              const isFounding  = plan.founding
+              const isPopular   = plan.popular
               const isLoading   = subscribing === plan.key
               const highlights  = PLAN_HIGHLIGHTS[plan.key] || []
 
@@ -152,13 +151,13 @@ export default function Billing() {
                 <div
                   key={plan.key}
                   style={{
-                    background:    isFounding
-                      ? 'linear-gradient(135deg, rgba(201,168,76,0.12), rgba(201,168,76,0.04))'
+                    background:    isPopular
+                      ? 'linear-gradient(135deg, rgba(0,195,122,0.12), rgba(0,195,122,0.04))'
                       : 'var(--card-bg)',
                     border:        isCurrent
                       ? '2px solid #00C37A'
-                      : isFounding
-                      ? '1px solid rgba(201,168,76,0.4)'
+                      : isPopular
+                      ? '1px solid rgba(0,195,122,0.4)'
                       : '1px solid var(--border)',
                     borderRadius:  14,
                     padding:       28,
@@ -170,9 +169,9 @@ export default function Billing() {
                   }}
                 >
                   {/* Badges */}
-                  {isFounding && (
-                    <div style={{ position: 'absolute', top: -12, left: 20, background: '#C9A84C', color: '#060E1A', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', padding: '3px 10px', borderRadius: 20, textTransform: 'uppercase' }}>
-                      Founding Rate
+                  {isPopular && (
+                    <div style={{ position: 'absolute', top: -12, left: 20, background: '#00C37A', color: '#060E1A', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', padding: '3px 10px', borderRadius: 20, textTransform: 'uppercase' }}>
+                      Most Popular
                     </div>
                   )}
                   {isCurrent && (
@@ -185,7 +184,7 @@ export default function Billing() {
                   <div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>{plan.name}</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                      <span style={{ fontSize: 36, fontWeight: 800, color: isFounding ? '#C9A84C' : '#00C37A' }}>
+                      <span style={{ fontSize: 36, fontWeight: 800, color: '#00C37A' }}>
                         ${plan.amount.toLocaleString()}
                       </span>
                       <span style={{ fontSize: 13, color: 'var(--t2)' }}>/month</span>
@@ -209,7 +208,7 @@ export default function Billing() {
                     disabled={isCurrent || isLoading}
                     style={{
                       marginTop:    'auto',
-                      background:   isCurrent ? 'rgba(0,195,122,0.1)' : isFounding ? '#C9A84C' : '#00C37A',
+                      background:   isCurrent ? 'rgba(0,195,122,0.1)' : '#00C37A',
                       color:        isCurrent ? '#00C37A' : '#060E1A',
                       border:       'none',
                       borderRadius: 10,
