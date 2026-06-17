@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react'
-import { Plus, Search, Phone, Mail, Briefcase, X } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import Papa from 'papaparse'
+import { Plus, Search, Phone, Mail, Briefcase, X, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -56,6 +57,8 @@ export default function Buyers() {
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const fileRef                   = useRef()
 
   const load = async () => {
     setLoading(true)
@@ -65,6 +68,60 @@ export default function Buyers() {
   }
 
   useEffect(() => { load() }, [])
+
+  // CSV import — mirrors the Leads page importer. Flexible headers in; the backend
+  // /api/buyers/bulk does the real field mapping, phone dedup + chunked insert.
+  const handleFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+
+    const v = (row, ...keys) => {
+      for (const k of keys) {
+        const val = row[k] || row[k?.toLowerCase()] || row[k?.toUpperCase()]
+        if (val && String(val).trim()) return String(val).trim()
+      }
+      return ''
+    }
+
+    Papa.parse(file, {
+      header: true, skipEmptyLines: true,
+      complete: async ({ data }) => {
+        try {
+          if (!data?.length) { toast.error('CSV appears to be empty'); setImporting(false); return }
+
+          const mapped = data.map(r => ({
+            name:           v(r, 'name', 'Name', 'Buyer Name', 'buyer_name', 'Full Name', 'Contact', 'Company'),
+            phone:          v(r, 'phone', 'Phone', 'phone_number', 'Phone Number', 'Mobile', 'Cell', 'Contact Phone'),
+            email:          v(r, 'email', 'Email', 'Email Address', 'Contact Email'),
+            buyer_type:     v(r, 'buyer_type', 'Buyer Type', 'type', 'Type'),
+            buy_box_states: v(r, 'buy_box_states', 'Buy Box States', 'states', 'States', 'Markets', 'Target States'),
+            buy_box_types:  v(r, 'buy_box_types', 'Buy Box Types', 'property_types', 'Property Types', 'Asset Types'),
+            max_price:      v(r, 'max_price', 'Max Price', 'max_purchase_price', 'Max Purchase Price', 'Budget', 'Price Cap'),
+            notes:          v(r, 'notes', 'Notes', 'Comments'),
+          })).filter(r => r.name || r.phone)
+
+          if (!mapped.length) {
+            toast.error('No buyers found. Check your CSV column headers (need at least Name or Phone).')
+            setImporting(false)
+            return
+          }
+
+          const res = await buyers.bulkAddBuyers(mapped)
+          const { imported = mapped.length, duplicates_skipped = 0 } = res.data || {}
+
+          let msg = `${imported} buyers imported`
+          if (duplicates_skipped > 0) msg += ` · ${duplicates_skipped} duplicates skipped`
+          toast.success(msg)
+          load()
+        } catch (err) {
+          const msg = err?.response?.data?.error || err?.message || 'Import failed'
+          toast.error(msg)
+        }
+        finally { setImporting(false); if (fileRef.current) fileRef.current.value = '' }
+      },
+    })
+  }
 
   const filtered = buyerList.filter(b =>
     !search || `${b.name} ${b.email} ${b.phone}`.toLowerCase().includes(search.toLowerCase())
@@ -78,9 +135,15 @@ export default function Buyers() {
           <h1 className="text-[28px] font-medium text-white">Buyers</h1>
           <p className="text-[13px] text-text-muted mt-1">{buyerList.length} cash buyers in your list</p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          <Plus size={15} strokeWidth={2} /> Add Buyer
-        </Button>
+        <div className="flex items-center gap-3">
+          <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFile} />
+          <Button variant="secondary" loading={importing} onClick={() => fileRef.current?.click()}>
+            <Upload size={15} strokeWidth={2} /> Import CSV
+          </Button>
+          <Button onClick={() => setShowModal(true)}>
+            <Plus size={15} strokeWidth={2} /> Add Buyer
+          </Button>
+        </div>
       </div>
 
       {/* Search */}

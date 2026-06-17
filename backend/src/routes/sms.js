@@ -125,6 +125,25 @@ router.post('/webhook', async (req, res) => {
       return;
     }
 
+    // ── BUYER REPLY ROUTING ──────────────────────────────────────────────────
+    // A reply from a number in the `buyers` table is a buyer responding to a deal
+    // blast (the buy side of the auto-disposition loop), NOT a seller lead. Route
+    // it to buyer-interest handling: a "yes" auto-assigns the buyer + fires the
+    // assignment contract. STOP/START above already handled opt-out for buyers too.
+    if (!lead) {
+      const { data: buyer } = await supabase
+        .from('buyers')
+        .select('*')
+        .eq('phone', from)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (buyer) {
+        await handleBuyerReply(buyer, from, toNumber, inboundMsgId, body);
+        return;
+      }
+    }
+
     if (!lead) {
       console.log(`[SMS] No lead found for ${from}`);
       return;
@@ -208,6 +227,113 @@ async function scoreAndActInline(lead, userId, from, body) {
     }
   } catch (err) {
     console.error('[SMS] inline scoreAndAct error:', err.message);
+  }
+}
+
+// ─── Buyer reply handling (buy side of the auto-disposition loop) ─────────────
+// A buyer replied to a deal blast. Log it, detect interest, and on a clear "yes"
+// auto-assign the buyer to their best-fit under_contract deal and fire the
+// assignment contract. Conservative: a "yes" only acts on a deal whose buy box
+// actually fits this buyer, and only when the deal has no buyer assigned yet.
+const BUYER_YES = /\b(yes|yep|yeah|interested|i'?m in|send it|send the contract|let'?s do it|deal|sounds good)\b/i;
+const BUYER_NO  = /\b(no|not interested|pass|nope|remove me|too high|nah)\b/i;
+
+async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
+  const userId = buyer.user_id;
+  try {
+    // 1. Log the inbound message (buyer_id, no lead_id).
+    await supabase.from('sms_messages').insert({
+      user_id:     userId,
+      buyer_id:    buyer.id,
+      direction:   'inbound',
+      from_number: from,
+      to_number:   toNumber,
+      body,
+      telnyx_message_id: inboundMsgId,
+      status:      'received',
+      sent_at:     new Date().toISOString(),
+    }).catch(() => {});
+
+    const interested = BUYER_YES.test(body) && !BUYER_NO.test(body);
+    console.log(`[SMS] Buyer reply from ${buyer.name || from} — interested=${interested}`);
+
+    if (!interested) return; // a "no"/neutral reply just gets logged
+
+    // 2. Find this buyer's best-fit deal that's under_contract and unassigned.
+    const buyerDispo = require('../services/buyerDispoService');
+    const { data: openDeals } = await supabase
+      .from('deals')
+      .select('*, leads(*)')
+      .eq('user_id', userId)
+      .eq('status', 'under_contract')
+      .is('buyer_id', null)
+      .order('updated_at', { ascending: false })
+      .limit(50);
+
+    const fit = (openDeals || []).find(d => {
+      const states = (buyer.buy_box_states || []).map(s => String(s).trim().toUpperCase());
+      const stateOk = states.length === 0 || states.includes((d.property_state || '').trim().toUpperCase());
+      const ask = buyerDispo.dealAskPrice(d);
+      const priceOk = buyer.max_price == null || ask == null || Number(buyer.max_price) * 1.15 >= ask;
+      return stateOk && priceOk;
+    }) || (openDeals || [])[0];
+
+    if (!fit) {
+      console.log(`[SMS] Buyer ${buyer.id} said yes but no open under_contract deal to assign`);
+      return;
+    }
+
+    // 3. Assign the buyer (guard against a race — only if still unassigned).
+    const { data: claimed } = await supabase
+      .from('deals')
+      .update({ buyer_id: buyer.id, updated_at: new Date().toISOString() })
+      .eq('id', fit.id)
+      .eq('user_id', userId)
+      .is('buyer_id', null)
+      .select('id')
+      .maybeSingle();
+    if (!claimed) {
+      console.log(`[SMS] Deal ${fit.id} already assigned — skipping buyer ${buyer.id}`);
+      return;
+    }
+
+    await supabase.from('ai_command_log').insert({
+      deal_id:     fit.id,
+      action_type: 'buyer_assigned_auto',
+      message_sent: `Buyer ${buyer.name || from} replied YES — auto-assigned to deal`,
+      outcome:     'success',
+      operator_id: userId,
+    }).catch(() => {});
+
+    // 4. Generate + send the assignment contract. `send` builds the signing
+    //    package; deal must carry the joined buyer/lead for generateAssignment.
+    try {
+      const contractService = require('../services/contractService');
+      const dealForContract = { ...fit, buyers: buyer, leads: fit.leads || {} };
+      const result = await contractService.send(dealForContract, 'assignment', {
+        phone: buyer.phone, email: buyer.email, userId,
+      });
+      await supabase.from('deals')
+        .update({ contract_status: 'assignment_sent', updated_at: new Date().toISOString() })
+        .eq('id', fit.id).catch(() => {});
+      await supabase.from('ai_command_log').insert({
+        deal_id:     fit.id,
+        action_type: 'assignment_contract_sent',
+        message_sent: `Assignment contract sent to ${buyer.name || from} (${result?.signing_url || 'link created'})`,
+        outcome:     'success',
+        operator_id: userId,
+      }).catch(() => {});
+      // Send the buyer the signing link via SMS.
+      if (result?.signing_url) {
+        await sendReply(from, `Great — here's the assignment contract to sign: ${result.signing_url}`, userId, null)
+          .catch(() => {});
+      }
+      console.log(`[SMS] Assignment contract auto-sent for deal ${fit.id} → buyer ${buyer.id}`);
+    } catch (e) {
+      console.error('[SMS] Assignment contract auto-send failed:', e.message);
+    }
+  } catch (err) {
+    console.error('[SMS] handleBuyerReply error:', err.message);
   }
 }
 

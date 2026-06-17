@@ -400,26 +400,22 @@ router.patch('/:id/stage', async (req, res, next) => {
     if (stage === 'under_contract') {
       setImmediate(async () => {
         try {
-          const { data: fullDeal } = await supabase.from('deals').select('*').eq('id', req.params.id).single();
-          if (!fullDeal) return;
-          // Find buyers in same state that match on price
-          const { data: matchedBuyers } = await supabase.from('buyers')
-            .select('*')
-            .eq('user_id', req.user.id)
-            .or(`preferred_states.cs.{${fullDeal.property_state}},preferred_states.is.null`)
-            .lte('max_purchase_price', (fullDeal.buyer_price || fullDeal.offer_price || 999999999) * 1.15)
-            .eq('is_active', true)
-            .limit(20);
-          console.log(`[Deal] Auto buyer match: ${matchedBuyers?.length || 0} buyers found for deal ${req.params.id}`);
+          // Match buyers on the LIVE buy-box columns and blast them via the Phase-1
+          // SMS queue. buyerDispoService.startBuyerBlast owns the correct matcher
+          // (replacing the old dead-column query that referenced preferred_states /
+          // max_purchase_price, which don't exist on the live buyers table).
+          const buyerDispo = require('../services/buyerDispoService');
+          const { matched, enqueued, campaignId } = await buyerDispo.startBuyerBlast(req.params.id, req.user.id);
+          console.log(`[Deal] Auto buyer blast: matched ${matched}, enqueued ${enqueued} for deal ${req.params.id}`);
           await supabase.from('ai_command_log').insert({
             deal_id: req.params.id,
-            action_type: 'buyer_match_auto',
-            message_sent: `Auto-matched ${matchedBuyers?.length || 0} buyers when deal moved to under_contract`,
+            action_type: 'buyer_blast_auto',
+            message_sent: `Auto-matched ${matched} buyers, blasted ${enqueued} when deal moved to under_contract`,
             outcome: 'success',
             operator_id: req.user.id,
-          });
+          }).catch(() => {});
         } catch (e) {
-          console.error('[Deal] Auto buyer match failed:', e.message);
+          console.error('[Deal] Auto buyer blast failed:', e.message);
         }
       });
 
