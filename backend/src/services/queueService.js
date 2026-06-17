@@ -30,6 +30,7 @@ const QUEUE_NAMES = {
   SMS_BLAST:          'sms-blast',     // outbound high-volume outreach SMS
   SMS_INBOUND:        'sms-inbound',   // inbound reply scoring/escalation (off the webhook)
   SMS_DAILY_RESET:    'sms-daily-reset', // nightly zero of per-number SMS counters
+  ANALYTICS_ROLLUP:   'analytics-rollup', // nightly per-operator daily stats rollup
 };
 
 // Single-instance cron gate: only ONE box should register repeatable jobs (so we
@@ -244,6 +245,13 @@ function initWorkers() {
     console.log(`[Queue] sms-daily-reset zeroed ${n} number(s)`);
   }, { connection: conn, concurrency: 1 });
 
+  // ── Analytics rollup worker (per-operator daily stats) ────────────────────
+  new Worker(QUEUE_NAMES.ANALYTICS_ROLLUP, async (job) => {
+    const { rollupYesterday } = require('./analyticsRollup');
+    const n = await rollupYesterday();
+    console.log(`[Queue] analytics-rollup wrote ${n} operator row(s)`);
+  }, { connection: conn, concurrency: 1 });
+
   // Market intelligence worker (runs everywhere; repeat registered only on cron box)
   new Worker(QUEUE_NAMES.MARKET_INTELLIGENCE, async (job) => {
     const { runMarketIntelligenceScan } = require('./marketIntelligenceService');
@@ -276,6 +284,13 @@ function initWorkers() {
     smsResetQueue.add('sms-daily-reset', {}, {
       jobId: 'sms-daily-reset',
       repeat: { pattern: '5 0 * * *' }, // 00:05 every day
+      removeOnComplete: 5,
+    }).catch(() => {});
+
+    const rollupQueue = getQueue(QUEUE_NAMES.ANALYTICS_ROLLUP);
+    rollupQueue.add('analytics-rollup', {}, {
+      jobId: 'analytics-rollup',
+      repeat: { pattern: '15 0 * * *' }, // 00:15 every day (after sms-daily-reset)
       removeOnComplete: 5,
     }).catch(() => {});
   } else {

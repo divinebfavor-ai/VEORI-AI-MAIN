@@ -304,6 +304,9 @@ export const analyticsExtended = {
   dealTypes:          (params) => api.get('/api/analytics/deal-types', { params }),
   regionalPerformance:(params) => api.get('/api/analytics/regional-performance', { params }),
   aiInsights:         ()       => api.get('/api/analytics/ai-insights'),
+  smsFunnel:          (params) => api.get('/api/analytics/sms-funnel', { params }),
+  callActivity:       (params) => api.get('/api/analytics/call-activity', { params }),
+  dispoFunnel:        (params) => api.get('/api/analytics/dispo-funnel', { params }),
 }
 
 // ─── Wealth Playbook ──────────────────────────────────────────────────────────

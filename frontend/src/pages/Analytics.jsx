@@ -331,24 +331,31 @@ export default function Analytics() {
   const [dealTypes, setDealTypes]   = useState([])
   const [regional, setRegional]     = useState([])
   const [insights, setInsights]     = useState([])
+  const [smsFunnel, setSmsFunnel]   = useState(null)
+  const [callActivity, setCallActivity] = useState(null)
+  const [dispoFunnel, setDispoFunnel]   = useState(null)
   const [loading, setLoading]       = useState(true)
   const [insightsLoading, setInsightsLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
   const params = { period }
+  const days = parseInt(String(period).replace('d', ''), 10) || 90
 
   const fetchAll = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
 
     try {
-      const [kpiRes, flowRes, stateRes, segRes, typeRes, regRes] = await Promise.allSettled([
+      const [kpiRes, flowRes, stateRes, segRes, typeRes, regRes, smsRes, callRes, dispoRes] = await Promise.allSettled([
         analyticsExtended.kpis(params),
         analyticsExtended.dealFlowByMonth(params),
         analyticsExtended.performanceByState(params),
         analyticsExtended.sellerSegments(params),
         analyticsExtended.dealTypes(params),
         analyticsExtended.regionalPerformance(params),
+        analyticsExtended.smsFunnel({ days }),
+        analyticsExtended.callActivity({ days }),
+        analyticsExtended.dispoFunnel({ days }),
       ])
 
       if (kpiRes.status === 'fulfilled')    setKpis(kpiRes.value.data)
@@ -357,6 +364,9 @@ export default function Analytics() {
       if (segRes.status === 'fulfilled')    setSegments(segRes.value.data?.data || [])
       if (typeRes.status === 'fulfilled')   setDealTypes(typeRes.value.data?.data || [])
       if (regRes.status === 'fulfilled')    setRegional(regRes.value.data?.data || [])
+      if (smsRes.status === 'fulfilled')    setSmsFunnel(smsRes.value.data?.data || null)
+      if (callRes.status === 'fulfilled')   setCallActivity(callRes.value.data?.data || null)
+      if (dispoRes.status === 'fulfilled')  setDispoFunnel(dispoRes.value.data?.data || null)
     } catch {
       // individual endpoint failures are handled via allSettled
     } finally {
@@ -473,6 +483,31 @@ export default function Analytics() {
           sparkData={pipelineSpark}
           loading={loading}
         />
+      </div>
+
+      {/* ── Outreach & Disposition ── */}
+      <div className="bg-card border border-border-subtle rounded-xl p-6 mb-6">
+        <SectionHeader title="Outreach & Disposition" sub={`End-to-end engine activity over the last ${days} days`} />
+        {loading ? (
+          <div className="h-24 rounded-lg bg-surface animate-pulse" />
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[
+              { label: 'SMS Sent',        value: (smsFunnel?.sms_sent ?? 0).toLocaleString() },
+              { label: 'Replies',         value: (smsFunnel?.sms_replies ?? 0).toLocaleString(), sub: `${smsFunnel?.reply_rate ?? 0}% reply rate` },
+              { label: 'Calls Made',      value: (callActivity?.total_calls ?? 0).toLocaleString() },
+              { label: 'Talk Minutes',    value: (callActivity?.total_minutes ?? 0).toLocaleString() },
+              { label: 'Buyers Blasted',  value: (dispoFunnel?.buyers_blasted ?? 0).toLocaleString(), sub: `${dispoFunnel?.interest_rate ?? 0}% interested` },
+              { label: 'Deals Closed',    value: (dispoFunnel?.deals_closed ?? 0).toLocaleString(), sub: `$${Math.round((dispoFunnel?.assignment_revenue ?? 0) / 1000)}k` },
+            ].map((m) => (
+              <div key={m.label} className="bg-surface border border-border-subtle rounded-lg p-4">
+                <div className="text-[11px] uppercase tracking-wide text-text-muted">{m.label}</div>
+                <div className="text-[22px] font-semibold text-text-primary mt-1">{m.value}</div>
+                {m.sub && <div className="text-[11px] text-text-muted mt-0.5">{m.sub}</div>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Deal Flow Chart ── */}

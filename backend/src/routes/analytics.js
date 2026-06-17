@@ -159,6 +159,10 @@ router.get('/dashboard', async (req, res, next) => {
       dealsSnapshotRes,
       followUpsSnapshotRes,
       contractsSnapshotRes,
+      smsSentTodayRes,
+      smsRepliesTodayRes,
+      callsTodayMinutesRes,
+      buyersBlastedTodayRes,
     ] = await Promise.all([
       supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', uid),
       supabase.from('calls').select('id', { count: 'exact', head: true }).eq('user_id', uid).gte('created_at', today),
@@ -175,9 +179,17 @@ router.get('/dashboard', async (req, res, next) => {
       supabase.from('deals').select('id, property_address, status, closing_date').eq('user_id', uid).order('updated_at', { ascending: false }).limit(100),
       supabase.from('follow_ups').select('id, deal_id, contact_type, follow_up_type, next_follow_up_at, reason, status').eq('user_id', uid).order('next_follow_up_at', { ascending: true }).limit(20),
       supabase.from('contracts').select('id, deal_id, contract_type, signing_status, sent_at, fully_signed_at').eq('user_id', uid).order('updated_at', { ascending: false }).limit(20),
+      supabase.from('sms_messages').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('direction', 'outbound').gte('sent_at', today),
+      supabase.from('sms_messages').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('direction', 'inbound').gte('created_at', today),
+      supabase.from('calls').select('duration_seconds').eq('user_id', uid).gte('created_at', today),
+      supabase.from('buyer_campaigns').select('buyers_called').eq('user_id', uid).gte('created_at', today),
     ]);
 
     const revenue = revenueRes.data?.reduce((sum, d) => sum + (d.assignment_fee || 0), 0) || 0;
+    const minutesToday = Math.round(
+      (callsTodayMinutesRes.data?.reduce((sum, c) => sum + (c.duration_seconds || 0), 0) || 0) / 60
+    );
+    const buyersBlastedToday = buyersBlastedTodayRes.data?.reduce((sum, c) => sum + (c.buyers_called || 0), 0) || 0;
 
     const { data: pipeline } = await supabase.from('leads').select('status').eq('user_id', uid);
     const funnel = {};
@@ -216,6 +228,10 @@ router.get('/dashboard', async (req, res, next) => {
           pending_signatures: pendingContractsRes.count || 0,
           due_follow_ups: dueFollowUpsRes.count || 0,
           title_risks: titleRisksRes.count || 0,
+          sms_sent_today:      smsSentTodayRes.count || 0,
+          sms_replies_today:   smsRepliesTodayRes.count || 0,
+          minutes_today:       minutesToday,
+          buyers_blasted_today: buyersBlastedToday,
         },
         live_calls:    liveCallsRes.data || [],
         pipeline_funnel: funnel,
@@ -684,6 +700,188 @@ Return ONLY a JSON array of exactly 5 strings. No markdown. Example: ["🔥 Insi
     }
 
     res.json({ success: true, insights, generated_at: new Date().toISOString() });
+  } catch (err) { next(err); }
+});
+
+// ─── Outreach & Disposition analytics (hybrid: rollup history + live today) ───
+//
+// HYBRID MODEL: for any window > 1 day we sum operator_daily_stats rows for the
+// PAST days (one row per day, already aggregated by the nightly rollup job) and
+// only LIVE-count "today" from the raw event tables. This keeps a 30/90-day
+// report O(days) instead of O(messages) at 1M+ SMS scale. If the rollup table is
+// empty (rollup hasn't run yet, or fresh install) historical sums are simply 0 and
+// today's live numbers still render — so the endpoints degrade gracefully.
+
+const startOfTodayISO = () => new Date(new Date().toISOString().split('T')[0] + 'T00:00:00.000Z').toISOString();
+
+// Sum the rollup rows for [days-1 .. yesterday] for one operator. Returns an object
+// of summed columns (0 when there are no rows yet).
+async function sumRollup(uid, days, fields) {
+  const start = new Date();
+  start.setUTCDate(start.getUTCDate() - (days - 1)); // inclusive window start (date only)
+  const startDate = start.toISOString().split('T')[0];
+  const yDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  const { data, error } = await supabase
+    .from('operator_daily_stats')
+    .select(fields.join(', '))
+    .eq('user_id', uid)
+    .gte('stat_date', startDate)
+    .lte('stat_date', yDate);
+  if (error) throw error;
+
+  const totals = Object.fromEntries(fields.map(f => [f, 0]));
+  (data || []).forEach(r => fields.forEach(f => { totals[f] += Number(r[f] || 0); }));
+  return totals;
+}
+
+// GET /api/analytics/sms-funnel?days=30
+// Lead → SMS sent → reply → call-triggered, end-to-end for the operator.
+router.get('/sms-funnel', async (req, res, next) => {
+  try {
+    const uid  = req.user.id;
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const todayStart = startOfTodayISO();
+
+    const [hist, sentTodayRes, repliesTodayRes, leadsRes] = await Promise.all([
+      // Historical headline volume from the rollup (fast, O[days]).
+      sumRollup(uid, days, ['sms_sent', 'sms_replies']),
+      // Today's live outbound count.
+      supabase.from('sms_messages').select('id', { count: 'exact', head: true })
+        .eq('user_id', uid).eq('direction', 'outbound').gte('sent_at', todayStart),
+      // Today's live inbound replies (no buyer_id link — detected by direction).
+      supabase.from('sms_messages').select('id', { count: 'exact', head: true })
+        .eq('user_id', uid).eq('direction', 'inbound').gte('created_at', todayStart),
+      // Per-lead SMS-first funnel rows carry the real status buckets + call trigger
+      // (bounded by funnel size, so live-queried for the whole window).
+      supabase.from('sms_first_leads').select('status, replied_at, call_triggered, created_at')
+        .eq('user_id', uid).gte('created_at', since),
+    ]);
+
+    const leads = leadsRes.data || [];
+    const buckets = {};
+    leads.forEach(l => { const k = l.status || 'unknown'; buckets[k] = (buckets[k] || 0) + 1; });
+
+    const sent    = (hist.sms_sent || 0)    + (sentTodayRes.count || 0);
+    const replies = (hist.sms_replies || 0) + (repliesTodayRes.count || 0);
+    const leadsReplied  = leads.filter(l => l.replied_at).length;
+    const callsTriggered = leads.filter(l => l.call_triggered).length;
+
+    res.json({
+      success: true,
+      data: {
+        window_days:      days,
+        leads_in_funnel:  leads.length,
+        sms_sent:         sent,
+        sms_replies:      replies,
+        leads_replied:    leadsReplied,
+        calls_triggered:  callsTriggered,
+        reply_rate:       sent ? Math.round((replies / sent) * 100) : 0,
+        call_trigger_rate: leads.length ? Math.round((callsTriggered / leads.length) * 100) : 0,
+        status_breakdown: buckets,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/analytics/call-activity?days=30
+// Call volume + total talk MINUTES (Σ duration_seconds / 60) + outcomes.
+// Hybrid: rollup history for headline volume + live today for the rest.
+router.get('/call-activity', async (req, res, next) => {
+  try {
+    const uid  = req.user.id;
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+    const todayStart = startOfTodayISO();
+
+    const [hist, todayRes] = await Promise.all([
+      sumRollup(uid, days, ['calls_made', 'call_minutes', 'appointments', 'offers_made']),
+      supabase.from('calls')
+        .select('duration_seconds, outcome, operator_took_over, created_at')
+        .eq('user_id', uid).gte('created_at', todayStart),
+    ]);
+
+    const todayRows = todayRes.data || [];
+    if (todayRes.error) throw todayRes.error;
+
+    const todaySeconds = todayRows.reduce((s, c) => s + (c.duration_seconds || 0), 0);
+    const todayMinutes = Math.round(todaySeconds / 60);
+    const todayConnected = todayRows.filter(c => (c.duration_seconds || 0) > 10).length;
+
+    const totalCalls   = (hist.calls_made || 0)   + todayRows.length;
+    const totalMinutes = (hist.call_minutes || 0) + todayMinutes;
+    const appointments = (hist.appointments || 0) + todayRows.filter(c => c.outcome === 'appointment').length;
+    const offersMade   = (hist.offers_made || 0)  + todayRows.filter(c => c.outcome === 'offer_made').length;
+
+    res.json({
+      success: true,
+      data: {
+        window_days:    days,
+        total_calls:    totalCalls,
+        total_minutes:  totalMinutes,
+        avg_minutes:    totalCalls ? Math.round((totalMinutes / totalCalls) * 10) / 10 : 0,
+        appointments,
+        offers_made:    offersMade,
+        // Today-only signals (not stored historically per-row in the rollup).
+        calls_today:    todayRows.length,
+        minutes_today:  todayMinutes,
+        connected_today: todayConnected,
+        takeovers_today: todayRows.filter(c => c.operator_took_over).length,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/analytics/dispo-funnel?days=90
+// Deal → buyer blast → interested → assigned → revenue, end-to-end.
+// Campaigns/buyers are bounded by campaign count (live-queried for the window);
+// deals_closed + revenue use the rollup for history + live today.
+router.get('/dispo-funnel', async (req, res, next) => {
+  try {
+    const uid  = req.user.id;
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 90, 1), 365);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const todayStart = startOfTodayISO();
+
+    const [hist, campaignsRes, dealsTodayRes, buyersRes] = await Promise.all([
+      sumRollup(uid, days, ['deals_closed', 'assignment_revenue']),
+      supabase.from('buyer_campaigns')
+        .select('status, buyers_called, buyers_interested, assigned_buyer_id, deal_id, created_at, completed_at')
+        .eq('user_id', uid).gte('created_at', since),
+      supabase.from('deals')
+        .select('status, assignment_fee, buyer_id, created_at')
+        .eq('user_id', uid).gte('created_at', todayStart),
+      supabase.from('buyers').select('id', { count: 'exact', head: true })
+        .eq('user_id', uid).eq('is_active', true),
+    ]);
+
+    const campaigns = campaignsRes.data || [];
+    const dealsToday = dealsTodayRes.data || [];
+
+    const buyersBlasted    = campaigns.reduce((s, c) => s + (c.buyers_called || 0), 0);
+    const buyersInterested = campaigns.reduce((s, c) => s + (c.buyers_interested || 0), 0);
+    const assignedDeals    = campaigns.filter(c => c.assigned_buyer_id).length;
+
+    const closedToday    = dealsToday.filter(d => d.status === 'closed');
+    const dealsClosed    = (hist.deals_closed || 0) + closedToday.length;
+    const assignmentRevenue = (hist.assignment_revenue || 0)
+      + closedToday.reduce((s, d) => s + (d.assignment_fee || 0), 0);
+
+    res.json({
+      success: true,
+      data: {
+        window_days:        days,
+        active_buyers:      buyersRes.count || 0,
+        dispo_campaigns:    campaigns.length,
+        campaigns_completed: campaigns.filter(c => c.status === 'completed').length,
+        buyers_blasted:     buyersBlasted,
+        buyers_interested:  buyersInterested,
+        interest_rate:      buyersBlasted ? Math.round((buyersInterested / buyersBlasted) * 100) : 0,
+        deals_assigned:     assignedDeals,
+        deals_closed:       dealsClosed,
+        assignment_revenue: assignmentRevenue,
+      },
+    });
   } catch (err) { next(err); }
 });
 
