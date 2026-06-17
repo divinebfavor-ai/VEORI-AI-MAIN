@@ -67,6 +67,57 @@ async function sendSMS(to, text, userId = null) {
   return msg.sid;
 }
 
+/**
+ * Worker send point for the heavy SMS-blast queue.
+ *
+ * Unlike sendSMS(), this does NOT re-run the 3-tier sender lookup — the queue
+ * worker has already chosen a rotation sender (smsRotation.selectSmsNumber) and
+ * passes it in via `senderOverride`, saving 1-2 Supabase queries per send at
+ * blast scale. It performs the raw Twilio send and logs to sms_messages, exactly
+ * like the metered paths. It does NOT gate on DNC or outreach credits — the
+ * processor (smsBlastProcessor) owns those checks before calling this.
+ *
+ * @param {object} a
+ * @param {string} a.to             E.164 destination
+ * @param {string} a.body           message body
+ * @param {string} [a.userId]
+ * @param {string} [a.leadId]
+ * @param {{kind:'mgs'|'number', value:string}} [a.senderOverride]  chosen sender
+ * @returns {Promise<string|null>} Twilio message SID
+ */
+async function sendSMSDirect({ to, body, userId = null, leadId = null, senderOverride = null }) {
+  if (!twilioClient) {
+    console.warn('[SMS] Twilio not configured — sendSMSDirect skipped');
+    return null;
+  }
+  if (!to || !body) return null;
+
+  // Translate the rotation choice into Twilio's create() shape. If no override is
+  // supplied, fall back to the same env chain sendSMS uses (keeps callers safe).
+  let sender;
+  if (senderOverride?.kind === 'mgs')         sender = { messagingServiceSid: senderOverride.value };
+  else if (senderOverride?.kind === 'number') sender = { from: senderOverride.value };
+  else sender = MSG_SERVICE_SID ? { messagingServiceSid: MSG_SERVICE_SID } : { from: SMS_FROM };
+
+  const msg = await twilioClient.messages.create({ ...sender, to, body });
+  const msgId = msg.sid;
+
+  // Log identically to the metered paths (telnyx_message_id reused for Twilio SID).
+  await supabase.from('sms_messages').insert({
+    user_id:    userId,
+    lead_id:    leadId,
+    direction:  'outbound',
+    from_number: sender.from || sender.messagingServiceSid || SMS_FROM,
+    to_number:  to,
+    body,
+    telnyx_message_id: msgId,
+    status:     'sent',
+    sent_at:    new Date().toISOString(),
+  }).catch(() => {});
+
+  return msgId;
+}
+
 // ─── Tag-matched opening messages ────────────────────────────────────────────
 
 const OPENING_MESSAGES = {
@@ -354,4 +405,4 @@ async function escalateToCall(lead, userId) {
   }
 }
 
-module.exports = { sendSMS, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall };
+module.exports = { sendSMS, sendSMSDirect, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall };

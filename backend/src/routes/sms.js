@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const {
   sendSMS, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall,
 } = require('../services/smsService');
+const queueService = require('../services/queueService');
 
 const router = express.Router();
 
@@ -142,7 +143,28 @@ router.post('/webhook', async (req, res) => {
       sent_at:    new Date().toISOString(),
     });
 
-    // Load conversation history
+    // ── Heavy AI work off the request path ───────────────────────────────────
+    // The slow part (GPT scoreReply + Vapi escalation) is handed to the
+    // SMS_INBOUND queue so a reply flood from a big blast can't block this
+    // webhook. If Redis is unavailable we score inline (unchanged behavior).
+    let enqueued = null;
+    try {
+      enqueued = await queueService.enqueueInboundSMS({ leadId: lead.id, userId, from, body });
+    } catch (e) {
+      console.warn('[SMS] inbound enqueue failed — scoring inline:', e.message);
+    }
+    if (!enqueued) {
+      await scoreAndActInline(lead, userId, from, body);
+    }
+
+  } catch (err) {
+    console.error('[SMS Webhook Error]', err.message);
+  }
+});
+
+// Inline reply scoring + action (Redis-down fallback). Mirrors smsInboundProcessor.
+async function scoreAndActInline(lead, userId, from, body) {
+  try {
     const { data: history } = await supabase
       .from('sms_messages')
       .select('direction, body, sent_at')
@@ -152,28 +174,23 @@ router.post('/webhook', async (req, res) => {
 
     const formattedHistory = (history || []).map(m => ({ role: m.direction, body: m.body }));
 
-    // Score the reply
     const scoring = await scoreReply(formattedHistory, body);
     const score = typeof scoring === 'number' ? scoring : scoring.score;
     const nextAction = scoring.next_action || (score >= 60 ? 'call_now' : score >= 40 ? 'continue_sms' : 'follow_up_7_days');
 
     console.log(`[SMS] Score: ${score} — action: ${nextAction}`);
 
-    // Update lead motivation score
     await supabase.from('leads').update({ motivation_score: score }).eq('id', lead.id);
 
     if (nextAction === 'call_now' || score >= 60) {
-      // Hot lead — send a heads-up text then escalate to Vapi call
       await sendReply(from, `Thanks for getting back to me! Let me give you a quick call right now to discuss further.`, userId, lead.id);
       await escalateToCall(lead, userId);
 
     } else if (nextAction === 'continue_sms' || (score >= 40 && score < 60)) {
-      // Warm lead — continue SMS conversation
       const reply = await continueConversation(lead, body, formattedHistory);
       if (reply) await sendReply(from, reply, userId, lead.id);
 
     } else {
-      // Cold lead — schedule follow-up in 7 days
       const followUpDate = new Date();
       followUpDate.setDate(followUpDate.getDate() + 7);
 
@@ -189,11 +206,10 @@ router.post('/webhook', async (req, res) => {
 
       console.log(`[SMS] Cold lead — follow-up scheduled for ${followUpDate.toDateString()}`);
     }
-
   } catch (err) {
-    console.error('[SMS Webhook Error]', err.message);
+    console.error('[SMS] inline scoreAndAct error:', err.message);
   }
-});
+}
 
 // POST /api/sms/send — manual send (authenticated)
 router.post('/send', requireAuth, async (req, res, next) => {

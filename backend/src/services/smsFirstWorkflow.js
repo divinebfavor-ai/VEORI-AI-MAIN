@@ -18,6 +18,7 @@ const supabase          = require('../config/supabase');
 const { sendReply }     = require('./smsService');
 const vapiService       = require('./vapiService');
 const phoneRotation     = require('./phoneRotation');
+const queueService      = require('./queueService');
 
 // Active SMS-first sessions (in-memory, same pattern as campaignManager)
 const activeSessions = new Map();
@@ -106,7 +107,80 @@ async function buildLeadQueue(campaignId, userId, filter = {}) {
 }
 
 // ─── Step 2: Send SMS batch ───────────────────────────────────────────────────
+// Two paths, same observable result (sms_first_leads rows monitorReplies can read):
+//   • Redis present  → ENQUEUE one SMS_BLAST job per lead. The worker pool drains
+//     at SMS_GLOBAL_RATE_MAX with per-number rotation + carrier-safe daily caps,
+//     survives restarts, and scales to millions. Rows start 'queued' and the
+//     processor flips them to 'sms_sent' on success (so monitorReplies, which reads
+//     status='sms_sent', is unchanged). This is the heavy-scale path.
+//   • Redis absent   → fall back to the original inline 200ms loop so a single-box /
+//     no-Redis deploy still works exactly as before.
+// SMS-hours compliance + buildSMSBody are applied in BOTH paths.
 async function sendSMSBatch(campaignId, userId, leads, operatorName) {
+  return queueService.REDIS_AVAILABLE
+    ? enqueueSMSBatch(campaignId, userId, leads, operatorName)
+    : inlineSMSBatch(campaignId, userId, leads, operatorName);
+}
+
+// Heavy-scale path: create a 'queued' row + enqueue a job per eligible lead.
+async function enqueueSMSBatch(campaignId, userId, leads, operatorName) {
+  let queued = 0;
+
+  for (const lead of leads) {
+    if (!lead.phone) continue;
+    if (!isWithinSMSHours(lead.property_state)) {
+      console.log(`[SMSFirst] Skipping ${lead.phone} — outside SMS hours for ${lead.property_state}`);
+      continue;
+    }
+
+    const body = buildSMSBody(lead, operatorName);
+    const rowId = uuidv4();
+
+    // Create the tracking row up front in 'queued'; the processor flips it to
+    // 'sms_sent' (or dnc_blocked / deferred_no_credits) when the job runs.
+    await supabase.from('sms_first_leads').insert({
+      id:          rowId,
+      campaign_id: campaignId,
+      user_id:     userId,
+      lead_id:     lead.id,
+      sms_body:    body,
+      status:      'queued',
+    }).catch((e) => console.warn('[SMSFirst] queued-row insert failed:', e.message));
+
+    let jobId = null;
+    try {
+      jobId = await queueService.enqueueSMS({
+        leadId:         lead.id,
+        campaignId,
+        userId,
+        to:             lead.phone,
+        body,
+        smsFirstLeadId: rowId,
+      });
+    } catch (e) {
+      console.error(`[SMSFirst] enqueue failed for ${lead.phone}:`, e.message);
+    }
+
+    if (jobId) {
+      await supabase.from('sms_first_leads')
+        .update({ enqueue_job_id: String(jobId) })
+        .eq('id', rowId)
+        .catch(() => {});
+      queued++;
+    }
+  }
+
+  await supabase.from('campaigns')
+    .update({ sms_first_sent: queued, sms_first_status: 'monitoring' })
+    .eq('id', campaignId)
+    .catch(() => {});
+
+  console.log(`[SMSFirst] Enqueued ${queued} SMS jobs for campaign ${campaignId}`);
+  return queued;
+}
+
+// Fallback path (no Redis): the original synchronous send loop, unchanged.
+async function inlineSMSBatch(campaignId, userId, leads, operatorName) {
   let sent = 0;
 
   for (const lead of leads) {
