@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const contractService = require('../services/contractService');
 const { recordWinningPlaybook } = require('../services/dataMotService');
 const { logActivity } = require('../services/dealActivityService');
+const { runCloseRitual } = require('../services/closeRitualService');
 const { autoAssignTitleCompany, sendDealPackageToTitle, scheduleTitleFollowUps } = require('../services/titleService');
 
 const router = express.Router();
@@ -393,6 +394,14 @@ router.patch('/:id/stage', async (req, res, next) => {
             await recordWinningPlaybook({ deal: fullDeal, lead, calls_to_close: callCount || 0, days_to_close: daysToClose });
           }
         } catch (e) { console.error('[DataMot] Playbook record failed:', e.message); }
+      });
+
+      // CLOSE RITUAL (Stage 6) — stamp the fee, text thank-you to seller + buyer,
+      // and drop a deal_closed row on the chart. Idempotent + best-effort; never
+      // blocks the response (already sent above) and never throws here.
+      setImmediate(() => {
+        runCloseRitual({ dealId: req.params.id, userId: req.user.id })
+          .catch(e => console.error('[CloseRitual] failed:', e.message));
       });
     }
 

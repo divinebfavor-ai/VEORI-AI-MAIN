@@ -7,6 +7,7 @@ const {
 } = require('../services/smsService');
 const { getSellerContextForSMS } = require('../services/dataMotService');
 const queueService = require('../services/queueService');
+const { captureInboundMMS } = require('../services/mmsCaptureService');
 
 const router = express.Router();
 
@@ -93,15 +94,19 @@ router.post('/webhook', async (req, res) => {
   res.sendStatus(200); // Acknowledge immediately
 
   try {
-    // Twilio posts form-encoded fields: From, Body, To, MessageSid
+    // Twilio posts form-encoded fields: From, Body, To, MessageSid.
+    // MMS additionally posts NumMedia + MediaUrl{N} + MediaContentType{N}.
     const from     = req.body?.From;
     const body     = (req.body?.Body || '').trim();
     const toNumber = req.body?.To;
     const inboundMsgId = req.body?.MessageSid;
+    const hasMedia = (parseInt(req.body?.NumMedia, 10) || 0) > 0;
 
-    if (!from || !body) return;
+    // A photo-only MMS has media but no body text — we still want to capture the
+    // photos, so only bail early when there is BOTH no body AND no media.
+    if (!from || (!body && !hasMedia)) return;
 
-    console.log(`[SMS] Inbound from ${from}: ${body}`);
+    console.log(`[SMS] Inbound from ${from}: ${body || '(no text)'}${hasMedia ? ' [+media]' : ''}`);
 
     // Find lead by phone number
     const { data: lead } = await supabase
@@ -113,6 +118,18 @@ router.post('/webhook', async (req, res) => {
       .single();
 
     const userId = lead?.user_id || null;
+
+    // ── MMS PHOTO CAPTURE (Stage 3a) ─────────────────────────────────────────
+    // Seller texted picture(s) of the property → store them on the lead chart.
+    // Best-effort and non-blocking; runs only when this is a real seller lead.
+    if (hasMedia && lead) {
+      await captureInboundMMS({ body: req.body, lead }).catch(e =>
+        console.warn('[SMS] MMS capture failed (non-fatal):', e.message));
+    }
+
+    // A photo-only MMS (no body text) has nothing to opt-out/score — stop here
+    // now that the photos are saved.
+    if (!body) return;
 
     // ── STOP / OPT-OUT — handle FIRST before anything else ───────────────────
     if (isOptOut(body)) {
@@ -324,6 +341,30 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       operator_id: userId,
     }).catch(() => {});
 
+    // Stage 3b — tag the assigned buyer on the CHART (deal_activity is what the
+    // lead/deal timeline reads). This is the "who did this property go to" marker
+    // so the operator can always see, at a glance, the buyer the deal was assigned
+    // to. Best-effort, non-fatal.
+    try {
+      const { logActivity } = require('../services/dealActivityService');
+      await logActivity({
+        userId,
+        dealId: fit.id,
+        leadId: fit.lead_id || null,
+        actorType: 'buyer',
+        activityType: 'buyer_assigned',
+        message: `Property assigned to buyer ${buyer.name || from}`,
+        metadata: {
+          buyer_id:   buyer.id,
+          buyer_name: buyer.name || null,
+          buyer_phone: from,
+          via:        'sms_reply_yes',
+        },
+      });
+    } catch (e) {
+      console.warn('[SMS] buyer-assigned activity log failed (non-fatal):', e.message);
+    }
+
     // C — buyer brain: record this as a WON outcome so the next pitch to this
     // buyer knows they bought, at what price, and what type. Best-effort.
     try {
@@ -358,6 +399,28 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
         outcome:     'success',
         operator_id: userId,
       }).catch(() => {});
+
+      // Stage 3b — chart timeline entry for the assignment contract going out to
+      // the tagged buyer (every doc sent to a buyer is visible on the deal chart).
+      try {
+        const { logActivity } = require('../services/dealActivityService');
+        await logActivity({
+          userId,
+          dealId: fit.id,
+          leadId: fit.lead_id || null,
+          actorType: 'system',
+          activityType: 'assignment_contract_sent',
+          message: `Assignment contract sent to buyer ${buyer.name || from}`,
+          metadata: {
+            buyer_id:    buyer.id,
+            buyer_name:  buyer.name || null,
+            signing_url: result?.signing_url || null,
+            contract_id: result?.contract_id || null,
+          },
+        });
+      } catch (e) {
+        console.warn('[SMS] assignment-sent activity log failed (non-fatal):', e.message);
+      }
       // Send the buyer the signing link via SMS.
       if (result?.signing_url) {
         await sendReply(from, `Great — here's the assignment contract to sign: ${result.signing_url}`, userId, null)

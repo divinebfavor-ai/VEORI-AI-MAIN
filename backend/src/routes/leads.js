@@ -64,6 +64,159 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/leads/:id/timeline — ONE living profile: every event for this lead,
+// merged chronologically into a single feed. This is the "chart" the operator
+// reads to see the whole story of a lead in order:
+//   • inbound + outbound TEXTS        (sms_messages)
+//   • AI/operator CALLS w/ transcript (calls)
+//   • seller PHOTOS                   (lead_photos — seller_upload + sms_mms)
+//   • signed/sent DOCUMENTS           (contracts, via the lead's deals)
+//   • all deal ACTIVITY               (deal_activity — buyer-assigned, etc.)
+//
+// Additive, read-only. Every source is fetched best-effort and normalized to a
+// common { type, at, title, body, meta } shape, then sorted newest-first. A
+// failure in any one source degrades that lane to empty — it never 500s the
+// chart. All queries are scoped to req.user.id so an operator only ever sees
+// their own lead's history.
+//
+// NOTE: declared AFTER GET /:id above. Express matches the more specific
+// '/:id/timeline' path correctly because the literal '/timeline' segment can't
+// be consumed by '/:id' (which is a single segment) — so ordering is safe.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/:id/timeline', async (req, res, next) => {
+  try {
+    const leadId = req.params.id;
+    const uid = req.user.id;
+
+    // Confirm the lead belongs to this operator before exposing any history.
+    const { data: lead, error: leadErr } = await supabase
+      .from('leads')
+      .select('id, user_id, first_name, last_name, phone, property_address')
+      .eq('id', leadId).eq('user_id', uid).single();
+    if (leadErr || !lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+    // The lead's deals — used to pull the documents (contracts) for this property.
+    const { data: deals } = await supabase
+      .from('deals').select('id').eq('lead_id', leadId).eq('user_id', uid);
+    const dealIds = (deals || []).map(d => d.id).filter(Boolean);
+
+    // Fire every lane in parallel; each is best-effort.
+    const [smsRes, callsRes, photosRes, activityRes, contractsRes] = await Promise.allSettled([
+      supabase.from('sms_messages')
+        .select('id, direction, body, from_number, to_number, status, sent_at, created_at')
+        .eq('lead_id', leadId).eq('user_id', uid)
+        .order('sent_at', { ascending: false }).limit(500),
+      supabase.from('calls')
+        .select('id, direction, status, outcome, duration_seconds, motivation_score, ai_summary, transcript, started_at, created_at')
+        .eq('lead_id', leadId).eq('user_id', uid)
+        .order('started_at', { ascending: false }).limit(200),
+      supabase.from('lead_photos')
+        .select('id, url, source, file_name, created_at')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false }).limit(200),
+      supabase.from('deal_activity')
+        .select('id, actor_type, activity_type, message, metadata, created_at')
+        .eq('lead_id', leadId).eq('user_id', uid)
+        .order('created_at', { ascending: false }).limit(200),
+      dealIds.length
+        ? supabase.from('contracts')
+            .select('id, deal_id, contract_type, signing_status, sent_at, fully_signed_at, created_at')
+            .in('deal_id', dealIds).eq('user_id', uid)
+            .order('created_at', { ascending: false }).limit(100)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const val = r => (r.status === 'fulfilled' ? (r.value?.data || []) : []);
+    const events = [];
+
+    // TEXTS — inbound vs outbound, body verbatim.
+    for (const m of val(smsRes)) {
+      const out = m.direction === 'outbound';
+      events.push({
+        type: out ? 'sms_out' : 'sms_in',
+        at: m.sent_at || m.created_at,
+        title: out ? 'Text sent' : 'Text received',
+        body: m.body || '',
+        meta: { status: m.status, from: m.from_number, to: m.to_number },
+      });
+    }
+
+    // CALLS — surface the AI summary + transcript so the whole conversation lives here.
+    for (const c of val(callsRes)) {
+      const mins = c.duration_seconds ? Math.round((c.duration_seconds / 60) * 10) / 10 : 0;
+      events.push({
+        type: 'call',
+        at: c.started_at || c.created_at,
+        title: `Call${c.direction ? ` (${c.direction})` : ''}${c.outcome ? ` — ${c.outcome}` : ''}`,
+        body: c.ai_summary || '',
+        meta: {
+          status: c.status, outcome: c.outcome, minutes: mins,
+          motivation_score: c.motivation_score, transcript: c.transcript || null,
+        },
+      });
+    }
+
+    // PHOTOS — seller pictures, whether uploaded via link or texted in (MMS).
+    for (const p of val(photosRes)) {
+      events.push({
+        type: 'photo',
+        at: p.created_at,
+        title: p.source === 'sms_mms' ? 'Seller texted a photo' : 'Seller uploaded a photo',
+        body: '',
+        meta: { url: p.url, source: p.source, file_name: p.file_name },
+      });
+    }
+
+    // DOCUMENTS — every contract sent/signed for this property.
+    for (const k of val(contractsRes)) {
+      events.push({
+        type: 'document',
+        at: k.fully_signed_at || k.sent_at || k.created_at,
+        title: `${(k.contract_type || 'contract').toUpperCase()} — ${k.signing_status || 'draft'}`,
+        body: '',
+        meta: {
+          contract_type: k.contract_type, signing_status: k.signing_status,
+          deal_id: k.deal_id, sent_at: k.sent_at, fully_signed_at: k.fully_signed_at,
+        },
+      });
+    }
+
+    // ACTIVITY — buyer-assigned, media_received, stage changes, etc.
+    for (const a of val(activityRes)) {
+      events.push({
+        type: 'activity',
+        at: a.created_at,
+        title: a.activity_type || 'activity',
+        body: a.message || '',
+        meta: { actor_type: a.actor_type, ...(a.metadata || {}) },
+      });
+    }
+
+    // Newest-first. Anything missing a timestamp sinks to the bottom.
+    events.sort((x, y) => new Date(y.at || 0) - new Date(x.at || 0));
+
+    res.json({
+      success: true,
+      lead: {
+        id: lead.id,
+        name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
+        phone: lead.phone,
+        property_address: lead.property_address,
+      },
+      counts: {
+        texts: val(smsRes).length,
+        calls: val(callsRes).length,
+        photos: val(photosRes).length,
+        documents: val(contractsRes).length,
+        activity: val(activityRes).length,
+        total: events.length,
+      },
+      timeline: events,
+    });
+  } catch (err) { next(err); }
+});
+
 // POST /api/leads — create single
 router.post('/', async (req, res, next) => {
   try {

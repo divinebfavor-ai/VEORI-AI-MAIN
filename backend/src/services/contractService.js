@@ -36,6 +36,18 @@ TERMS:
 - Buyer may assign this agreement where permitted by law.
 - Closing costs allocated per final settlement statement.
 
+NON-CIRCUMVENTION:
+- This Agreement and Buyer's rights herein may be assigned by Buyer. Any
+  assignee, prospective assignee, or party introduced to this property or to
+  Seller by Buyer is bound by this non-circumvention term as a condition of any
+  such introduction.
+- No such party shall contact, negotiate with, or contract directly or
+  indirectly with Seller to acquire this property outside of this Agreement or
+  an assignment of it. This obligation survives for twenty-four (24) months.
+- A party who circumvents Buyer to acquire the property shall owe Buyer the
+  assignment fee that would have been due, as liquidated damages, plus
+  reasonable attorneys' fees and costs of enforcement.
+
 Accepted this date: ___________
 
 SELLER SIGNATURE: ___________________________ Date: ___________
@@ -68,6 +80,23 @@ TERMS:
 - Assignee accepts the original purchase agreement and all attached addenda.
 - Assignment fee is due at closing.
 - Assignee acknowledges review of the underlying purchase contract.
+
+NON-CIRCUMVENTION:
+- The Seller, the property, and this transaction were sourced and procured by
+  Assignor. Assignee agrees NOT to circumvent Assignor by contacting,
+  negotiating with, or contracting directly or indirectly with the Original
+  Seller (or any agent, affiliate, relative, entity, or successor of the
+  Seller) to acquire this property outside of this Agreement.
+- This obligation survives termination or expiration of this Agreement for a
+  period of twenty-four (24) months.
+- If Assignee acquires the property (or any interest in it) by circumventing
+  Assignor, Assignee shall owe Assignor the full Assignment Fee stated above as
+  liquidated damages, plus Assignor's reasonable attorneys' fees and costs of
+  enforcement. The parties agree this fee is a fair estimate of Assignor's
+  damages and is not a penalty.
+- Assignee shall keep the Seller's identity and contact information confidential
+  and shall not disclose them to any third party for the purpose of acquiring
+  this property apart from this Agreement.
 
 ASSIGNOR SIGNATURE: ___________________________ Date: ___________
 ${deal.operator_name || 'Veori AI Acquisitions'}
