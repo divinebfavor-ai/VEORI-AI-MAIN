@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const {
   sendSMS, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall,
 } = require('../services/smsService');
+const { getSellerContextForSMS } = require('../services/dataMotService');
 const queueService = require('../services/queueService');
 
 const router = express.Router();
@@ -193,7 +194,10 @@ async function scoreAndActInline(lead, userId, from, body) {
 
     const formattedHistory = (history || []).map(m => ({ role: m.direction, body: m.body }));
 
-    const scoring = await scoreReply(formattedHistory, body);
+    // A — unified memory: same seller profile the voice brain uses (non-blocking).
+    const sellerContext = await getSellerContextForSMS(lead.id);
+
+    const scoring = await scoreReply(formattedHistory, body, sellerContext);
     const score = typeof scoring === 'number' ? scoring : scoring.score;
     const nextAction = scoring.next_action || (score >= 60 ? 'call_now' : score >= 40 ? 'continue_sms' : 'follow_up_7_days');
 
@@ -206,7 +210,7 @@ async function scoreAndActInline(lead, userId, from, body) {
       await escalateToCall(lead, userId);
 
     } else if (nextAction === 'continue_sms' || (score >= 40 && score < 60)) {
-      const reply = await continueConversation(lead, body, formattedHistory);
+      const reply = await continueConversation(lead, body, formattedHistory, sellerContext);
       if (reply) await sendReply(from, reply, userId, lead.id);
 
     } else {
@@ -257,7 +261,22 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
     const interested = BUYER_YES.test(body) && !BUYER_NO.test(body);
     console.log(`[SMS] Buyer reply from ${buyer.name || from} — interested=${interested}`);
 
-    if (!interested) return; // a "no"/neutral reply just gets logged
+    if (!interested) {
+      // C — buyer brain: an explicit "no"/"too high"/"pass" teaches the buyer
+      // brain what this buyer rejects. The reply text is the pass reason. We don't
+      // know which deal it referenced (no deal_id on a buyer SMS), so this records
+      // a buyer-level pass (deal_id null) the next pitch can pre-empt. Best-effort.
+      if (BUYER_NO.test(body)) {
+        try {
+          const { recordBuyerDealOutcome } = require('../services/dataMotService');
+          await recordBuyerDealOutcome({
+            buyerId: buyer.id, userId, outcome: 'passed',
+            reason:  String(body).slice(0, 120),
+          });
+        } catch (_) { /* logging is non-critical */ }
+      }
+      return; // a "no"/neutral reply just gets logged
+    }
 
     // 2. Find this buyer's best-fit deal that's under_contract and unassigned.
     const buyerDispo = require('../services/buyerDispoService');
@@ -304,6 +323,22 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       outcome:     'success',
       operator_id: userId,
     }).catch(() => {});
+
+    // C — buyer brain: record this as a WON outcome so the next pitch to this
+    // buyer knows they bought, at what price, and what type. Best-effort.
+    try {
+      const { recordBuyerDealOutcome } = require('../services/dataMotService');
+      await recordBuyerDealOutcome({
+        buyerId:       buyer.id,
+        dealId:        fit.id,
+        userId,
+        outcome:       'won',
+        offeredPrice:  buyerDispo.dealAskPrice(fit),
+        arv:           fit.arv || null,
+        propertyType:  fit.property_type || null,
+        propertyState: fit.property_state || null,
+      });
+    } catch (_) { /* logging is non-critical */ }
 
     // 4. Generate + send the assignment contract. `send` builds the signing
     //    package; deal must carry the joined buyer/lead for generateAssignment.

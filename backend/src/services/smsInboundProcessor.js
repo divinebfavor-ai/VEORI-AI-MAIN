@@ -21,6 +21,7 @@ const supabase = require('../config/supabase');
 const {
   scoreReply, continueConversation, sendReply, escalateToCall,
 } = require('./smsService');
+const { getSellerContextForSMS } = require('./dataMotService');
 
 /**
  * Run reply scoring + the resulting action for one inbound SMS.
@@ -55,8 +56,13 @@ async function processInboundSMS(data) {
 
   const formattedHistory = (history || []).map(m => ({ role: m.direction, body: m.body }));
 
+  // A — unified memory: pull the SAME seller profile the voice brain builds so
+  // the text reply is scored WITH the call history behind it. Non-blocking —
+  // null (first touch / read fail) leaves scoring exactly as it was before.
+  const sellerContext = await getSellerContextForSMS(leadId);
+
   // Score the reply (the slow part we moved off the webhook).
-  const scoring = await scoreReply(formattedHistory, body);
+  const scoring = await scoreReply(formattedHistory, body, sellerContext);
   const score = typeof scoring === 'number' ? scoring : scoring.score;
   const nextAction = scoring.next_action ||
     (score >= 60 ? 'call_now' : score >= 40 ? 'continue_sms' : 'follow_up_7_days');
@@ -71,8 +77,8 @@ async function processInboundSMS(data) {
     await escalateToCall(lead, userId);
 
   } else if (nextAction === 'continue_sms' || (score >= 40 && score < 60)) {
-    // Warm lead — continue the SMS conversation.
-    const reply = await continueConversation(lead, body, formattedHistory);
+    // Warm lead — continue the SMS conversation (with seller memory in context).
+    const reply = await continueConversation(lead, body, formattedHistory, sellerContext);
     if (reply) await sendReply(from, reply, userId, leadId);
 
   } else {

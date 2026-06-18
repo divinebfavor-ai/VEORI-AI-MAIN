@@ -10,6 +10,11 @@ async function recordCallIntelligence({ call, lead, aiAnalysis, operator }) {
 
   const worked = ['appointment', 'offer_made', 'verbal_yes'].includes(outcome);
 
+  // E — rejection cooldown: a hard "no" is a signal, not a dead end. We stamp WHEN
+  // it happened so the next touch re-approaches softly (acknowledge, don't re-pitch)
+  // instead of hammering the same offer the day after they said no.
+  const rejected = ['not_interested', 'rejected', 'do_not_call', 'hung_up'].includes(outcome);
+
   // 1. Upsert seller profile — builds trust/personality model over every touch
   try {
     const { data: existing } = await supabase
@@ -28,6 +33,7 @@ async function recordCallIntelligence({ call, lead, aiAnalysis, operator }) {
       responded_to_urgency: existing?.responded_to_urgency || (worked && seller_personality === 'motivated'),
       responded_to_data:    existing?.responded_to_data    || (worked && seller_personality === 'analytical'),
       last_positive_signal: worked ? (ai_summary?.slice(0, 200) || outcome) : existing?.last_positive_signal,
+      last_rejection_at:    rejected ? new Date().toISOString() : (existing?.last_rejection_at || null),
       updated_at:           new Date().toISOString(),
     };
 
@@ -145,7 +151,7 @@ async function getCallIntelligence({ lead, operator }) {
   const tag   = lead.primary_tag || 'absentee_owner';
   const state = lead.property_state;
 
-  const [profileRes, playbooksRes, patternsRes, anchorsRes, objectionsRes] = await Promise.allSettled([
+  const [profileRes, playbooksRes, patternsRes, anchorsRes, objectionsRes, lastCallRes] = await Promise.allSettled([
     // This seller's specific profile
     supabase.from('seller_profiles')
       .select('*')
@@ -182,6 +188,16 @@ async function getCallIntelligence({ lead, operator }) {
       .eq('lead_tag', tag)
       .order('created_at', { ascending: false })
       .limit(10),
+
+    // B — verbatim recall: the most recent prior call WITH THIS SPECIFIC SELLER,
+    // so the AI can quote their actual words instead of only a summary tag.
+    supabase.from('calls')
+      .select('transcript, ai_summary, outcome, created_at')
+      .eq('lead_id', lead.id)
+      .not('transcript', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single(),
   ]);
 
   const sellerProfile = profileRes.value?.data || null;
@@ -189,6 +205,7 @@ async function getCallIntelligence({ lead, operator }) {
   const patterns      = patternsRes.value?.data || [];
   const anchors       = anchorsRes.value?.data || [];
   const objectionData = objectionsRes.value?.data || [];
+  const lastCall      = lastCallRes.value?.data || null;
 
   // Build price intelligence
   const closedDeals  = anchors.filter(a => a.deal_closed && a.offer_made);
@@ -204,11 +221,11 @@ async function getCallIntelligence({ lead, operator }) {
     }, {});
   const topObjCategory = Object.entries(unresolvedObjs).sort((a,b)=>b[1]-a[1])[0]?.[0];
 
-  return { sellerProfile, playbooks, patterns, anchors, avgDiscount, topObjCategory, objectionData };
+  return { sellerProfile, playbooks, patterns, anchors, avgDiscount, topObjCategory, objectionData, lastCall };
 }
 
 // ─── Format intelligence block for Alex's system prompt ──────────────────────
-function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns, avgDiscount, topObjCategory, lead }) {
+function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns, avgDiscount, topObjCategory, lastCall, lead }) {
   const lines = [];
 
   lines.push('');
@@ -234,6 +251,42 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
     if (sellerProfile.responded_to_empathy) lines.push('- RESPONDS TO: Empathy. Lead with understanding.');
     if (sellerProfile.responded_to_data)    lines.push('- RESPONDS TO: Data. Give them numbers.');
     if (sellerProfile.responded_to_urgency) lines.push('- RESPONDS TO: Urgency. Move fast.');
+
+    // E — rejection cooldown: if they recently said no, do NOT re-pitch the same way.
+    // Acknowledge it, lead with what's NEW (a different angle / changed situation),
+    // and give them an easy out — a fresh hard sell the week after a "no" just burns
+    // the lead. Older rejections (30+ days) are stale; treat as a warm re-open.
+    if (sellerProfile.last_rejection_at) {
+      const daysSince = Math.floor((Date.now() - new Date(sellerProfile.last_rejection_at).getTime()) / 86400000);
+      if (daysSince >= 0 && daysSince < 14) {
+        lines.push(`- RECENTLY SAID NO (${daysSince} day(s) ago): Do NOT re-pitch the same offer. Open by acknowledging it — "I know the timing wasn't right last time" — then lead with something NEW. Soft, low-pressure, give them an easy out.`);
+      } else if (daysSince >= 14 && daysSince < 60) {
+        lines.push(`- Said no ${daysSince} days ago — enough time has passed to re-open warmly. "Wanted to circle back and see if anything's changed on your end."`);
+      }
+    }
+  }
+
+  // B — VERBATIM RECALL: the seller's actual words from the last call. A summary
+  // tag ("price objection") tells you WHAT happened; their real sentence tells you
+  // HOW they said it. Quoting them back ("Last time you mentioned the roof was your
+  // big worry…") is what a 50-year closer does — it proves you listened and skips
+  // re-discovery. We pull the last few "Seller:" lines from the stored transcript.
+  if (lastCall && lastCall.transcript) {
+    const sellerLines = String(lastCall.transcript)
+      .split('\n')
+      .filter(l => /^Seller:/i.test(l.trim()))
+      .map(l => l.replace(/^Seller:\s*/i, '').trim())
+      .filter(Boolean);
+    const keyQuotes = sellerLines.slice(-3); // their last few real sentences
+    if (keyQuotes.length) {
+      lines.push('');
+      lines.push('LAST TIME THIS SELLER SAID (their exact words — reference these naturally):');
+      keyQuotes.forEach(q => lines.push(`- "${q.slice(0, 180)}"`));
+      if (lastCall.ai_summary) {
+        lines.push(`Where it left off: ${String(lastCall.ai_summary).slice(0, 220)}`);
+      }
+      lines.push('Do NOT make them repeat themselves — pick up where you left off and build on it.');
+    }
   }
 
   // What has closed deals like this
@@ -288,9 +341,153 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
   return lines.join('\n');
 }
 
+// ─── READ: Compact seller memory for the SMS brain (A — unified memory) ──────
+// The voice brain already builds a rich profile (trust, personality, dominant
+// objection, what they respond to) in seller_profiles. The SMS brain used to
+// score/continue blind to all of it. This pulls that SAME row so a text reply is
+// judged WITH the call history behind it. Read-only, single row, non-blocking:
+// any failure returns null and the SMS path behaves exactly as it did before.
+async function getSellerContextForSMS(leadId) {
+  if (!supabase || !leadId) return null;
+  try {
+    const { data } = await supabase
+      .from('seller_profiles')
+      .select('trust_level, personality_type, dominant_objection, total_touches, last_positive_signal, responded_to_empathy, responded_to_data, responded_to_urgency')
+      .eq('lead_id', leadId)
+      .single();
+    return data || null;
+  } catch (e) {
+    return null; // no profile yet (first touch) — not an error
+  }
+}
+
+// Format the seller profile into a short prompt block the SMS LLM can use. Kept
+// tight on purpose — GPT-4o-mini scoring/continuation runs on a small token
+// budget. Returns '' when there is no prior history so the prompt is unchanged.
+function buildSMSContextBlock(sellerContext) {
+  if (!sellerContext || !(sellerContext.total_touches > 0)) return '';
+  const lines = ['', 'WHAT WE ALREADY KNOW ABOUT THIS SELLER (from prior calls/texts):'];
+  lines.push(`- Contacted ${sellerContext.total_touches} time(s) before; trust ${sellerContext.trust_level || 0}/100`);
+  if (sellerContext.personality_type)   lines.push(`- Personality: ${sellerContext.personality_type}`);
+  if (sellerContext.dominant_objection) lines.push(`- Their usual objection: ${sellerContext.dominant_objection}`);
+  if (sellerContext.responded_to_empathy) lines.push('- Responds to empathy — lead with understanding.');
+  if (sellerContext.responded_to_data)    lines.push('- Responds to data — give concrete numbers.');
+  if (sellerContext.responded_to_urgency) lines.push('- Responds to urgency — a time reason moves them.');
+  if (sellerContext.last_positive_signal) lines.push(`- Last positive signal: "${String(sellerContext.last_positive_signal).slice(0, 140)}"`);
+  return lines.join('\n');
+}
+
+// ─── C — BUYER-SIDE BRAIN ────────────────────────────────────────────────────
+// The seller brain (above) remembers each seller. The buyer brain remembers each
+// BUYER. `buyers` holds their static buy-box; buyer_deal_history holds how every
+// past deal landed with them. This reads both and derives the buyer's real
+// pattern so the AI pitches them like a wholesaler who knows their track record.
+// Read-only, single buyer, non-blocking: any failure returns null and the buyer
+// call behaves exactly as it did before (deal-numbers-only pitch).
+async function getBuyerIntelligence(buyerId) {
+  if (!supabase || !buyerId) return null;
+  try {
+    const [buyerRes, histRes] = await Promise.allSettled([
+      supabase.from('buyers')
+        .select('name, buyer_type, buy_box_states, buy_box_types, max_price, repair_tolerance, notes')
+        .eq('id', buyerId)
+        .single(),
+      supabase.from('buyer_deal_history')
+        .select('offered_price, arv, property_type, outcome, reason, created_at')
+        .eq('buyer_id', buyerId)
+        .order('created_at', { ascending: false })
+        .limit(25),
+    ]);
+
+    const buyer   = buyerRes.value?.data || null;
+    const history = histRes.value?.data || [];
+    if (!buyer) return null;
+
+    // Derive the pattern. "won" = they bought; "passed" = explicit no on a deal.
+    const won    = history.filter(h => h.outcome === 'won');
+    const passed = history.filter(h => h.outcome === 'passed' || h.outcome === 'lost');
+
+    // Typical % of ARV this buyer actually buys at (from won deals with both nums).
+    const pricedWins = won.filter(h => h.offered_price > 0 && h.arv > 0);
+    const avgPctOfArv = pricedWins.length
+      ? Math.round(pricedWins.reduce((s, h) => s + (h.offered_price / h.arv) * 100, 0) / pricedWins.length)
+      : null;
+
+    // Most common stated pass reason (helps pre-empt their usual objection).
+    const passReasons = passed.map(h => (h.reason || '').trim().toLowerCase()).filter(Boolean)
+      .reduce((acc, r) => { acc[r] = (acc[r] || 0) + 1; return acc; }, {});
+    const topPassReason = Object.entries(passReasons).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+    return {
+      buyer,
+      dealsWon:       won.length,
+      dealsPassed:    passed.length,
+      totalTouches:   history.length,
+      avgPctOfArv,
+      topPassReason,
+      lastOutcome:    history[0]?.outcome || null,
+    };
+  } catch (e) {
+    return null; // no history / table not yet present — not an error
+  }
+}
+
+// WRITE: record one buyer × deal outcome. Best-effort, idempotent on (buyer,deal)
+// via the partial unique index — re-touching a deal UPSERTs the outcome instead of
+// stacking rows. Never throws: a logging miss must never break a blast or assign.
+async function recordBuyerDealOutcome({ buyerId, dealId, userId, outcome, offeredPrice, arv, propertyType, propertyState, reason }) {
+  if (!supabase || !buyerId || !userId || !outcome) return;
+  try {
+    await supabase.from('buyer_deal_history').upsert({
+      buyer_id:       buyerId,
+      deal_id:        dealId || null,
+      user_id:        userId,
+      outcome,
+      offered_price:  offeredPrice ?? null,
+      arv:            arv ?? null,
+      property_type:  propertyType || null,
+      property_state: propertyState || null,
+      reason:         reason || null,
+    }, { onConflict: 'buyer_id,deal_id' });
+  } catch (e) {
+    console.warn('[DataMot] buyer_deal_history write failed:', e.message);
+  }
+}
+
+// Format buyer intelligence into a prompt block for the buyer-call system prompt.
+// Returns '' when there is no buyer/history so the pitch is byte-for-byte unchanged.
+function buildBuyerIntelBlock(intel) {
+  if (!intel || !intel.buyer) return '';
+  const b = intel.buyer;
+  const lines = ['', "THIS BUYER'S TRACK RECORD (use it — pitch them like you know them):"];
+
+  // Static buy-box (always known if the buyer row loaded).
+  if (b.buy_box_types?.length)  lines.push(`- Buys: ${b.buy_box_types.join(', ')}`);
+  if (b.buy_box_states?.length) lines.push(`- Markets: ${b.buy_box_states.join(', ')}`);
+  if (b.max_price)              lines.push(`- Max purchase price: $${Number(b.max_price).toLocaleString()}`);
+  if (b.repair_tolerance && b.repair_tolerance !== 'any') lines.push(`- Rehab appetite: ${b.repair_tolerance}`);
+  if (b.notes)                  lines.push(`- Notes on file: ${String(b.notes).slice(0, 160)}`);
+
+  // Earned history (only if we've touched them before).
+  if (intel.totalTouches > 0) {
+    lines.push(`- History: bought ${intel.dealsWon}, passed ${intel.dealsPassed} of ${intel.totalTouches} deals shown`);
+    if (intel.avgPctOfArv) lines.push(`- Typically buys around ${intel.avgPctOfArv}% of ARV — anchor the price there, not higher`);
+    if (intel.topPassReason) lines.push(`- Usual reason they pass: "${intel.topPassReason}" — get ahead of it before they raise it`);
+    if (intel.lastOutcome === 'passed') lines.push('- They passed last time — acknowledge it: "I know the last one wasn\'t a fit — this one\'s different because…"');
+    if (intel.lastOutcome === 'won')    lines.push('- They bought last time — warm relationship, you can be direct: "Got another one like the last that worked for you."');
+  }
+
+  return lines.length > 2 ? lines.join('\n') : '';
+}
+
 module.exports = {
   recordCallIntelligence,
   recordWinningPlaybook,
   getCallIntelligence,
   buildAccumulatedIntelligenceBlock,
+  getSellerContextForSMS,
+  buildSMSContextBlock,
+  getBuyerIntelligence,
+  buildBuyerIntelBlock,
+  recordBuyerDealOutcome,
 };

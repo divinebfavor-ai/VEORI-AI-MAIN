@@ -148,6 +148,34 @@ function getOpeningMessage(lead) {
   return template(name, address);
 }
 
+// ─── D — Per-tag SMS talk-track ───────────────────────────────────────────────
+//
+// The VOICE brain already adapts per lead type via vapiService.buildTagIntelligenceBlock
+// (tone/goal/never/angle per tag). But once an SMS conversation goes live,
+// continueConversation() was generic "friendly Alex" — the per-type personality was
+// only used for the OPENING template, then dropped. This restores it: a compact
+// talk-track injected into the live SMS reply brain so a pre-foreclosure seller and
+// an inherited-property seller are texted in distinctly different voices — same as
+// the call would. Additive: unknown/missing tag → '' → identical behavior to before.
+const SMS_TAG_PLAYBOOK = {
+  pre_foreclosure: 'This seller may be facing foreclosure — lead with empathy and SPEED. Frame it as relief ("I can close before the auction date"). Never sound like a debt collector. Be gentle; they\'re stressed.',
+  tax_delinquent:  'Owes back taxes — the angle is making the burden disappear. "I can take it off your hands and you walk away clean." Don\'t lecture about the taxes; offer the exit.',
+  inherited:       'Inherited the property — likely emotional and out-of-state. No pressure, lots of patience. "No rush, whenever you\'re ready." Emphasize as-is, no cleanout, no repairs, no showings.',
+  probate:         'Property in probate — be respectful and process-aware. They may not have authority to sell yet. Ask gently where they are in probate; offer to wait and make it easy when ready.',
+  vacant:          'Vacant property — it\'s a liability draining them (taxes, insurance, upkeep). The angle is "stop paying to hold an empty house." Move toward a fast, clean offer.',
+  absentee_owner:  'Out-of-area owner — likely a tired landlord. Lead with convenience: "I handle everything remotely, you never have to fly out." Emphasize simplicity and speed.',
+  fsbo:            'Trying to sell themselves — respect that, don\'t bash agents. Position as a backup cash option with certainty. "If you want a clean cash close with no showings, I\'m here."',
+  free_and_clear:  'Owns it outright — no mortgage pressure, so motivation is lifestyle/convenience, not money panic. Don\'t lowball hard; sell ease, speed, and certainty of close.',
+  cash_buyer:      'This is an investor/buyer, not a distressed seller — talk numbers, spread, and ROI. Be direct and concise; they value efficiency over rapport.',
+};
+
+function buildTagPlaybookForSMS(lead) {
+  const tag = (lead?.primary_tag || '').toLowerCase().replace(/[^a-z_]/g, '_');
+  const track = SMS_TAG_PLAYBOOK[tag];
+  if (!track) return '';
+  return `\nLEAD TYPE: ${tag.replace(/_/g, ' ')} — ${track}`;
+}
+
 // ─── Send opening SMS to a lead ───────────────────────────────────────────────
 
 async function sendOpeningSMS(lead, userId) {
@@ -222,16 +250,26 @@ async function sendOpeningSMS(lead, userId) {
 
 // ─── Score an inbound SMS reply via GPT-4o ───────────────────────────────────
 
-async function scoreReply(conversationHistory, newMessage) {
+// sellerContext (optional) is the seller_profiles row from dataMotService —
+// when present, the score is judged WITH the seller's call history behind it
+// (A — unified memory). Omitted/null → identical behavior to before.
+async function scoreReply(conversationHistory, newMessage, sellerContext = null) {
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_KEY) return 50;
 
   try {
+    let contextBlock = '';
+    try {
+      const { buildSMSContextBlock } = require('./dataMotService');
+      contextBlock = buildSMSContextBlock(sellerContext);
+    } catch (_) { contextBlock = ''; }
+
     const prompt = `You are an expert real estate acquisitions analyst. Score the seller's motivation to sell their property from 0 to 100 based on this SMS conversation.
 
 0-40 = Not interested / hostile / just looking
 40-60 = Warm / curious / might be open
 60-100 = Hot / motivated / wants to sell soon
+${contextBlock}
 
 Previous messages:
 ${conversationHistory.map(m => `${m.role}: ${m.body}`).join('\n')}
@@ -261,17 +299,27 @@ Reply with ONLY a JSON object: {"score": <0-100>, "reason": "<one sentence>", "n
 
 // ─── Continue SMS conversation (score 40-60) ─────────────────────────────────
 
-async function continueConversation(lead, sellerMessage, conversationHistory) {
+async function continueConversation(lead, sellerMessage, conversationHistory, sellerContext = null) {
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_KEY) return null;
 
   try {
+    let contextBlock = '';
+    try {
+      const { buildSMSContextBlock } = require('./dataMotService');
+      contextBlock = buildSMSContextBlock(sellerContext);
+    } catch (_) { contextBlock = ''; }
+
+    // D — per-tag talk-track: text this seller in the SAME voice the call would use
+    // for their lead type (empty string for unknown/missing tag → unchanged behavior).
+    const tagPlaybook = buildTagPlaybookForSMS(lead);
+
     const res = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `You are Alex, a friendly local real estate investor texting a potential seller. Keep replies SHORT (1-2 sentences max), conversational, and focused on understanding their situation. Never pressure. Ask one question at a time. Goal: understand their timeline, motivation, and asking price.`
+          content: `You are Alex, a friendly local real estate investor texting a potential seller. Keep replies SHORT (1-2 sentences max), conversational, and focused on understanding their situation. Never pressure. Ask one question at a time. Goal: understand their timeline, motivation, and asking price.${tagPlaybook}${contextBlock ? '\n' + contextBlock : ''}`
         },
         ...conversationHistory.map(m => ({ role: m.role === 'outbound' ? 'assistant' : 'user', content: m.body })),
         { role: 'user', content: sellerMessage }

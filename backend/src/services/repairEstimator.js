@@ -96,6 +96,62 @@ function calculateRepairEstimate(items) {
   return { low, high, midpoint, breakdown };
 }
 
+// ─── E — Dynamic assignment-fee sizing ───────────────────────────────────────
+//
+// The legacy fee is a flat MAO × 0.15 — it ignores the actual deal. On a deal with
+// a huge spread that under-charges badly; on a razor-thin deal it can overshoot and
+// scare the buyer off. A 50-year wholesaler reads the SPREAD (the buyer's gross
+// profit = ARV − purchase − repairs) and sizes the fee from what's actually there,
+// always leaving the end-buyer enough ROI to still want the deal.
+//
+// Rules:
+//   - Fee comes OUT of the spread, never on top of MAO.
+//   - Leave the buyer a healthy cut: cap the fee at ~40% of the spread so the
+//     buyer keeps the majority (their capital + risk earns the bigger share).
+//   - Thin spread  -> take a modest fee (what's there), floor ~$5k if any room.
+//   - Fat spread   -> stretch UP toward the $70k–$100k the user called out, but
+//     never past the 40%-of-spread guardrail or the buyer walks.
+//   - Hard ceiling $100k (a single-assignment fee beyond that invites pushback).
+//
+// @param {number} arv          after-repair value
+// @param {number} purchase     what WE contract the property at (e.g. first_offer)
+// @param {number} repairs      estimated rehab cost
+// @returns {{ spread:number, fee:number, buyer_profit:number, buyer_roi:number, basis:string }}
+function calculateDynamicFee(arv, purchase, repairs) {
+  const spread = Math.round(arv - purchase - repairs);
+  if (spread <= 8000) {
+    // No real room — take a token fee only if there's anything, else leave it.
+    const fee = spread > 0 ? Math.min(spread, 5000) : 0;
+    return {
+      spread, fee,
+      buyer_profit: spread - fee,
+      buyer_roi: (purchase + repairs) > 0 ? Math.round(((spread - fee) / (purchase + repairs)) * 100) : 0,
+      basis: 'thin_spread',
+    };
+  }
+
+  // Scale the cut with spread size: small deals ~25% of spread, big deals up to 40%.
+  //   spread $8k–$50k   -> 25%
+  //   spread $50k–$150k -> 33%
+  //   spread $150k+     -> 40%
+  let cutPct;
+  if (spread < 50000)       cutPct = 0.25;
+  else if (spread < 150000) cutPct = 0.33;
+  else                      cutPct = 0.40;
+
+  let fee = Math.round(spread * cutPct);
+  fee = Math.max(fee, 5000);     // floor — if there's room, it's worth at least $5k
+  fee = Math.min(fee, 100000);   // ceiling — single-assignment sanity cap
+
+  const buyerProfit = spread - fee;
+  return {
+    spread, fee,
+    buyer_profit: buyerProfit,
+    buyer_roi: (purchase + repairs) > 0 ? Math.round((buyerProfit / (purchase + repairs)) * 100) : 0,
+    basis: spread >= 150000 ? 'fat_spread' : spread >= 50000 ? 'solid_spread' : 'modest_spread',
+  };
+}
+
 function calculateScenarios(arv, repairMidpoint) {
   const conservative = {
     label: 'Conservative',
@@ -117,9 +173,14 @@ function calculateScenarios(arv, repairMidpoint) {
     s.mao = Math.round(s.arv * 0.70 - s.repairs);
     s.first_offer = Math.round(s.mao * 0.85);
     s.assignment_fee_at_mao = 0;
-    s.assignment_fee_at_first_offer = Math.round(s.mao * 0.15);
+    s.assignment_fee_at_first_offer = Math.round(s.mao * 0.15); // legacy fixed (kept for back-compat)
     s.buyer_profit_at_mao = Math.round(s.arv - s.mao - s.repairs);
     s.buyer_roi_at_mao = s.mao > 0 ? Math.round((s.buyer_profit_at_mao / (s.mao + s.repairs)) * 100) : 0;
+
+    // E — dynamic fee: size the assignment from the REAL spread at first_offer (our
+    // target buy) rather than a flat 15% of MAO. This is the number the negotiator
+    // should actually reach for. Additive — legacy fields above are untouched.
+    s.dynamic_fee = calculateDynamicFee(s.arv, s.first_offer, s.repairs);
   }
 
   return { conservative, moderate, aggressive };
@@ -142,4 +203,4 @@ function estimateFromDescription(description) {
   return estimate;
 }
 
-module.exports = { REPAIR_ITEMS, calculateRepairEstimate, calculateScenarios, estimateFromDescription };
+module.exports = { REPAIR_ITEMS, calculateRepairEstimate, calculateScenarios, calculateDynamicFee, estimateFromDescription };

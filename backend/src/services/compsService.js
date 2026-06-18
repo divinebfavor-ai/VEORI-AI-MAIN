@@ -90,7 +90,15 @@ function buildSpokenSummary({ arv, arvLow, arvHigh, maoLight, maoMedium, maoHeav
     summary += ` For example, a similar home ${c.distance_miles ? c.distance_miles + ' miles away' : 'nearby'} sold for ${fmt(c.sale_price)}${c.sold_date ? ' in ' + c.sold_date : ''}.`;
   }
 
-  summary += ` Depending on the condition of your property — if it needs light updates we could be around ${fmt(maoLight)}, if it needs more work we'd be closer to ${fmt(maoHeavy)}.`;
+  // E — never leak the ceiling. MAO is the MAXIMUM we'd pay; speaking it anchors
+  // the seller to the top and kills all negotiating room. A real wholesaler opens
+  // BELOW their ceiling and lets the seller pull them up. So we speak a conservative
+  // OPENING range (~82% of MAO for light, MAO-heavy as the low end) — leaving the
+  // spread between this and the true MAO as live negotiating room. The true MAO is
+  // still returned in `mao` + formatForAlex() for the AI's private context only.
+  const openLight = Math.round(maoLight * 0.82);
+  const openHeavy = Math.round(maoHeavy * 0.82);
+  summary += ` Depending on the condition of your property, I'd likely be somewhere between ${fmt(openHeavy)} and ${fmt(openLight)} — but I'd want to know more about what it needs before I lock in a number.`;
 
   if (rentEst) {
     summary += ` For a buyer looking to rent, estimated monthly rent in that area is around $${Math.round(rentEst).toLocaleString()}.`;

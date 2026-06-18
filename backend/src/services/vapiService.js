@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { getCallIntelligence, buildAccumulatedIntelligenceBlock } = require('./dataMotService');
+const { getCallIntelligence, buildAccumulatedIntelligenceBlock, getBuyerIntelligence, buildBuyerIntelBlock } = require('./dataMotService');
 
 const VAPI_API_KEY = process.env.VAPI_API_KEY;
 const VAPI_BASE    = process.env.VAPI_BASE_URL || 'https://api.vapi.ai';
@@ -375,6 +375,19 @@ OFFER MATH (internal, never say these formulas out loud):
 MAO = ARV × 0.70 − Repair Estimate
 First offer = MAO × 0.85
 Never exceed MAO.
+
+HOLD THE SPREAD (this is how you maximize the assignment fee — read the deal):
+- MAO is your SECRET ceiling. NEVER open with it, never volunteer it, never imply it.
+  The seller should never hear your top number until it's the only thing left to save the deal.
+- Open at FIRST_OFFER and negotiate up in SMALL steps only when pushed — a few thousand at a
+  time, each one "let me see what I can do." Every dollar you DON'T give the seller is a dollar
+  of assignment fee you keep. The gap between what the seller accepts and MAO is YOUR spread.
+- Read the size of the deal. If the spread between FIRST_OFFER and the property's value is
+  large, there is room to be patient and hold firm — that's a $50k–$100k assignment, protect it.
+  If the spread is thin, move faster and lock the deal; a smaller sure fee beats a dead deal.
+- Only reveal MAO as the FINAL, "this is my absolute hard limit" move — and even then, present
+  it as a stretch you fought for, never as where you started. Land the deal AT OR BELOW MAO,
+  ideally well below. The closer to FIRST_OFFER you close, the bigger the assignment.
 - Estimated Value: ${lead.estimated_value ? '$' + lead.estimated_value.toLocaleString() : 'Unknown'}
 - Estimated Equity: ${lead.estimated_equity ? '$' + lead.estimated_equity.toLocaleString() : 'Unknown'}
 - Property Type: ${lead.property_type || 'Single Family'}
@@ -1121,6 +1134,18 @@ async function initiateBuyerCall({ buyer, deal, phoneNumber, callId, operator = 
   const buyerType = (buyer.buyer_type || buyer.investment_strategy || 'flipper').toLowerCase();
   const buyerPitch = buildBuyerPitch(buyerType, deal);
 
+  // C — buyer-side brain: pull this buyer's static buy-box + earned deal history
+  // so the pitch is informed by their real track record. Non-blocking: a failure
+  // (or a first-touch buyer with no history) leaves buyerIntel '' and the prompt
+  // is byte-for-byte what it was before this layer.
+  let buyerIntel = '';
+  try {
+    const intel = await getBuyerIntelligence(buyer.id);
+    buyerIntel = buildBuyerIntelBlock(intel);
+  } catch (e) {
+    console.warn('[Vapi] Buyer brain read failed (non-blocking):', e.message);
+  }
+
   const systemPrompt = `You are ${aiName}, a real estate wholesaler calling a cash buyer about an off-market property.
 
 PROPERTY:
@@ -1136,6 +1161,7 @@ PROPERTY:
 
 BUYER PROFILE: ${buyerType.toUpperCase()}
 ${buyerPitch}
+${buyerIntel}
 
 YOUR GOAL: Qualify the buyer and get them to commit to reviewing the deal package.
 
