@@ -123,6 +123,20 @@ export default function Buyers() {
     })
   }
 
+  // Opt-in toggle — exposes this buyer to the cross-operator shared pool.
+  // Optimistic: flip locally, call API, roll back on failure. Default is private.
+  const toggleShare = async (b) => {
+    const next = !b.share_to_pool
+    setBuyerList(list => list.map(x => x.id === b.id ? { ...x, share_to_pool: next } : x))
+    try {
+      await buyers.updateBuyer(b.id, { share_to_pool: next })
+      toast.success(next ? 'Shared to pool' : 'Removed from pool')
+    } catch {
+      setBuyerList(list => list.map(x => x.id === b.id ? { ...x, share_to_pool: !next } : x))
+      toast.error('Could not update pool sharing')
+    }
+  }
+
   const filtered = buyerList.filter(b =>
     !search || `${b.name} ${b.email} ${b.phone}`.toLowerCase().includes(search.toLowerCase())
   )
@@ -175,6 +189,7 @@ export default function Buyers() {
                 <th className="text-left px-6 py-3 label-caps">Buy Box</th>
                 <th className="text-left px-6 py-3 label-caps">Max Price</th>
                 <th className="text-left px-6 py-3 label-caps">Deals</th>
+                <th className="text-left px-6 py-3 label-caps">Pool</th>
                 <th className="text-left px-6 py-3 label-caps">Status</th>
               </tr>
             </thead>
@@ -208,6 +223,11 @@ export default function Buyers() {
                   </td>
                   <td className="px-6 py-4 text-[14px] text-text-secondary tabular-nums">
                     {b.deals_closed || 0} closed
+                  </td>
+                  <td className="px-6 py-4">
+                    <button onClick={() => toggleShare(b)} title={b.share_to_pool ? 'Shared to cross-operator pool — click to make private' : 'Private — click to share to the pool'} className="cursor-pointer">
+                      <Badge variant={b.share_to_pool ? 'gold' : 'gray'}>{b.share_to_pool ? 'Shared' : 'Private'}</Badge>
+                    </button>
                   </td>
                   <td className="px-6 py-4">
                     <Badge variant={b.is_active ? 'green' : 'gray'}>{b.is_active ? 'Active' : 'Inactive'}</Badge>
