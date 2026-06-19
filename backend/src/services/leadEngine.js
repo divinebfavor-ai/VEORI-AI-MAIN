@@ -136,7 +136,8 @@ async function processRecord(record, userId) {
     if (score >= 60 && phone) {
       try {
         const { enrollLeadInSequence } = require('./sequenceEngine');
-        await enrollLeadInSequence(lead.id, userId, 'auto_sourced').catch(() => {});
+        // Signature is (userId, leadId, sequenceType) — args were previously swapped.
+        await enrollLeadInSequence(userId, lead.id, 'auto_sourced').catch(() => {});
       } catch (_) {}
     }
 

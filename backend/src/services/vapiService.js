@@ -101,6 +101,34 @@ function buildAlexPrompt({ operator = {}, lead = {}, useCaseOverride = null }) {
                  (lead.property_type || '').toLowerCase().includes('lot') ||
                  (lead.property_type || '').toLowerCase().includes('acreage');
 
+  // ─── Offer math: fill the script's [FIRST_OFFER]/[MAO]/[RANGE] tokens ────────
+  // Before this, those tokens reached the voice AI as literal unfilled brackets,
+  // so the AI either spoke "[FIRST_OFFER]" aloud or invented a number. We compute
+  // real numbers from what the lead reliably carries. ARV/repair_estimate live on
+  // deals/profit_calculations, NOT on leads, so the dial-time basis is the lead's
+  // estimated_value (the live lookup_comps tool refines it mid-call). We ONLY emit
+  // a number when we have a basis; otherwise the token becomes guidance telling the
+  // AI to pull live comps first — never a fabricated figure.
+  //   MAO = ARV × 0.70 − repairs ;  FIRST_OFFER = MAO × 0.85  (matches OFFER MATH below)
+  const arvBasis = Number(lead.arv) || Number(lead.estimated_value) || 0;
+  // Repairs unknown at dial time → conservative medium bucket so the opening number
+  // is realistic, not optimistic. The AI is instructed to re-price via live comps.
+  const ASSUMED_REPAIRS = 35000;
+  const fmtMoney = n => '$' + Math.round(n).toLocaleString();
+  let firstOfferToken, maoToken, rangeToken;
+  if (arvBasis > 0) {
+    const mao        = Math.max(0, arvBasis * 0.70 - ASSUMED_REPAIRS);
+    const firstOffer = Math.round(mao * 0.85);
+    firstOfferToken = fmtMoney(firstOffer);
+    maoToken        = fmtMoney(mao);
+    rangeToken      = `${fmtMoney(arvBasis * 0.92)}–${fmtMoney(arvBasis * 1.08)}`;
+  } else {
+    // No basis — make the AI fetch real comps before naming a price.
+    firstOfferToken = 'a number I can stand behind (use the lookup_comps tool to get real comps first, then offer ~85% of MAO)';
+    maoToken        = 'my true ceiling from the comps (MAO = ARV × 0.70 − repairs — pull live comps before stating it)';
+    rangeToken      = 'the comp range from lookup_comps';
+  }
+
   return `YOU ARE ON A LIVE PHONE CALL RIGHT NOW. A REAL PERSON IS ON THE OTHER END.
 
 ══════════════════════════════════════════════════════
@@ -340,16 +368,16 @@ If they give a number: "How'd you land on that — Zillow, or did you get an app
 If they haven't: "Do you have a number in mind, or are you open to hearing what we can do?"
 
 MAKE THE OFFER (only when they're qualified and you have enough info):
-"Okay — here's where I'm at. Based on what you've told me, and looking at what similar homes have sold for in your area, factoring in the condition and the fact that we're paying cash with no repairs, no commissions, no fees — I can offer you [FIRST_OFFER]. We can close in as little as [14-21] days. You pick the date. How does that land for you?"
+"Okay — here's where I'm at. Based on what you've told me, and looking at what similar homes have sold for in your area, factoring in the condition and the fact that we're paying cash with no repairs, no commissions, no fees — I can offer you ${firstOfferToken}. We can close in as little as 14 to 21 days. You pick the date. How does that land for you?"
 
 HANDLE THE RESPONSE:
 Accepted → "That's great. Let me get your email and we'll have the paperwork over to you today."
-Countered → "I hear you. Let me see what I can do." [Pause] "Absolute ceiling I can get to is [MAO]. That's my hard limit — but you walk away with cash in hand in two weeks, nothing out of pocket."
+Countered → "I hear you. Let me see what I can do." [Pause] "Absolute ceiling I can get to is ${maoToken}. That's my hard limit — but you walk away with cash in hand in two weeks, nothing out of pocket."
 Hesitant → "What's making you hesitate? Sometimes I can address it right now."
 
 OBJECTIONS:
 "Price is too low":
-→ "Help me understand what number works for you." [Listen] "The challenge is I'm factoring in repairs, holding costs, and resale risk. But let me see..." [Pause] "Most I can do is [MAO]."
+→ "Help me understand what number works for you." [Listen] "The challenge is I'm factoring in repairs, holding costs, and resale risk. But let me see..." [Pause] "Most I can do is ${maoToken}."
 
 "Need to think about it":
 → "Of course, never want to rush anyone. What's on your mind — sometimes I can clear it up right now." [If still unsure] "When's a good day for me to check back in?"
@@ -361,7 +389,7 @@ OBJECTIONS:
 → "No problem at all. They keep their full commission. We buy with agents all the time."
 
 "I know it's worth more":
-→ "What are you basing that on?" [Listen] "Have you had a recent appraisal? Because the comps I'm seeing in your area are showing [RANGE]. I want to be completely straight with you."
+→ "What are you basing that on?" [Listen] "Have you had a recent appraisal? Because the comps I'm seeing in your area are showing ${rangeToken}. I want to be completely straight with you."
 
 "Don't want to deal with investors":
 → "I get it. Some investors are bad actors. All I can do is show you how we operate. Would you be open to just hearing how the process works — no commitment?"

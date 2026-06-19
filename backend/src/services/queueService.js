@@ -31,6 +31,7 @@ const QUEUE_NAMES = {
   SMS_INBOUND:        'sms-inbound',   // inbound reply scoring/escalation (off the webhook)
   SMS_DAILY_RESET:    'sms-daily-reset', // nightly zero of per-number SMS counters
   ANALYTICS_ROLLUP:   'analytics-rollup', // nightly per-operator daily stats rollup
+  SEQUENCE_SCAN:      'sequence-scan',   // periodic nurture scan (processReadySequences)
 };
 
 // Single-instance cron gate: only ONE box should register repeatable jobs (so we
@@ -256,6 +257,16 @@ function initWorkers() {
     console.log(`[Queue] analytics-rollup wrote ${n} operator row(s)`);
   }, { connection: conn, concurrency: 1 });
 
+  // ── Sequence-scan worker (drives the multi-touch nurture engine) ──────────
+  // Scans `sequences` for steps whose next_action_at is due and executes them
+  // (email/SMS/call). Previously this only ran in index.js's Redis-FAILURE
+  // fallback, so in normal production (Redis up) the nurture engine never fired.
+  // Now it runs as a real repeatable job, gated by RUN_CRON like the others.
+  new Worker(QUEUE_NAMES.SEQUENCE_SCAN, async (job) => {
+    const { processReadySequences } = require('./sequenceEngine');
+    await processReadySequences();
+  }, { connection: conn, concurrency: 1 });
+
   // Market intelligence worker (runs everywhere; repeat registered only on cron box)
   new Worker(QUEUE_NAMES.MARKET_INTELLIGENCE, async (job) => {
     const { runMarketIntelligenceScan } = require('./marketIntelligenceService');
@@ -295,6 +306,13 @@ function initWorkers() {
     rollupQueue.add('analytics-rollup', {}, {
       jobId: 'analytics-rollup',
       repeat: { pattern: '15 0 * * *' }, // 00:15 every day (after sms-daily-reset)
+      removeOnComplete: 5,
+    }).catch(() => {});
+
+    const seqScanQueue = getQueue(QUEUE_NAMES.SEQUENCE_SCAN);
+    seqScanQueue.add('sequence-scan', {}, {
+      jobId: 'sequence-scan',
+      repeat: { pattern: '*/15 * * * *' }, // every 15 min — nurture due-step scan
       removeOnComplete: 5,
     }).catch(() => {});
   } else {

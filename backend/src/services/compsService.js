@@ -14,12 +14,56 @@ const headers = () => ({
   Accept: 'application/json',
 });
 
+// ─── In-process comps cache ──────────────────────────────────────────────────
+// Rentcast bills per request and a single live call can trigger the lookup tool
+// several times (seller restates address, AI re-checks before countering). An
+// address-keyed TTL cache collapses those into one API hit and makes retries
+// free. Process-local (no Redis dependency) — fine because a call lives on one
+// worker; a cold start simply re-fetches. TTL is long enough to cover a full
+// call + immediate follow-up, short enough that values don't go stale.
+const COMPS_TTL_MS = Number(process.env.COMPS_CACHE_TTL_MS) || 6 * 60 * 60 * 1000; // 6h
+const _compsCache = new Map(); // normalizedAddress -> { at, result }
+
+function _cacheKey(address) {
+  return String(address || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// ─── Comps-based ARV ─────────────────────────────────────────────────────────
+// WHY: Rentcast's avm `value.price` is the AS-IS market value — what the home is
+// worth in its CURRENT condition. For a distressed/wholesale lead that is NOT the
+// ARV (After-Repair Value), which is what comparable RENOVATED homes sell for.
+// Using as-is value as ARV understates ARV → understates MAO → offers come in too
+// low → fewer contracts. The truest ARV signal we have is the comparable sales
+// themselves: renovated homes that actually closed. We take the median $/sqft of
+// the returned comps and multiply by the subject's sqft. We only trust this when
+// we have enough comps with usable price+sqft; otherwise we fall back to the AVM
+// (never fabricate). Returns null when no reliable comps-derived figure exists.
+function deriveArvFromComps(comps, subjectSqft) {
+  if (!Array.isArray(comps) || comps.length < 3 || !subjectSqft) return null;
+  const ppsf = comps
+    .map(c => (c.price && c.squareFootage ? c.price / c.squareFootage : null))
+    .filter(v => v && isFinite(v) && v > 0)
+    .sort((a, b) => a - b);
+  if (ppsf.length < 3) return null;
+  const mid = Math.floor(ppsf.length / 2);
+  const medianPpsf = ppsf.length % 2 ? ppsf[mid] : (ppsf[mid - 1] + ppsf[mid]) / 2;
+  const arv = Math.round(medianPpsf * subjectSqft);
+  return arv > 0 ? arv : null;
+}
+
 /**
  * Look up property value + comps for an address.
  * Returns a structured result Alex can speak naturally.
  */
 async function lookupPropertyValue(address) {
   if (!RENTCAST_KEY) throw new Error('RENTCAST_API_KEY not configured');
+
+  // Serve from cache if a recent lookup for this address exists.
+  const key = _cacheKey(address);
+  const cached = _compsCache.get(key);
+  if (cached && Date.now() - cached.at < COMPS_TTL_MS) {
+    return cached.result;
+  }
 
   const [valueRes, rentRes] = await Promise.allSettled([
     axios.get(`${BASE}/avm/value`, {
@@ -44,11 +88,20 @@ async function lookupPropertyValue(address) {
     };
   }
 
-  const arv         = value.price || 0;
-  const arvLow      = value.priceRangeLow  || Math.round(arv * 0.92);
-  const arvHigh     = value.priceRangeHigh || Math.round(arv * 1.08);
   const comps       = value.comparables || [];
   const rentEst     = rent?.rent || null;
+  const asIsValue   = value.price || 0;        // Rentcast AVM = AS-IS market value
+  const subjectSqft = value.squareFootage || null;
+
+  // True ARV = renovated-comp value. Prefer the comps-derived figure (median $/sqft
+  // of recent comparable sales × subject sqft); fall back to the AVM only when the
+  // comps are too thin to be reliable. This is the accuracy fix: as-is value is no
+  // longer mislabeled as ARV.
+  const compsArv    = deriveArvFromComps(comps, subjectSqft);
+  const arv         = compsArv || asIsValue || 0;
+  const arvSource   = compsArv ? 'comps' : (asIsValue ? 'avm_as_is' : 'none');
+  const arvLow      = value.priceRangeLow  || Math.round(arv * 0.92);
+  const arvHigh     = value.priceRangeHigh || Math.round(arv * 1.08);
 
   // MAO at 70% ARV with placeholder repair buckets
   const maoLight  = Math.round(arv * 0.70 - 15000);  // light repairs
@@ -63,10 +116,12 @@ async function lookupPropertyValue(address) {
     distance_miles: c.distance ? Math.round(c.distance * 10) / 10 : null,
   }));
 
-  return {
+  const result = {
     found: true,
     address,
     arv,
+    arv_source: arvSource,   // 'comps' (renovated-comp ARV) | 'avm_as_is' (fallback)
+    as_is_value: asIsValue,  // Rentcast AVM, current condition — kept for reference
     arv_range: { low: arvLow, high: arvHigh },
     mao: {
       light_repairs:  maoLight,
@@ -78,6 +133,9 @@ async function lookupPropertyValue(address) {
     // Pre-formatted summary Alex can speak directly
     spoken_summary: buildSpokenSummary({ arv, arvLow, arvHigh, maoLight, maoMedium, maoHeavy, recentComps, rentEst }),
   };
+
+  _compsCache.set(key, { at: Date.now(), result });
+  return result;
 }
 
 function buildSpokenSummary({ arv, arvLow, arvHigh, maoLight, maoMedium, maoHeavy, recentComps, rentEst }) {

@@ -1,5 +1,7 @@
 const supabase = require('../config/supabase');
 const emailService = require('./emailService');
+const { sendSMSDirect, escalateToCall } = require('./smsService');
+const { isWithinTcpaWindow, msUntilNextWindow } = require('./tcpaWindow');
 
 const SEQUENCE_DEFINITIONS = {
   not_interested: [
@@ -122,15 +124,40 @@ async function executeSequenceStep(seq) {
       });
     }
   } else if (step.action === 'sms') {
-    // SMS sending - would use Vapi SMS API
     const message = step.message
       ? step.message.replace(/{(\w+)}/g, (_, k) => vars[k] || k)
       : '';
-    console.log(`[SMS] To ${lead?.phone}: ${message}`);
-    // TODO: integrate with Vapi SMS API
+    if (message && lead?.phone) {
+      // DNC gate — hard stop. If the lead is on DNC, skip the SMS step entirely
+      // (advance the sequence; do not retry). Mirrors smsBlastProcessor/sendReply.
+      const { data: dncHit } = await supabase
+        .from('dnc_records').select('id').eq('phone', lead.phone).maybeSingle();
+      if (dncHit) {
+        console.warn(`[SEQUENCE SMS] ${lead.phone} on DNC — skipping step`);
+      } else if (!isWithinTcpaWindow(lead.property_state)) {
+        // TCPA quiet-hours: NEVER send off-hours. Defer this step to the next 8 AM
+        // local and return WITHOUT advancing, so it retries cleanly. Fail-safe.
+        const delay = msUntilNextWindow(lead.property_state);
+        const deferUntil = new Date(Date.now() + delay).toISOString();
+        await supabase.from('sequences').update({
+          next_action_at: deferUntil,
+          updated_at: new Date().toISOString(),
+        }).eq('id', seq.id);
+        console.log(`[SEQUENCE SMS] deferred lead ${seq.lead_id} to ${deferUntil} (TCPA)`);
+        return;
+      } else {
+        await sendSMSDirect({
+          to: lead.phone, body: message, userId: seq.user_id, leadId: seq.lead_id,
+        });
+        console.log(`[SEQUENCE SMS] sent to lead ${seq.lead_id} (step ${seq.current_step})`);
+      }
+    }
   } else if (step.action === 'call') {
-    console.log(`[SEQUENCE CALL] Lead ${seq.lead_id} - step ${seq.current_step}`);
-    // TODO: trigger automated call via campaign manager
+    // Reuse the proven escalation path: finds a healthy number, loads the operator,
+    // writes the calls row, and triggers the Vapi outbound. It self-logs + catches.
+    if (lead?.phone) {
+      await escalateToCall(lead, seq.user_id);
+    }
   }
 
   // Advance to next step
