@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { Link } from 'react-router-dom'
-import { Phone, Flame, Briefcase, DollarSign, ArrowRight, Clock3, FileSignature, AlertTriangle, Zap, CheckCircle, X, Sparkles, MessageSquare, Reply, Timer, Megaphone } from 'lucide-react'
+import { Phone, Flame, Briefcase, DollarSign, ArrowRight, Clock3, FileSignature, AlertTriangle, Zap, CheckCircle, X, Sparkles } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import { analytics, preferences as prefsApi, auth as authApi } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
@@ -395,14 +395,6 @@ export default function Dashboard() {
         <StatCard label="Hot Leads"      value={stats?.hot_leads    ?? 0} icon={Flame}     accent={stats?.hot_leads > 0 ? 'gold' : 'white'} sub="Score 70+"  loading={loading} />
         <StatCard label="Active Deals"   value={stats?.deals_under_contract ?? 0} icon={Briefcase} accent="gold"  sub={`${stats?.pending_signatures ?? 0} pending`} loading={loading} />
         <StatCard label="Revenue Closed" value={fmt$(stats?.revenue_this_month)} icon={DollarSign} accent="white" sub="This month" loading={loading} />
-      </div>
-
-      {/* ── Outreach Engine (today) ─────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }} className="stagger">
-        <StatCard label="SMS Sent"      value={stats?.sms_sent_today      ?? 0} icon={MessageSquare} accent="green" sub="Today" loading={loading} />
-        <StatCard label="Replies"       value={stats?.sms_replies_today   ?? 0} icon={Reply}         accent={stats?.sms_replies_today > 0 ? 'gold' : 'white'} sub="Today" loading={loading} />
-        <StatCard label="Talk Minutes"  value={stats?.minutes_today       ?? 0} icon={Timer}         accent="white" sub="Today" loading={loading} />
-        <StatCard label="Buyers Blasted" value={stats?.buyers_blasted_today ?? 0} icon={Megaphone}    accent="white" sub="Today" loading={loading} />
       </div>
 
       {/* ── Pipeline velocity bar ────────────────────────────────────────── */}
