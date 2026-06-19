@@ -3,7 +3,7 @@ const twilio = require('twilio');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
 const {
-  sendSMS, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall,
+  sendSMS, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall, extractBuyBox,
 } = require('../services/smsService');
 const { getSellerContextForSMS } = require('../services/dataMotService');
 const queueService = require('../services/queueService');
@@ -276,6 +276,58 @@ async function scoreAndActInline(lead, userId, from, body, inboundMsgId) {
 const BUYER_YES = /\b(yes|yep|yeah|interested|i'?m in|send it|send the contract|let'?s do it|deal|sounds good)\b/i;
 const BUYER_NO  = /\b(no|not interested|pass|nope|remove me|too high|nah)\b/i;
 
+// Merge AI/regex-extracted buy-box facts onto the buyers row. RULE: only FILL or
+// APPEND — never overwrite a known value with a null/empty guess. Arrays union
+// (dedup); scalars fill only when currently empty. Always stamps recency so the
+// matcher can prioritize fresh buyers. Schema cols come from
+// 2026-06-19_buyer_buybox_enrich.sql; degrades silently until that migration runs.
+async function captureBuyerBuyBox(buyer, body) {
+  const box = await extractBuyBox(body, buyer);
+  if (!box) return;
+
+  const updates = {};
+  const unionArr = (existing, incoming) => {
+    const have = (existing || []).map(s => String(s).trim());
+    const add  = (incoming || []).map(s => String(s).trim()).filter(Boolean);
+    const merged = Array.from(new Set([...have, ...add]));
+    return merged.length > have.length ? merged : null; // null = nothing new to write
+  };
+
+  const states = unionArr(buyer.buy_box_states, box.states);
+  if (states) updates.buy_box_states = states;
+  const types = unionArr(buyer.buy_box_types, box.types);
+  if (types) updates.buy_box_types = types;
+  const cities = unionArr(buyer.property_cities, box.cities);
+  if (cities) updates.property_cities = cities;
+
+  if (buyer.max_price == null && box.max_price != null) updates.max_price = box.max_price;
+  if (buyer.min_price == null && box.min_price != null) updates.min_price = box.min_price;
+  if (buyer.cash_only == null && box.cash_only != null) updates.cash_only = box.cash_only;
+  if (buyer.proof_of_funds == null && box.proof_of_funds != null) updates.proof_of_funds = box.proof_of_funds;
+
+  // Always record contact recency; only stamp buybox_updated_at if we actually learned
+  // something new about the buy box.
+  const now = new Date().toISOString();
+  updates.last_contact_at = now;
+  if (Object.keys(updates).length > 1) updates.buybox_updated_at = now;
+
+  const { error } = await supabase
+    .from('buyers')
+    .update(updates)
+    .eq('id', buyer.id)
+    .eq('user_id', buyer.user_id);
+  if (error) {
+    // Missing-column = migration not run yet; degrade silently. Other errors logged.
+    if (!/column .* does not exist/i.test(error.message)) {
+      console.warn('[SMS] buy-box merge update error:', error.message);
+    }
+    return;
+  }
+  if (Object.keys(updates).length > 1) {
+    console.log(`[SMS] Buy-box captured for buyer ${buyer.id}: ${Object.keys(updates).filter(k => k !== 'last_contact_at').join(', ')}`);
+  }
+}
+
 async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
   const userId = buyer.user_id;
   try {
@@ -291,6 +343,17 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       status:      'received',
       sent_at:     new Date().toISOString(),
     }).catch(() => {});
+
+    // 1b. Buy-box capture — read what the buyer just told us and MERGE it onto their
+    // row so the profile lives in the system (the user's directive: "reviewed with the
+    // system, not just reading"). Runs on EVERY reply — a "no, too high at 250k" still
+    // teaches the ceiling. Best-effort + non-fatal: a capture failure must never block
+    // the YES→assign→contract→EMD flow below.
+    try {
+      await captureBuyerBuyBox(buyer, body);
+    } catch (e) {
+      console.warn('[SMS] buy-box capture failed (non-fatal):', e.message);
+    }
 
     const interested = BUYER_YES.test(body) && !BUYER_NO.test(body);
     console.log(`[SMS] Buyer reply from ${buyer.name || from} — interested=${interested}`);

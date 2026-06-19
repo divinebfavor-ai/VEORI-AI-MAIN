@@ -54,7 +54,7 @@ async function matchBuyers(deal) {
     // in a single PostgREST .or() chain, so we keep the query simple and correct and
     // do the overlap logic here. Buyer pools per operator are bounded (hundreds, not
     // millions), so this is cheap.
-    const { data: buyers, error } = await supabase
+    const { data: ownBuyers, error } = await supabase
       .from('buyers')
       .select('*')
       .eq('user_id', deal.user_id)
@@ -62,9 +62,50 @@ async function matchBuyers(deal) {
       .limit(2000);
     if (error) { console.warn('[BuyerDispo] matchBuyers query error:', error.message); return []; }
 
+    // OPT-IN shared pool: also pull OTHER operators' active buyers who opted into the
+    // pool (share_to_pool = true). Owner stays user_id; these are additive exposure so
+    // a fitting deal can reach a shared buyer. When no one has opted in this returns
+    // nothing and behavior is identical to before. Tagged from_pool so the caller knows
+    // whose buyer it is. NO fee logic / cross-operator side effects here — visibility
+    // only. Degrades silently if share_to_pool column isn't migrated yet.
+    let poolBuyers = [];
+    try {
+      const { data: shared, error: poolErr } = await supabase
+        .from('buyers')
+        .select('*')
+        .eq('share_to_pool', true)
+        .eq('is_active', true)
+        .neq('user_id', deal.user_id)
+        .limit(2000);
+      if (poolErr) {
+        if (!/column .* does not exist/i.test(poolErr.message)) {
+          console.warn('[BuyerDispo] pool query error:', poolErr.message);
+        }
+      } else {
+        poolBuyers = shared || [];
+      }
+    } catch (e) { console.warn('[BuyerDispo] pool query failed:', e.message); }
+
+    // Own buyers rank first; dedup by phone so a buyer that's both yours AND shared
+    // isn't counted twice. Tag owner + from_pool for the caller.
+    const seenPhone = new Set();
+    const tagged = [];
+    for (const b of (ownBuyers || [])) {
+      const key = (b.phone || `id:${b.id}`).trim();
+      if (seenPhone.has(key)) continue;
+      seenPhone.add(key);
+      tagged.push({ ...b, owner_user_id: b.user_id, from_pool: false });
+    }
+    for (const b of poolBuyers) {
+      const key = (b.phone || `id:${b.id}`).trim();
+      if (seenPhone.has(key)) continue;
+      seenPhone.add(key);
+      tagged.push({ ...b, owner_user_id: b.user_id, from_pool: true });
+    }
+
     const dealType = (deal.property_type || '').trim().toLowerCase();
 
-    return (buyers || []).filter(b => {
+    return tagged.filter(b => {
       // State fit: empty buy_box_states == buys anywhere.
       const states = (b.buy_box_states || []).map(s => String(s).trim().toUpperCase());
       const stateFit = states.length === 0 || (state && states.includes(state));

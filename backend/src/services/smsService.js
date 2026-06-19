@@ -453,4 +453,95 @@ async function escalateToCall(lead, userId) {
   }
 }
 
-module.exports = { sendSMS, sendSMSDirect, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall };
+// ─── Buy-box capture from a buyer's reply ────────────────────────────────────
+// The user's directive: a buyer's profile (their "crash/card barrier") must live
+// INSIDE the system — reviewed, not just logged. When a buyer texts back, this
+// reads their reply and returns the buy-box facts they actually stated so the
+// caller can MERGE them onto the buyers row.
+//
+// AI-first (locked decision): GPT-4o-mini, same model/timeout/json pattern as
+// scoreReply — cheap, bounded, one call. Regex fallback runs when there's no
+// OPENAI_KEY or the call fails, so capture still works with zero AI. Neither path
+// TEXTS the buyer — this is a silent reader; the reply/assignment flow is separate.
+//
+// Returns ONLY fields the buyer expressed (others null/empty) so the merge never
+// clobbers a known value with a guess.
+
+const US_STATES = new Set(['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']);
+
+function regexBuyBox(body) {
+  const text = String(body || '');
+  const upper = text.toUpperCase();
+
+  // States: standalone 2-letter US codes.
+  const states = [];
+  for (const m of upper.matchAll(/\b([A-Z]{2})\b/g)) {
+    if (US_STATES.has(m[1]) && !states.includes(m[1])) states.push(m[1]);
+  }
+
+  // Prices: $ amounts, with optional k/m suffix.
+  const prices = [];
+  for (const m of text.matchAll(/\$?\s?(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?/g)) {
+    let n = Number(m[1].replace(/,/g, ''));
+    if (!Number.isFinite(n)) continue;
+    const suf = (m[2] || '').toLowerCase();
+    if (suf === 'k') n *= 1000;
+    else if (suf === 'm') n *= 1000000;
+    if (n >= 1000) prices.push(n); // ignore tiny numbers (counts, etc.)
+  }
+  let min_price = null, max_price = null;
+  if (prices.length === 1) max_price = prices[0];
+  else if (prices.length >= 2) { min_price = Math.min(...prices); max_price = Math.max(...prices); }
+
+  const cash_only = /\bcash\b/i.test(text) ? true : null;
+  const proof_of_funds = /\b(pof|proof of funds)\b/i.test(text) ? true : null;
+
+  return { states, cities: [], min_price, max_price, types: [], cash_only, proof_of_funds };
+}
+
+async function extractBuyBox(body, buyer = null) {
+  const OPENAI_KEY = process.env.OPENAI_API_KEY;
+  if (!body || !String(body).trim()) return null;
+
+  // No AI key → regex-only.
+  if (!OPENAI_KEY) return regexBuyBox(body);
+
+  try {
+    const prompt = `You read a cash buyer's text reply and extract ONLY the buy-box facts they explicitly stated. Do NOT guess or infer beyond what's written.
+
+Buyer reply: "${String(body).slice(0, 800)}"
+
+Reply with ONLY a JSON object. Use null / empty arrays for anything the buyer did NOT state:
+{"states": ["TX"], "cities": ["Dallas"], "min_price": <number|null>, "max_price": <number|null>, "types": ["single_family"], "cash_only": <true|false|null>, "proof_of_funds": <true|false|null>}`;
+
+    const res = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 150,
+      response_format: { type: 'json_object' },
+    }, {
+      headers: { Authorization: `Bearer ${OPENAI_KEY}` },
+      timeout: 10000,
+    });
+
+    const r = JSON.parse(res.data.choices[0].message.content) || {};
+    const arr = (v) => Array.isArray(v) ? v.map(s => String(s).trim()).filter(Boolean) : [];
+    const num = (v) => (v === null || v === undefined || v === '' ? null : (Number.isFinite(Number(v)) ? Number(v) : null));
+    const bool = (v) => (v === true || v === false ? v : null);
+    return {
+      states:          arr(r.states).map(s => s.toUpperCase()),
+      cities:          arr(r.cities),
+      min_price:       num(r.min_price),
+      max_price:       num(r.max_price),
+      types:           arr(r.types).map(t => t.toLowerCase()),
+      cash_only:       bool(r.cash_only),
+      proof_of_funds:  bool(r.proof_of_funds),
+    };
+  } catch (e) {
+    console.warn('[SMS] extractBuyBox AI failed — regex fallback:', e.message);
+    return regexBuyBox(body);
+  }
+}
+
+module.exports = { sendSMS, sendSMSDirect, sendOpeningSMS, scoreReply, continueConversation, sendReply, escalateToCall, extractBuyBox };

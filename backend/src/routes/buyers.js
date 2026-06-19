@@ -33,9 +33,18 @@ router.post('/', async (req, res, next) => {
   try {
     const { name, phone, email, buy_box_states = [], buy_box_types = [], max_price, repair_tolerance = 'any', notes } = req.body;
     if (!name) return res.status(400).json({ success: false, error: 'name required' });
-    const { data, error } = await supabase.from('buyers').insert([{
+    const row = {
       id: uuidv4(), user_id: req.user.id, name, phone, email, buy_box_states, buy_box_types, max_price, repair_tolerance, notes
-    }]).select().single();
+    };
+    // Upsert on the (user_id, phone) unique index (2026-06-19_buyer_dedup.sql): a
+    // re-add of an existing buyer for this operator updates in place instead of
+    // creating a duplicate. Email-only buyers (no phone) fall through to a plain
+    // insert since the partial index ignores blank phones.
+    const useUpsert = !!(phone && String(phone).trim());
+    const query = useUpsert
+      ? supabase.from('buyers').upsert(row, { onConflict: 'user_id,phone' })
+      : supabase.from('buyers').insert([row]);
+    const { data, error } = await query.select().single();
     if (error) throw error;
     res.status(201).json({ success: true, data });
   } catch (err) { next(err); }
@@ -106,13 +115,22 @@ router.post('/bulk', async (req, res, next) => {
     }
     const toInsert = unique.filter(r => !r.phone || !existingPhones.has(r.phone));
 
+    // Upsert against the (user_id, phone) unique index (2026-06-19_buyer_dedup.sql)
+    // with ignoreDuplicates so a cross-batch race that slips past the JS pre-check
+    // no longer 500s on a 23505 — the duplicate row is simply skipped at the DB. The
+    // in-memory + existing-phone passes above keep the common case cheap; this is the
+    // hard backstop. Rows with a blank phone are ignored by the partial index, so the
+    // conflict target is a no-op for them and they insert normally.
     let imported = 0;
     const chunkSize = 500;
     for (let i = 0; i < toInsert.length; i += chunkSize) {
       const chunk = toInsert.slice(i, i + chunkSize);
-      const { data, error } = await supabase.from('buyers').insert(chunk).select('id');
-      if (!error) imported += data?.length || chunk.length;
-      else console.warn('[Buyers import] insert error:', error.message);
+      const { data, error } = await supabase
+        .from('buyers')
+        .upsert(chunk, { onConflict: 'user_id,phone', ignoreDuplicates: true })
+        .select('id');
+      if (!error) imported += data?.length || 0;
+      else console.warn('[Buyers import] upsert error:', error.message);
     }
 
     res.status(201).json({
@@ -126,7 +144,7 @@ router.post('/bulk', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['name','phone','email','buy_box_states','buy_box_types','max_price','repair_tolerance','is_active','notes'];
+    const allowed = ['name','phone','email','buy_box_states','buy_box_types','max_price','min_price','property_cities','cash_only','proof_of_funds','repair_tolerance','is_active','notes','share_to_pool'];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     const { data, error } = await supabase.from('buyers').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
