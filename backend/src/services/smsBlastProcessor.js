@@ -32,6 +32,7 @@ const supabase        = require('../config/supabase');
 const smsRotation     = require('./smsRotation');
 const outreachCredits = require('./outreachCredits');
 const { sendSMSDirect } = require('./smsService');
+const { isWithinTcpaWindow, msUntilNextWindow } = require('./tcpaWindow');
 
 /**
  * @param {object} data            job payload from enqueueSMS
@@ -69,6 +70,57 @@ async function processBlastSMS(data) {
       await markSmsFirstLead(smsFirstLeadId, { status: 'dnc_blocked' });
       console.warn(`[SMSBlast] ${to} on DNC — blocked`);
       return { skipped: 'dnc' };
+    }
+  }
+
+  // 1.5 TCPA quiet-hours gate — federal 8 AM–9 PM rule in the LEAD's local time.
+  // Off-hours messages are NOT dropped and NOT credit-charged: we re-enqueue the
+  // same job with a BullMQ delay so it fires at the next 8 AM in the lead's state.
+  // The lead's state drives the timezone; unknown state → Eastern (most
+  // conservative). We look it up here because the job payload doesn't carry it.
+  if (supabase && leadId) {
+    let leadState = null;
+    try {
+      const { data: leadRow } = await supabase
+        .from('leads')
+        .select('property_state')
+        .eq('id', leadId)
+        .maybeSingle();
+      leadState = leadRow?.property_state || null;
+    } catch (e) {
+      // State lookup failed — fall through to the Eastern default (still gated,
+      // never fails OPEN: a null state is treated as Eastern by tcpaWindow).
+      console.warn(`[SMSBlast] state lookup failed for lead ${leadId}:`, e.message);
+    }
+
+    if (!isWithinTcpaWindow(leadState)) {
+      const delay = msUntilNextWindow(leadState);
+      try {
+        // Lazy-require to avoid a circular dependency (queueService → this file).
+        const { enqueueSMS } = require('./queueService');
+        // Unique jobId suffix per target send-day so the deferred re-enqueue isn't a
+        // BullMQ no-op against this still-active job (same jobId == dedup == lost msg).
+        const sendDay = new Date(Date.now() + delay).toISOString().slice(0, 10);
+        await enqueueSMS({ leadId, campaignId, userId, to, body, smsFirstLeadId, delay, jobIdSuffix: `-qh-${sendDay}` });
+        await supabase.from('tcpa_log').insert({
+          user_id:    userId || null,
+          lead_id:    leadId || null,
+          phone:      to,
+          action:     'sms_deferred_quiet_hours',
+          notes:      `Outside 8 AM–9 PM local (${leadState || 'default/Eastern'}) — deferred ${(delay / 3600000).toFixed(2)}h to next window`,
+          created_at: new Date().toISOString(),
+        }).catch(() => {});
+        await markSmsFirstLead(smsFirstLeadId, { status: 'deferred_quiet_hours' });
+        console.log(`[SMSBlast] ${to} outside TCPA hours (${leadState || 'Eastern'}) — deferred ${(delay / 3600000).toFixed(2)}h`);
+        return { skipped: 'quiet_hours', deferredMs: delay };
+      } catch (e) {
+        // If re-enqueue fails (Redis down), DON'T send off-hours — throw so BullMQ
+        // retries this same job later (fail-safe: never send outside the window).
+        console.warn(`[SMSBlast] quiet-hours re-enqueue failed for ${to}:`, e.message);
+        const err = new Error('quiet-hours defer failed (re-enqueue)');
+        err.deferred = true;
+        throw err;
+      }
     }
   }
 

@@ -19,28 +19,18 @@ const { sendReply }     = require('./smsService');
 const vapiService       = require('./vapiService');
 const phoneRotation     = require('./phoneRotation');
 const queueService      = require('./queueService');
+const { isWithinTcpaWindow, msUntilNextWindow, tcpaLocalHour } = require('./tcpaWindow');
 
 // Active SMS-first sessions (in-memory, same pattern as campaignManager)
 const activeSessions = new Map();
 
-// ─── Timezone map: US state → tz offset hours from UTC ───────────────────────
-// Used to enforce 8am–9pm local time compliance
-const STATE_TZ_OFFSET = {
-  AK:-9, HI:-10,
-  CA:-8, OR:-8, WA:-8, NV:-8,
-  AZ:-7, MT:-7, ID:-7, WY:-7, CO:-7, NM:-7, UT:-7,
-  ND:-6, SD:-6, NE:-6, KS:-6, OK:-6, TX:-6, MN:-6, IA:-6,
-  MO:-6, AR:-6, LA:-6, WI:-6, IL:-6, TN:-6, MS:-6, AL:-6,
-  MI:-5, IN:-5, OH:-5, KY:-5, WV:-5, GA:-5, FL:-5, SC:-5,
-  NC:-5, VA:-5, PA:-5, NY:-5, ME:-5, NH:-5, VT:-5, MA:-5,
-  RI:-5, CT:-5, NJ:-5, DE:-5, MD:-5, DC:-5,
-};
-
+// ─── TCPA quiet-hours (8am–9pm in the LEAD's local time) ─────────────────────
+// Delegates to the shared, DST-safe tcpaWindow service (Intl-based, full 50-state
+// map) instead of the old fixed-UTC-offset table, which was wrong for half the
+// year under daylight saving. Same call signature so existing call sites are
+// unchanged: isWithinSMSHours(state) → boolean.
 function isWithinSMSHours(state) {
-  const offsetHours = STATE_TZ_OFFSET[state?.toUpperCase()] ?? -5;
-  const utcNow      = new Date();
-  const localHour   = (utcNow.getUTCHours() + 24 + offsetHours) % 24;
-  return localHour >= 8 && localHour < 21; // 8am–9pm
+  return isWithinTcpaWindow(state);
 }
 
 // ─── SMS templates by lead type ───────────────────────────────────────────────
@@ -128,23 +118,27 @@ async function enqueueSMSBatch(campaignId, userId, leads, operatorName) {
 
   for (const lead of leads) {
     if (!lead.phone) continue;
-    if (!isWithinSMSHours(lead.property_state)) {
-      console.log(`[SMSFirst] Skipping ${lead.phone} — outside SMS hours for ${lead.property_state}`);
-      continue;
-    }
+
+    // TCPA quiet-hours: we no longer DROP off-hours leads here. Instead we enqueue
+    // with a BullMQ delay so the job fires at the next 8am in the lead's local
+    // time. (The smsBlastProcessor also gates send-time as a belt-and-suspenders.)
+    const offHoursDelay = isWithinSMSHours(lead.property_state)
+      ? 0
+      : msUntilNextWindow(lead.property_state);
 
     const body = buildSMSBody(lead, operatorName);
     const rowId = uuidv4();
 
-    // Create the tracking row up front in 'queued'; the processor flips it to
-    // 'sms_sent' (or dnc_blocked / deferred_no_credits) when the job runs.
+    // Create the tracking row up front in 'queued' (or 'deferred_quiet_hours' if
+    // we're delaying it); the processor flips it to 'sms_sent' (or dnc_blocked /
+    // deferred_no_credits) when the job actually runs.
     await supabase.from('sms_first_leads').insert({
       id:          rowId,
       campaign_id: campaignId,
       user_id:     userId,
       lead_id:     lead.id,
       sms_body:    body,
-      status:      'queued',
+      status:      offHoursDelay > 0 ? 'deferred_quiet_hours' : 'queued',
     }).catch((e) => console.warn('[SMSFirst] queued-row insert failed:', e.message));
 
     let jobId = null;
@@ -156,6 +150,7 @@ async function enqueueSMSBatch(campaignId, userId, leads, operatorName) {
         to:             lead.phone,
         body,
         smsFirstLeadId: rowId,
+        delay:          offHoursDelay,
       });
     } catch (e) {
       console.error(`[SMSFirst] enqueue failed for ${lead.phone}:`, e.message);
@@ -334,12 +329,21 @@ async function triggerPendingCalls(campaignId, userId, campaign) {
     // Skip if already called
     if (row.call_triggered) continue;
 
-    // Check calling hours for the lead's state
-    const hour = new Date().getHours();
+    // TCPA quiet-hours: a call must be inside 8am–9pm in the LEAD's local time.
+    // (DST-safe, full 50-state map via tcpaWindow — the old `new Date().getHours()`
+    // used the SERVER's timezone, which is wrong for out-of-region leads.)
+    if (!isWithinTcpaWindow(lead.property_state)) {
+      session.callQueue.push({ row, lead });
+      break;
+    }
+
+    // Additionally respect the operator's configured calling window (in the lead's
+    // local time so the campaign hours mean what the operator expects per-lead).
+    const localHour = tcpaLocalHour(lead.property_state);
     const [startH] = (campaign.calling_hours_start || '09:00').split(':').map(Number);
     const [endH]   = (campaign.calling_hours_end   || '20:00').split(':').map(Number);
-    if (hour < startH || hour >= endH) {
-      // Outside hours — put back and check next tick
+    if (localHour < startH || localHour >= endH) {
+      // Outside the operator's window — put back and check next tick
       session.callQueue.push({ row, lead });
       break;
     }

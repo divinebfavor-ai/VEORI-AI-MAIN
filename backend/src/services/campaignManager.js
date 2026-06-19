@@ -3,6 +3,7 @@ const supabase = require('../config/supabase');
 const vapiService = require('./vapiService');
 const phoneRotation = require('./phoneRotation');
 const { v4: uuidv4 } = require('uuid');
+const { isWithinTcpaWindow } = require('./tcpaWindow');
 
 // In-memory active campaigns (in production use Redis)
 const activeCampaigns = new Map();
@@ -130,6 +131,18 @@ async function dialerTick(campaignId) {
         }
       } catch (e) {
         console.warn('[Campaign][TCPA] Federal DNC check skipped:', e.message);
+      }
+
+      // TCPA quiet-hours — per-lead, in the LEAD's local time (DST-safe). The
+      // campaign-level isWithinCallingHours gate above is a coarse "run this tick?"
+      // check on the server clock; THIS is the legally-meaningful per-lead floor,
+      // so an out-of-region lead is never dialed before 8am / after 9pm its local
+      // time even if the campaign window happens to be open on the server.
+      if (!isWithinTcpaWindow(lead.property_state)) {
+        console.log(`[Campaign ${campaignId}] ${lead.phone} outside 8am–9pm local (${lead.property_state || 'Eastern'}) — requeueing`);
+        leadQueue.push(lead);           // back of the queue; retried on a later tick
+        session.consecutiveFailures = 0; // a quiet-hours skip is not a Vapi failure
+        continue;
       }
 
       // Phone number selection

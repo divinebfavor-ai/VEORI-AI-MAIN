@@ -122,15 +122,19 @@ async function scheduleSequenceStep({ sequenceId, stepIndex, runAt }) {
 // (smsBlastProcessor) owns DNC + credit reservation + rotation + the actual send.
 // Returns the BullMQ job id (for sms_first_leads.enqueue_job_id) or null if Redis
 // is unavailable (caller falls back to an inline send loop).
-async function enqueueSMS({ leadId, campaignId, userId, to, body, smsFirstLeadId = null, delay = 0 }) {
+async function enqueueSMS({ leadId, campaignId, userId, to, body, smsFirstLeadId = null, delay = 0, jobIdSuffix = '' }) {
   const queue = getQueue(QUEUE_NAMES.SMS_BLAST);
   if (!queue) return null;
 
+  // jobIdSuffix lets a worker RE-enqueue the same lead with a distinct id (used by
+  // the TCPA quiet-hours deferral: the original job is still 'active' when it
+  // re-queues, so a bare reuse of the base id would be a BullMQ no-op and silently
+  // drop the deferred message). Empty suffix === original behavior, unchanged.
   const job = await queue.add('send-blast-sms', {
     leadId, campaignId, userId, to, body, smsFirstLeadId,
   }, {
     delay: delay > 0 ? delay : undefined,
-    jobId: `sms-${campaignId || 'adhoc'}-${leadId}`,
+    jobId: `sms-${campaignId || 'adhoc'}-${leadId}${jobIdSuffix}`,
     removeOnComplete: true,
     removeOnFail: 1000,           // retain failed jobs for forensics before dead-letter
     attempts: 3,
