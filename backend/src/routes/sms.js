@@ -186,12 +186,12 @@ router.post('/webhook', async (req, res) => {
     // webhook. If Redis is unavailable we score inline (unchanged behavior).
     let enqueued = null;
     try {
-      enqueued = await queueService.enqueueInboundSMS({ leadId: lead.id, userId, from, body });
+      enqueued = await queueService.enqueueInboundSMS({ leadId: lead.id, userId, from, body, inboundMsgId });
     } catch (e) {
       console.warn('[SMS] inbound enqueue failed — scoring inline:', e.message);
     }
     if (!enqueued) {
-      await scoreAndActInline(lead, userId, from, body);
+      await scoreAndActInline(lead, userId, from, body, inboundMsgId);
     }
 
   } catch (err) {
@@ -200,8 +200,25 @@ router.post('/webhook', async (req, res) => {
 });
 
 // Inline reply scoring + action (Redis-down fallback). Mirrors smsInboundProcessor.
-async function scoreAndActInline(lead, userId, from, body) {
+async function scoreAndActInline(lead, userId, from, body, inboundMsgId) {
   try {
+    // Same idempotency claim the queued processor uses: atomically flip this
+    // inbound row 'received' → 'scored'. A Twilio webhook re-delivery updates 0
+    // rows and bails, so the inline path also never double-scores / double-calls.
+    if (inboundMsgId) {
+      const { data: claimed } = await supabase
+        .from('sms_messages')
+        .update({ status: 'scored' })
+        .eq('telnyx_message_id', inboundMsgId)
+        .eq('direction', 'inbound')
+        .eq('status', 'received')
+        .select('id');
+      if (!claimed || claimed.length === 0) {
+        console.log(`[SMS] ${inboundMsgId} already scored — skipping inline (redelivery)`);
+        return;
+      }
+    }
+
     const { data: history } = await supabase
       .from('sms_messages')
       .select('direction, body, sent_at')

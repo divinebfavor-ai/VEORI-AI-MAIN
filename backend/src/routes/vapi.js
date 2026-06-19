@@ -187,7 +187,30 @@ async function handleCallEnded(call, event) {
   }
 
   if (!callRec) {
-    console.warn(`[Vapi] No call record found for vapiCallId=${call.id} — skipping end handler`);
+    console.warn(`[Vapi] No call record found for vapiCallId=${call.id} — dead-lettering for reconcile`);
+    // Don't silently drop the outcome — persist everything we received so an
+    // operator (or a later reconcile job) can match it back to a lead and replay.
+    const digits = (s) => String(s || '').replace(/\D/g, '').slice(-10);
+    const dialed = digits(call.customer?.number || event.call?.customer?.number);
+    const startedAt = call.startedAt || event.startedAt || null;
+    const endedAt   = call.endedAt   || event.endedAt   || new Date().toISOString();
+    const dlDuration = startedAt
+      ? Math.max(0, Math.round((new Date(endedAt) - new Date(startedAt)) / 1000))
+      : null;
+    try {
+      await supabase.from('call_dead_letter').insert({
+        vapi_call_id:     call.id,
+        dialed_phone:     dialed || null,
+        ended_reason:     event.endedReason || call.endedReason || null,
+        duration_seconds: dlDuration,
+        transcript:       event.transcript || event.artifact?.transcript || call.transcript || null,
+        recording_url:    call.recordingUrl || event.artifact?.recordingUrl || null,
+        raw_event:        event || null,
+        error:            'no_call_record',
+      });
+    } catch (dlErr) {
+      console.error(`[Vapi] dead-letter insert failed for ${call.id}:`, dlErr.message);
+    }
     return;
   }
 

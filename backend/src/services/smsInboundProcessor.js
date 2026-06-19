@@ -12,9 +12,12 @@
  * that used to live in sms.js (scoreReply → call_now | continue_sms | follow_up),
  * unchanged in behavior — just moved off the request path.
  *
- * Idempotency: the webhook has already logged the inbound row, so this processor
- * only reads history + scores + acts. Re-running a job (BullMQ retry) re-scores and
- * re-acts; escalateToCall / sendReply are the same calls the webhook made before.
+ * Idempotency: the webhook has already logged the inbound row. Before doing any
+ * scoring/acting this processor ATOMICALLY claims that row — flipping its status
+ * 'received' → 'scored' keyed on the provider message id. If the claim updates 0
+ * rows the work was already done (a BullMQ retry after a Vapi/SMS blip, or a
+ * webhook re-delivery that slipped the jobId dedup) and we skip — so a single
+ * reply never escalates to two calls or two "let me call you" texts.
  */
 
 const supabase = require('../config/supabase');
@@ -32,8 +35,27 @@ const { getSellerContextForSMS } = require('./dataMotService');
  * @param {string} data.body   inbound message text
  */
 async function processInboundSMS(data) {
-  const { leadId, userId, from, body } = data || {};
+  const { leadId, userId, from, body, inboundMsgId } = data || {};
   if (!leadId || !from || !body || !supabase) return { skipped: true };
+
+  // ── Idempotency claim ──────────────────────────────────────────────────────
+  // Atomically move THIS inbound row from 'received' → 'scored'. Only the first
+  // run wins the row; a retry / re-delivery updates 0 rows and bails before it
+  // can score + escalate a second time. Keyed on the provider message id when we
+  // have one; we never act twice on the same physical inbound message.
+  if (inboundMsgId) {
+    const { data: claimed } = await supabase
+      .from('sms_messages')
+      .update({ status: 'scored' })
+      .eq('telnyx_message_id', inboundMsgId)
+      .eq('direction', 'inbound')
+      .eq('status', 'received')
+      .select('id');
+    if (!claimed || claimed.length === 0) {
+      console.log(`[SMSInbound] ${inboundMsgId} already scored — skipping (retry/redelivery)`);
+      return { skipped: 'already_scored' };
+    }
+  }
 
   // Re-load the lead (it may have changed since the webhook fired).
   const { data: lead } = await supabase

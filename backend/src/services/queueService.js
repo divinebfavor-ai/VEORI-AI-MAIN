@@ -149,13 +149,21 @@ async function enqueueSMS({ leadId, campaignId, userId, to, body, smsFirstLeadId
 // The webhook keeps STOP/START + inbound logging inline; the slow GPT scoreReply +
 // escalation is handed here so a reply flood can't block the request path. Returns
 // the job id, or null if Redis is unavailable (caller scores inline as before).
-async function enqueueInboundSMS({ leadId, userId, from, body }) {
+async function enqueueInboundSMS({ leadId, userId, from, body, inboundMsgId }) {
   const queue = getQueue(QUEUE_NAMES.SMS_INBOUND);
   if (!queue) return null;
 
+  // jobId = the provider MessageSid → if Twilio re-delivers the same inbound webhook
+  // (its standard retry behavior), BullMQ dedups and we DON'T score/act on it twice.
+  // Falls back to a per-lead-timestamp key when no SID is present.
+  const jobId = inboundMsgId
+    ? `inbound-${inboundMsgId}`
+    : `inbound-${leadId}-${Date.now()}`;
+
   const job = await queue.add('score-inbound-sms', {
-    leadId, userId, from, body,
+    leadId, userId, from, body, inboundMsgId,
   }, {
+    jobId,
     removeOnComplete: true,
     removeOnFail: 500,
     attempts: 2,

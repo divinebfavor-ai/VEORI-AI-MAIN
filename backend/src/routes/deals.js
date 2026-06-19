@@ -17,6 +17,35 @@ function isTableMissing(err) {
   return err?.code === 'PGRST205' || (err?.message || '').includes('Could not find the table');
 }
 
+// Mirror the deal's EMD state onto its per-deal title_logs row so the title view
+// stays in parity with deals (the source of truth). The old call was best-effort
+// with a swallowed .catch — a transient failure left title_logs permanently stale
+// (drift). This retries, and on permanent failure LOGS the drift instead of hiding
+// it, so it's recoverable rather than invisible. Never throws — the deals write
+// already succeeded; a mirror failure must not fail the request.
+async function mirrorEmdToTitleLog(userId, dealId, fields, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    const { data, error } = await supabase
+      .from('title_logs')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('deal_id', dealId)
+      .select('id');
+    if (!error) {
+      if (!data || data.length === 0) {
+        // No title_logs row yet for this deal — nothing to mirror onto (title work
+        // hasn't started). Not an error; the title view will read deals directly.
+        console.log(`[Deal] EMD mirror skipped — no title_logs row for deal ${dealId}`);
+      }
+      return;
+    }
+    if (isTableMissing(error)) return; // title_logs not provisioned — nothing to do
+    console.warn(`[Deal] EMD mirror attempt ${i + 1}/${attempts} failed for deal ${dealId}: ${error.message}`);
+    if (i < attempts - 1) await new Promise(r => setTimeout(r, 400 * (i + 1)));
+    else console.error(`[Deal] EMD mirror DRIFT — title_logs not updated for deal ${dealId}: ${error.message}`);
+  }
+}
+
 // GET /api/deals
 router.get('/', async (req, res, next) => {
   try {
@@ -470,12 +499,11 @@ router.post('/:id/emd/confirm', async (req, res, next) => {
       .single();
     if (error) throw error;
 
-    // Mirror onto the per-deal title log (best-effort — title view parity).
-    await supabase.from('title_logs')
-      .update({ emd_status: 'received', emd_amount: confirmedAmount, updated_at: now })
-      .eq('user_id', req.user.id)
-      .eq('deal_id', deal.id)
-      .catch(() => {});
+    // Mirror onto the per-deal title log (retry + drift-logged — title view parity).
+    await mirrorEmdToTitleLog(req.user.id, deal.id, {
+      emd_status: 'received',
+      emd_amount: confirmedAmount,
+    });
 
     logActivity({
       userId: req.user.id,
