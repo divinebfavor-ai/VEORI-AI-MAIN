@@ -34,7 +34,13 @@ router.post('/', requireAuth, async (req, res, next) => {
       notes,
       preferred_communication_method,
       relationship_status,
-      is_default
+      is_default,
+      // Default wire/escrow instructions (last-4 + free-text only — never full numbers).
+      wire_bank_name,
+      wire_account_name,
+      wire_routing_last4,
+      wire_account_last4,
+      wire_instructions,
     } = req.body;
     const resolvedName = name || company_name;
     if (!resolvedName) return res.status(400).json({ error: 'company name required' });
@@ -54,6 +60,11 @@ router.post('/', requireAuth, async (req, res, next) => {
       preferred_communication_method,
       relationship_status,
       is_default: !!is_default,
+      wire_bank_name,
+      wire_account_name,
+      wire_routing_last4,
+      wire_account_last4,
+      wire_instructions,
     };
     const { data, error } = await supabase.from('title_companies').insert(payload).select().single();
     if (error) throw error;

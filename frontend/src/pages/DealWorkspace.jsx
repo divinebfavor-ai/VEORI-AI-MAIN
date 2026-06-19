@@ -277,6 +277,25 @@ export default function DealWorkspace() {
   const [velocityScore, setVelocityScore] = useState(null)
   const [dealBrief, setDealBrief] = useState(null)
   const [loadingBrief, setLoadingBrief] = useState(false)
+  // Post-contract lifecycle — EMD + assignment-fee suggester + wire instructions
+  const [feeSuggestion, setFeeSuggestion] = useState(null)
+  const [loadingFee, setLoadingFee] = useState(false)
+  const [applyingFee, setApplyingFee] = useState(false)
+  const [confirmingEMD, setConfirmingEMD] = useState(false)
+  const [emdAmountDraft, setEmdAmountDraft] = useState('')
+  const [emdHeldByDraft, setEmdHeldByDraft] = useState('title')
+  const [wire, setWire] = useState(null)
+  const [wireSource, setWireSource] = useState(null)
+  const [wireDraft, setWireDraft] = useState(null)
+  const [savingWire, setSavingWire] = useState(false)
+
+  const loadWire = () => {
+    dealsApi.getWire(id).then(r => {
+      const d = r.data?.data || r.data
+      setWire(d?.wire || null)
+      setWireSource(d?.source || null)
+    }).catch(() => { setWire(null); setWireSource(null) })
+  }
 
   const loadActivity = () => {
     dealsApi.getDealActivity(id).then(r => {
@@ -325,6 +344,7 @@ export default function DealWorkspace() {
     loadTitleLog()
     loadFollowUps()
     loadPhotos()
+    loadWire()
 
     // Load velocity score
     api.get(`/api/deals/${id}/velocity-score`).then(r => {
@@ -401,6 +421,71 @@ export default function DealWorkspace() {
     } finally {
       setSendingToTitle(false)
     }
+  }
+
+  // ── Assignment-fee suggester ─────────────────────────────────────────────
+  const loadFeeSuggestion = async () => {
+    setLoadingFee(true)
+    try {
+      const r = await dealsApi.getFeeSuggestion(id)
+      setFeeSuggestion(r.data?.data || r.data || null)
+    } catch { toast.error('Fee suggestion failed') }
+    finally { setLoadingFee(false) }
+  }
+
+  const applyFee = async () => {
+    if (!feeSuggestion || feeSuggestion.suggested == null) return
+    setApplyingFee(true)
+    try {
+      const r = await dealsApi.applyFeeSuggestion(id, { assignment_fee: feeSuggestion.suggested })
+      const updated = r.data?.data?.deal || r.data?.deal || null
+      if (updated) setDeal(d => ({ ...d, ...updated }))
+      else setDeal(d => ({ ...d, assignment_fee: feeSuggestion.suggested, assignment_fee_suggested: feeSuggestion.suggested, assignment_fee_basis: feeSuggestion.basis }))
+      loadActivity()
+      toast.success(`Assignment fee set to ${fmt$(feeSuggestion.suggested)}`)
+    } catch { toast.error('Failed to apply fee') }
+    finally { setApplyingFee(false) }
+  }
+
+  // ── EMD confirm ──────────────────────────────────────────────────────────
+  const confirmEMD = async () => {
+    setConfirmingEMD(true)
+    try {
+      const body = {}
+      if (emdAmountDraft) body.emd_amount = Number(emdAmountDraft)
+      if (emdHeldByDraft) body.emd_held_by = emdHeldByDraft
+      const r = await dealsApi.confirmEMD(id, body)
+      const updated = r.data?.data?.deal || r.data?.deal || null
+      if (updated) setDeal(d => ({ ...d, ...updated }))
+      else setDeal(d => ({ ...d, emd_status: 'received', emd_received_at: new Date().toISOString() }))
+      loadActivity()
+      toast.success('EMD confirmed received')
+    } catch { toast.error('Failed to confirm EMD') }
+    finally { setConfirmingEMD(false) }
+  }
+
+  // ── Wire instructions (per-deal override) ─────────────────────────────────
+  const startWireEdit = () => {
+    setWireDraft({
+      wire_bank_name:     wire?.wire_bank_name || '',
+      wire_account_name:  wire?.wire_account_name || '',
+      wire_routing_last4: wire?.wire_routing_last4 || '',
+      wire_account_last4: wire?.wire_account_last4 || '',
+      wire_instructions:  wire?.wire_instructions || '',
+    })
+  }
+
+  const saveWire = async () => {
+    if (!wireDraft) return
+    setSavingWire(true)
+    try {
+      await dealsApi.saveWire(id, wireDraft)
+      loadWire()
+      loadActivity()
+      setWireDraft(null)
+      toast.success('Wire instructions saved for this deal')
+    } catch { toast.error('Failed to save wire instructions') }
+    finally { setSavingWire(false) }
   }
 
   const scheduleFollowUp = async () => {
@@ -668,6 +753,127 @@ export default function DealWorkspace() {
                     </span>
                   </div>
                 )}
+              </div>
+            </Section>
+
+            {/* EMD + Assignment Fee (post-contract lifecycle) */}
+            <Section title="EMD & Assignment Fee" icon={Shield}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+
+                {/* EMD card */}
+                <div style={{ background: 'var(--s2)', border: '1px solid var(--border-rest)', borderRadius: 6, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)' }}>
+                      Earnest Money
+                    </span>
+                    <Badge variant={
+                      deal.emd_status === 'received' ? 'green' :
+                      deal.emd_status === 'requested' ? 'gold' :
+                      deal.emd_status === 'forfeited' ? 'red' : 'gray'
+                    }>
+                      {deal.emd_status || 'none'}
+                    </Badge>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-rest)' }}>
+                    <span style={{ fontSize: 11, color: 'var(--t4)' }}>Amount</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t1)' }}>{fmt$(deal.emd_amount)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-rest)' }}>
+                    <span style={{ fontSize: 11, color: 'var(--t4)' }}>Refundable</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: deal.emd_refundable ? 'var(--amber)' : 'var(--t2)' }}>
+                      {deal.emd_refundable ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  {deal.emd_requested_at && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-rest)' }}>
+                      <span style={{ fontSize: 11, color: 'var(--t4)' }}>Requested</span>
+                      <span style={{ fontSize: 11, color: 'var(--t2)' }}>{formatTimestamp(deal.emd_requested_at)}</span>
+                    </div>
+                  )}
+                  {deal.emd_received_at && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-rest)' }}>
+                      <span style={{ fontSize: 11, color: 'var(--t4)' }}>Received</span>
+                      <span style={{ fontSize: 11, color: 'var(--green)' }}>{formatTimestamp(deal.emd_received_at)}</span>
+                    </div>
+                  )}
+
+                  {deal.emd_status !== 'received' && (
+                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <input
+                        type="number"
+                        value={emdAmountDraft}
+                        onChange={e => setEmdAmountDraft(e.target.value)}
+                        placeholder={deal.emd_amount ? `Amount (${fmt$(deal.emd_amount)})` : 'EMD amount'}
+                        style={{ height: 32, background: 'var(--s1)', border: '1px solid var(--border-rest)', borderRadius: 5, padding: '0 10px', fontSize: 12, color: 'var(--t1)', outline: 'none', fontFamily: 'inherit' }}
+                      />
+                      <select
+                        value={emdHeldByDraft}
+                        onChange={e => setEmdHeldByDraft(e.target.value)}
+                        style={{ height: 32, background: 'var(--s1)', border: '1px solid var(--border-rest)', borderRadius: 5, padding: '0 10px', fontSize: 12, color: 'var(--t2)', outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}
+                      >
+                        <option value="title">Held by Title</option>
+                        <option value="operator">Held by Operator</option>
+                      </select>
+                      <Button variant="primary" size="sm" loading={confirmingEMD} onClick={confirmEMD}>
+                        <Check size={11} /> Confirm EMD Received
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Assignment fee suggester card */}
+                <div style={{ background: 'var(--s2)', border: '1px solid var(--border-rest)', borderRadius: 6, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)' }}>
+                      Assignment Fee
+                    </span>
+                    {deal.assignment_fee != null && deal.assignment_fee !== 0 && (
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--green)' }}>{fmt$(deal.assignment_fee)}</span>
+                    )}
+                  </div>
+
+                  {!feeSuggestion ? (
+                    <Button variant="secondary" size="sm" style={{ width: '100%' }} loading={loadingFee} onClick={loadFeeSuggestion}>
+                      <Zap size={11} /> Suggest Fee
+                    </Button>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {feeSuggestion.suggested != null ? (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: 11, color: 'var(--t4)' }}>Suggested</span>
+                            <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--gold)' }}>{fmt$(feeSuggestion.suggested)}</span>
+                          </div>
+                          {(feeSuggestion.floor != null && feeSuggestion.ceiling != null) && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 11, color: 'var(--t4)' }}>Range</span>
+                              <span style={{ fontSize: 11, color: 'var(--t2)' }}>{fmt$(feeSuggestion.floor)} – {fmt$(feeSuggestion.ceiling)}</span>
+                            </div>
+                          )}
+                          {feeSuggestion.basis?.reason && (
+                            <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.5, margin: '4px 0 0' }}>
+                              {feeSuggestion.basis.reason}
+                            </p>
+                          )}
+                          <Button variant="primary" size="sm" style={{ width: '100%' }} loading={applyingFee} onClick={applyFee}>
+                            <Check size={11} /> Apply {fmt$(feeSuggestion.suggested)}
+                          </Button>
+                        </>
+                      ) : (
+                        <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.5 }}>
+                          {feeSuggestion.basis?.reason || 'Set buyer + seller pricing to derive a fee.'}
+                        </p>
+                      )}
+                      <button
+                        onClick={loadFeeSuggestion}
+                        style={{ background: 'none', border: 'none', color: 'var(--t4)', fontSize: 11, cursor: 'pointer', padding: 0, fontFamily: 'inherit', textAlign: 'left' }}
+                      >
+                        Re-calculate
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </Section>
 
@@ -1098,6 +1304,103 @@ export default function DealWorkspace() {
                 <p style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.6 }}>
                   This deal has not been sent to title yet.
                 </p>
+              )}
+            </div>
+
+            {/* Wire / escrow instructions (default + per-deal override) */}
+            <div style={{
+              background: 'var(--s1)',
+              border: '1px solid var(--border-rest)',
+              borderRadius: 8,
+              padding: '14px 16px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--t3)' }}>
+                  Wire Instructions
+                </p>
+                {wireSource && (
+                  <Badge variant={wireSource === 'deal_override' ? 'gold' : 'gray'}>
+                    {wireSource === 'deal_override' ? 'deal override' : 'title default'}
+                  </Badge>
+                )}
+              </div>
+
+              {wireDraft ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    ['wire_bank_name', 'Bank name'],
+                    ['wire_account_name', 'Account name'],
+                    ['wire_routing_last4', 'Routing last-4'],
+                    ['wire_account_last4', 'Account last-4'],
+                  ].map(([k, ph]) => (
+                    <input
+                      key={k}
+                      value={wireDraft[k]}
+                      onChange={e => setWireDraft(w => ({ ...w, [k]: e.target.value }))}
+                      placeholder={ph}
+                      style={{ height: 32, background: 'var(--s2)', border: '1px solid var(--border-rest)', borderRadius: 5, padding: '0 10px', fontSize: 12, color: 'var(--t1)', outline: 'none', fontFamily: 'inherit' }}
+                    />
+                  ))}
+                  <textarea
+                    value={wireDraft.wire_instructions}
+                    onChange={e => setWireDraft(w => ({ ...w, wire_instructions: e.target.value }))}
+                    placeholder="Free-text wire / escrow instructions"
+                    rows={3}
+                    style={{ background: 'var(--s2)', border: '1px solid var(--border-rest)', borderRadius: 5, padding: '8px 10px', fontSize: 12, color: 'var(--t1)', outline: 'none', fontFamily: 'inherit', resize: 'vertical' }}
+                  />
+                  <p style={{ fontSize: 10, color: 'var(--t4)', lineHeight: 1.5, margin: 0 }}>
+                    Store only last-4 references — never full account or routing numbers.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button variant="primary" size="sm" loading={savingWire} onClick={saveWire}>Save for this deal</Button>
+                    <Button variant="secondary" size="sm" onClick={() => setWireDraft(null)}>Cancel</Button>
+                  </div>
+                </div>
+              ) : wire && (wire.wire_bank_name || wire.wire_instructions || wire.wire_account_last4) ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {wire.wire_bank_name && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                      <span style={{ fontSize: 11, color: 'var(--t4)' }}>Bank</span>
+                      <span style={{ fontSize: 12, color: 'var(--t1)' }}>{wire.wire_bank_name}</span>
+                    </div>
+                  )}
+                  {wire.wire_account_name && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                      <span style={{ fontSize: 11, color: 'var(--t4)' }}>Account</span>
+                      <span style={{ fontSize: 12, color: 'var(--t1)' }}>{wire.wire_account_name}</span>
+                    </div>
+                  )}
+                  {wire.wire_routing_last4 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                      <span style={{ fontSize: 11, color: 'var(--t4)' }}>Routing</span>
+                      <span style={{ fontSize: 12, color: 'var(--t2)' }}>•••• {wire.wire_routing_last4}</span>
+                    </div>
+                  )}
+                  {wire.wire_account_last4 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                      <span style={{ fontSize: 11, color: 'var(--t4)' }}>Acct #</span>
+                      <span style={{ fontSize: 12, color: 'var(--t2)' }}>•••• {wire.wire_account_last4}</span>
+                    </div>
+                  )}
+                  {wire.wire_instructions && (
+                    <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.6, margin: '4px 0 0', paddingTop: 6, borderTop: '1px solid var(--border-rest)' }}>
+                      {wire.wire_instructions}
+                    </p>
+                  )}
+                  <button
+                    onClick={startWireEdit}
+                    style={{ marginTop: 6, background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, cursor: 'pointer', padding: 0, fontFamily: 'inherit', textAlign: 'left' }}
+                  >
+                    {wireSource === 'deal_override' ? 'Edit deal override' : 'Override for this deal'}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.6, marginBottom: 8 }}>
+                    No wire instructions on file. Set a default on the title company, or add a per-deal override.
+                  </p>
+                  <Button variant="secondary" size="sm" onClick={startWireEdit}>Add wire override</Button>
+                </div>
               )}
             </div>
 

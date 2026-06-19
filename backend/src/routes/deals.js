@@ -7,6 +7,7 @@ const { recordWinningPlaybook } = require('../services/dataMotService');
 const { logActivity } = require('../services/dealActivityService');
 const { runCloseRitual } = require('../services/closeRitualService');
 const { autoAssignTitleCompany, sendDealPackageToTitle, scheduleTitleFollowUps } = require('../services/titleService');
+const { suggestAssignmentFee } = require('../services/assignmentFeeService');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -97,7 +98,7 @@ router.post('/', async (req, res, next) => {
 // PUT /api/deals/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['property_address','property_city','property_state','arv','repair_estimate','mao','offer_price','seller_agreed_price','buyer_price','assignment_fee','status','title_company_id','buyer_id','closing_date','seller_contract_url','buyer_contract_url','contract_status','notes'];
+    const allowed = ['property_address','property_city','property_state','arv','repair_estimate','mao','offer_price','seller_agreed_price','buyer_price','assignment_fee','status','title_company_id','buyer_id','closing_date','seller_contract_url','buyer_contract_url','contract_status','notes','emd_status','emd_amount','emd_refundable','emd_held_by'];
     const updates = { updated_at: new Date().toISOString() };
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     const { data: existing, error: existingError } = await supabase
@@ -313,6 +314,245 @@ router.get('/:id/title-log', async (req, res, next) => {
       .maybeSingle();
     if (error) throw error;
     res.json({ success: true, title_log: data || null });
+  } catch (err) { next(err); }
+});
+
+// GET /api/deals/:id/wire — the EFFECTIVE wire instructions for this deal.
+// Resolution: per-deal override on title_logs wins; else the title-company default.
+// Stores/returns last-4 + free-text only (never full account/routing numbers).
+router.get('/:id/wire', async (req, res, next) => {
+  try {
+    const WIRE_KEYS = ['wire_bank_name','wire_account_name','wire_routing_last4','wire_account_last4','wire_instructions'];
+    const { data: deal } = await supabase
+      .from('deals')
+      .select('id, title_company_id')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
+
+    const { data: log } = await supabase
+      .from('title_logs')
+      .select('wire_bank_name, wire_account_name, wire_routing_last4, wire_account_last4, wire_instructions')
+      .eq('user_id', req.user.id)
+      .eq('deal_id', req.params.id)
+      .maybeSingle();
+
+    let titleDefault = null;
+    if (deal.title_company_id) {
+      const { data: tc } = await supabase
+        .from('title_companies')
+        .select('wire_bank_name, wire_account_name, wire_routing_last4, wire_account_last4, wire_instructions')
+        .eq('id', deal.title_company_id)
+        .eq('user_id', req.user.id)
+        .maybeSingle();
+      titleDefault = tc || null;
+    }
+
+    // Per-deal override wins field-by-field; fall back to the title-company default.
+    const effective = {};
+    let source = 'none';
+    for (const k of WIRE_KEYS) {
+      const override = log && log[k] != null && log[k] !== '' ? log[k] : null;
+      const fallback = titleDefault && titleDefault[k] != null && titleDefault[k] !== '' ? titleDefault[k] : null;
+      effective[k] = override ?? fallback ?? null;
+      if (override != null) source = 'deal_override';
+      else if (effective[k] != null && source === 'none') source = 'title_default';
+    }
+
+    res.json({ success: true, wire: effective, source, deal_override: log || null, title_default: titleDefault });
+  } catch (err) { next(err); }
+});
+
+// POST /api/deals/:id/wire — save a PER-DEAL wire override onto title_logs.
+// Upserts the deal's title_logs row (creating a minimal one if the deal hasn't been
+// sent to title yet) so wiring details are pinned to the exact deal — isolation.
+router.post('/:id/wire', async (req, res, next) => {
+  try {
+    const WIRE_KEYS = ['wire_bank_name','wire_account_name','wire_routing_last4','wire_account_last4','wire_instructions'];
+    const { data: deal, error: dErr } = await supabase
+      .from('deals')
+      .select('id, lead_id, title_company_id')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (dErr) throw dErr;
+    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
+
+    const now = new Date().toISOString();
+    const wireUpdates = { updated_at: now };
+    WIRE_KEYS.forEach(k => { if (req.body[k] !== undefined) wireUpdates[k] = req.body[k]; });
+
+    const { data: existing } = await supabase
+      .from('title_logs')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .eq('deal_id', deal.id)
+      .maybeSingle();
+
+    let titleLog;
+    if (existing?.id) {
+      const { data, error } = await supabase
+        .from('title_logs')
+        .update(wireUpdates)
+        .eq('id', existing.id)
+        .eq('user_id', req.user.id)
+        .select()
+        .single();
+      if (error) throw error;
+      titleLog = data;
+    } else {
+      const { data, error } = await supabase
+        .from('title_logs')
+        .insert({
+          id: uuidv4(),
+          user_id: req.user.id,
+          deal_id: deal.id,
+          title_company_id: deal.title_company_id || null,
+          status: 'wire_set',
+          ...wireUpdates,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      titleLog = data;
+    }
+
+    logActivity({
+      userId: req.user.id,
+      dealId: deal.id,
+      leadId: deal.lead_id,
+      titleCompanyId: deal.title_company_id || null,
+      activityType: 'wire_instructions_set',
+      message: 'Per-deal wire instructions saved',
+      metadata: { account_last4: wireUpdates.wire_account_last4 ?? null },
+    }).catch(e => console.warn('[Deal] Activity log failed:', e.message));
+
+    res.json({ success: true, title_log: titleLog });
+  } catch (err) { next(err); }
+});
+
+// POST /api/deals/:id/emd/confirm — manually confirm earnest money received.
+// The buyer-YES path auto-REQUESTS the EMD (sms.js handleBuyerReply); this is the
+// operator's manual CONFIRM that it actually landed. Mirrors the per-deal EMD onto
+// title_logs so the title view sees it too. Scoped to the operator.
+router.post('/:id/emd/confirm', async (req, res, next) => {
+  try {
+    const { amount, held_by, refundable } = req.body;
+    const { data: deal, error: dealErr } = await supabase
+      .from('deals')
+      .select('id, lead_id, emd_amount, emd_status')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (dealErr) throw dealErr;
+    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
+
+    const now = new Date().toISOString();
+    const confirmedAmount = amount != null ? Number(amount)
+      : (deal.emd_amount != null ? Number(deal.emd_amount) : null);
+
+    const updates = {
+      emd_status:      'received',
+      emd_received_at: now,
+      updated_at:      now,
+    };
+    if (confirmedAmount != null) updates.emd_amount = confirmedAmount;
+    if (held_by !== undefined)   updates.emd_held_by = held_by;
+    if (refundable !== undefined) updates.emd_refundable = !!refundable;
+
+    const { data, error } = await supabase
+      .from('deals')
+      .update(updates)
+      .eq('id', deal.id)
+      .eq('user_id', req.user.id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Mirror onto the per-deal title log (best-effort — title view parity).
+    await supabase.from('title_logs')
+      .update({ emd_status: 'received', emd_amount: confirmedAmount, updated_at: now })
+      .eq('user_id', req.user.id)
+      .eq('deal_id', deal.id)
+      .catch(() => {});
+
+    logActivity({
+      userId: req.user.id,
+      dealId: deal.id,
+      leadId: deal.lead_id,
+      activityType: 'emd_received',
+      message: `Earnest money deposit confirmed received${confirmedAmount != null ? ` ($${confirmedAmount.toLocaleString()})` : ''}`,
+      metadata: { emd_amount: confirmedAmount, held_by: updates.emd_held_by ?? null, refundable: updates.emd_refundable ?? null },
+    }).catch(e => console.warn('[Deal] Activity log failed:', e.message));
+
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
+// GET /api/deals/:id/fee-suggestion — AI-suggested assignment fee from the spread.
+// Read-only: returns the suggestion + basis WITHOUT writing. Operator decides.
+router.get('/:id/fee-suggestion', async (req, res, next) => {
+  try {
+    const { data: deal, error } = await supabase
+      .from('deals')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (error) throw error;
+    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
+    const suggestion = suggestAssignmentFee(deal);
+    res.json({ success: true, suggestion });
+  } catch (err) { next(err); }
+});
+
+// POST /api/deals/:id/fee-suggestion/apply — write the chosen fee onto the deal.
+// Persists the operator's accepted figure plus the AI suggestion + its basis for
+// the record. `fee` defaults to the AI suggestion if the operator doesn't override.
+router.post('/:id/fee-suggestion/apply', async (req, res, next) => {
+  try {
+    const { fee } = req.body;
+    const { data: deal, error } = await supabase
+      .from('deals')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (error) throw error;
+    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
+
+    const suggestion = suggestAssignmentFee(deal);
+    const chosen = fee != null ? Number(fee) : suggestion.suggested;
+    if (chosen == null) {
+      return res.status(400).json({ success: false, error: 'No fee to apply — provide a fee or set deal pricing first.' });
+    }
+
+    const now = new Date().toISOString();
+    const { data, error: upErr } = await supabase
+      .from('deals')
+      .update({
+        assignment_fee:           chosen,
+        assignment_fee_suggested: suggestion.suggested,
+        assignment_fee_basis:     suggestion.basis,
+        updated_at:               now,
+      })
+      .eq('id', deal.id)
+      .eq('user_id', req.user.id)
+      .select()
+      .single();
+    if (upErr) throw upErr;
+
+    logActivity({
+      userId: req.user.id,
+      dealId: deal.id,
+      leadId: deal.lead_id,
+      activityType: 'assignment_fee_set',
+      message: `Assignment fee set to $${Number(chosen).toLocaleString()}`,
+      metadata: { fee: chosen, suggested: suggestion.suggested, basis: suggestion.basis },
+    }).catch(e => console.warn('[Deal] Activity log failed:', e.message));
+
+    res.json({ success: true, data, suggestion });
   } catch (err) { next(err); }
 });
 

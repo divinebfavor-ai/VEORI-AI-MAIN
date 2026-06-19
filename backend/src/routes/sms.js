@@ -430,6 +430,45 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
     } catch (e) {
       console.error('[SMS] Assignment contract auto-send failed:', e.message);
     }
+
+    // 5. EMD auto-request — the buyer just committed (YES → assigned → contract).
+    //    Mark the deal's EMD as REQUESTED and ask for the deposit. Receipt is
+    //    confirmed manually later via POST /api/deals/:id/emd/confirm. Best-effort,
+    //    non-fatal: a failure here must never undo the assignment/contract above.
+    try {
+      const emdAmount = fit.emd_amount != null
+        ? Number(fit.emd_amount)
+        : (fit.earnest_money != null ? Number(fit.earnest_money) : 1000);
+      await supabase.from('deals').update({
+        emd_status:       'requested',
+        emd_amount:       emdAmount,
+        emd_requested_at: new Date().toISOString(),
+        updated_at:       new Date().toISOString(),
+      }).eq('id', fit.id).eq('user_id', userId).catch(() => {});
+
+      try {
+        const { logActivity } = require('../services/dealActivityService');
+        await logActivity({
+          userId,
+          dealId: fit.id,
+          leadId: fit.lead_id || null,
+          actorType: 'system',
+          activityType: 'emd_requested',
+          message: `Earnest money deposit requested ($${emdAmount.toLocaleString()}) from buyer ${buyer.name || from}`,
+          metadata: { buyer_id: buyer.id, emd_amount: emdAmount },
+        });
+      } catch (_) { /* timeline log is non-critical */ }
+
+      // Follow the signing link with the EMD ask so the buyer knows the next step.
+      await sendReply(
+        from,
+        `To lock this in, the next step is a $${emdAmount.toLocaleString()} earnest money deposit. I'll send the wiring details shortly.`,
+        userId, null,
+      ).catch(() => {});
+      console.log(`[SMS] EMD requested ($${emdAmount}) for deal ${fit.id} → buyer ${buyer.id}`);
+    } catch (e) {
+      console.warn('[SMS] EMD auto-request failed (non-fatal):', e.message);
+    }
   } catch (err) {
     console.error('[SMS] handleBuyerReply error:', err.message);
   }

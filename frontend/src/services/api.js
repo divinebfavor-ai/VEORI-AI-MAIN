@@ -160,6 +160,12 @@ export const deals = {
   sendContract:      (id, type, data) => api.post(`/api/deals/${id}/send-contract`, { type, ...data }),
   sendToTitle:       (id, data)     => api.post(`/api/deals/${id}/send-to-title`, data),
   startBuyerCampaign:(id)           => api.post(`/api/deals/${id}/start-buyer-campaign`),
+  // Post-contract lifecycle — EMD + assignment-fee suggester + wire instructions
+  confirmEMD:         (id, data)     => api.post(`/api/deals/${id}/emd/confirm`, data),
+  getFeeSuggestion:   (id)           => api.get(`/api/deals/${id}/fee-suggestion`),
+  applyFeeSuggestion: (id, data)     => api.post(`/api/deals/${id}/fee-suggestion/apply`, data),
+  getWire:            (id)           => api.get(`/api/deals/${id}/wire`),
+  saveWire:           (id, data)     => api.post(`/api/deals/${id}/wire`, data),
 }
 
 export const contracts = {
