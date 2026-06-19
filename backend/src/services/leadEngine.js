@@ -54,6 +54,26 @@ async function isExistingLead(userId, address, phone) {
   return results.some(r => (r.data || []).length > 0);
 }
 
+// ─── Insert with retry ───────────────────────────────────────────────────────
+// A sourced lead is expensive to find (skip-trace + scraping). A momentary Supabase
+// blip must NOT lose it. Retry the insert a few times with backoff before giving up.
+// A genuine duplicate-key error (23505 — the new unique index) is NOT retried: it is
+// the dedup working, so we return that row's existing-ness, not an error.
+async function insertLeadWithRetry(payload, attempts = 3) {
+  let lastError = null;
+  for (let i = 0; i < attempts; i++) {
+    const { data, error } = await supabase.from('leads').insert(payload).select().single();
+    if (!error) return { lead: data, error: null, duplicate: false };
+    // Unique-violation = the dedup index caught a duplicate. Not a transient failure;
+    // stop and report it as a duplicate rather than retrying or losing the record.
+    if (error.code === '23505') return { lead: null, error: null, duplicate: true };
+    lastError = error;
+    console.warn(`[LeadEngine] Insert attempt ${i + 1}/${attempts} failed: ${error.message}`);
+    if (i < attempts - 1) await new Promise(r => setTimeout(r, 500 * (i + 1)));
+  }
+  return { lead: null, error: lastError, duplicate: false };
+}
+
 // ─── Process a single raw record ─────────────────────────────────────────────
 
 async function processRecord(record, userId) {
@@ -94,8 +114,8 @@ async function processRecord(record, userId) {
       ...(record.county ? [`county:${record.county.toLowerCase()}`] : []),
     ];
 
-    // Insert into leads
-    const { data: lead, error } = await supabase.from('leads').insert({
+    // Insert into leads — retried, so a momentary DB blip doesn't lose the lead.
+    const { lead, error, duplicate } = await insertLeadWithRetry({
       id:               uuidv4(),
       user_id:          userId,
       first_name:       record.first_name || 'Property',
@@ -125,10 +145,12 @@ async function processRecord(record, userId) {
       motivation_score: score, // sourcing score as initial motivation estimate
       tags,
       notes:            record.notes || `Auto-sourced via Lead Engine — ${signals.join(', ')}`,
-    }).select().single();
+    });
 
+    // Unique index caught a race the pre-check missed — that's the dedup working.
+    if (duplicate) return { status: 'skipped', reason: 'duplicate' };
     if (error) {
-      console.error('[LeadEngine] Insert error:', error.message);
+      console.error('[LeadEngine] Insert error after retries:', error.message);
       return { status: 'error', reason: error.message };
     }
 

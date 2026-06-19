@@ -305,21 +305,25 @@ router.post('/bulk', async (req, res, next) => {
     const chunkSize = 500;
     for (let i = 0; i < unique.length; i += chunkSize) {
       const chunk = unique.slice(i, i + chunkSize);
-      // Use upsert so duplicate phone+user_id rows are ignored instead of erroring
+      // Upsert against the leads_user_phone_unique index — duplicate (user_id, phone)
+      // rows are IGNORED, not re-inserted. `.select('id')` returns only the rows that
+      // actually inserted, so `imported` reflects NEW leads and the rest are counted
+      // as duplicates_skipped. With ignoreDuplicates the upsert won't error on dupes,
+      // so we no longer blind-insert on the error path (that was the duplicate leak).
       const { data, error } = await supabase
         .from('leads')
         .upsert(chunk, { onConflict: 'phone,user_id', ignoreDuplicates: true })
         .select('id');
       if (!error) {
-        imported += data?.length || chunk.length;
+        const inserted = data?.length || 0;
+        imported   += inserted;
+        duplicates += chunk.length - inserted; // the rest already existed
       } else {
-        // Upsert failed (e.g. no unique constraint) — fall back to plain insert
-        const { data: ins, error: insErr } = await supabase.from('leads').insert(chunk).select('id');
-        if (!insErr) imported += ins?.length || chunk.length;
-        else {
-          console.warn('[Leads import] Insert error:', insErr.message);
-          duplicates += chunk.length;
-        }
+        // A real error (not a dedup conflict, which ignoreDuplicates swallows).
+        // Do NOT fall back to a plain insert — that would re-create duplicates.
+        // Surface it so the operator sees the import didn't fully land.
+        console.warn('[Leads import] Upsert error:', error.message);
+        duplicates += chunk.length;
       }
     }
 
