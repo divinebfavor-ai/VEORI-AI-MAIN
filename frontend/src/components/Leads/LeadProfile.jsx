@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { X, Phone, MapPin, Copy, Check, Flame, Ban, Calendar, Plus } from 'lucide-react'
+import {
+  X, Phone, MapPin, Copy, Check, Flame, Ban, Calendar, Plus,
+  MessageSquare, PhoneCall, Image as ImageIcon, FileText, Activity, UserCheck,
+} from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import toast from 'react-hot-toast'
 import Button from '../ui/Button'
@@ -21,18 +24,67 @@ function scoreRingColor(score) {
   return '#475569'
 }
 
-const TABS = ['Overview', 'Call History', 'Transcripts', 'Offers', 'Notes']
+const TABS = ['Timeline', 'Overview', 'Call History', 'Transcripts', 'Offers', 'Notes']
+
+// One visual style per timeline event type — the unified seller "chat".
+const EVENT_STYLE = {
+  sms_out:  { icon: MessageSquare, color: '#3B82F6', label: 'Text sent' },
+  sms_in:   { icon: MessageSquare, color: '#10B981', label: 'Text received' },
+  call:     { icon: PhoneCall,     color: '#8B5CF6', label: 'Call' },
+  photo:    { icon: ImageIcon,     color: '#F59E0B', label: 'Photo' },
+  document: { icon: FileText,      color: '#06B6D4', label: 'Document' },
+  activity: { icon: Activity,      color: '#64748B', label: 'Activity' },
+}
 
 export default function LeadProfile({ lead, onClose, onUpdate }) {
-  const [activeTab, setActiveTab] = useState('Overview')
+  const [activeTab, setActiveTab] = useState('Timeline')
   const [notes, setNotes] = useState(lead?.notes || '')
   const [savingNotes, setSavingNotes] = useState(false)
   const [copied, setCopied] = useState(false)
   const [expandedCall, setExpandedCall] = useState(null)
 
+  // Unified timeline — every text, call, photo, document, and the assigned buyer.
+  const [timeline, setTimeline] = useState([])
+  const [tlCounts, setTlCounts] = useState(null)
+  const [tlLoading, setTlLoading] = useState(false)
+  const [tlError, setTlError] = useState(false)
+  const [tlLoadedFor, setTlLoadedFor] = useState(null)
+  const [expandedEvent, setExpandedEvent] = useState(null)
+
   useEffect(() => {
     setNotes(lead?.notes || '')
+    // Reset timeline cache when switching to a different lead.
+    setTimeline([])
+    setTlCounts(null)
+    setTlError(false)
+    setTlLoadedFor(null)
+    setExpandedEvent(null)
   }, [lead?.id])
+
+  // Lazy-load the timeline the first time the tab is opened for this lead.
+  useEffect(() => {
+    if (activeTab !== 'Timeline' || !lead?.id) return
+    if (tlLoadedFor === lead.id || tlLoading) return
+    let cancelled = false
+    setTlLoading(true)
+    setTlError(false)
+    leadsApi.getLeadTimeline(lead.id)
+      .then((res) => {
+        if (cancelled) return
+        const data = res?.data || res || {}
+        setTimeline(Array.isArray(data.timeline) ? data.timeline : [])
+        setTlCounts(data.counts || null)
+        setTlLoadedFor(lead.id)
+      })
+      .catch(() => { if (!cancelled) setTlError(true) })
+      .finally(() => { if (!cancelled) setTlLoading(false) })
+    return () => { cancelled = true }
+  }, [activeTab, lead?.id, tlLoadedFor, tlLoading])
+
+  // Most-recent buyer assignment pulled from the activity lane (meta.buyer_name).
+  const assignedBuyer = timeline.find(
+    (e) => e.type === 'activity' && e.title === 'buyer_assigned'
+  )?.meta?.buyer_name || null
 
   if (!lead) return null
 
@@ -182,6 +234,134 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
 
         {/* Tab Content */}
         <div className="flex-1 overflow-y-auto p-5">
+          {activeTab === 'Timeline' && (
+            <div className="space-y-4">
+              {/* Assigned-buyer banner — WHO this deal is going to, always on top. */}
+              {assignedBuyer && (
+                <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2.5">
+                  <UserCheck size={16} className="text-primary flex-shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-xs text-text-muted">Assigned to buyer</div>
+                    <div className="text-sm font-semibold text-text-primary truncate">{assignedBuyer}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Count chips — one glance at the whole relationship. */}
+              {tlCounts && (
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { k: 'texts', label: 'Texts' },
+                    { k: 'calls', label: 'Calls' },
+                    { k: 'photos', label: 'Photos' },
+                    { k: 'documents', label: 'Docs' },
+                    { k: 'activity', label: 'Events' },
+                  ].map(({ k, label }) => (
+                    <span key={k} className="text-xs px-2 py-1 rounded-md bg-elevated text-text-secondary">
+                      {label}: <span className="text-text-primary font-medium">{tlCounts[k] ?? 0}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {tlLoading && (
+                <div className="text-center py-8 text-text-muted text-sm">Loading timeline…</div>
+              )}
+              {tlError && !tlLoading && (
+                <div className="text-center py-8 text-danger text-sm">Couldn't load the timeline. Try reopening this tab.</div>
+              )}
+              {!tlLoading && !tlError && timeline.length === 0 && (
+                <div className="text-center py-8 text-text-muted text-sm">No activity yet for this lead.</div>
+              )}
+
+              {/* The chronological feed — newest first. */}
+              {!tlLoading && timeline.length > 0 && (
+                <div className="space-y-2">
+                  {timeline.map((ev, i) => {
+                    const style = EVENT_STYLE[ev.type] || EVENT_STYLE.activity
+                    const Icon = style.icon
+                    const transcript = ev.meta?.transcript
+                    const photoUrl = ev.type === 'photo' ? ev.meta?.url : null
+                    const expandable = !!transcript
+                    const isOpen = expandedEvent === i
+                    return (
+                      <div key={i} className="flex gap-3">
+                        {/* Rail */}
+                        <div className="flex flex-col items-center flex-shrink-0">
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center"
+                            style={{ backgroundColor: `${style.color}22` }}
+                          >
+                            <Icon size={14} style={{ color: style.color }} />
+                          </div>
+                          {i < timeline.length - 1 && (
+                            <div className="w-px flex-1 bg-border-subtle mt-1" style={{ minHeight: 12 }} />
+                          )}
+                        </div>
+
+                        {/* Card */}
+                        <div className="flex-1 min-w-0 bg-elevated rounded-lg p-3 mb-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-sm font-medium text-text-primary truncate">{ev.title}</div>
+                            <div className="text-xs text-text-muted flex-shrink-0">
+                              {ev.at ? formatDistanceToNow(new Date(ev.at), { addSuffix: true }) : ''}
+                            </div>
+                          </div>
+
+                          {ev.body && (
+                            <div className="text-xs text-text-secondary leading-relaxed mt-1 whitespace-pre-wrap break-words">
+                              {ev.body}
+                            </div>
+                          )}
+
+                          {photoUrl && (
+                            <a href={photoUrl} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                              <img
+                                src={photoUrl}
+                                alt={ev.meta?.file_name || 'Seller photo'}
+                                className="rounded-md max-h-40 w-auto object-cover border border-border-subtle"
+                                loading="lazy"
+                              />
+                            </a>
+                          )}
+
+                          {ev.type === 'call' && ev.meta?.minutes != null && (
+                            <div className="text-xs text-text-muted mt-1">
+                              {ev.meta.minutes}m
+                              {ev.meta.motivation_score != null ? ` · score ${ev.meta.motivation_score}` : ''}
+                            </div>
+                          )}
+
+                          {expandable && (
+                            <>
+                              <button
+                                onClick={() => setExpandedEvent(isOpen ? null : i)}
+                                className="text-xs text-primary hover:underline mt-2"
+                              >
+                                {isOpen ? 'Hide transcript' : 'View transcript'}
+                              </button>
+                              {isOpen && (
+                                <div className="text-xs text-text-secondary leading-relaxed mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap border-t border-border-subtle pt-2">
+                                  {transcript}
+                                </div>
+                              )}
+                            </>
+                          )}
+
+                          {ev.meta?.status && ev.type !== 'call' && (
+                            <div className="text-[10px] text-text-muted mt-1 uppercase tracking-wide">
+                              {ev.meta.status}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'Overview' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
