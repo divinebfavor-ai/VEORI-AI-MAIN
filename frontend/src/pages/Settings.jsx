@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2, Mail, QrCode, RotateCcw } from 'lucide-react'
+import { User, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2, Mail, QrCode, RotateCcw, FileCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
@@ -7,6 +7,7 @@ import Badge from '../components/ui/Badge'
 import useAuthStore from '../store/authStore'
 import useThemeStore from '../store/themeStore'
 import { phones, operator as operatorApi, v2voices, vapiVoices, auth, twoFA } from '../services/api'
+import Compliance from './Compliance'
 
 const SOCIAL_PLATFORMS = [
   { id: 'facebook',  label: 'Facebook',  icon: '📘', color: '#1877F2', hint: 'Post to your Facebook page and groups' },
@@ -30,6 +31,7 @@ const TABS = [
   { id: 'persona',  label: 'AI Persona',    icon: Sparkles },
   { id: 'banking',  label: 'Banking',       icon: CreditCard },
   { id: 'social',   label: 'Social Media',  icon: Share2 },
+  { id: 'compliance', label: 'Compliance',  icon: FileCheck },
 ]
 
 function Section({ title, description, children }) {
@@ -1423,6 +1425,12 @@ export default function Settings() {
                 </p>
               </div>
             </Section>
+          )}
+
+          {tab === 'compliance' && (
+            // Compliance lives here in Settings now (removed from the main sidebar).
+            // Render the full Compliance page as-is — its code is untouched.
+            <Compliance />
           )}
 
           {tab === 'api' && isAdmin && (

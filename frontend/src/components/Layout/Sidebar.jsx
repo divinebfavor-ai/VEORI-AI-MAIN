@@ -26,7 +26,8 @@ const NAV = [
   { label: 'Analytics',      icon: BarChart2,        to: '/analytics' },
   { label: 'Dialer',         icon: Phone,            to: '/dialer' },
   { label: 'Calculator',     icon: Calculator,       to: '/calculator' },
-  { label: 'Compliance',     icon: Shield,           to: '/compliance' },
+  // Compliance moved into Settings → Compliance tab. Route + page kept; uncomment to restore in sidebar.
+  // { label: 'Compliance',     icon: Shield,           to: '/compliance' },
   { label: 'Academy',        icon: GraduationCap,    to: '/academy' },
   { label: 'Marketplace',    icon: Store,            to: '/marketplace' },
   { label: 'Settings',       icon: Settings,         to: '/settings' },
@@ -42,14 +43,17 @@ const NAV = [
   { label: 'Call Analytics', icon: PhoneOff,         to: '/call-analytics' },
   { label: 'Caller ID',      icon: ShieldCheck,      to: '/caller-reputation' },
   { label: 'Rehab Estimator',icon: Hammer,           to: '/rehab-estimator' },
-  { label: 'Direct Mail',    icon: Mail,             to: '/direct-mail' },
+  // Hidden from sidebar for now (route + page code kept). Uncomment to restore.
+  // { label: 'Direct Mail',    icon: Mail,             to: '/direct-mail' },
   { label: 'Profit Calc',    icon: DollarSign,       to: '/profit-calculator' },
   // ── Disposition Engine ────────────────────────────────────────────────────
   { label: 'Listings',       icon: Home,             to: '/listings' },
   // ── Content + Social ──────────────────────────────────────────────────────
-  { label: 'Content Studio', icon: Video,            to: '/content-studio' },
+  // Hidden from sidebar for now (route + page code kept). Uncomment to restore.
+  // { label: 'Content Studio', icon: Video,            to: '/content-studio' },
   // ── Virtual Tours ─────────────────────────────────────────────────────────
-  { label: 'Virtual Tours',  icon: Camera,           to: '/virtual-tours' },
+  // Hidden from sidebar for now (route + page code kept). Uncomment to restore.
+  // { label: 'Virtual Tours',  icon: Camera,           to: '/virtual-tours' },
   // ── Engagement (New Features) ─────────────────────────────────────────────
   { label: 'Inbox',          icon: MessageSquare,    to: '/inbox' },
   { label: 'Lead Pipeline',  icon: GitBranch,        to: '/lead-pipeline' },
