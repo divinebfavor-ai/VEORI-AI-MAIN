@@ -562,8 +562,11 @@ async function handleAssistantRequest(event) {
   // is null. Support both shapes so the operator lookup actually resolves.
   const vapiNumberId = call?.phoneNumber?.id || call?.phoneNumberId || null;
 
-  // Default to first active user (single-tenant) or look up by phone number
+  // Default to first active user (single-tenant) or look up by phone number.
+  // `operator` and `existingLead` are hoisted here so the assistant-config build
+  // below (separate try block) can read the known caller and load full memory.
   let operator = {};
+  let existingLead = null;
   try {
     // Try to match inbound Vapi number → user
     if (vapiNumberId) {
@@ -574,11 +577,13 @@ async function handleAssistantRequest(event) {
       if (phone?.users) operator = phone.users;
     }
 
-    // Look up existing lead by phone number
-    let existingLead = null;
+    // Look up existing lead by phone number.
+    // Select the fields the data-moat intel engine reads (user_id, property_state,
+    // primary_tag) so the inbound assistant can load full memory and greet a known
+    // caller by name — the same context outbound calls already get.
     if (callerPhone && operator.id) {
       const { data: lead } = await supabase.from('leads')
-        .select('id, first_name, last_name, property_address, motivation_score')
+        .select('id, user_id, first_name, last_name, phone, property_address, property_state, primary_tag, motivation_score')
         .eq('phone', callerPhone).eq('user_id', operator.id).single();
       existingLead = lead;
     }
@@ -604,7 +609,7 @@ async function handleAssistantRequest(event) {
 
   // Return assistant config for this inbound call — wrapped so Vapi gets a valid response even if we error
   try {
-    const assistantConfig = await vapiService.buildInboundAssistantConfig({ callerPhone, operator });
+    const assistantConfig = await vapiService.buildInboundAssistantConfig({ callerPhone, operator, lead: existingLead });
     return { assistant: assistantConfig };
   } catch (e) {
     console.error('[Vapi Inbound] buildInboundAssistantConfig failed:', e.message);

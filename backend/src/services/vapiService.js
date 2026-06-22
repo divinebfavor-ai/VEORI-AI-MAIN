@@ -1236,11 +1236,39 @@ ${getToneStyle(operator)}`;
 }
 
 // ─── Inbound call handler — lookup seller from phone number ──────────────────
-async function buildInboundAssistantConfig({ callerPhone, operator = {} }) {
+async function buildInboundAssistantConfig({ callerPhone, operator = {}, lead = null }) {
   const aiName  = operator.ai_caller_name || 'Alex';
   const voiceId = operator.ai_voice_id || process.env.VAPI_VOICE_ID || 'Elliot';
 
-  const systemPrompt = `You are ${aiName}, a real estate investor. Someone has just called in — they may be a seller responding to mail, a sign, or a previous conversation.
+  // Known caller? Pull the full data-moat memory so the AI resumes the
+  // relationship instead of greeting a stranger — the same accumulated
+  // intelligence outbound calls already load (see initiateCallVapi). Non-blocking:
+  // a read failure must never drop the inbound call, so it degrades to the cold path.
+  const known = !!lead?.id;
+  let accumulatedIntel = '';
+  if (known) {
+    try {
+      const intel = await getCallIntelligence({ lead, operator });
+      accumulatedIntel = buildAccumulatedIntelligenceBlock({ ...intel, lead });
+    } catch (e) {
+      console.warn('[Vapi Inbound] Data moat read failed (non-blocking):', e.message);
+    }
+  }
+
+  const firstName = lead?.first_name || '';
+
+  // Branch the goal + opening on whether we recognize the caller.
+  const goalBlock = known
+    ? `YOU ALREADY KNOW THIS CALLER — this is ${firstName || 'a homeowner'} you've spoken with before${lead.property_address ? ` about ${lead.property_address}` : ''}. They are calling YOU back. Do NOT ask who they are or treat them like a stranger.
+
+YOUR GOAL:
+1. Greet them warmly by name and pick the conversation up where it left off
+2. Reference what you already know (see ACCUMULATED INTELLIGENCE below) — their situation, motivation, and what was last discussed
+3. Move the deal forward: confirm timeline, condition, price expectations, and make/advance an offer when appropriate
+
+INBOUND CALL OPENING:
+"Hey ${firstName || 'there'}, thanks for calling me back! Great to hear from you${lead.property_address ? ` — is this about ${lead.property_address}?` : '.'}"`
+    : `Someone has just called in — they may be a seller responding to mail, a sign, or a previous conversation.
 
 YOUR GOAL:
 1. Find out who they are and why they're calling
@@ -1252,13 +1280,21 @@ INBOUND CALL OPENING:
 
 If yes: Proceed with full seller discovery (property address, condition, motivation, timeline, price expectations)
 If callback/follow-up: "Of course — can I get your name and the property address you're calling about?"
-If wrong number/not interested: "No problem at all — sorry to bother you. Have a great day!"
+If wrong number/not interested: "No problem at all — sorry to bother you. Have a great day!"`;
+
+  const systemPrompt = `You are ${aiName}, a real estate investor. ${goalBlock}
 
 Apply the same call flow as outbound calls.
 Always be warm — they called YOU, which means they have some interest.
 
 PERSONALITY STYLE:
-${getToneStyle(operator)}`;
+${getToneStyle(operator)}${accumulatedIntel}`;
+
+  // Known callers get a personalized, warm callback greeting; unknown callers get
+  // the neutral inbound opener.
+  const firstMessage = known
+    ? `Hey ${firstName || 'there'}, thanks for calling me back! Great to hear from you${lead.property_address ? ` — is this about ${lead.property_address}?` : '.'}`
+    : `Thank you for calling! This is ${aiName}. Are you calling about selling your property?`;
 
   return {
     name: aiName,
@@ -1286,7 +1322,7 @@ ${getToneStyle(operator)}`;
     },
     responseDelaySeconds: 0.3,
     llmRequestDelaySeconds: 0.1,
-    firstMessage: `Thank you for calling! This is ${aiName}. Are you calling about selling your property?`,
+    firstMessage,
     recordingEnabled: true,
     endCallFunctionEnabled: true,   // let the AI hang up when the conversation is done
     silenceTimeoutSeconds: 30,
