@@ -203,11 +203,29 @@ router.get('/:id/activity', async (req, res, next) => {
 // POST /api/deals/:id/generate-contract
 router.post('/:id/generate-contract', async (req, res, next) => {
   try {
-    const { type = 'psa' } = req.body; // psa | assignment
-    const { data: deal } = await supabase.from('deals').select('*, leads(*)').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    const { type = 'psa' } = req.body; // psa | assignment (strategy auto-detected from deal_type)
+    const { data: deal } = await supabase.from('deals').select('*, leads(*), buyers(*)').eq('id', req.params.id).eq('user_id', req.user.id).single();
     if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
-    const result = await contractService.generate(deal, type);
+    const result = await contractService.generate(deal, type, { userId: req.user.id });
     res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
+// GET /api/deals/:id/contract.pdf?type=psa|assignment — on-demand downloadable PDF.
+// Streams the generated contract as a PDF attachment; nothing stored.
+router.get('/:id/contract.pdf', async (req, res, next) => {
+  try {
+    const type = String(req.query.type || 'psa');
+    const { data: deal } = await supabase.from('deals').select('*, leads(*), buyers(*)').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
+    const result = await contractService.generate(deal, type, { userId: req.user.id });
+    const pdf = await contractService.renderPdf({ content: result.content, doc_title: result.doc_title });
+    const safeAddr = String(deal.property_address || 'contract').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'contract';
+    const filename = `${safeAddr}-${result.strategy || result.type}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdf.length);
+    res.send(pdf);
   } catch (err) { next(err); }
 });
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, Send, Users, Shield,
-  ChevronDown, ChevronUp, Edit2, Check, X, Wrench, Image as ImageIcon, Upload, Zap, BookOpen
+  ChevronDown, ChevronUp, Edit2, Check, X, Wrench, Image as ImageIcon, Upload, Zap, BookOpen, Download
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
@@ -270,6 +270,8 @@ export default function DealWorkspace() {
   const [stage,       setStage]       = useState('')
   const [savingStage, setSavingStage] = useState(false)
   const [genContract, setGenContract] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(null)
+  const [previewContract, setPreviewContract] = useState(null)
   const [sendingToTitle, setSendingToTitle] = useState(false)
   const [schedulingFollowUp, setSchedulingFollowUp] = useState(false)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
@@ -382,11 +384,37 @@ export default function DealWorkspace() {
     setGenContract(true)
     try {
       const r = await dealsApi.generateContract(id, type)
-      const url = r.data?.download_url || r.data?.url
-      if (url) window.open(url, '_blank')
-      else toast.success(`${type.toUpperCase()} generated`)
+      const result = r.data?.data || r.data || {}
+      if (result.content) {
+        setPreviewContract({ type, ...result })
+        if (Array.isArray(result.missing) && result.missing.length) {
+          toast(`Generated as draft — fill in: ${result.missing.join(', ')}`, { icon: '⚠️' })
+        } else {
+          toast.success(`${(result.doc_title || type).toString()} ready`)
+        }
+      } else {
+        toast.success(`${type.toUpperCase()} generated`)
+      }
     } catch { toast.error('Contract generation failed') }
     finally { setGenContract(false) }
+  }
+
+  const downloadContractPdf = async (type) => {
+    setDownloadingPdf(type)
+    try {
+      const r = await dealsApi.downloadContractPdf(id, type)
+      const blob = new Blob([r.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const addr = (deal.property_address || 'contract').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'contract'
+      a.download = `${addr}-${type}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch { toast.error('PDF download failed') }
+    finally { setDownloadingPdf(null) }
   }
 
   const sendContract = async (type) => {
@@ -730,7 +758,10 @@ export default function DealWorkspace() {
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <Button variant="secondary" size="sm" loading={genContract} onClick={() => generateContract(contract.key)}>
-                        <FileText size={11} /> Generate
+                        <FileText size={11} /> Preview
+                      </Button>
+                      <Button variant="secondary" size="sm" loading={downloadingPdf === contract.key} onClick={() => downloadContractPdf(contract.key)}>
+                        <Download size={11} /> PDF
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => sendContract(contract.key)}>
                         <Send size={11} /> Send
@@ -754,6 +785,88 @@ export default function DealWorkspace() {
                   </div>
                 )}
               </div>
+
+              {/* Contract preview modal */}
+              {previewContract && (
+                <div
+                  onClick={() => setPreviewContract(null)}
+                  style={{
+                    position: 'fixed', inset: 0, zIndex: 1000,
+                    background: 'rgba(0,0,0,0.6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 24,
+                  }}
+                >
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      width: 'min(760px, 96vw)', maxHeight: '90vh',
+                      display: 'flex', flexDirection: 'column',
+                      background: 'var(--s1)', border: '1px solid var(--border-rest)',
+                      borderRadius: 8, overflow: 'hidden',
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '14px 16px', borderBottom: '1px solid var(--border-rest)',
+                    }}>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)' }}>
+                          {previewContract.doc_title || 'Contract'}
+                        </p>
+                        {previewContract.strategy && (
+                          <p style={{ fontSize: 11, color: 'var(--t4)', marginTop: 2 }}>
+                            Strategy: {previewContract.strategy}
+                            {previewContract.ready === false ? ' · DRAFT (missing fields)' : ''}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setPreviewContract(null)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t3)' }}
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    {Array.isArray(previewContract.missing) && previewContract.missing.length > 0 && (
+                      <div style={{
+                        padding: '8px 16px',
+                        background: 'rgba(245,158,11,0.08)',
+                        borderBottom: '1px solid rgba(245,158,11,0.2)',
+                        fontSize: 12, color: 'var(--amber)',
+                      }}>
+                        Fill in before signing: {previewContract.missing.join(', ')}
+                      </div>
+                    )}
+
+                    <pre style={{
+                      flex: 1, overflow: 'auto', margin: 0,
+                      padding: 16, fontSize: 11.5, lineHeight: 1.55,
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                      color: 'var(--t2)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    }}>
+                      {previewContract.content}
+                    </pre>
+
+                    <div style={{
+                      display: 'flex', justifyContent: 'flex-end', gap: 8,
+                      padding: '12px 16px', borderTop: '1px solid var(--border-rest)',
+                    }}>
+                      <Button
+                        variant="secondary" size="sm"
+                        loading={downloadingPdf === previewContract.type}
+                        onClick={() => downloadContractPdf(previewContract.type)}
+                      >
+                        <Download size={11} /> Download PDF
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => { sendContract(previewContract.type); setPreviewContract(null) }}>
+                        <Send size={11} /> Send
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </Section>
 
             {/* EMD + Assignment Fee (post-contract lifecycle) */}

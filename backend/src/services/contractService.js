@@ -15,19 +15,107 @@ function getClosingDate(daysOut = 14) {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-function generatePSA({ deal, lead, closingDate }) {
+// ── helpers ────────────────────────────────────────────────────────────────
+const money = n => (n == null || n === '' || Number.isNaN(Number(n)))
+  ? null
+  : `$${Number(n).toLocaleString('en-US')}`;
+
+/**
+ * Resolve which acquisition strategy a contract should reflect. ADDITIVE:
+ * 'assignment' (the explicit contract type) always wins so the dispo contract
+ * is unchanged. Otherwise prefer the deal_type, then the lead's resolved
+ * strategy, defaulting to 'cash' (the byte-for-byte original PSA).
+ */
+function resolveContractStrategy(deal = {}, requestedType = 'psa') {
+  if (normalizeType(requestedType) === 'assignment') return 'assignment';
+  const lead = deal.leads || {};
+  const candidate = String(
+    deal.deal_type
+    || lead.strategy_override
+    || lead.detected_strategy
+    || 'cash'
+  ).toLowerCase();
+  const creative = ['subject_to', 'seller_finance', 'lease_option', 'novation'];
+  if (candidate === 'assignment') return 'cash'; // assignment as deal_type → seller-side PSA stays cash
+  return creative.includes(candidate) ? candidate : 'cash';
+}
+
+/**
+ * Fetch the operator's real contract identity from the users table (legal name,
+ * entity, license, defaults). Falls back to safe blanks — never throws, so a
+ * missing profile degrades to the prior hardcoded behaviour rather than failing.
+ */
+async function loadOperator(userId) {
+  if (!userId) return {};
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('full_name, company_name, legal_name, entity_name, entity_type, buyer_name_on_contract, business_phone, business_email, re_license_number, re_license_state, earnest_money_default, inspection_period_default, closing_period_default, custom_contract_addendum')
+      .eq('id', userId)
+      .maybeSingle();
+    return data || {};
+  } catch {
+    return {};
+  }
+}
+
+function buyerNameFor(op = {}) {
+  return op.buyer_name_on_contract
+    || op.entity_name
+    || op.company_name
+    || op.legal_name
+    || op.full_name
+    || 'Veori AI Acquisitions';
+}
+
+/**
+ * Validate the minimum fields a usable contract needs. Returns a list of
+ * human-readable missing items (empty = ready). Generation can still proceed
+ * (draft), but the route surfaces these so the operator fixes them.
+ */
+function validateContract(deal = {}, strategy = 'cash') {
+  const lead = deal.leads || {};
+  const missing = [];
+  if (!deal.property_address) missing.push('property address');
+  const sellerName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim();
+  if (!sellerName) missing.push('seller name');
+  const price = deal.seller_agreed_price ?? deal.offer_price;
+  if (price == null || Number(price) <= 0) missing.push('purchase price');
+  const t = deal.strategy_terms || {};
+  if (strategy === 'subject_to' && !(t.mortgage_balance || lead.mortgage_balance)) {
+    missing.push('existing loan balance (subject-to)');
+  }
+  if (strategy === 'seller_finance' && t.rate == null && t.interest_rate == null) {
+    missing.push('financing rate (seller finance)');
+  }
+  return missing;
+}
+
+function sigBlock(roleA, nameA, roleB, nameB) {
+  return `
+${roleA} SIGNATURE: ___________________________ Date: ___________
+${nameA}
+
+${roleB} SIGNATURE: ___________________________ Date: ___________
+${nameB}`;
+}
+
+function generatePSA({ deal, lead, op = {}, closingDate }) {
+  const buyer = buyerNameFor(op);
+  const emd = op.earnest_money_default != null ? op.earnest_money_default : (deal.earnest_money_default || 1000);
+  const inspection = op.inspection_period_default != null ? op.inspection_period_default : (deal.inspection_period_default || 14);
   return `
 PURCHASE AND SALE AGREEMENT
 
-Property Address: ${deal.property_address}, ${deal.property_city}, ${deal.property_state}
+Property Address: ${deal.property_address || ''}, ${deal.property_city || ''}, ${deal.property_state || ''}
 
 SELLER: ${lead.first_name || ''} ${lead.last_name || ''}
-BUYER: ${deal.operator_name || 'Veori AI Acquisitions'} / Assignee
+BUYER: ${buyer} / Assignee
 
-PURCHASE PRICE: $${deal.seller_agreed_price?.toLocaleString() || deal.offer_price?.toLocaleString() || '0'}
-EARNEST MONEY DEPOSIT: $${Number(deal.earnest_money_default || 1000).toLocaleString()}
+PURCHASE PRICE: ${money(deal.seller_agreed_price ?? deal.offer_price) || '$0'}
+EARNEST MONEY DEPOSIT: ${money(emd)}
 CLOSING DATE: ${closingDate}
-INSPECTION PERIOD: ${deal.inspection_period_default || 14} days from acceptance
+INSPECTION PERIOD: ${inspection} days from acceptance
 
 TERMS:
 - Property sold AS-IS, WHERE-IS. No repairs or credits.
@@ -54,18 +142,19 @@ SELLER SIGNATURE: ___________________________ Date: ___________
 ${lead.first_name || ''} ${lead.last_name || ''}
 
 BUYER SIGNATURE: ___________________________ Date: ___________
-${deal.operator_name || 'Veori AI Acquisitions'}
-
+${buyer}
+${op.custom_contract_addendum ? `\nADDENDUM:\n${op.custom_contract_addendum}\n` : ''}
 This is a simplified operating template and should be reviewed for state-specific compliance.
 `.trim();
 }
 
-function generateAssignment({ deal, lead, buyer, closingDate }) {
+function generateAssignment({ deal, lead, op = {}, buyer, closingDate }) {
+  const assignor = buyerNameFor(op);
   const assignmentFee = deal.assignment_fee || Math.max(0, (deal.buyer_price || 0) - (deal.seller_agreed_price || deal.offer_price || 0));
   return `
 ASSIGNMENT OF PURCHASE AND SALE AGREEMENT
 
-ASSIGNOR: ${deal.operator_name || 'Veori AI Acquisitions'}
+ASSIGNOR: ${assignor}
 ASSIGNEE: ${buyer?.name || 'Buyer Name'}
 PROPERTY: ${deal.property_address}, ${deal.property_city}, ${deal.property_state}
 
@@ -99,24 +188,246 @@ NON-CIRCUMVENTION:
   this property apart from this Agreement.
 
 ASSIGNOR SIGNATURE: ___________________________ Date: ___________
-${deal.operator_name || 'Veori AI Acquisitions'}
+${assignor}
 
 ASSIGNEE SIGNATURE: ___________________________ Date: ___________
 ${buyer?.name || 'Buyer Name'}
 `.trim();
 }
 
-async function generate(deal, type = 'psa') {
+// ── Creative-finance contract templates (strategy-aware) ─────────────────────
+// Each reads structured terms from deal.strategy_terms (falling back to lead
+// signals) and renders the right legal framing. All degrade to blanks when an
+// input is missing — never throw.
+
+function generateSubjectTo({ deal, lead, op = {}, closingDate }) {
+  const buyer = buyerNameFor(op);
+  const t = deal.strategy_terms || {};
+  const loanBal = t.mortgage_balance ?? lead.mortgage_balance;
+  const arrears = t.arrears_amount ?? lead.arrears_amount;
+  const monthly = t.est_monthly_payment ?? lead.est_monthly_payment;
+  const rate = t.interest_rate ?? lead.interest_rate;
+  const cashToSeller = t.cash_to_seller;
+  const price = deal.seller_agreed_price ?? deal.offer_price;
+  return `
+PURCHASE AGREEMENT — SUBJECT TO EXISTING FINANCING
+
+Property Address: ${deal.property_address || ''}, ${deal.property_city || ''}, ${deal.property_state || ''}
+
+SELLER: ${lead.first_name || ''} ${lead.last_name || ''}
+BUYER: ${buyer} / Assignee
+
+PURCHASE PRICE: ${money(price) || '$0'}
+ACQUISITION STRUCTURE: Buyer takes title SUBJECT TO the existing loan(s) of record, which remain in place.
+
+EXISTING FINANCING TAKEN OVER:
+- Approx. existing loan balance: ${money(loanBal) || '____________'}
+- Estimated monthly payment (PITI): ${money(monthly) || '____________'}
+- Note interest rate: ${rate != null ? `${rate}%` : '________%'}
+- Arrears to be reinstated by Buyer at/near closing: ${money(arrears) || '$0'}
+- Cash to Seller at closing: ${money(cashToSeller) || '____________'}
+
+TERMS:
+- Buyer takes title SUBJECT TO the existing mortgage(s); the loan(s) are NOT assumed and remain in the name of record.
+- Buyer agrees to make the monthly payments on the existing loan(s) directly or via a designated servicer beginning at closing.
+- Seller authorizes Buyer (or Buyer's servicer) to communicate with the lender and access loan information (limited authorization to be executed at closing).
+- Buyer acknowledges the lender's due-on-sale right; Buyer accepts this risk.
+- Property conveyed AS-IS, WHERE-IS via warranty deed; Seller to deliver marketable title.
+- Buyer may assign this Agreement where permitted by law.
+- CLOSING DATE: ${closingDate}
+
+DISCLOSURE: Seller understands the existing loan(s) remain in Seller's name until paid off or refinanced, and that the loan balance affects Seller's credit until then. Both parties are advised to seek independent legal and tax counsel.
+
+NON-CIRCUMVENTION:
+- This Agreement and Buyer's rights herein may be assigned by Buyer. Any party introduced to this property or Seller by Buyer is bound by this term.
+- No such party shall contract directly with Seller outside this Agreement for twenty-four (24) months. Circumvention = liquidated damages equal to Buyer's intended fee plus attorneys' fees.
+${sigBlock('SELLER', `${lead.first_name || ''} ${lead.last_name || ''}`, 'BUYER', buyer)}
+${op.custom_contract_addendum ? `\nADDENDUM:\n${op.custom_contract_addendum}\n` : ''}
+This is a simplified operating template and should be reviewed for state-specific compliance.
+`.trim();
+}
+
+function generateSellerFinance({ deal, lead, op = {}, closingDate }) {
+  const buyer = buyerNameFor(op);
+  const t = deal.strategy_terms || {};
+  const price = t.purchase_price ?? deal.seller_agreed_price ?? deal.offer_price;
+  const down = t.down_payment;
+  const downPct = t.down_percent;
+  const rate = t.rate ?? t.interest_rate;
+  const term = t.term_years;
+  const balloon = t.balloon_years;
+  const monthly = t.monthly_payment;
+  return `
+PURCHASE AGREEMENT WITH SELLER FINANCING (OWNER CARRY)
+
+Property Address: ${deal.property_address || ''}, ${deal.property_city || ''}, ${deal.property_state || ''}
+
+SELLER (Lender): ${lead.first_name || ''} ${lead.last_name || ''}
+BUYER (Borrower): ${buyer} / Assignee
+
+PURCHASE PRICE: ${money(price) || '$0'}
+SELLER FINANCING TERMS:
+- Down payment: ${money(down) || '____________'}${downPct != null ? ` (${downPct}%)` : ''}
+- Amount financed by Seller: ${money(price != null && down != null ? Number(price) - Number(down) : null) || '____________'}
+- Interest rate: ${rate != null ? `${rate}%` : '________%'} per annum
+- Amortization term: ${term != null ? `${term} years` : '______ years'}
+- Estimated monthly payment (P&I): ${money(monthly) || '____________'}
+- Balloon: ${balloon != null ? `balance due in full at ${balloon} years` : 'none / as agreed'}
+
+TERMS:
+- Seller agrees to carry a promissory note secured by a mortgage/deed of trust on the Property for the financed amount above.
+- Buyer shall execute a promissory note and security instrument at closing reflecting the terms herein.
+- Payments are due monthly beginning thirty (30) days after closing; late charges and default terms per the note.
+- Buyer may prepay without penalty unless otherwise stated in the note.
+- Property conveyed AS-IS, WHERE-IS; Seller to deliver marketable title subject to the security instrument.
+- Buyer may assign this Agreement where permitted by law.
+- CLOSING DATE: ${closingDate}
+
+DISCLOSURE: This transaction creates an owner-financed mortgage. Both parties are advised to seek independent legal and tax counsel and to comply with applicable lending/disclosure laws (including SAFE Act / Dodd-Frank where applicable).
+
+NON-CIRCUMVENTION:
+- This Agreement may be assigned by Buyer. Any party introduced to this property or Seller by Buyer is bound by this term for twenty-four (24) months; circumvention = liquidated damages plus attorneys' fees.
+${sigBlock('SELLER', `${lead.first_name || ''} ${lead.last_name || ''}`, 'BUYER', buyer)}
+${op.custom_contract_addendum ? `\nADDENDUM:\n${op.custom_contract_addendum}\n` : ''}
+This is a simplified operating template and should be reviewed for state-specific compliance.
+`.trim();
+}
+
+function generateLeaseOption({ deal, lead, op = {}, closingDate }) {
+  const buyer = buyerNameFor(op);
+  const t = deal.strategy_terms || {};
+  const optionPrice = t.option_price ?? deal.seller_agreed_price ?? deal.offer_price;
+  const optionFee = t.option_fee;
+  const leaseMonthly = t.lease_monthly ?? t.market_rent;
+  const optionMonths = t.option_months;
+  return `
+RESIDENTIAL LEASE WITH OPTION TO PURCHASE
+
+Property Address: ${deal.property_address || ''}, ${deal.property_city || ''}, ${deal.property_state || ''}
+
+OWNER/OPTIONOR: ${lead.first_name || ''} ${lead.last_name || ''}
+TENANT/OPTIONEE: ${buyer} / Assignee
+
+OPTION TERMS:
+- Option (future purchase) price: ${money(optionPrice) || '____________'}
+- Non-refundable option fee (paid up front): ${money(optionFee) || '____________'}
+- Monthly lease payment: ${money(leaseMonthly) || '____________'}
+- Option/lease term: ${optionMonths != null ? `${optionMonths} months` : '______ months'}
+
+TERMS:
+- Optionor grants Optionee the EXCLUSIVE OPTION to purchase the Property at the Option Price during the option term.
+- The option fee is non-refundable and ${'applied'} toward the purchase price only if the option is exercised, as agreed.
+- During the term, Optionee leases the Property and pays the monthly lease payment; a portion may be credited toward purchase if stated in an addendum.
+- Optionee may exercise the option by written notice during the term, after which the parties close per a standard purchase agreement.
+- Property leased AS-IS; maintenance responsibilities per the lease addendum.
+- This Option may be assigned by Optionee where permitted by law.
+- TARGET CLOSING (if exercised): ${closingDate}
+
+DISCLOSURE: This is a lease combined with an option to purchase. Both parties are advised to seek independent legal counsel; option consideration and rent credits affect the final purchase.
+
+NON-CIRCUMVENTION:
+- This Agreement may be assigned by Optionee. Any party introduced to this property or Owner by Optionee is bound for twenty-four (24) months; circumvention = liquidated damages plus attorneys' fees.
+${sigBlock('OWNER/OPTIONOR', `${lead.first_name || ''} ${lead.last_name || ''}`, 'TENANT/OPTIONEE', buyer)}
+${op.custom_contract_addendum ? `\nADDENDUM:\n${op.custom_contract_addendum}\n` : ''}
+This is a simplified operating template and should be reviewed for state-specific compliance.
+`.trim();
+}
+
+function generateNovation({ deal, lead, op = {}, closingDate }) {
+  const buyer = buyerNameFor(op);
+  const t = deal.strategy_terms || {};
+  const acquisition = t.acquisition_price ?? t.list_price ?? deal.seller_agreed_price ?? deal.offer_price;
+  const resale = t.target_resale ?? t.resale_price ?? deal.arv;
+  const reno = t.repairs ?? t.reno_estimate;
+  return `
+NOVATION AGREEMENT (PURCHASE + AGREEMENT TO RESELL)
+
+Property Address: ${deal.property_address || ''}, ${deal.property_city || ''}, ${deal.property_state || ''}
+
+SELLER: ${lead.first_name || ''} ${lead.last_name || ''}
+BUYER/NOVATOR: ${buyer} / Assignee
+
+PRICING:
+- Agreed acquisition price to Seller: ${money(acquisition) || '____________'}
+- Intended retail resale price: ${money(resale) || '____________'}
+- Planned light reno / make-ready: ${money(reno) || '$0'}
+
+TERMS:
+- Seller and Buyer agree Buyer will market and re-sell ("novate") the Property to an end buyer at or near retail; Seller's net proceeds equal the Agreed Acquisition Price above.
+- Buyer is authorized, at Buyer's expense, to make light cosmetic improvements and to list/market the Property to a retail buyer prior to closing.
+- Upon a retail sale, the original agreement is novated (replaced) by a new agreement between Seller and the end buyer; Buyer's profit is the spread above Seller's net, less reno, commission, and closing costs.
+- Seller agrees to cooperate with showings, the retail listing, and a single closing that nets Seller the Agreed Acquisition Price.
+- Property conveyed AS-IS by Seller as to latent defects; make-ready performed by Buyer.
+- CLOSING DATE: ${closingDate}
+
+DISCLOSURE: This is a novation/resale structure. Seller understands Buyer intends to resell at a higher price and that Buyer retains the spread. Both parties are advised to seek independent legal counsel.
+
+NON-CIRCUMVENTION:
+- This Agreement may be assigned/novated by Buyer. Any party introduced to this property or Seller by Buyer is bound for twenty-four (24) months; circumvention = liquidated damages plus attorneys' fees.
+${sigBlock('SELLER', `${lead.first_name || ''} ${lead.last_name || ''}`, 'BUYER/NOVATOR', buyer)}
+${op.custom_contract_addendum ? `\nADDENDUM:\n${op.custom_contract_addendum}\n` : ''}
+This is a simplified operating template and should be reviewed for state-specific compliance.
+`.trim();
+}
+
+async function generate(deal, type = 'psa', { userId } = {}) {
   const normalizedType = normalizeType(type);
   const closingDate = deal.closing_date || getClosingDate(14);
   const lead = deal.leads || {};
   const buyer = deal.buyers || null;
+  const op = await loadOperator(userId || deal.user_id);
+  const strategy = resolveContractStrategy(deal, normalizedType);
+  const missing = validateContract(deal, strategy);
 
-  const content = normalizedType === 'assignment'
-    ? generateAssignment({ deal, lead, buyer, closingDate })
-    : generatePSA({ deal, lead, closingDate });
+  let content;
+  if (normalizedType === 'assignment') {
+    content = generateAssignment({ deal, lead, op, buyer, closingDate });
+  } else {
+    switch (strategy) {
+      case 'subject_to':     content = generateSubjectTo({ deal, lead, op, closingDate }); break;
+      case 'seller_finance': content = generateSellerFinance({ deal, lead, op, closingDate }); break;
+      case 'lease_option':   content = generateLeaseOption({ deal, lead, op, closingDate }); break;
+      case 'novation':       content = generateNovation({ deal, lead, op, closingDate }); break;
+      default:               content = generatePSA({ deal, lead, op, closingDate });
+    }
+  }
 
-  return { type: normalizedType, content, closingDate, status: 'generated' };
+  const titleMap = {
+    assignment: 'Assignment Agreement',
+    subject_to: 'Purchase Agreement — Subject To',
+    seller_finance: 'Purchase Agreement — Seller Financing',
+    lease_option: 'Lease With Option to Purchase',
+    novation: 'Novation Agreement',
+    cash: 'Purchase & Sale Agreement',
+  };
+  const docTitle = normalizedType === 'assignment' ? titleMap.assignment : (titleMap[strategy] || titleMap.cash);
+
+  return { type: normalizedType, strategy, doc_title: docTitle, content, closingDate, missing, ready: missing.length === 0, status: 'generated' };
+}
+
+/**
+ * Render a contract to a downloadable PDF buffer using PDFKit (already a project
+ * dependency — see routes/dealPackage.js). Monospaced body so the signature
+ * underscores and columns line up like the on-screen text.
+ */
+function renderPdf({ content, doc_title = 'Contract' }) {
+  const PDFDocument = require('pdfkit');
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 54, size: 'LETTER' });
+      const chunks = [];
+      doc.on('data', c => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.font('Helvetica-Bold').fontSize(14).text(doc_title, { align: 'center' });
+      doc.moveDown(1);
+      doc.font('Courier').fontSize(9.5).text(content, { align: 'left', lineGap: 1.5 });
+      doc.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
 }
 
 async function upsertContractRecord({ deal, type, content, closingDate, userId }) {
@@ -198,7 +509,7 @@ function buildSigningUrl(token) {
 }
 
 async function createSigningPackage(deal, type, { userId }) {
-  const generated = await generate(deal, type);
+  const generated = await generate(deal, type, { userId });
   const contract = await upsertContractRecord({
     deal,
     type: generated.type,
@@ -325,6 +636,7 @@ async function submitSignature(token, { printedName, signatureText }) {
 
 module.exports = {
   generate,
+  renderPdf,
   send,
   createSigningPackage,
   getSigningSession,
