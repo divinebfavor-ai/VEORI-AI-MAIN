@@ -4,6 +4,7 @@ const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
 const aiService = require('../services/aiService');
 const { tagLead, tagLeadsBulk, getOpeningSMS } = require('../services/leadTaggingService');
+const predictionEngine = require('../services/predictionEngine');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -214,6 +215,66 @@ router.get('/:id/timeline', async (req, res, next) => {
       },
       timeline: events,
     });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/leads/:id/prediction — AI DEAL PREDICTION ENGINE.
+// Runs the unified predictor (predictionEngine.predict) over the lead, its most-
+// advanced deal, and recent same-state outcome history, then returns the full
+// prediction object: per-field { value, confidence, evidence }, best_next_action,
+// overall_confidence, escalate flag, and a flat evidence stream.
+//
+// Honors the 7 AI Rules: never fabricates (null + reason when inputs are missing),
+// every field carries confidence + evidence, learns from deal_outcome_learning,
+// escalates below threshold, prioritizes close-prob × expected fee, and LOGS every
+// prediction to deal_predictions (best-effort — a logging failure never fails the
+// response; Rule 6). Read-only on the lead; additive endpoint, scoped to the user.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/:id/prediction', async (req, res, next) => {
+  try {
+    const { data: lead, error } = await supabase.from('leads')
+      .select('*, deals(*)')
+      .eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (error) throw error;
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+    // Most-advanced deal = newest deal on the lead (best-effort; may be none).
+    const deals = Array.isArray(lead.deals) ? lead.deals : [];
+    const deal = deals.length
+      ? deals.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))[0]
+      : null;
+
+    // Rule 3 — pull recent same-state outcomes to nudge confidence. Best-effort.
+    let outcomes = [];
+    try {
+      const { data } = await supabase.from('deal_outcome_learning')
+        .select('outcome, state, days_to_outcome')
+        .eq('state', lead.property_state || '___none___')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      outcomes = data || [];
+    } catch { /* no history → no nudge */ }
+
+    const prediction = predictionEngine.predict(lead, deal, { outcomes });
+
+    // Rule 6 — persist the prediction for audit/history. Best-effort: if the table
+    // isn't migrated yet or the insert fails, we still return the prediction.
+    try {
+      await supabase.from('deal_predictions').insert({
+        user_id:            req.user.id,
+        lead_id:            lead.id,
+        deal_id:            deal?.id || null,
+        overall_confidence: prediction.overall_confidence,
+        escalate:           prediction.escalate,
+        best_next_action:   prediction.best_next_action?.action || null,
+        predictions:        prediction.predictions,
+        evidence:           prediction.evidence,
+        strategy:           prediction.strategy,
+      });
+    } catch { /* table not migrated / insert failed — logging is non-blocking */ }
+
+    res.json({ success: true, data: prediction });
   } catch (err) { next(err); }
 });
 
