@@ -17,6 +17,50 @@ function isTableMissing(err) {
   return err?.code === 'PGRST205' || (err?.message || '').includes('Could not find the table');
 }
 
+// ─── Learning loop (Rule 3) — record a deal's TERMINAL outcome ────────────────
+// When a deal flips to a final state (won = 'closed', lost = 'dead'/'lost'/'dnc'),
+// drop one row into deal_outcome_learning so the prediction engine can learn from
+// real history (predictionEngine.applyOutcomeLearning reads same-state outcomes to
+// nudge confidence). This CLOSES the loop: coo.js + leads.js already READ this table,
+// but nothing was WRITING to it.
+//
+// SAFETY: best-effort & non-blocking (the response is already sent / about to be).
+// Never throws. NEVER FABRICATES — fields we don't have are written as null, not
+// invented. Only fires on a real status TRANSITION into a terminal state, so a deal
+// can't be double-counted by re-saving the same status. Uses the deal row already in
+// hand (no buggy re-fetch); a missing table or insert error is swallowed + logged.
+const TERMINAL_OUTCOME = { closed: 'closed', dead: 'dead', lost: 'dead', dnc: 'dead' };
+
+async function recordTerminalOutcome(deal, toStatus, leadRow = null) {
+  try {
+    const outcome = TERMINAL_OUTCOME[(toStatus || '').toLowerCase()];
+    if (!outcome || !deal) return;                       // not terminal → nothing to learn
+
+    const createdAt    = deal.created_at ? new Date(deal.created_at) : null;
+    const daysToOutcome = createdAt
+      ? Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / 86400000))
+      : null;
+    const now          = new Date();
+    const seasons      = ['winter','winter','spring','spring','spring','summer','summer','summer','fall','fall','fall','winter'];
+
+    await supabase.from('deal_outcome_learning').insert({
+      deal_id:                deal.id || null,
+      outcome,                                            // 'closed' | 'dead'
+      reason:                 deal.notes || null,
+      days_to_outcome:        daysToOutcome,
+      final_motivation_score: leadRow?.motivation_score ?? null,
+      state:                  deal.property_state || leadRow?.property_state || null,
+      property_type:          deal.property_type || leadRow?.property_type || null,
+      month:                  now.getMonth() + 1,
+      season:                 seasons[now.getMonth()],
+      assignment_fee:         outcome === 'closed' ? (deal.assignment_fee ?? null) : null,
+      created_at:             now.toISOString(),
+    });
+  } catch (e) {
+    console.warn('[Deal] Outcome learning record failed (non-fatal):', e.message);
+  }
+}
+
 // Mirror the deal's EMD state onto its per-deal title_logs row so the title view
 // stays in parity with deals (the source of truth). The old call was best-effort
 // with a swallowed .catch — a transient failure left title_logs permanently stale
@@ -179,6 +223,22 @@ router.put('/:id', async (req, res, next) => {
         titleCompanyId: updates.title_company_id || existing.title_company_id,
         ...entry,
       }).catch(e => console.warn('[Deal] Activity log failed (non-fatal):', e.message));
+    }
+
+    // Learning loop (Rule 3): on a real transition into a terminal state, record the
+    // outcome so predictions sharpen over time. Best-effort + non-blocking — runs after
+    // the response, pulls the lead's motivation score if available, never fails the PUT.
+    if (updates.status && updates.status !== existing.status && TERMINAL_OUTCOME[(updates.status || '').toLowerCase()]) {
+      setImmediate(async () => {
+        let leadRow = null;
+        if (data.lead_id) {
+          const { data: ld } = await supabase.from('leads')
+            .select('motivation_score, property_state, property_type')
+            .eq('id', data.lead_id).single().catch(() => ({ data: null }));
+          leadRow = ld || null;
+        }
+        await recordTerminalOutcome(data, updates.status, leadRow);
+      });
     }
 
     res.json({ success: true, data });
@@ -679,6 +739,9 @@ router.patch('/:id/stage', async (req, res, next) => {
             const createdAt = new Date(fullDeal.created_at);
             const daysToClose = Math.round((Date.now() - createdAt.getTime()) / 86400000);
             await recordWinningPlaybook({ deal: fullDeal, lead, calls_to_close: callCount || 0, days_to_close: daysToClose });
+            // Learning loop (Rule 3): record the won outcome alongside the playbook so
+            // predictionEngine has same-state history. Best-effort; never throws.
+            await recordTerminalOutcome(fullDeal, 'closed', lead);
           }
         } catch (e) { console.error('[DataMot] Playbook record failed:', e.message); }
       });
