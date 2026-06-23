@@ -219,6 +219,7 @@ const hotEscalationRouter  = require('./routes/hotEscalation');
 const dealPredictionRouter = require('./routes/dealPrediction');
 const heatmapRouter        = require('./routes/heatmap');
 const dailyBriefingRouter  = require('./routes/dailyBriefing');
+const cooRouter            = require('./routes/coo');
 app.use('/api/lead-memory',       leadMemoryRouter);
 app.use('/api/sentiment',         sentimentRouter);
 app.use('/api/deal-probability',  dealProbRouter);
@@ -226,6 +227,7 @@ app.use('/api/hot-leads',         hotEscalationRouter);
 app.use('/api/deal-prediction',   dealPredictionRouter);
 app.use('/api/heatmap',           heatmapRouter);
 app.use('/api/briefing',          dailyBriefingRouter);
+app.use('/api/coo',               cooRouter);
 
 // ─── Advanced Acquisition Routes (Features 13-21) ─────────────────────────────
 const smartListRouter       = require('./routes/smartList');
