@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   X, Phone, MapPin, Copy, Check, Flame, Ban, Calendar, Plus,
   MessageSquare, PhoneCall, Image as ImageIcon, FileText, Activity, UserCheck,
+  Brain, TrendingUp, AlertTriangle,
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import toast from 'react-hot-toast'
@@ -24,7 +25,39 @@ function scoreRingColor(score) {
   return '#475569'
 }
 
-const TABS = ['Timeline', 'Overview', 'Call History', 'Transcripts', 'Offers', 'Notes']
+const TABS = ['Timeline', 'Prediction', 'Overview', 'Call History', 'Transcripts', 'Offers', 'Notes']
+
+// Confidence → color. Low confidence is muted so the operator trusts it less.
+function confColor(c) {
+  if (c == null) return '#475569'
+  if (c >= 75) return '#10B981'
+  if (c >= 55) return '#F59E0B'
+  return '#64748B'
+}
+
+// Human labels for each prediction field key.
+const PREDICTION_LABELS = {
+  motivation:     'Seller motivation',
+  sells:          'Likely to sell',
+  accepts_offer:  'Accepts our offer',
+  under_contract: 'Gets under contract',
+  closes:         'Deal closes',
+  assignment_fee: 'Assignment fee',
+  closing_date:   'Est. closing date',
+  fallout_risk:   'Fallout risk',
+}
+
+// Render a prediction value: percent for scores, formatted fee for the fee object,
+// raw for a date string, and an em-dash when null (Rule 1 — never fabricated).
+function renderPredValue(key, value) {
+  if (value == null) return '—'
+  if (key === 'assignment_fee' && typeof value === 'object') {
+    const f = value
+    return f.suggested != null ? `$${Number(f.suggested).toLocaleString()}` : '—'
+  }
+  if (key === 'closing_date') return String(value)
+  return `${value}%`
+}
 
 // One visual style per timeline event type — the unified seller "chat".
 const EVENT_STYLE = {
@@ -51,6 +84,12 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
   const [tlLoadedFor, setTlLoadedFor] = useState(null)
   const [expandedEvent, setExpandedEvent] = useState(null)
 
+  // AI Deal Prediction — fused per-lead prediction (sells/accepts/closes/fee/…).
+  const [prediction, setPrediction] = useState(null)
+  const [predLoading, setPredLoading] = useState(false)
+  const [predError, setPredError] = useState(false)
+  const [predLoadedFor, setPredLoadedFor] = useState(null)
+
   useEffect(() => {
     setNotes(lead?.notes || '')
     // Reset timeline cache when switching to a different lead.
@@ -59,6 +98,10 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
     setTlError(false)
     setTlLoadedFor(null)
     setExpandedEvent(null)
+    // Reset prediction cache too.
+    setPrediction(null)
+    setPredError(false)
+    setPredLoadedFor(null)
   }, [lead?.id])
 
   // Lazy-load the timeline the first time the tab is opened for this lead.
@@ -80,6 +123,24 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
       .finally(() => { if (!cancelled) setTlLoading(false) })
     return () => { cancelled = true }
   }, [activeTab, lead?.id, tlLoadedFor, tlLoading])
+
+  // Lazy-load the AI prediction the first time the Prediction tab is opened.
+  useEffect(() => {
+    if (activeTab !== 'Prediction' || !lead?.id) return
+    if (predLoadedFor === lead.id || predLoading) return
+    let cancelled = false
+    setPredLoading(true)
+    setPredError(false)
+    leadsApi.getPrediction(lead.id)
+      .then((res) => {
+        if (cancelled) return
+        setPrediction(res?.data?.data || res?.data || null)
+        setPredLoadedFor(lead.id)
+      })
+      .catch(() => { if (!cancelled) setPredError(true) })
+      .finally(() => { if (!cancelled) setPredLoading(false) })
+    return () => { cancelled = true }
+  }, [activeTab, lead?.id, predLoadedFor, predLoading])
 
   // Most-recent buyer assignment pulled from the activity lane (meta.buyer_name).
   const assignedBuyer = timeline.find(
@@ -358,6 +419,122 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
                     )
                   })}
                 </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'Prediction' && (
+            <div className="space-y-3">
+              {predLoading && (
+                <div className="text-center py-8 text-text-muted text-sm">Running the AI prediction engine…</div>
+              )}
+              {predError && !predLoading && (
+                <div className="text-center py-8 text-danger text-sm">Couldn't load the prediction. Try reopening this tab.</div>
+              )}
+
+              {!predLoading && !predError && prediction && (
+                <>
+                  {/* Header — overall confidence + escalate flag + best next action. */}
+                  <div className="bg-elevated rounded-lg p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Brain size={16} className="text-accent" />
+                        <span className="text-sm font-semibold text-text-primary">AI Deal Prediction</span>
+                      </div>
+                      <span
+                        className="text-xs px-2 py-1 rounded-md font-medium"
+                        style={{ backgroundColor: `${confColor(prediction.overall_confidence)}22`, color: confColor(prediction.overall_confidence) }}
+                      >
+                        {prediction.overall_confidence ?? 0}% confidence
+                      </span>
+                    </div>
+
+                    {prediction.escalate && (
+                      <div className="flex items-center gap-2 mt-3 text-xs text-warning bg-warning/10 rounded-md px-2 py-1.5">
+                        <AlertTriangle size={13} />
+                        <span>Low confidence — flagged for operator review before acting.</span>
+                      </div>
+                    )}
+
+                    {prediction.best_next_action && (
+                      <div className="mt-3">
+                        <div className="text-[11px] uppercase tracking-wide text-text-muted mb-1">Best next action</div>
+                        <div className="flex items-start gap-2">
+                          <TrendingUp size={14} className="text-success mt-0.5 flex-shrink-0" />
+                          <div>
+                            <div className="text-sm font-medium text-text-primary">
+                              {String(prediction.best_next_action.action || '').replace(/_/g, ' ')}
+                            </div>
+                            {prediction.best_next_action.reason && (
+                              <div className="text-xs text-text-secondary leading-relaxed mt-0.5">
+                                {prediction.best_next_action.reason}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {prediction.expected_value != null && (
+                      <div className="mt-3 text-xs text-text-secondary">
+                        Expected value:{' '}
+                        <span className="text-text-primary font-semibold">
+                          ${Number(prediction.expected_value).toLocaleString()}
+                        </span>
+                        <span className="text-text-muted"> (P(close) × suggested fee)</span>
+                      </div>
+                    )}
+
+                    {prediction.strategy?.primary && (
+                      <div className="mt-2 text-xs text-text-secondary">
+                        Strategy:{' '}
+                        <span className="text-text-primary font-medium">
+                          {String(prediction.strategy.primary).replace(/_/g, ' ')}
+                        </span>
+                        <span className="text-text-muted"> ({prediction.strategy.confidence ?? 0}%)</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Per-field predictions — value + confidence + evidence. Null = "—". */}
+                  <div className="space-y-2">
+                    {Object.entries(prediction.predictions || {}).map(([key, field]) => (
+                      <div key={key} className="bg-elevated rounded-lg p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm text-text-primary">{PREDICTION_LABELS[key] || key}</span>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-sm font-semibold text-text-primary">
+                              {renderPredValue(key, field?.value)}
+                            </span>
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded"
+                              style={{ backgroundColor: `${confColor(field?.confidence)}22`, color: confColor(field?.confidence) }}
+                            >
+                              {field?.confidence ?? 0}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Evidence (Rule 2) or the reason it's null (Rule 1). */}
+                        {Array.isArray(field?.evidence) && field.evidence.length > 0 ? (
+                          <ul className="mt-1.5 space-y-0.5">
+                            {field.evidence.map((e, i) => (
+                              <li key={i} className="text-xs text-text-muted leading-relaxed">• {e}</li>
+                            ))}
+                          </ul>
+                        ) : field?.reason ? (
+                          <div className="text-xs text-text-muted italic mt-1.5">{field.reason}</div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+
+                  {prediction.generated_at && (
+                    <div className="text-[11px] text-text-muted text-center pt-1">
+                      Generated {formatDistanceToNow(new Date(prediction.generated_at), { addSuffix: true })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

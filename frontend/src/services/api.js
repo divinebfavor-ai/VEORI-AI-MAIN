@@ -82,6 +82,7 @@ export const leads = {
   getLeads:         (params) => api.get('/api/leads', { params }),
   getLead:          (id)     => api.get(`/api/leads/${id}`),
   getLeadTimeline:  (id)     => api.get(`/api/leads/${id}/timeline`),
+  getPrediction:    (id)     => api.get(`/api/leads/${id}/prediction`),
   createLead:       (data)   => api.post('/api/leads', data),
   bulkImportLeads:  (leadsData) => api.post('/api/leads/bulk', { leads: leadsData }),
   updateLead:       (id, data)  => api.put(`/api/leads/${id}`, data),
