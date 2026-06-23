@@ -43,6 +43,7 @@ import HotLeads from './pages/HotLeads'
 import WeeklyFocus from './pages/WeeklyFocus'
 import HeatMap from './pages/HeatMap'
 import DailyBriefing from './pages/DailyBriefing'
+import COOCommandCenter from './pages/COOCommandCenter'
 // ── Advanced Acquisition (Features 13-21) ─────────────────────────────────────
 import SmartList from './pages/SmartList'
 import LeadEngine from './pages/LeadEngine'
@@ -152,6 +153,7 @@ export default function App() {
         <Route path="/weekly-focus" element={<WeeklyFocus />} />
         <Route path="/heatmap" element={<HeatMap />} />
         <Route path="/briefing" element={<DailyBriefing />} />
+        <Route path="/coo" element={<COOCommandCenter />} />
         {/* ── Advanced Acquisition (Features 13-21) ────────────────────── */}
         <Route path="/smart-list" element={<SmartList />} />
         <Route path="/lead-engine" element={<LeadEngine />} />

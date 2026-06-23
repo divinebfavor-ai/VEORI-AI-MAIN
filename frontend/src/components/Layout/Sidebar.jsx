@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, PlayCircle, Radio,
   Columns, Briefcase, BarChart2, Settings, LogOut,
   Calculator, Shield, Phone, Building2, Bell, GraduationCap, Store,
-  Brain, Flame, Target, Map, Sun,
+  Brain, Flame, Target, Map, Sun, Gauge,
   ListOrdered, Car, PhoneOff, ShieldCheck, Hammer,
   Mail, DollarSign, Home, Camera, Video, Calendar,
   MessageSquare, GitBranch, Zap, PhoneMissed,
@@ -32,6 +32,7 @@ const NAV = [
   { label: 'Marketplace',    icon: Store,            to: '/marketplace' },
   { label: 'Settings',       icon: Settings,         to: '/settings' },
   // ── Intelligence ──────────────────────────────────────────────────────────
+  { label: 'COO Center',     icon: Gauge,            to: '/coo' },
   { label: 'Intelligence',   icon: Brain,            to: '/intelligence' },
   { label: 'Hot Leads',      icon: Flame,            to: '/hot-leads' },
   { label: 'Weekly Focus',   icon: Target,           to: '/weekly-focus' },
