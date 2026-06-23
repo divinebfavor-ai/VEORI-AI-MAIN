@@ -7,6 +7,7 @@ const router  = require('express').Router();
 const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 const { calculateRepairEstimate, calculateScenarios } = require('../services/repairEstimator');
+const { calculateCreative } = require('../services/creativeFinanceCalc');
 
 let compsService;
 try { compsService = require('../services/compsService'); } catch {}
@@ -26,6 +27,8 @@ router.post('/calculate', async (req, res) => {
       holding_costs    = 0,
       assignment_fee_target = 10000,
       fetch_comps      = false,
+      strategy,         // optional: cash (default) | subject_to | seller_finance | lease_option
+      strategy_inputs,  // optional creative-finance terms (mortgage_balance, rate, down_percent, etc.)
     } = req.body;
 
     // Step 1: Determine ARV
@@ -79,6 +82,15 @@ router.post('/calculate', async (req, res) => {
         ? 'Tight Deal ⚠️'
         : 'No Deal ❌',
     };
+
+    // Creative-finance overlay (additive): only computed when a creative strategy is
+    // requested. Cash/omitted → calculateCreative returns null → response unchanged.
+    const creative = calculateCreative(strategy, {
+      arv: resolvedARV,
+      rehab: repair_midpoint,
+      ...(strategy_inputs || {}),
+    });
+    if (creative) result.creative = creative;
 
     // Save if lead_id provided
     if (lead_id) {

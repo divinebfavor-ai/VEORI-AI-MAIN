@@ -9,10 +9,38 @@ function authHeader() {
   return t ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
 }
 
+// Creative-finance strategies + the extra inputs each one needs. Cash = current
+// behaviour (no extra fields). Keys here map 1:1 to creativeFinanceCalc.js inputs.
+const STRATEGIES = [
+  { id: 'cash',           label: '💵 Cash / Wholesale', fields: [] },
+  { id: 'subject_to',     label: '🏠 Subject-To',       fields: [
+    { key: 'mortgage_balance',    label: 'Mortgage Balance ($)' },
+    { key: 'arrears_amount',      label: 'Arrears / Behind ($)' },
+    { key: 'est_monthly_payment', label: 'Est. Monthly Payment ($)' },
+    { key: 'interest_rate',       label: 'Interest Rate (%)' },
+    { key: 'cash_to_seller',      label: 'Cash to Seller ($, optional)' },
+  ] },
+  { id: 'seller_finance', label: '📝 Seller Finance',   fields: [
+    { key: 'price',         label: 'Purchase Price ($, optional)' },
+    { key: 'down_percent',  label: 'Down Payment (%)' },
+    { key: 'rate',          label: 'Interest Rate (%)' },
+    { key: 'term_years',    label: 'Term (years)' },
+    { key: 'balloon_years', label: 'Balloon (years, optional)' },
+  ] },
+  { id: 'lease_option',   label: '🔑 Lease-Option',     fields: [
+    { key: 'option_price',  label: 'Option Price ($, optional)' },
+    { key: 'option_fee',    label: 'Option Fee ($, optional)' },
+    { key: 'lease_monthly', label: 'Monthly Lease ($)' },
+    { key: 'option_months', label: 'Option Length (months)' },
+  ] },
+]
+
 export default function ProfitCalculator() {
   const [form, setForm] = useState({
     arv: '', asking_price: '', closing_costs_pct: '2', holding_costs: '0', assignment_fee_target: '10000',
   })
+  const [strategy, setStrategy]       = useState('cash')
+  const [strategyForm, setStrategyForm] = useState({})
   const [result, setResult]   = useState(null)
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
@@ -29,6 +57,17 @@ export default function ProfitCalculator() {
     if (!form.arv) return alert('ARV required')
     setLoading(true)
     try {
+      // Cash → omit strategy fields entirely (request byte-for-byte as before).
+      // Creative → send strategy + only the numeric fields the operator filled.
+      const strategyPayload = {}
+      if (strategy !== 'cash') {
+        const inputs = {}
+        for (const [k, v] of Object.entries(strategyForm)) {
+          if (v !== '' && v != null && !Number.isNaN(parseFloat(v))) inputs[k] = parseFloat(v)
+        }
+        strategyPayload.strategy = strategy
+        strategyPayload.strategy_inputs = inputs
+      }
       const r = await fetch(`${API}/profit-calc/calculate`, {
         method: 'POST', headers: authHeader(),
         body: JSON.stringify({
@@ -38,6 +77,7 @@ export default function ProfitCalculator() {
           holding_costs:          parseFloat(form.holding_costs) || 0,
           assignment_fee_target:  parseFloat(form.assignment_fee_target) || 10000,
           repair_items:           [],
+          ...strategyPayload,
         }),
       })
       const d = await r.json()
@@ -69,6 +109,17 @@ export default function ProfitCalculator() {
     )
   }
 
+  function strategyField(label, key) {
+    return (
+      <div key={key}>
+        <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 4 }}>{label}</label>
+        <input style={s.input} type="number" value={strategyForm[key] ?? ''} onChange={e => setStrategyForm(p => ({ ...p, [key]: e.target.value }))} />
+      </div>
+    )
+  }
+
+  const activeStrategy = STRATEGIES.find(x => x.id === strategy) || STRATEGIES[0]
+
   return (
     <div style={s.page}>
       <div style={{ marginBottom: 28 }}>
@@ -86,11 +137,26 @@ export default function ProfitCalculator() {
           <div style={s.card}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: '#C9A84C' }}>DEAL INPUTS</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Strategy selector — Cash keeps the original behaviour & fields. */}
+              <div>
+                <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 4 }}>Strategy</label>
+                <select style={s.input} value={strategy}
+                  onChange={e => { setStrategy(e.target.value); setStrategyForm({}) }}>
+                  {STRATEGIES.map(x => <option key={x.id} value={x.id} style={{ background: '#0A1526' }}>{x.label}</option>)}
+                </select>
+              </div>
               {field('After Repair Value (ARV) *', 'arv', '250000')}
               {field('Asking / Offer Price', 'asking_price', '120000')}
               {field('Closing Costs %', 'closing_costs_pct', '2')}
               {field('Holding Costs ($)', 'holding_costs', '0')}
               {field('Target Assignment Fee ($)', 'assignment_fee_target', '10000')}
+              {/* Creative-finance fields — only shown for non-cash strategies. */}
+              {activeStrategy.fields.length > 0 && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#C9A84C', letterSpacing: '0.08em' }}>{activeStrategy.label.toUpperCase()} TERMS</div>
+                  {activeStrategy.fields.map(f => strategyField(f.label, f.key))}
+                </div>
+              )}
               <button onClick={calculate} disabled={loading}
                 style={{ padding: '12px', background: '#00C37A', color: '#000', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Inter,sans-serif', marginTop: 4 }}>
                 {loading ? 'Calculating…' : 'Calculate Deal 🧮'}
@@ -128,6 +194,28 @@ export default function ProfitCalculator() {
                   {result.net_profit != null && s.row('Net Profit', `$${result.net_profit?.toLocaleString()}`, result.net_profit >= 0 ? '#00C37A' : '#EF4444')}
                   {result.roi_pct != null && s.row('ROI', `${result.roi_pct}%`, result.roi_pct >= 15 ? '#00C37A' : '#C9A84C')}
                 </div>
+
+                {/* Creative-finance terms — only present for non-cash strategies. */}
+                {result.creative && (
+                  <div style={{ ...s.card, border: '1px solid rgba(201,168,76,0.25)', background: 'rgba(201,168,76,0.05)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#C9A84C', letterSpacing: '0.1em', marginBottom: 12 }}>
+                      {result.creative.strategy?.replace(/_/g, ' ').toUpperCase()} TERMS
+                    </div>
+                    {Object.entries(result.creative)
+                      .filter(([k, v]) => k !== 'strategy' && k !== 'note' && v != null)
+                      .map(([k, v]) => {
+                        const isMoney = !/rate|percent|years|months/.test(k)
+                        const disp = typeof v === 'number'
+                          ? (isMoney ? `$${v.toLocaleString()}` : `${v}${/rate|percent/.test(k) ? '%' : ''}`)
+                          : String(v)
+                        return s.row(k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), disp,
+                          /cash_in_deal|down_payment|monthly/.test(k) ? '#C9A84C' : '#fff')
+                      })}
+                    {result.creative.note && (
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>{result.creative.note}</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Scenarios */}
                 {result.scenarios && (

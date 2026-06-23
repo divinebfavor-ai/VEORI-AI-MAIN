@@ -130,6 +130,74 @@ function detectSecondaryTags(lead) {
   return [...new Set(tags)];
 }
 
+// ─── Strategy detection ───────────────────────────────────────────────────────
+// Which acquisition strategy fits this lead best. ADDITIVE + independent of the
+// tag pipeline — it reads the same signals but answers a different question: not
+// "why is this seller motivated" (tag) but "how should we buy this house"
+// (strategy). Pure, never throws, returns { strategy, confidence }.
+//
+//   subject_to     — there's an existing loan with payments to take over. Strong
+//                    when equity is thin (so a cash discount can't clear the loan)
+//                    and/or the seller is behind (arrears) — take over payments.
+//   seller_finance — owner can carry the note: free & clear / very high equity,
+//                    landlord/tired-owner signals, not in distress.
+//   lease_option   — rental / landlord with modest equity, not distressed — control
+//                    now, buy later.
+//   cash           — DEFAULT. Distressed / vacant / needs-repair / strong equity
+//                    discount. This is the existing wholesale path and the fallback
+//                    for everything the other branches don't claim.
+function detectStrategy(lead) {
+  if (!lead || typeof lead !== 'object') return { strategy: 'cash', confidence: 40 };
+
+  const equity   = Number(lead.estimated_equity_percent || 0);
+  const mortgage = Number(lead.mortgage_balance || 0);
+  const arrears  = Number(lead.arrears_amount || 0);
+  const rate     = lead.interest_rate != null ? Number(lead.interest_rate) : null;
+  const loanType = (lead.loan_type || '').toLowerCase();
+  const tag      = lead.primary_tag || '';
+  const secondary = lead.secondary_tags || [];
+  const indicators = lead.motivation_indicators || [];
+
+  const isLandlord  = secondary.includes('landlord') ||
+    indicators.some(m => /landlord|tenant|rented|rental/i.test(m));
+  const isDistressed = ['pre_foreclosure', 'tax_delinquent', 'vacant'].includes(tag) ||
+    lead.is_vacant || secondary.includes('needs_repair') || arrears > 0;
+  const freeAndClear = loanType === 'none' ||
+    (mortgage === 0 && (!lead.has_liens) && equity >= 90) ||
+    tag === 'free_and_clear';
+
+  // Subject-To: an existing loan to assume + thin equity (can't be cleared by a
+  // cash discount) and/or seller behind. A low locked-in rate strengthens it.
+  if (mortgage > 0 && equity > 0 && equity < 35) {
+    let conf = 78;
+    if (arrears > 0) conf += 8;                 // behind → reinstate + take over
+    if (rate != null && rate <= 5) conf += 6;   // cheap money worth keeping
+    if (tag === 'pre_foreclosure') conf += 4;
+    return { strategy: 'subject_to', confidence: Math.min(conf, 95) };
+  }
+
+  // Seller-finance: owner owns it (or nearly) and isn't in distress → they can
+  // carry paper for monthly income + tax spread.
+  if (freeAndClear && !isDistressed) {
+    let conf = 74;
+    if (isLandlord) conf += 8;                  // tired landlord wants passive income
+    if (secondary.includes('long_term_owner')) conf += 4;
+    return { strategy: 'seller_finance', confidence: Math.min(conf, 92) };
+  }
+
+  // Lease-option: landlord/rental with moderate equity, not distressed → control
+  // now, exercise the buy later.
+  if (isLandlord && !isDistressed && equity >= 30 && equity < 90) {
+    return { strategy: 'lease_option', confidence: 70 };
+  }
+
+  // Cash / wholesale — the default and the explicit fit for distress + discount.
+  let conf = 60;
+  if (isDistressed) conf += 15;
+  if (equity >= 50) conf += 5;
+  return { strategy: 'cash', confidence: Math.min(conf, 90) };
+}
+
 // ─── Build tag reason string ──────────────────────────────────────────────────
 function buildTagReason(lead, primaryTag, secondaryTags) {
   const reasons = [];
@@ -169,23 +237,30 @@ async function tagLead(leadId) {
     const { tag: primaryTag, confidence } = detectPrimaryTag(lead);
     const secondaryTags = detectSecondaryTags(lead);
     const tagReason = buildTagReason(lead, primaryTag, secondaryTags);
+    // Strategy reads the freshly-computed tags too — pass them on the lead so the
+    // detector sees the same verdict we're about to write.
+    const { strategy, confidence: strategyConfidence } = detectStrategy({
+      ...lead, primary_tag: primaryTag, secondary_tags: secondaryTags,
+    });
 
     const { data: updated, error: updateError } = await supabase
       .from('leads')
       .update({
-        primary_tag:    primaryTag,
-        secondary_tags: secondaryTags,
-        tag_confidence: confidence,
-        tag_reason:     tagReason,
-        tagged_at:      new Date().toISOString(),
+        primary_tag:         primaryTag,
+        secondary_tags:      secondaryTags,
+        tag_confidence:      confidence,
+        tag_reason:          tagReason,
+        detected_strategy:   strategy,
+        strategy_confidence: strategyConfidence,
+        tagged_at:           new Date().toISOString(),
       })
       .eq('id', leadId)
-      .select('id, first_name, last_name, primary_tag, secondary_tags, tag_confidence')
+      .select('id, first_name, last_name, primary_tag, secondary_tags, tag_confidence, detected_strategy, strategy_confidence')
       .single();
 
     if (updateError) throw updateError;
 
-    console.log(`[Tag] ${lead.first_name} ${lead.last_name} → ${primaryTag} (${confidence}%) | ${secondaryTags.join(', ') || 'no secondary'}`);
+    console.log(`[Tag] ${lead.first_name} ${lead.last_name} → ${primaryTag} (${confidence}%) | ${secondaryTags.join(', ') || 'no secondary'} | strategy: ${strategy} (${strategyConfidence}%)`);
     return updated;
 
   } catch (err) {
@@ -232,5 +307,6 @@ module.exports = {
   tagLeadsBulk,
   detectPrimaryTag,
   detectSecondaryTags,
+  detectStrategy,
   getOpeningSMS,
 };

@@ -587,7 +587,7 @@ router.post('/:id/fee-suggestion/apply', async (req, res, next) => {
 // POST /api/deals/create — alias for POST /api/deals (schema-aligned)
 router.post('/create', async (req, res, next) => {
   try {
-    const { property_address, property_city, property_state, deal_type, arv, repair_estimate, offer_price, lead_id, title_company_id } = req.body;
+    const { property_address, property_city, property_state, deal_type, strategy_terms, arv, repair_estimate, offer_price, lead_id, title_company_id } = req.body;
     if (!property_address) return res.status(400).json({ success: false, error: 'property_address required' });
 
     const arv_n = parseFloat(arv) || 0;
@@ -599,6 +599,7 @@ router.post('/create', async (req, res, next) => {
       user_id: req.user.id,
       lead_id: lead_id || null,
       deal_type: deal_type || 'assignment',
+      strategy_terms: strategy_terms || null,   // structured creative terms; null for cash/assignment
       property_address,
       property_city: property_city || null,
       property_state: property_state || null,

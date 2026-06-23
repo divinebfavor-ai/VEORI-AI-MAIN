@@ -84,6 +84,174 @@ function getUseCase(operator = {}, override = null) {
   return USE_CASE_IDENTITY[uc] ? uc : 'wholesale';
 }
 
+// ─── Strategy playbooks ───────────────────────────────────────────────────────
+// ADDITIVE overlay on top of the use-case playbook. The wholesale/cash flow above
+// is the DEFAULT and is untouched — these blocks are appended ONLY when the lead
+// detector (leadTaggingService.detectStrategy) tagged the lead with a creative
+// strategy, giving the voice AI the right discovery questions, pitch framing, and
+// how to talk about the offer for that specific way of buying. `cash` is the
+// fallback and renders NOTHING extra (the existing OFFER MATH / HOUSE FLOW already
+// covers it), so a cash lead's prompt is byte-for-byte what it was before.
+const STRATEGY_PLAYBOOK = {
+  subject_to: {
+    label: 'SUBJECT-TO (take over the existing mortgage)',
+    discovery: [
+      '"Do you still have a mortgage on the property, and roughly what\'s the balance?"',
+      '"Are the payments current, or have you fallen behind at all?"',
+      '"Do you happen to know the interest rate and the monthly payment?"',
+      '"If we could take over those payments and catch up anything behind, would getting out from under it help you?"',
+    ],
+    pitch: `This seller likely has little equity and an existing loan — a cash lowball won't clear the mortgage, so DON'T lead with a cash discount. Lead with RELIEF: you take over the existing payments (and reinstate anything they're behind on), they walk away free of the burden and the credit risk. Frame it as "we keep your loan in place and make the payments going forward."`,
+    offerFraming: `Talk in terms of taking over the payments + a small amount to the seller at closing, NOT a discounted cash price. Be honest the loan stays in their name and explain how that works. Never promise a refinance timeline you can't guarantee.`,
+  },
+  seller_finance: {
+    label: 'SELLER FINANCE (owner carries the note)',
+    discovery: [
+      '"Do you own the property free and clear, or is there still a loan on it?"',
+      '"If you sold, would you need all the cash at once, or would steady monthly income work for you?"',
+      '"Have you thought about the tax hit from selling all at once?"',
+      '"Would you be open to me buying it and paying you monthly, with a down payment up front?"',
+    ],
+    pitch: `This seller owns it (or nearly) and isn't desperate — a cash lowball insults them. Sell the BENEFITS of carrying: monthly income, a higher total price than a cash offer, and spreading the tax hit instead of one big capital-gains year. You become their reliable payer; they become the bank.`,
+    offerFraming: `Talk in terms of down payment, monthly payment, interest rate, and term (years) — NOT a single cash number. A higher headline price is possible BECAUSE the terms are financed. Confirm the numbers map to terms the operator set; never invent a rate or balloon you can't honor.`,
+  },
+  lease_option: {
+    label: 'LEASE-OPTION (control now, buy later)',
+    discovery: [
+      '"Is the property rented right now, or sitting empty?"',
+      '"Are you tired of being a landlord, or just exploring options?"',
+      '"Would a steady monthly check plus a set price to buy it down the road interest you?"',
+      '"What would the property need to rent for to make sense for you?"',
+    ],
+    pitch: `This is a landlord with real equity who isn't distressed. Offer to take the management headache off their plate now (you lease it) with the right to buy at a set price later. They keep ownership and income short-term, with a clean exit locked in.`,
+    offerFraming: `Talk in terms of monthly lease payment, option price (the set future purchase price), and option period — NOT a cash discount. Be clear about what's rent vs. what credits toward the purchase.`,
+  },
+};
+
+// Render the strategy overlay for the lead, or '' for cash/unknown (no change).
+function buildStrategyBlock(lead = {}) {
+  const key = String(lead.detected_strategy || '').toLowerCase();
+  const play = STRATEGY_PLAYBOOK[key];
+  if (!play) return ''; // cash / null → existing behavior, nothing appended
+  return `
+══════════════════════════════════════════════════════
+STRATEGY OVERLAY — ${play.label}
+══════════════════════════════════════════════════════
+This lead fits a CREATIVE strategy, not a straight cash buy. Use the cash flow
+above for rapport and discovery, but steer the OFFER toward this strategy. If the
+seller clearly wants only a cash sale, fall back to the cash offer gracefully.
+
+WHY THIS FITS: ${play.pitch}
+
+ASK THESE (work them in naturally, don't interrogate):
+${play.discovery.map(q => `- ${q}`).join('\n')}
+
+HOW TO FRAME THE OFFER: ${play.offerFraming}
+`;
+}
+
+// ─── Per-strategy offer math ──────────────────────────────────────────────────
+// Returns the numeric shape of the offer for a given strategy. The CASH branch is
+// the EXISTING math, untouched (MAO = ARV×0.70 − repairs; first = MAO×0.85), so
+// any caller asking for cash gets exactly today's numbers. Creative branches read
+// the lead's loan signals + optional operator-supplied strategy_terms and never
+// fabricate: when a needed input is missing the field comes back null so the caller
+// can prompt for it instead of inventing a number. Pure, never throws.
+//
+// @param {object} lead
+// @param {string} strategy  cash | subject_to | seller_finance | lease_option
+// @param {object} terms     optional operator-set terms (rate, term_years, down, …)
+// @returns {object} { strategy, ...numbers }
+function computeStrategyOffer(lead = {}, strategy = 'cash', terms = {}) {
+  const arv      = Number(lead.arv) || Number(lead.estimated_value) || 0;
+  const repairs  = Number(lead.repair_estimate) || 35000; // same conservative bucket as buildAlexPrompt
+  const mortgage = Number(lead.mortgage_balance) || 0;
+  const arrears  = Number(lead.arrears_amount) || 0;
+  const monthly  = Number(lead.est_monthly_payment) || 0;
+  const rate     = lead.interest_rate != null ? Number(lead.interest_rate) : null;
+  const round    = n => (n == null ? null : Math.round(n));
+
+  const key = String(strategy || 'cash').toLowerCase();
+
+  if (key === 'subject_to') {
+    // Cash to seller is small — you're buying the equity, not the whole price.
+    // equity = ARV − mortgage (floored at 0). Offer a slice of equity + cover arrears.
+    const equity   = arv > 0 ? Math.max(0, arv - mortgage) : null;
+    const toSeller = equity != null ? Math.round(equity * 0.30) : null; // modest equity payout
+    return {
+      strategy: 'subject_to',
+      existing_loan_balance: mortgage || null,
+      arrears_to_reinstate:  arrears || null,
+      est_monthly_payment:   monthly || null,
+      interest_rate:         rate,
+      est_equity:            round(equity),
+      cash_to_seller:        toSeller,        // small payment to seller at closing
+      note: 'Take over existing payments; reinstate arrears; small cash to seller for equity.',
+    };
+  }
+
+  if (key === 'seller_finance') {
+    // Owner carries the note. Higher headline price is possible because financed.
+    const price    = arv > 0 ? Math.round(arv * 0.90) : (Number(terms.price) || null);
+    const downPct  = Number(terms.down_percent) || 10;
+    const down     = price != null ? Math.round(price * (downPct / 100)) : null;
+    const termYears= Number(terms.term_years) || 30;
+    const noteRate = terms.rate != null ? Number(terms.rate) : (rate != null ? rate : 6);
+    const financed = price != null && down != null ? price - down : null;
+    // Simple amortized monthly (P&I) on the financed balance.
+    let monthlyPI = null;
+    if (financed != null && financed > 0) {
+      const r = noteRate / 100 / 12;
+      const n = termYears * 12;
+      monthlyPI = r > 0
+        ? Math.round((financed * r) / (1 - Math.pow(1 + r, -n)))
+        : Math.round(financed / n);
+    }
+    return {
+      strategy: 'seller_finance',
+      purchase_price:   price,
+      down_payment:     down,
+      down_percent:     downPct,
+      interest_rate:    noteRate,
+      term_years:       termYears,
+      financed_amount:  financed,
+      monthly_payment:  monthlyPI,
+      balloon_years:    Number(terms.balloon_years) || null,
+      note: 'Owner carries the note: down + monthly P&I over the term; optional balloon.',
+    };
+  }
+
+  if (key === 'lease_option') {
+    const optionPrice = arv > 0 ? Math.round(arv * 0.95) : (Number(terms.option_price) || null);
+    const optionFee   = optionPrice != null ? Math.round(optionPrice * 0.03) : null;
+    const leaseMonthly= Number(terms.lease_monthly) || monthly || null;
+    return {
+      strategy: 'lease_option',
+      option_price:   optionPrice,           // set future purchase price
+      option_fee:     optionFee,             // up-front non-refundable fee
+      lease_monthly:  leaseMonthly,          // monthly rent during the option
+      option_months:  Number(terms.option_months) || 24,
+      note: 'Control via lease now; set price to buy later; up-front option fee.',
+    };
+  }
+
+  // CASH (default) — EXISTING wholesale math, unchanged.
+  if (arv > 0) {
+    const mao        = Math.max(0, arv * 0.70 - repairs);
+    const firstOffer = Math.round(mao * 0.85);
+    return {
+      strategy: 'cash',
+      arv,
+      repair_estimate: repairs,
+      mao:         Math.round(mao),
+      first_offer: firstOffer,
+      range_low:   Math.round(arv * 0.92),
+      range_high:  Math.round(arv * 1.08),
+    };
+  }
+  return { strategy: 'cash', arv: 0, mao: null, first_offer: null, note: 'No ARV basis — pull live comps first.' };
+}
+
 // ─── Alex AI Full System Prompt ───────────────────────────────────────────────
 function buildAlexPrompt({ operator = {}, lead = {}, useCaseOverride = null }) {
   const aiName     = operator.ai_caller_name     || 'Alex';
@@ -284,6 +452,7 @@ ${customStyle}
 
 These are style preferences only. The NON-NEGOTIABLE RULES above ALWAYS override them. If anything here conflicts with disclosing you're an AI, honoring "remove me"/Do-Not-Call, or staying honest and non-pressuring, ignore that part and follow the rules above.
 ` : ''}
+${buildStrategyBlock(lead)}
 ${buildTagIntelligenceBlock(lead)}`;
 }
 
@@ -1379,4 +1548,6 @@ module.exports = {
   getVapiVoices,
   getUseCase,
   USE_CASE_IDENTITY,
+  computeStrategyOffer,
+  STRATEGY_PLAYBOOK,
 };
