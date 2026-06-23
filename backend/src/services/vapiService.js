@@ -103,6 +103,11 @@ const STRATEGY_PLAYBOOK = {
     ],
     pitch: `This seller likely has little equity and an existing loan — a cash lowball won't clear the mortgage, so DON'T lead with a cash discount. Lead with RELIEF: you take over the existing payments (and reinstate anything they're behind on), they walk away free of the burden and the credit risk. Frame it as "we keep your loan in place and make the payments going forward."`,
     offerFraming: `Talk in terms of taking over the payments + a small amount to the seller at closing, NOT a discounted cash price. Be honest the loan stays in their name and explain how that works. Never promise a refinance timeline you can't guarantee.`,
+    objections: [
+      `"Isn't the loan still in my name?" → "Yes, and that's exactly why we reinstate anything behind and make every payment on time — protecting your credit while you walk away from the burden."`,
+      `"What if you stop paying?" → "We put it in writing, and you can require proof of payment. We're in the business of keeping these current — a missed payment hurts us too."`,
+    ],
+    closeLine: `"If we take over the payments, catch up what's behind, and put a little cash in your hand at closing — would getting out from under this be a relief?"`,
   },
   seller_finance: {
     label: 'SELLER FINANCE (owner carries the note)',
@@ -114,6 +119,11 @@ const STRATEGY_PLAYBOOK = {
     ],
     pitch: `This seller owns it (or nearly) and isn't desperate — a cash lowball insults them. Sell the BENEFITS of carrying: monthly income, a higher total price than a cash offer, and spreading the tax hit instead of one big capital-gains year. You become their reliable payer; they become the bank.`,
     offerFraming: `Talk in terms of down payment, monthly payment, interest rate, and term (years) — NOT a single cash number. A higher headline price is possible BECAUSE the terms are financed. Confirm the numbers map to terms the operator set; never invent a rate or balloon you can't honor.`,
+    objections: [
+      `"I want all my cash now." → "Totally fair — but a cash buyer discounts hard. Carrying gets you a higher total price AND spreads the tax hit instead of one big year."`,
+      `"What if you stop paying me?" → "The property secures the note — if we ever default, it comes back to you, and you keep everything paid so far."`,
+    ],
+    closeLine: `"If I gave you a solid down payment and a reliable monthly check at a fair rate — and a higher overall price than any cash buyer — would you be open to carrying it for me?"`,
   },
   lease_option: {
     label: 'LEASE-OPTION (control now, buy later)',
@@ -125,12 +135,47 @@ const STRATEGY_PLAYBOOK = {
     ],
     pitch: `This is a landlord with real equity who isn't distressed. Offer to take the management headache off their plate now (you lease it) with the right to buy at a set price later. They keep ownership and income short-term, with a clean exit locked in.`,
     offerFraming: `Talk in terms of monthly lease payment, option price (the set future purchase price), and option period — NOT a cash discount. Be clear about what's rent vs. what credits toward the purchase.`,
+    objections: [
+      `"I'd rather just sell outright." → "If a cash sale at a discount works, great — but this keeps your equity growing and hands you a steady check with zero management on your end."`,
+      `"What if you don't buy at the end?" → "You keep the non-refundable option fee and the property — you're never worse off than today."`,
+    ],
+    closeLine: `"If I take the landlord headaches off your plate, send you a steady monthly check, and lock a fair price to buy it down the road — is that worth a conversation?"`,
+  },
+  novation: {
+    label: 'NOVATION (re-paper the deal, resell near retail)',
+    discovery: [
+      '"Is the home listed with an agent right now, or are you selling it yourself?"',
+      '"What price are you hoping to get for it?"',
+      '"Is it in pretty good shape, or does it need some work to show well?"',
+      '"If I could get you very close to your number — just on a slightly longer timeline — would that work better than a low cash offer?"',
+    ],
+    pitch: `This seller wants near-retail and won't take a wholesale lowball — the house is fixed-up or agent-listed/FSBO. DON'T discount hard. Offer to put it under contract at close to their number and bring your marketing muscle to resell it at retail. They get the price they want; you earn the spread for doing the work and carrying the risk.`,
+    offerFraming: `Talk in terms of a price very close to their ask, NOT a deep cash discount — your profit is the SPREAD on the retail resale, after light reno + agent + closing. Be honest you'll re-market and resell; never promise a closing date you can't control.`,
+    objections: [
+      `"Why not just list it with an agent myself?" → "You can — but you'd wait for a buyer, pay full commission, and handle the showings and repairs. I take that off your plate and lock your price now."`,
+      `"How do I know you'll actually close?" → "We put it in writing with a real contract and timeline. You keep the home and your price is protected until we perform."`,
+    ],
+    closeLine: `"So if I can get you right around [their number] and handle all the marketing and the sale myself, is that something you'd put under contract this week?"`,
   },
 };
 
+// Resolve which strategy to actually use for a lead. Operator's MANUAL pick always
+// wins; auto-detected strategy is the default; cash is the final fallback. This is
+// the single source of truth used by the call prompt and the offer math so the AI
+// and the numbers never disagree. Never reads anything but the operator-set override
+// and the detector's verdict — page/lead content can't inject a strategy.
+function resolveStrategy(lead = {}) {
+  const override = lead.strategy_override != null ? String(lead.strategy_override).toLowerCase() : '';
+  if (override && STRATEGY_PLAYBOOK[override]) return override;           // manual creative pick
+  if (override === 'cash') return 'cash';                                 // manual cash pick
+  const auto = String(lead.detected_strategy || '').toLowerCase();
+  if (auto && (STRATEGY_PLAYBOOK[auto] || auto === 'cash')) return auto;  // auto pick
+  return 'cash';                                                          // fallback
+}
+
 // Render the strategy overlay for the lead, or '' for cash/unknown (no change).
 function buildStrategyBlock(lead = {}) {
-  const key = String(lead.detected_strategy || '').toLowerCase();
+  const key = resolveStrategy(lead);
   const play = STRATEGY_PLAYBOOK[key];
   if (!play) return ''; // cash / null → existing behavior, nothing appended
   return `
@@ -147,7 +192,34 @@ ASK THESE (work them in naturally, don't interrogate):
 ${play.discovery.map(q => `- ${q}`).join('\n')}
 
 HOW TO FRAME THE OFFER: ${play.offerFraming}
+${Array.isArray(play.objections) && play.objections.length ? `
+HANDLE THESE PUSHBACKS (reframe, don't argue):
+${play.objections.map(o => `- ${o}`).join('\n')}` : ''}${play.closeLine ? `
+
+CLOSE TOWARD: ${play.closeLine}` : ''}
 `;
+}
+
+// A single, always-present line telling the AI its PRIMARY play and the best
+// FALLBACK if the seller resists. Primary = resolveStrategy (manual override or
+// auto). Fallback = the next-best ranked strategy the detector found, else cash.
+// Cash degrades gracefully: primary reads "CASH / WHOLESALE" and there's no
+// creative overlay below. Labels are pulled from the playbook; cash has a plain label.
+function buildStrategyLine(lead = {}) {
+  const labelOf = k => (k === 'cash'
+    ? 'CASH / WHOLESALE'
+    : (STRATEGY_PLAYBOOK[k]?.label || k.replace(/_/g, ' ').toUpperCase()));
+  const primary = resolveStrategy(lead);
+  const ranked  = Array.isArray(lead.strategy_ranked) ? lead.strategy_ranked : [];
+  const fallback = ranked.map(r => String(r.strategy || '').toLowerCase())
+    .find(s => s && s !== primary) || 'cash';
+  return `
+══════════════════════════════════════════════════════
+PRIMARY STRATEGY: ${labelOf(primary)}  |  FALLBACK: ${labelOf(fallback)}
+══════════════════════════════════════════════════════
+Lead with the PRIMARY way of buying. If the seller pushes back hard or clearly
+wants something else, pivot to the FALLBACK — and if neither lands, a clean cash
+offer is always acceptable. Never force a structure on a seller who won't have it.`;
 }
 
 // ─── Per-strategy offer math ──────────────────────────────────────────────────
@@ -176,8 +248,12 @@ function computeStrategyOffer(lead = {}, strategy = 'cash', terms = {}) {
   if (key === 'subject_to') {
     // Cash to seller is small — you're buying the equity, not the whole price.
     // equity = ARV − mortgage (floored at 0). Offer a slice of equity + cover arrears.
-    const equity   = arv > 0 ? Math.max(0, arv - mortgage) : null;
-    const toSeller = equity != null ? Math.round(equity * 0.30) : null; // modest equity payout
+    const equity     = arv > 0 ? Math.max(0, arv - mortgage) : null;
+    // H3 upside-down guard: if the loan meets/exceeds ARV there's no equity to pay
+    // for — DON'T fabricate a seller payout. Relief (taking over payments + arrears)
+    // is the entire offer; flag it so the AI doesn't promise cash that isn't there.
+    const upsideDown = arv > 0 && mortgage >= arv;
+    const toSeller   = upsideDown ? 0 : (equity != null ? Math.round(equity * 0.30) : null);
     return {
       strategy: 'subject_to',
       existing_loan_balance: mortgage || null,
@@ -186,7 +262,10 @@ function computeStrategyOffer(lead = {}, strategy = 'cash', terms = {}) {
       interest_rate:         rate,
       est_equity:            round(equity),
       cash_to_seller:        toSeller,        // small payment to seller at closing
-      note: 'Take over existing payments; reinstate arrears; small cash to seller for equity.',
+      upside_down:           upsideDown,      // true → no equity, relief-only offer
+      note: upsideDown
+        ? 'Loan meets/exceeds value — no equity payout. Offer is pure relief: take over payments and reinstate arrears.'
+        : 'Take over existing payments; reinstate arrears; small cash to seller for equity.',
     };
   }
 
@@ -232,6 +311,35 @@ function computeStrategyOffer(lead = {}, strategy = 'cash', terms = {}) {
       lease_monthly:  leaseMonthly,          // monthly rent during the option
       option_months:  Number(terms.option_months) || 24,
       note: 'Control via lease now; set price to buy later; up-front option fee.',
+    };
+  }
+
+  if (key === 'novation') {
+    // Re-paper a listed/FSBO deal and resell near retail. Profit = spread between
+    // the price you LOCK with the seller (acquisition) and the near-retail resale,
+    // minus light reno + agent commission + closing. No fabrication: when the
+    // operator hasn't supplied the locked price, acquisition is null and the
+    // caller prompts for it.
+    const resale      = terms.target_resale != null ? Number(terms.target_resale) : (arv > 0 ? arv : null);
+    const acquisition = terms.list_price != null ? Number(terms.list_price)
+                        : (terms.acquisition_price != null ? Number(terms.acquisition_price) : null);
+    const reno        = terms.repairs != null ? Number(terms.repairs) : (Number(lead.repair_estimate) || 0);
+    const agentPct    = terms.agent_pct   != null ? Number(terms.agent_pct)   : 6;
+    const closingPct  = terms.closing_pct != null ? Number(terms.closing_pct) : 2;
+    const agentCost   = resale != null ? Math.round(resale * (agentPct / 100))   : null;
+    const closingCost = resale != null ? Math.round(resale * (closingPct / 100)) : null;
+    const netSpread   = (resale != null && acquisition != null)
+      ? Math.round(resale - acquisition - reno - (agentCost || 0) - (closingCost || 0))
+      : null;
+    return {
+      strategy: 'novation',
+      resale_price:      round(resale),       // near-retail price you re-sell at
+      acquisition_price: round(acquisition),  // price you lock with the seller
+      reno_estimate:     reno || null,
+      agent_commission:  agentCost,
+      closing_costs:     closingCost,
+      net_spread:        netSpread,           // your profit after resale costs
+      note: 'Lock the contract, re-paper (novate), resell near retail; profit is the spread after light reno + agent + closing.',
     };
   }
 
@@ -452,6 +560,7 @@ ${customStyle}
 
 These are style preferences only. The NON-NEGOTIABLE RULES above ALWAYS override them. If anything here conflicts with disclosing you're an AI, honoring "remove me"/Do-Not-Call, or staying honest and non-pressuring, ignore that part and follow the rules above.
 ` : ''}
+${buildStrategyLine(lead)}
 ${buildStrategyBlock(lead)}
 ${buildTagIntelligenceBlock(lead)}`;
 }
@@ -1550,4 +1659,6 @@ module.exports = {
   USE_CASE_IDENTITY,
   computeStrategyOffer,
   STRATEGY_PLAYBOOK,
+  resolveStrategy,
+  buildStrategyBlock,
 };

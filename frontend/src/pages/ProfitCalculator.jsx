@@ -33,6 +33,13 @@ const STRATEGIES = [
     { key: 'lease_monthly', label: 'Monthly Lease ($)' },
     { key: 'option_months', label: 'Option Length (months)' },
   ] },
+  { id: 'novation',       label: '🔄 Novation',         fields: [
+    { key: 'list_price',    label: 'Acquisition / List Price ($)' },
+    { key: 'target_resale', label: 'Target Resale ($, optional — defaults to ARV)' },
+    { key: 'repairs',       label: 'Light Reno ($, optional)' },
+    { key: 'agent_pct',     label: 'Agent Commission (%)' },
+    { key: 'closing_pct',   label: 'Closing Costs (%)' },
+  ] },
 ]
 
 export default function ProfitCalculator() {

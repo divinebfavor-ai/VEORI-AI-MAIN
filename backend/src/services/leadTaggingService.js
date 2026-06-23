@@ -147,7 +147,9 @@ function detectSecondaryTags(lead) {
 //                    discount. This is the existing wholesale path and the fallback
 //                    for everything the other branches don't claim.
 function detectStrategy(lead) {
-  if (!lead || typeof lead !== 'object') return { strategy: 'cash', confidence: 40 };
+  if (!lead || typeof lead !== 'object') {
+    return { strategy: 'cash', confidence: 40, ranked: [{ strategy: 'cash', confidence: 40, reason: 'No lead data — default to cash.' }] };
+  }
 
   const equity   = Number(lead.estimated_equity_percent || 0);
   const mortgage = Number(lead.mortgage_balance || 0);
@@ -165,37 +167,69 @@ function detectStrategy(lead) {
   const freeAndClear = loanType === 'none' ||
     (mortgage === 0 && (!lead.has_liens) && equity >= 90) ||
     tag === 'free_and_clear';
+  const isListed    = tag === 'fsbo' || secondary.includes('fsbo') || secondary.includes('listed') || !!lead.is_listed;
+  const longTerm    = secondary.includes('long_term_owner');
+  const assumable   = ['va', 'fha', 'usda'].includes(loanType); // government loans are assumable
+  const lightRepair = !isDistressed && !secondary.includes('needs_repair');
 
-  // Subject-To: an existing loan to assume + thin equity (can't be cleared by a
-  // cash discount) and/or seller behind. A low locked-in rate strengthens it.
+  // Score EVERY strategy independently, then rank. Each scorer returns 0 when the
+  // lead clearly doesn't fit (so it won't surface as a fallback). Cash always
+  // carries a floor so it remains the guaranteed default. H2 precision boosts are
+  // applied inline; ties are broken by a fixed strategy priority below.
+  const scores = [];
+
+  // ── Subject-To ── existing loan to assume + thin equity and/or behind.
   if (mortgage > 0 && equity > 0 && equity < 35) {
     let conf = 78;
-    if (arrears > 0) conf += 8;                 // behind → reinstate + take over
-    if (rate != null && rate <= 5) conf += 6;   // cheap money worth keeping
-    if (tag === 'pre_foreclosure') conf += 4;
-    return { strategy: 'subject_to', confidence: Math.min(conf, 95) };
+    const why = ['existing loan + thin equity'];
+    if (arrears > 0) { conf += 8; why.push('behind on payments'); }
+    if (rate != null && rate <= 5) { conf += 6; why.push('low locked-in rate'); }
+    if (assumable) { conf += 5; why.push(`${loanType.toUpperCase()} assumable loan`); }
+    if (tag === 'pre_foreclosure') { conf += 4; why.push('pre-foreclosure'); }
+    scores.push({ strategy: 'subject_to', confidence: Math.min(conf, 95), reason: why.join(', ') });
   }
 
-  // Seller-finance: owner owns it (or nearly) and isn't in distress → they can
-  // carry paper for monthly income + tax spread.
+  // ── Seller-Finance ── owner owns it (or nearly), not distressed → carry paper.
   if (freeAndClear && !isDistressed) {
     let conf = 74;
-    if (isLandlord) conf += 8;                  // tired landlord wants passive income
-    if (secondary.includes('long_term_owner')) conf += 4;
-    return { strategy: 'seller_finance', confidence: Math.min(conf, 92) };
+    const why = ['owns free & clear, not distressed'];
+    if (isLandlord) { conf += 8; why.push('tired landlord wants passive income'); }
+    if (longTerm) { conf += 6; why.push('long-term owner, low basis'); } // H2: low basis → favors carry
+    scores.push({ strategy: 'seller_finance', confidence: Math.min(conf, 92), reason: why.join(', ') });
   }
 
-  // Lease-option: landlord/rental with moderate equity, not distressed → control
-  // now, exercise the buy later.
+  // ── Lease-Option ── landlord/rental, moderate equity, not distressed.
   if (isLandlord && !isDistressed && equity >= 30 && equity < 90) {
-    return { strategy: 'lease_option', confidence: 70 };
+    let conf = 70;
+    const why = ['landlord with moderate equity'];
+    if (equity >= 50 && equity < 80) { conf += 4; why.push('comfortable equity band'); }
+    scores.push({ strategy: 'lease_option', confidence: conf, reason: why.join(', ') });
   }
 
-  // Cash / wholesale — the default and the explicit fit for distress + discount.
-  let conf = 60;
-  if (isDistressed) conf += 15;
-  if (equity >= 50) conf += 5;
-  return { strategy: 'cash', confidence: Math.min(conf, 90) };
+  // ── Novation ── listed/FSBO, light condition, wants near-retail, decent equity.
+  if (isListed && lightRepair && equity >= 20) {
+    let conf = 68;
+    const why = ['listed/FSBO, show-ready, wants near-retail'];
+    if (equity >= 40) { conf += 6; why.push('decent equity to work the spread'); }
+    if (rate != null && rate >= 7) { conf += 3; why.push('high rate → no subject-to appeal'); } // H2 lean
+    scores.push({ strategy: 'novation', confidence: Math.min(conf, 90), reason: why.join(', ') });
+  }
+
+  // ── Cash / Wholesale ── the floor + explicit fit for distress + discount.
+  let cashConf = 60;
+  const cashWhy = ['default wholesale path'];
+  if (isDistressed) { cashConf += 15; cashWhy.push('distressed/needs-repair'); }
+  if (equity >= 50) { cashConf += 5; cashWhy.push('strong equity for a discount'); }
+  if (rate != null && rate >= 7 && equity >= 40) { cashConf += 4; cashWhy.push('high rate → keeping the loan has no appeal'); } // H2 lean
+  scores.push({ strategy: 'cash', confidence: Math.min(cashConf, 90), reason: cashWhy.join(', ') });
+
+  // Tie-break: when confidences collide, prefer the more specific creative play
+  // over cash so a genuine creative fit isn't masked by the cash floor.
+  const priority = { subject_to: 5, seller_finance: 4, novation: 3, lease_option: 2, cash: 1 };
+  const ranked = scores.sort((a, b) =>
+    b.confidence - a.confidence || priority[b.strategy] - priority[a.strategy]);
+
+  return { strategy: ranked[0].strategy, confidence: ranked[0].confidence, ranked };
 }
 
 // ─── Build tag reason string ──────────────────────────────────────────────────
@@ -239,7 +273,7 @@ async function tagLead(leadId) {
     const tagReason = buildTagReason(lead, primaryTag, secondaryTags);
     // Strategy reads the freshly-computed tags too — pass them on the lead so the
     // detector sees the same verdict we're about to write.
-    const { strategy, confidence: strategyConfidence } = detectStrategy({
+    const { strategy, confidence: strategyConfidence, ranked: strategyRanked } = detectStrategy({
       ...lead, primary_tag: primaryTag, secondary_tags: secondaryTags,
     });
 
@@ -252,10 +286,11 @@ async function tagLead(leadId) {
         tag_reason:          tagReason,
         detected_strategy:   strategy,
         strategy_confidence: strategyConfidence,
+        strategy_ranked:     strategyRanked || null,
         tagged_at:           new Date().toISOString(),
       })
       .eq('id', leadId)
-      .select('id, first_name, last_name, primary_tag, secondary_tags, tag_confidence, detected_strategy, strategy_confidence')
+      .select('id, first_name, last_name, primary_tag, secondary_tags, tag_confidence, detected_strategy, strategy_confidence, strategy_ranked')
       .single();
 
     if (updateError) throw updateError;

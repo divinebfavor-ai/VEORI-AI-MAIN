@@ -113,6 +113,42 @@ function leaseOption({ arv = 0, option_price = null, option_fee = null,
 }
 
 /**
+ * NOVATION: you contract the property at one price, then re-paper (novate) the deal
+ * and resell at a near-retail price — profit is the SPREAD between your locked
+ * acquisition price and the resale, minus light reno, agent commission, and closing.
+ * Best for fixed-up-but-overpriced / agent-listed / FSBO sellers who want near
+ * retail and won't take a wholesale lowball. Pure, never throws, null when missing.
+ */
+function novation({ arv = 0, list_price = null, repairs = 0, agent_pct = 6,
+                    target_resale = null, closing_pct = 2 }) {
+  // Resale = explicit target, else ARV (retail), else nothing to compute against.
+  const resale = target_resale != null ? Number(target_resale) : (arv > 0 ? Number(arv) : null);
+  // Your acquisition = the price you lock with the seller (their list/ask).
+  const acquisition = list_price != null ? Number(list_price) : null;
+  const reno = Number(repairs) || 0;
+  const agentPct = Number(agent_pct);
+  const closingPct = Number(closing_pct);
+  // Costs scale off the resale (commission + closing are paid at the retail sale).
+  const agentCost = resale != null ? round(resale * ((Number.isNaN(agentPct) ? 6 : agentPct) / 100)) : null;
+  const closingCost = resale != null ? round(resale * ((Number.isNaN(closingPct) ? 2 : closingPct) / 100)) : null;
+  let netSpread = null;
+  if (resale != null && acquisition != null) {
+    netSpread = round(resale - acquisition - reno - (agentCost || 0) - (closingCost || 0));
+  }
+  return {
+    strategy: 'novation',
+    arv: arv || null,
+    resale_price: round(resale),          // near-retail price you re-sell at
+    acquisition_price: round(acquisition), // price you lock with the seller
+    reno_estimate: reno || null,           // light, cosmetic work to list-ready
+    agent_commission: agentCost,
+    closing_costs: closingCost,
+    net_spread: netSpread,                 // your profit after the resale costs
+    note: 'Lock the contract, re-paper (novate), resell near retail; profit is the spread after light reno + agent + closing.',
+  };
+}
+
+/**
  * Dispatch by strategy. Returns null for cash/unknown so the caller keeps the
  * existing cash response untouched.
  */
@@ -121,8 +157,9 @@ function calculateCreative(strategy, inputs = {}) {
     case 'subject_to':     return subjectTo(inputs);
     case 'seller_finance': return sellerFinance(inputs);
     case 'lease_option':   return leaseOption(inputs);
+    case 'novation':       return novation(inputs);
     default:               return null; // cash / unknown → no creative block
   }
 }
 
-module.exports = { calculateCreative, subjectTo, sellerFinance, leaseOption, monthlyPI };
+module.exports = { calculateCreative, subjectTo, sellerFinance, leaseOption, novation, monthlyPI };
