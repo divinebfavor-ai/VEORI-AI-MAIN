@@ -1,9 +1,11 @@
 // ─── Phone Number Rotation & Health Service ───────────────────────────────────
 const supabase = require('../config/supabase');
 
-const COOLDOWN_SECONDS = 90;        // 90 seconds between calls on same number — carrier health
-const DAILY_MAX        = 60;        // max 60 calls/number/day before spam-likely risk
-const WEEKLY_MAX       = 350;       // max 350 calls/number/week (60/day × 5 work days + buffer) before mandatory rest
+// Carrier-health caps. Tunable via env (PHONE_COOLDOWN_SECONDS / PHONE_DAILY_MAX /
+// PHONE_WEEKLY_MAX) for per-deploy override; defaults below are unchanged when unset.
+const COOLDOWN_SECONDS = Number(process.env.PHONE_COOLDOWN_SECONDS) || 90;   // seconds between calls on same number
+const DAILY_MAX        = Number(process.env.PHONE_DAILY_MAX)        || 60;   // max calls/number/day before spam-likely risk
+const WEEKLY_MAX       = Number(process.env.PHONE_WEEKLY_MAX)       || 350;  // max calls/number/week before mandatory rest
 
 /**
  * Select the best available phone number for a call.

@@ -413,34 +413,52 @@ async function buildLeadQueue(campaignId, userId, filter = {}) {
 
   const calledLeadIds = [...new Set((calledRows || []).map(r => r.lead_id).filter(Boolean))];
 
-  let q = supabase.from('leads').select('*').eq('user_id', userId)
-    .in('status', ['new', 'contacted']).eq('is_on_dnc', false)
-    .order('motivation_score', { ascending: false, nullsFirst: false })
-    .limit(10000);
+  // Reusable builder so we can apply the exact same filters to every page.
+  // Previously this loaded up to 10k leads in ONE query (silent truncation past
+  // 10k + a big single allocation). We now page with .range() up to a tunable
+  // cap so the queue is bounded and nothing is silently dropped below the cap.
+  const PAGE_SIZE  = 1000;
+  const LEAD_CAP   = Number(process.env.CAMPAIGN_LEAD_CAP) || 10000;
 
-  if (calledLeadIds.length > 0) q = q.not('id', 'in', `(${calledLeadIds.join(',')})`);
-  if (filter.state)              q = q.eq('property_state', filter.state);
-  if (filter.min_score)          q = q.gte('motivation_score', filter.min_score);
-  if (filter.max_score)          q = q.lte('motivation_score', filter.max_score);
-  if (filter.source)             q = q.eq('source', filter.source);
-  // Operator-selected lead tags — only call leads matching the chosen tags.
-  // A lead qualifies if a chosen tag is its primary_tag OR appears in secondary_tags.
-  // e.g. filter.tags = ['pre_foreclosure','absentee_owner']. Empty/absent = call all tags.
-  if (Array.isArray(filter.tags) && filter.tags.length > 0) {
-    // Sanitize tag values (only the [a-z_] chars our tagger produces) to keep the
-    // PostgREST .or() filter string safe, then build: primary_tag.in.(...) OR secondary_tags.cs.{tag}
-    const safeTags = filter.tags
-      .map(t => String(t).toLowerCase().replace(/[^a-z_]/g, ''))
-      .filter(Boolean);
-    if (safeTags.length > 0) {
-      const primaryClause   = `primary_tag.in.(${safeTags.join(',')})`;
-      const secondaryClause = safeTags.map(t => `secondary_tags.cs.{${t}}`).join(',');
-      q = q.or(`${primaryClause},${secondaryClause}`);
+  const applyFilters = (q) => {
+    if (calledLeadIds.length > 0) q = q.not('id', 'in', `(${calledLeadIds.join(',')})`);
+    if (filter.state)              q = q.eq('property_state', filter.state);
+    if (filter.min_score)          q = q.gte('motivation_score', filter.min_score);
+    if (filter.max_score)          q = q.lte('motivation_score', filter.max_score);
+    if (filter.source)             q = q.eq('source', filter.source);
+    // Operator-selected lead tags — only call leads matching the chosen tags.
+    // A lead qualifies if a chosen tag is its primary_tag OR appears in secondary_tags.
+    // e.g. filter.tags = ['pre_foreclosure','absentee_owner']. Empty/absent = call all tags.
+    if (Array.isArray(filter.tags) && filter.tags.length > 0) {
+      // Sanitize tag values (only the [a-z_] chars our tagger produces) to keep the
+      // PostgREST .or() filter string safe, then build: primary_tag.in.(...) OR secondary_tags.cs.{tag}
+      const safeTags = filter.tags
+        .map(t => String(t).toLowerCase().replace(/[^a-z_]/g, ''))
+        .filter(Boolean);
+      if (safeTags.length > 0) {
+        const primaryClause   = `primary_tag.in.(${safeTags.join(',')})`;
+        const secondaryClause = safeTags.map(t => `secondary_tags.cs.{${t}}`).join(',');
+        q = q.or(`${primaryClause},${secondaryClause}`);
+      }
     }
-  }
+    return q;
+  };
 
-  const { data } = await q;
-  return data || [];
+  const out = [];
+  for (let from = 0; from < LEAD_CAP; from += PAGE_SIZE) {
+    const to = Math.min(from + PAGE_SIZE, LEAD_CAP) - 1;
+    let q = supabase.from('leads').select('*').eq('user_id', userId)
+      .in('status', ['new', 'contacted']).eq('is_on_dnc', false)
+      .order('motivation_score', { ascending: false, nullsFirst: false })
+      .range(from, to);
+    q = applyFilters(q);
+    const { data, error } = await q;
+    if (error) { console.warn('[Campaign] buildLeadQueue page failed:', error.message); break; }
+    if (!data || data.length === 0) break;     // no more rows
+    out.push(...data);
+    if (data.length < PAGE_SIZE) break;        // last (partial) page
+  }
+  return out;
 }
 
 module.exports = { start, pause, resume, stop, activeCampaigns };

@@ -21,6 +21,32 @@ const queueService = require('./queueService');
 // to $250k is realistically still a fit for a $260k deal, so we pad the ceiling 15%.
 const PRICE_TOLERANCE = 1.15;
 
+// Upper bound on how many buyer rows a single match pulls. Tunable via
+// BUYER_MATCH_CAP (Railway env); defaults to 2000 so behaviour is unchanged when
+// unset. Rows are fetched in pages of PAGE_SIZE via .range() to avoid a single
+// large allocation as pools grow.
+const PAGE_SIZE        = 1000;
+const BUYER_MATCH_CAP  = Number(process.env.BUYER_MATCH_CAP) || 2000;
+
+/**
+ * Fetch up to BUYER_MATCH_CAP rows from a buyers query, paged via .range().
+ * `build()` must return a FRESH PostgREST query builder on each call (filters
+ * applied, no .range()/.limit()). Returns { rows, error } — error is the first
+ * page error (caller decides how to treat it; pool query tolerates missing column).
+ */
+async function fetchBuyersPaged(build) {
+  const rows = [];
+  for (let from = 0; from < BUYER_MATCH_CAP; from += PAGE_SIZE) {
+    const to = Math.min(from + PAGE_SIZE, BUYER_MATCH_CAP) - 1;
+    const { data, error } = await build().range(from, to);
+    if (error) return { rows, error };
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < PAGE_SIZE) break;
+  }
+  return { rows, error: null };
+}
+
 /**
  * The price we're asking a buyer to pay for this deal.
  * Prefer an explicit buyer_price; else mark up the offer_price; else fall back wide.
@@ -54,12 +80,13 @@ async function matchBuyers(deal) {
     // in a single PostgREST .or() chain, so we keep the query simple and correct and
     // do the overlap logic here. Buyer pools per operator are bounded (hundreds, not
     // millions), so this is cheap.
-    const { data: ownBuyers, error } = await supabase
-      .from('buyers')
-      .select('*')
-      .eq('user_id', deal.user_id)
-      .eq('is_active', true)
-      .limit(2000);
+    const { rows: ownBuyers, error } = await fetchBuyersPaged(() =>
+      supabase
+        .from('buyers')
+        .select('*')
+        .eq('user_id', deal.user_id)
+        .eq('is_active', true)
+    );
     if (error) { console.warn('[BuyerDispo] matchBuyers query error:', error.message); return []; }
 
     // OPT-IN shared pool: also pull OTHER operators' active buyers who opted into the
@@ -70,13 +97,14 @@ async function matchBuyers(deal) {
     // only. Degrades silently if share_to_pool column isn't migrated yet.
     let poolBuyers = [];
     try {
-      const { data: shared, error: poolErr } = await supabase
-        .from('buyers')
-        .select('*')
-        .eq('share_to_pool', true)
-        .eq('is_active', true)
-        .neq('user_id', deal.user_id)
-        .limit(2000);
+      const { rows: shared, error: poolErr } = await fetchBuyersPaged(() =>
+        supabase
+          .from('buyers')
+          .select('*')
+          .eq('share_to_pool', true)
+          .eq('is_active', true)
+          .neq('user_id', deal.user_id)
+      );
       if (poolErr) {
         if (!/column .* does not exist/i.test(poolErr.message)) {
           console.warn('[BuyerDispo] pool query error:', poolErr.message);
@@ -167,8 +195,9 @@ async function startBuyerBlast(dealId, userId) {
   let buyers = await matchBuyers(deal);
   let usedFallback = false;
   if (!buyers.length) {
-    const { data: allActive } = await supabase
-      .from('buyers').select('*').eq('user_id', userId).eq('is_active', true).limit(2000);
+    const { rows: allActive } = await fetchBuyersPaged(() =>
+      supabase.from('buyers').select('*').eq('user_id', userId).eq('is_active', true)
+    );
     buyers = (allActive || []);
     usedFallback = buyers.length > 0;
   }

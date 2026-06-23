@@ -13,10 +13,14 @@ function getAnthropicClient() {
   return _client;
 }
 
-// ─── Concurrency limiter — max 3 simultaneous Anthropic calls ─────────────────
+// ─── Concurrency limiter — simultaneous Anthropic calls ───────────────────────
+// Tunable via AI_MAX_CONCURRENT (Railway env). Defaults to 3 so behaviour is
+// unchanged when unset; raise to 15–25 once running multiple operators. The
+// limiter is per-process (lost on restart) — acceptable until sessions move to
+// Redis in the platform-scale sprint.
 let _active = 0;
 const _waitQueue = [];
-const MAX_CONCURRENT = 3;
+const MAX_CONCURRENT = Number(process.env.AI_MAX_CONCURRENT) || 3;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function acquireSlot() {
