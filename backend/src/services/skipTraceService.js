@@ -18,17 +18,16 @@ const BST_BASE    = 'https://api.batchskiptracing.com/v2';
  */
 async function skipTraceLead(lead) {
   if (!BST_API_KEY) {
-    console.log(`[SkipTrace] API key not configured — returning demo data for ${lead.property_address}`);
-    // Return plausible demo data so the feature works in demos
-    const areaCode = lead.property_state === 'FL' ? '407' : lead.property_state === 'TX' ? '214'
-      : lead.property_state === 'GA' ? '404' : lead.property_state === 'NC' ? '704' : '313';
-    const suffix = Math.floor(1000 + Math.random() * 9000);
-    const demoPhone = `+1${areaCode}555${suffix}`;
-    const demoEmail = lead.email || `${(lead.first_name || 'owner').toLowerCase()}.${(lead.last_name || 'home').toLowerCase()}@gmail.com`;
+    // NEVER fabricate contact data — a fake number means Alex dials a stranger.
+    // Fail loud and flag the lead as needing real enrichment instead.
+    console.warn(`[SkipTrace] BATCH_SKIP_TRACE_API_KEY not configured — skip trace unavailable for ${lead.property_address}`);
     return {
-      simulated: true,
-      phones: [{ number: lead.phone || demoPhone, type: 'mobile', is_valid: true, dnc_status: false, carrier: 'T-Mobile' }],
-      emails: [{ address: demoEmail, is_valid: true }],
+      success: false,
+      unverified: true,
+      reason: 'skip_trace_not_configured',
+      message: 'Skip tracing is not configured. Set BATCH_SKIP_TRACE_API_KEY to enrich real contact data.',
+      phones: [],
+      emails: [],
     };
   }
 
@@ -95,7 +94,8 @@ async function skipTraceLead(lead) {
  */
 async function bulkSkipTrace(leads) {
   if (!BST_API_KEY) {
-    return leads.map(l => ({ lead_id: l.id, simulated: true }));
+    console.warn('[BulkSkipTrace] BATCH_SKIP_TRACE_API_KEY not configured — no records enriched');
+    return leads.map(l => ({ lead_id: l.id, unverified: true, reason: 'skip_trace_not_configured', phones_found: 0, emails_found: 0 }));
   }
 
   const records = leads.map(lead => ({

@@ -4,6 +4,8 @@ const { requireAuth } = require('../middleware/auth');
 const vapiService = require('../services/vapiService');
 const { callAnthropic } = require('../services/aiService');
 const fraudGuard = require('../services/fraudGuard');
+const fieldCrypto = require('../services/fieldCrypto');
+const operatorMode = require('../services/operatorMode');
 const router = express.Router();
 
 const SCRIPT_MODEL = 'claude-haiku-4-5-20251001';
@@ -21,7 +23,7 @@ router.get('/profile', requireAuth, async (req, res, next) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, ai_caller_name, ai_voice_id, ai_personality_tone, ai_use_case, ai_intro_script, ai_voicemail_script, ai_custom_instructions, legal_name, entity_name, entity_type, ein, re_license_number, re_license_state, business_phone, business_email, website, buyer_name_on_contract, earnest_money_default, closing_period_default, inspection_period_default, include_assignment_fee_disclosure, custom_contract_addendum, target_states, target_cities, property_types_preferred, min_property_value, max_property_value')
+      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, ai_caller_name, ai_voice_id, ai_personality_tone, ai_use_case, ai_intro_script, ai_voicemail_script, ai_custom_instructions, proactive_ai_disclosure, legal_name, entity_name, entity_type, ein, re_license_number, re_license_state, business_phone, business_email, website, buyer_name_on_contract, earnest_money_default, closing_period_default, inspection_period_default, include_assignment_fee_disclosure, custom_contract_addendum, target_states, target_cities, property_types_preferred, min_property_value, max_property_value')
       .eq('id', req.user.id)
       .single();
     if (error) throw error;
@@ -32,7 +34,7 @@ router.get('/profile', requireAuth, async (req, res, next) => {
 // PUT /api/operator/profile
 router.put('/profile', requireAuth, async (req, res, next) => {
   try {
-    const allowed = ['full_name','company_name','phone','email_from_name','email_reply_to','ai_caller_name','ai_voice_id','ai_personality_tone','ai_use_case','ai_intro_script','ai_voicemail_script','ai_custom_instructions','legal_name','entity_name','entity_type','ein','re_license_number','re_license_state','business_phone','business_email','website','buyer_name_on_contract','earnest_money_default','closing_period_default','inspection_period_default','include_assignment_fee_disclosure','custom_contract_addendum','target_states','target_cities','property_types_preferred','min_property_value','max_property_value'];
+    const allowed = ['full_name','company_name','phone','email_from_name','email_reply_to','ai_caller_name','ai_voice_id','ai_personality_tone','ai_use_case','ai_intro_script','ai_voicemail_script','ai_custom_instructions','proactive_ai_disclosure','legal_name','entity_name','entity_type','ein','re_license_number','re_license_state','business_phone','business_email','website','buyer_name_on_contract','earnest_money_default','closing_period_default','inspection_period_default','include_assignment_fee_disclosure','custom_contract_addendum','target_states','target_cities','property_types_preferred','min_property_value','max_property_value'];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
@@ -91,6 +93,46 @@ RULES FOR WHAT YOU WRITE:
   } catch (err) { next(err); }
 });
 
+// POST /api/operator/extract-script — F11 workflow import.
+// The operator pastes a full existing call script / dialer workflow (often a wall
+// of word-for-word lines, branches, and stage directions copied from another tool).
+// We DON'T want that raw monologue dumped verbatim into the live prompt — we want
+// the reusable STYLE & STRATEGY distilled out of it. This extracts clean,
+// second-person instructions from the pasted workflow. Does NOT save; the operator
+// reviews/edits, then saves via PUT /profile. Output is fraud-scanned (flag-only).
+router.post('/extract-script', requireAuth, async (req, res, next) => {
+  try {
+    const raw = String(req.body.workflow || req.body.script || req.body.text || '').trim();
+    if (!raw) return res.status(400).json({ error: 'workflow/script text is required' });
+    if (raw.length > 12000) return res.status(400).json({ error: 'workflow too long (max 12000 chars) — paste the core script only' });
+
+    const prompt = `An operator imported an existing cold-call script or dialer workflow they used elsewhere. Distill it into reusable speaking-style instructions for an AI voice agent that calls property sellers.
+
+DO extract: the tone, the approach, what they lead with, how they handle common objections, pacing, and the overall strategy this script reveals.
+DO NOT copy it word-for-word. DO NOT keep branch labels, step numbers, stage directions, variables/merge-tags, or platform-specific syntax.
+
+IMPORTED WORKFLOW / SCRIPT:
+"""
+${raw}
+"""
+
+RULES FOR WHAT YOU WRITE:
+- Output reusable style/strategy guidance (5-12 short bullet-style lines), second person ("Open by...", "When they push back on price, ...").
+- It must stay legal and compliant: the AI always discloses it is an AI when asked, always honors "remove me"/Do-Not-Call, never threatens, pressures, lies, or impersonates anyone. If the imported script contains anything pressuring or deceptive, drop it and note nothing about it.
+- Plain text only. No markdown headers, no preamble, no quotes around the output. Just the instructions.`;
+
+    const msg = await callAnthropic(
+      { model: SCRIPT_MODEL, max_tokens: 700, messages: [{ role: 'user', content: prompt }] },
+      { label: 'extract-script' }
+    );
+    const script = (msg?.content?.[0]?.text || '').trim();
+
+    const verdict = await fraudGuard.scanAndLog(req.user.id, `${raw}\n---\n${script}`, 'extract_script');
+
+    res.json({ success: true, script, fraud_warning: verdict.flagged ? verdict.reason : null });
+  } catch (err) { next(err); }
+});
+
 // GET /api/operator/bank-accounts
 router.get('/bank-accounts', requireAuth, async (req, res, next) => {
   try {
@@ -119,8 +161,10 @@ router.post('/bank-accounts', requireAuth, async (req, res, next) => {
       bank_name,
       account_holder_name,
       account_type: account_type || 'Checking',
-      routing_number_encrypted: routing_number ? `***${routing_number.slice(-4)}` : null,
-      account_number_encrypted: account_number ? `***${account_number.slice(-4)}` : null,
+      // S4: when a PII key is configured, persist the FULL number as an AES-256-GCM
+      // envelope; otherwise fall back to the historical masked stub (never plaintext).
+      routing_number_encrypted: routing_number ? (fieldCrypto.encrypt(routing_number) || `***${routing_number.slice(-4)}`) : null,
+      account_number_encrypted: account_number ? (fieldCrypto.encrypt(account_number) || `***${account_number.slice(-4)}`) : null,
       routing_last4: routing_number ? routing_number.slice(-4) : null,
       account_last4: account_number ? account_number.slice(-4) : null,
       bank_address,
@@ -146,15 +190,19 @@ router.delete('/bank-accounts/:id', requireAuth, async (req, res, next) => {
 // PUT /api/operator/preferences  — theme, dark mode, contextual tips
 router.put('/preferences', requireAuth, async (req, res, next) => {
   try {
-    const allowed = ['theme', 'dark_mode', 'contextual_tips_enabled', 'notification_preferences', 'tfa_enabled'];
+    const allowed = ['theme', 'dark_mode', 'contextual_tips_enabled', 'notification_preferences', 'tfa_enabled', 'operator_mode'];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
+    // Section E: normalize operator_mode to a known value (manual|copilot|autopilot).
+    if (updates.operator_mode !== undefined) {
+      updates.operator_mode = operatorMode.normalizeMode(updates.operator_mode);
+    }
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase.from('users').update(updates).eq('id', req.user.id).select(
-      'theme, dark_mode, contextual_tips_enabled, tfa_enabled'
+      'theme, dark_mode, contextual_tips_enabled, tfa_enabled, operator_mode'
     ).single();
     if (error) throw error;
     res.json({ success: true, preferences: data });
@@ -165,7 +213,7 @@ router.put('/preferences', requireAuth, async (req, res, next) => {
 router.get('/preferences', requireAuth, async (req, res, next) => {
   try {
     const { data, error } = await supabase.from('users')
-      .select('theme, dark_mode, contextual_tips_enabled, tfa_enabled, notification_preferences')
+      .select('theme, dark_mode, contextual_tips_enabled, tfa_enabled, notification_preferences, operator_mode')
       .eq('id', req.user.id)
       .single();
     if (error) throw error;

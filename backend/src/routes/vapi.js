@@ -283,6 +283,7 @@ async function handleCallEnded(call, event) {
   if (callRec.lead_id) {
     const leadUpdate = {
       status: mapOutcomeToStatus(outcome),
+      pipeline_stage: mapOutcomeToStage(outcome),
       last_call_date: now.toISOString(),
       last_call_outcome: outcome,
     };
@@ -547,6 +548,20 @@ function mapOutcomeToStatus(outcome) {
   const map = {
     not_home: 'new', not_interested: 'contacted', callback_requested: 'contacted',
     appointment: 'appointment_set', offer_made: 'offer_made', verbal_yes: 'under_contract',
+  };
+  return map[outcome] || 'contacted';
+}
+
+// Maps a call outcome to a Kanban pipeline_stage so the board auto-advances
+// after a call. Stage keys mirror frontend LeadPipeline STAGES:
+// new / contacted / interested / offer_made / closed.
+function mapOutcomeToStage(outcome) {
+  const map = {
+    no_answer: 'new', not_home: 'new', voicemail: 'new',
+    not_interested: 'contacted', wrong_number: 'contacted',
+    callback_requested: 'interested', appointment: 'interested', interested: 'interested',
+    offer_made: 'offer_made',
+    verbal_yes: 'closed',
   };
   return map[outcome] || 'contacted';
 }

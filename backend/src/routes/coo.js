@@ -20,6 +20,7 @@ const express  = require('express');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
 const cooService = require('../services/cooService');
+const operatorMode = require('../services/operatorMode');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -99,6 +100,21 @@ router.get('/briefing', async (req, res, next) => {
       leads, deals, dealsByLead,
       callsToday, callsRecent, followUpsDue, outcomes,
     });
+
+    // SECTION E — copilot/autopilot. Read the operator's mode (defaults to the
+    // safest 'copilot' if the column isn't set/migrated) and annotate the action
+    // queue with per-action dispositions (auto vs needs-approval). Additive: the
+    // existing what_to_do_now.actions shape is preserved; we attach an operator_mode
+    // block alongside it. Best-effort — never blocks the briefing.
+    let opMode = operatorMode.DEFAULT_MODE;
+    try {
+      const { data: u } = await supabase.from('users').select('operator_mode').eq('id', uid).single();
+      opMode = operatorMode.normalizeMode(u?.operator_mode);
+    } catch { /* column not migrated — safe default */ }
+    try {
+      const queue = briefing?.what_to_do_now?.actions || [];
+      briefing.what_to_do_now.operator_mode = operatorMode.annotateActions(queue, opMode);
+    } catch { /* shaping guard — leave queue untouched */ }
 
     // Best-effort audit log (Rule 6). Never blocks the response.
     try {

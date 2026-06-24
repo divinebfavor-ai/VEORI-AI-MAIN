@@ -760,6 +760,8 @@ export default function Settings() {
   const previewAudioRef           = useRef(null)   // shared <Audio> so a new preview stops the previous one
   const [scriptIdea, setScriptIdea]   = useState('')      // operator's plain-English description for AI script generation
   const [genningScript, setGenningScript] = useState(false)
+  const [importScript, setImportScript]   = useState('')  // F11 — pasted existing script/workflow to distill
+  const [extracting, setExtracting]       = useState(false)
   const [bankAccounts, setBankAccounts] = useState([])
   const [showAddBank, setShowAddBank]   = useState(false)
   const [profileForm, setProfileForm] = useState({ full_name: '', company_name: '', email: '', phone: '', email_from_name: '', email_reply_to: '' })
@@ -1297,6 +1299,33 @@ export default function Settings() {
                         {genningScript ? 'Generating…' : '✨ Generate with AI'}
                       </button>
                     </div>
+                    <details className="mb-2 group">
+                      <summary className="text-[12px] text-primary cursor-pointer select-none hover:opacity-80">Import an existing script or workflow</summary>
+                      <p className="text-[11px] text-text-muted mt-2 mb-2">Paste a full call script or dialer workflow you already use. Veori distills the reusable tone & strategy from it — it won't read your old script word-for-word, and compliance rules always win.</p>
+                      <textarea rows={5} value={importScript}
+                        placeholder="Paste your existing script / workflow here…"
+                        onChange={e => setImportScript(e.target.value)}
+                        className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2.5 text-[13px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary resize-none mb-2" />
+                      <button type="button" disabled={extracting || !importScript.trim()}
+                        onClick={async () => {
+                          if (!importScript.trim()) return
+                          setExtracting(true)
+                          try {
+                            const { data } = await operatorApi.extractScript(importScript.trim())
+                            if (data?.script) {
+                              setPersona(p => ({ ...p, ai_custom_instructions: data.script }))
+                              if (data.fraud_warning) toast.error(`Heads up: ${data.fraud_warning}`)
+                              else toast.success('Imported — reusable instructions extracted below. Review and edit.')
+                            } else {
+                              toast.error('Could not extract instructions from that')
+                            }
+                          } catch { toast.error('Could not extract instructions from that') }
+                          finally { setExtracting(false) }
+                        }}
+                        className="h-[40px] px-4 rounded-[6px] bg-surface border border-border-subtle text-text-primary text-[13px] font-medium hover:border-primary disabled:opacity-50 whitespace-nowrap">
+                        {extracting ? 'Extracting…' : 'Distill into instructions'}
+                      </button>
+                    </details>
                     <textarea rows={6} value={persona.ai_custom_instructions || ''}
                       placeholder="Paste your own script, or use 'Generate with AI' above. This steers how the AI talks to your leads — it never overrides our compliance rules (AI disclosure, Do-Not-Call, no pressure)."
                       onChange={e => setPersona(p => ({ ...p, ai_custom_instructions: e.target.value }))}

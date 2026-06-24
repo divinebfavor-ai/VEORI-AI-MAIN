@@ -360,12 +360,57 @@ function computeStrategyOffer(lead = {}, strategy = 'cash', terms = {}) {
   return { strategy: 'cash', arv: 0, mao: null, first_offer: null, note: 'No ARV basis — pull live comps first.' };
 }
 
+// ─── F8 — Bilingual EN/ES language resolution ────────────────────────────────
+// Picks the call language from the most specific source available, defaulting to
+// English so every existing call behaves byte-for-byte as before. A lead who is
+// known to speak Spanish (preferred_language) wins; otherwise a campaign-level
+// language; otherwise the operator default; otherwise en-US.
+// Returns { code: BCP-47 for Deepgram, isSpanish, label }.
+function resolveLanguage({ operator = {}, campaign = {}, lead = {} } = {}) {
+  const raw = (
+    lead?.preferred_language ||
+    campaign?.language ||
+    operator?.default_language ||
+    'en'
+  ).toString().trim().toLowerCase();
+
+  const isSpanish = raw.startsWith('es') || raw === 'spanish' || raw === 'español';
+  return {
+    code: isSpanish ? 'es' : 'en-US',
+    isSpanish,
+    label: isSpanish ? 'Spanish' : 'English',
+  };
+}
+
+// When the call is Spanish, this directive is appended to the system prompt so the
+// model actually converses in Spanish end-to-end (greeting, objection handling,
+// numbers spoken in Spanish). English calls get an empty string → no change.
+function buildLanguageDirective(langInfo) {
+  if (!langInfo?.isSpanish) return '';
+  return `
+
+══════════════════════════════════════════════════════
+LANGUAGE: SPANISH (ESPAÑOL)
+══════════════════════════════════════════════════════
+This seller prefers Spanish. Conduct the ENTIRE call in natural, warm Spanish —
+greeting, questions, objection handling, and numbers. Speak the way a friendly
+local investor from their community would. If the seller switches to English,
+follow their lead. All NON-NEGOTIABLE RULES above apply identically in Spanish
+(honor "no me llame más"/Do-Not-Call, disclose you're an AI assistant if asked,
+never pressure).`;
+}
+
 // ─── Alex AI Full System Prompt ───────────────────────────────────────────────
-function buildAlexPrompt({ operator = {}, lead = {}, useCaseOverride = null }) {
+function buildAlexPrompt({ operator = {}, lead = {}, useCaseOverride = null, campaign = {} }) {
   const aiName     = operator.ai_caller_name     || 'Alex';
   const companyName= operator.company_name        || 'a local real estate investment group';
   const customIntro= operator.ai_intro_script;
   const customStyle= (operator.ai_custom_instructions || '').trim();
+  // F3 — instruction layering. Account-level style is the base; a campaign can add
+  // its own steer; a single lead can add the most specific note. More specific wins
+  // on conflict, but ALL stay subordinate to the NON-NEGOTIABLE RULES below.
+  const campaignStyle = (campaign?.ai_custom_instructions || '').trim();
+  const leadStyle     = (lead?.ai_instructions || '').trim();
 
   const personalityStyle = getToneStyle(operator);
 
@@ -517,7 +562,9 @@ You genuinely want to help. ${identity.mission}
 
 IF ASKED DIRECTLY "Are you an AI?" or "Are you a robot?":
 → Be honest. Say: "Yeah, I am — I'm an AI assistant working with ${companyName}. But I'm here to have a real conversation, not read you a script. Is that okay?" Then continue naturally. Do not dwell on it.
-→ Do NOT volunteer this. Only answer if they ask.
+${operator.proactive_ai_disclosure
+  ? `→ PROACTIVE DISCLOSURE IS ON for this operator. Within your FIRST or SECOND sentence — before asking any qualifying questions — naturally let them know: "...and just so you know, I'm an AI assistant working with ${companyName}." Say it warmly and in stride, then keep going. Do not wait to be asked.`
+  : `→ Do NOT volunteer this. Only answer if they ask. (Your operator can switch on proactive AI disclosure in settings for stricter jurisdictions.)`}
 
 ══════════════════════════════════════════════════════
 READ THE SELLER — ADAPT IMMEDIATELY
@@ -552,6 +599,7 @@ NON-NEGOTIABLE RULES
 5. Never speak negatively about other buyers, agents, or investors.
 6. Voicemail: leave the message and stop. Nothing before it, nothing after it.
 7. You only speak to the person who answered. There is no operator, no manager, no one else on this call.
+8. RECORDING CONSENT: this call is recorded. Early in the opening — within your first couple of sentences — give the natural heads-up "quick heads up, this call may be recorded" (the playbook intro already includes it; never strip it). If they object to being recorded → "No problem at all — I'll let you go. Thanks for your time." and end the call. Never continue recording someone who declined.
 ${customStyle ? `
 ══════════════════════════════════════════════════════
 OPERATOR CUSTOM STYLE (how this operator wants you to talk to their leads)
@@ -559,6 +607,20 @@ OPERATOR CUSTOM STYLE (how this operator wants you to talk to their leads)
 ${customStyle}
 
 These are style preferences only. The NON-NEGOTIABLE RULES above ALWAYS override them. If anything here conflicts with disclosing you're an AI, honoring "remove me"/Do-Not-Call, or staying honest and non-pressuring, ignore that part and follow the rules above.
+` : ''}${campaignStyle ? `
+══════════════════════════════════════════════════════
+CAMPAIGN STEER (specific to the list/campaign this lead belongs to)
+══════════════════════════════════════════════════════
+${campaignStyle}
+
+Layered on top of the operator style above for this campaign only. Still subordinate to the NON-NEGOTIABLE RULES.
+` : ''}${leadStyle ? `
+══════════════════════════════════════════════════════
+THIS LEAD (most specific — a note about this exact person)
+══════════════════════════════════════════════════════
+${leadStyle}
+
+This is the most specific layer and wins on conflict with the operator/campaign style — but NEVER overrides the NON-NEGOTIABLE RULES.
 ` : ''}
 ${buildStrategyLine(lead)}
 ${buildStrategyBlock(lead)}
@@ -1125,8 +1187,8 @@ PITCH: "JV opportunity. Assign for $${fee.toLocaleString()}. ARV is $${arv.toLoc
 }
 
 // ─── Get system prompt by lead tag (Step 3 script selector) ──────────────────
-function getScriptByLeadTag(lead, operator = {}, useCaseOverride = null) {
-  return buildAlexPrompt({ operator, lead, useCaseOverride });
+function getScriptByLeadTag(lead, operator = {}, useCaseOverride = null, campaign = {}) {
+  return buildAlexPrompt({ operator, lead, useCaseOverride, campaign });
 }
 
 // ─── Normalize phone to E.164 (+1XXXXXXXXXX) ─────────────────────────────────
@@ -1157,7 +1219,7 @@ function toE164(phone) {
 //        vapi_phone_number_id (verified present for all 5 numbers).
 // Flip in either direction is a Railway env change only — no code edit, no redeploy
 // of new code required.
-async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null }) {
+async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null, campaign = {} }) {
   const engine = (process.env.VOICE_ENGINE || 'elevenlabs').toLowerCase();
   if (engine === 'vapi') {
     // ACTIVE Vapi outbound path. Real-time conversational engine — used when the
@@ -1175,7 +1237,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
       throw new Error('No active phone number found for this operator. Go to Settings → Phone Numbers to provision one.');
     }
     console.log(`[engine=vapi] dialing lead=${lead?.id} callId=${callId} via Vapi`);
-    return initiateCallVapi({ lead, phoneNumber, callId, operator, useCaseOverride });
+    return initiateCallVapi({ lead, phoneNumber, callId, operator, useCaseOverride, campaign });
   }
   // Default: live Twilio + ElevenLabs engine (unchanged — only runs when
   // VOICE_ENGINE is unset or anything other than 'vapi').
@@ -1185,7 +1247,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
 }
 
 // ─── Vapi outbound body (ACTIVE when VOICE_ENGINE=vapi) ──────────────────────
-async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null }) {
+async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null, campaign = {} }) {
   if (!VAPI_API_KEY) throw new Error('VAPI_API_KEY not configured');
 
   const aiName      = operator.ai_caller_name || 'Alex';
@@ -1208,7 +1270,12 @@ async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useC
     console.warn('[Vapi] Data moat read failed (non-blocking):', e.message);
   }
 
-  const systemPrompt = getScriptByLeadTag(lead, operator, useCaseOverride) + accumulatedIntel;
+  // F8 — resolve the call language (defaults to English; Spanish if lead/campaign/
+  // operator prefers it) and append the Spanish directive when applicable.
+  const langInfo = resolveLanguage({ operator, campaign, lead });
+  const systemPrompt = getScriptByLeadTag(lead, operator, useCaseOverride, campaign)
+    + accumulatedIntel
+    + buildLanguageDirective(langInfo);
 
   // Accept BOTH the [Bracket] tokens shown in the Settings UI and the legacy
   // {curly} tokens. Case-insensitive. Without [Bracket] support the AI used to
@@ -1225,7 +1292,9 @@ async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useC
         .replace(/\[Address\]|\{property_address\}/gi, lead.property_address || 'your property')
         .replace(/\[Company\]|\{company\}/gi, companyName)
         .replace(/\[AIName\]|\{ai_name\}/gi, aiName)
-    : `Hi, may I speak with ${lead.first_name || 'the owner of the property'}?`;
+    : (langInfo.isSpanish
+        ? `Hola, ¿puedo hablar con ${lead.first_name || 'el dueño de la propiedad'}?`
+        : `Hi, may I speak with ${lead.first_name || 'the owner of the property'}?`);
 
   // phoneNumberId = operator's Vapi number ID stored in DB (never a hardcoded env var)
   let phoneNumberId;
@@ -1251,7 +1320,7 @@ async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useC
       transcriber: {
         provider: 'deepgram',
         model: 'nova-2',
-        language: 'en-US',
+        language: langInfo.code,
         smartFormat: true,
       },
       model: {
@@ -1560,23 +1629,30 @@ If yes: Proceed with full seller discovery (property address, condition, motivat
 If callback/follow-up: "Of course — can I get your name and the property address you're calling about?"
 If wrong number/not interested: "No problem at all — sorry to bother you. Have a great day!"`;
 
+  // F8 — language for inbound. A known caller's preferred_language wins; otherwise
+  // operator default; otherwise English. (No campaign context on inbound.)
+  const langInfo = resolveLanguage({ operator, lead: lead || {} });
   const systemPrompt = `You are ${aiName}, a real estate investor. ${goalBlock}
 
 Apply the same call flow as outbound calls.
 Always be warm — they called YOU, which means they have some interest.
 
 PERSONALITY STYLE:
-${getToneStyle(operator)}${accumulatedIntel}`;
+${getToneStyle(operator)}${accumulatedIntel}${buildLanguageDirective(langInfo)}`;
 
   // Known callers get a personalized, warm callback greeting; unknown callers get
   // the neutral inbound opener.
-  const firstMessage = known
-    ? `Hey ${firstName || 'there'}, thanks for calling me back! Great to hear from you${lead.property_address ? ` — is this about ${lead.property_address}?` : '.'}`
-    : `Thank you for calling! This is ${aiName}. Are you calling about selling your property?`;
+  const firstMessage = langInfo.isSpanish
+    ? (known
+        ? `¡Hola ${firstName || ''}! Gracias por devolverme la llamada. Qué gusto saber de usted${lead.property_address ? ` — ¿es sobre ${lead.property_address}?` : '.'}`.replace('  ', ' ')
+        : `¡Gracias por llamar! Habla ${aiName}. ¿Llama sobre la venta de su propiedad?`)
+    : (known
+        ? `Hey ${firstName || 'there'}, thanks for calling me back! Great to hear from you${lead.property_address ? ` — is this about ${lead.property_address}?` : '.'}`
+        : `Thank you for calling! This is ${aiName}. Are you calling about selling your property?`);
 
   return {
     name: aiName,
-    transcriber: { provider: 'deepgram', model: 'nova-2', language: 'en-US' },
+    transcriber: { provider: 'deepgram', model: 'nova-2', language: langInfo.code },
     model: {
       provider: 'anthropic',
       model: process.env.VAPI_AI_MODEL || 'claude-haiku-4-5-20251001',

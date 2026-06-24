@@ -179,7 +179,7 @@ async function dialerTick(campaignId) {
       // this campaign only; otherwise the operator default applies.
       let vapiCall;
       try {
-        vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId, operator, useCaseOverride: campaign.use_case || null });
+        vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId, operator, useCaseOverride: campaign.use_case || null, campaign });
       } catch (vapiErr) {
         const errData = vapiErr?.response?.data;
         const msg = errData?.message || errData?.error || vapiErr.message || 'Unknown Vapi error';

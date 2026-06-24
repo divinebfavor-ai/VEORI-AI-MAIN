@@ -154,6 +154,13 @@ export default function LeadPipeline() {
 
   useEffect(() => { load() }, [load])
 
+  // Auto-refresh so the board advances after a call ends without a manual reload.
+  // Paused while the operator is dragging so a refresh never fights an in-flight move.
+  useEffect(() => {
+    const id = setInterval(() => { if (!dragLead) load() }, 15000)
+    return () => clearInterval(id)
+  }, [load, dragLead])
+
   // Resolve which stage a lead belongs to
   function getStage(lead) {
     // Use pipeline_stage if set, else map from status

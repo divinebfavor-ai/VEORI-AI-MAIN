@@ -24,6 +24,21 @@ const money = (v) => (v == null ? '—' : '$' + Number(v).toLocaleString())
 const pct   = (v) => (v == null ? '—' : `${v}%`)
 
 const SEV_COLOR = { high: '#EF4444', medium: '#C9A84C', low: 'rgba(255,255,255,0.45)' }
+
+// Section E — the three operator autonomy modes (must match operatorMode.js).
+const MODE_OPTIONS = [
+  { id: 'manual',    label: 'Manual',    icon: '✋', color: 'rgba(255,255,255,0.65)', hint: 'You drive. The AI only suggests — nothing fires on its own.' },
+  { id: 'copilot',   label: 'Copilot',   icon: '🤝', color: '#C9A84C',                hint: 'AI queues every action for your one-click approval. (Default)' },
+  { id: 'autopilot', label: 'Autopilot', icon: '⚡', color: '#00C37A',                hint: 'Low-risk, reversible actions auto-fire. Contracts, money & DNC always wait for you.' },
+]
+
+// How each per-action disposition renders in the queue.
+const DISPOSITION_BADGE = {
+  auto:    { label: 'Auto', color: '#00C37A', bg: 'rgba(0,195,122,0.14)' },
+  approve: { label: 'Approve', color: '#C9A84C', bg: 'rgba(201,168,76,0.14)' },
+  suggest: { label: 'Suggestion', color: 'rgba(255,255,255,0.55)', bg: 'rgba(255,255,255,0.07)' },
+}
+
 const ACTION_LABEL = {
   escalate_to_human: 'Escalate to you',
   capture_pricing:   'Capture pricing',
@@ -37,6 +52,7 @@ export default function COOCommandCenter() {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(false)
+  const [savingMode, setSavingMode] = useState(false)
 
   function load() {
     setLoading(true); setError(false)
@@ -47,6 +63,20 @@ export default function COOCommandCenter() {
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
+
+  // Section E — switch copilot/autopilot mode. Persists via the preferences
+  // endpoint, then reloads so the action queue re-annotates under the new mode.
+  function setMode(mode) {
+    setSavingMode(true)
+    fetch(`${API}/operator/preferences`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ operator_mode: mode }),
+    })
+      .then(() => load())
+      .catch(() => {})
+      .finally(() => setSavingMode(false))
+  }
 
   const s = {
     page:  { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
@@ -71,10 +101,35 @@ export default function COOCommandCenter() {
             What's happening · why · what's next · what to do now
           </p>
         </div>
-        <button onClick={load} disabled={loading}
-          style={{ padding: '10px 22px', background: '#C9A84C', color: '#000', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: loading ? 'wait' : 'pointer', fontFamily: 'Inter,sans-serif' }}>
-          {loading ? 'Analyzing…' : '↻ Refresh'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Section E — copilot/autopilot mode switch. Governs whether the AI's
+              recommended actions auto-fire (autopilot, low-risk + reversible only)
+              or wait for your approval. Defaults to Copilot. */}
+          {now?.operator_mode && (
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 3, gap: 2 }}>
+              {MODE_OPTIONS.map(opt => {
+                const active = now.operator_mode.mode === opt.id
+                return (
+                  <button key={opt.id} onClick={() => setMode(opt.id)} disabled={savingMode || active}
+                    title={opt.hint}
+                    style={{
+                      padding: '7px 14px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 800,
+                      fontFamily: 'Inter,sans-serif', cursor: active ? 'default' : savingMode ? 'wait' : 'pointer',
+                      background: active ? opt.color : 'transparent',
+                      color: active ? '#000' : 'rgba(255,255,255,0.55)',
+                      transition: 'all 0.15s',
+                    }}>
+                    {opt.icon} {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <button onClick={load} disabled={loading}
+            style={{ padding: '10px 22px', background: '#C9A84C', color: '#000', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: loading ? 'wait' : 'pointer', fontFamily: 'Inter,sans-serif' }}>
+            {loading ? 'Analyzing…' : '↻ Refresh'}
+          </button>
+        </div>
       </div>
 
       {loading && <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.45)' }}>Running the engines across your pipeline…</div>}
@@ -195,7 +250,12 @@ export default function COOCommandCenter() {
           {/* Q4 — What to do now (action queue) */}
           {now && (
             <div style={s.card}>
-              <div style={s.eyebrow('#00C37A')}>4 · What To Do Right Now</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ ...s.eyebrow('#00C37A'), marginBottom: 0 }}>4 · What To Do Right Now</div>
+                {now.operator_mode?.summary && (
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', fontWeight: 600 }}>{now.operator_mode.summary}</div>
+                )}
+              </div>
 
               {now.escalations?.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
@@ -213,20 +273,32 @@ export default function COOCommandCenter() {
 
               {now.actions?.length ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {now.actions.map((a, i) => (
-                    <div key={a.lead_id || i} style={{ ...s.row, alignItems: 'flex-start', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
-                        <span style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(0,195,122,0.15)', color: '#00C37A', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
-                        <span style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>{a.name}</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(0,195,122,0.12)', color: '#00C37A' }}>{ACTION_LABEL[a.action] || a.action || 'Review'}</span>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', minWidth: 64, textAlign: 'right' }}>{money(a.expected_value)}</span>
+                  {now.actions.map((a, i) => {
+                    // Section E — the parallel annotated action carries the disposition
+                    // under the current mode (auto / approve / suggest). Null-safe.
+                    const ann = now.operator_mode?.actions?.[i]
+                    const disp = ann && DISPOSITION_BADGE[ann.disposition]
+                    return (
+                      <div key={a.lead_id || i} style={{ ...s.row, alignItems: 'flex-start', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+                          <span style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(0,195,122,0.15)', color: '#00C37A', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+                          <span style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>{a.name}</span>
+                          {disp && (
+                            <span title={ann.decision_reason || ''} style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', padding: '3px 9px', borderRadius: 20, background: disp.bg, color: disp.color }}>{disp.label}</span>
+                          )}
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(0,195,122,0.12)', color: '#00C37A' }}>{ACTION_LABEL[a.action] || a.action || 'Review'}</span>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', minWidth: 64, textAlign: 'right' }}>{money(a.expected_value)}</span>
+                        </div>
+                        {a.reason && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.50)', paddingLeft: 34 }}>{a.reason}</div>}
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.30)', paddingLeft: 34 }}>
+                          {a.strategy} · {pct(a.close_odds)} close · conf {pct(a.confidence)}
+                        </div>
+                        {ann?.decision_reason && (
+                          <div style={{ fontSize: 11, color: disp ? disp.color : 'rgba(255,255,255,0.30)', paddingLeft: 34, opacity: 0.85 }}>{ann.decision_reason}</div>
+                        )}
                       </div>
-                      {a.reason && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.50)', paddingLeft: 34 }}>{a.reason}</div>}
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.30)', paddingLeft: 34 }}>
-                        {a.strategy} · {pct(a.close_odds)} close · conf {pct(a.confidence)}
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', margin: 0 }}>{now.summary}</p>

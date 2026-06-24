@@ -250,8 +250,10 @@ app.use('/api/profit-calc',        profitCalcRouter);
 // ─── Disposition Engine Routes (Features 22-27) ───────────────────────────────
 const listingsRouter     = require('./routes/listings');
 const dealPackageRouter  = require('./routes/dealPackage');
+const fundingRouter      = require('./routes/funding');
 app.use('/api/listings',       listingsRouter);
 app.use('/api/deal-package',   dealPackageRouter);
+app.use('/api/funding',        fundingRouter); // F17 — transactional funding marketplace
 
 // ─── Content + Social Routes (Features 28-33) ────────────────────────────────
 const socialConnectionsRouter = require('./routes/socialConnections');

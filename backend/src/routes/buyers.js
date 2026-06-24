@@ -144,7 +144,7 @@ router.post('/bulk', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['name','phone','email','buy_box_states','buy_box_types','max_price','min_price','property_cities','cash_only','proof_of_funds','repair_tolerance','is_active','notes','share_to_pool'];
+    const allowed = ['name','phone','email','buy_box_states','buy_box_types','max_price','min_price','property_cities','cash_only','proof_of_funds','proof_of_funds_verified','nca_signed','nca_signed_at','is_tire_kicker','repair_tolerance','is_active','notes','share_to_pool'];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     const { data, error } = await supabase.from('buyers').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
@@ -158,6 +158,50 @@ router.delete('/:id', async (req, res, next) => {
     const { error } = await supabase.from('buyers').delete().eq('id', req.params.id).eq('user_id', req.user.id);
     if (error) throw error;
     res.json({ success: true, message: 'Buyer deleted' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/buyers/:id/score — Feature 14: reliability score 0-100 + A/B/C/D tier.
+// Counts this operator's closed deals with the buyer (best-effort) and scores
+// proof-of-funds, NCA, buy box, and reachability. Read-only, never throws on a
+// missing column — degrades to whatever fields exist on the row.
+router.get('/:id/score', async (req, res, next) => {
+  try {
+    const { data: buyer, error } = await supabase.from('buyers')
+      .select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (error) throw error;
+    if (!buyer) return res.status(404).json({ success: false, error: 'Buyer not found' });
+
+    // Best-effort closed-deal count for this buyer; tolerate a missing buyer_id column.
+    let closedDeals = 0;
+    try {
+      const { count } = await supabase.from('deals')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id)
+        .eq('buyer_id', req.params.id)
+        .in('status', ['closed', 'closed_won', 'funded']);
+      closedDeals = count || 0;
+    } catch (_) { /* column may not exist yet — score without it */ }
+
+    const { calculateBuyerScore } = require('../services/buyerScoreService');
+    const result = calculateBuyerScore(buyer, { closedDeals });
+    res.json({ success: true, data: { buyer_id: req.params.id, ...result, closed_deals: closedDeals } });
+  } catch (err) { next(err); }
+});
+
+// GET /api/buyers/deal-view/:leadId — Feature 13/10: buyer-SAFE view of a lead.
+// Runs the lead through contactMasking so a buyer sees the deal (market, financials,
+// blurred address) but never the seller's raw phone, email, or exact street address.
+// Still operator-auth-gated — this is what the operator forwards, not a public link.
+router.get('/deal-view/:leadId', async (req, res, next) => {
+  try {
+    const { data: lead, error } = await supabase.from('leads')
+      .select('*').eq('id', req.params.leadId).eq('user_id', req.user.id).single();
+    if (error) throw error;
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+    const { maskLeadForBuyer } = require('../services/contactMasking');
+    res.json({ success: true, data: maskLeadForBuyer(lead) });
   } catch (err) { next(err); }
 });
 

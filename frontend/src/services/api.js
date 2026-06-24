@@ -210,6 +210,8 @@ export const operator = {
   addBankAccount:   (data)     => api.post('/api/operator/bank-accounts', data),
   deleteBankAccount:(id)       => api.delete(`/api/operator/bank-accounts/${id}`),
   generateScript:   (description) => api.post('/api/operator/generate-script', { description }),
+  // F11 — import an existing call script/workflow and distill reusable instructions.
+  extractScript:    (workflow)    => api.post('/api/operator/extract-script', { workflow }),
 }
 
 // ─── v2 voice library (ElevenLabs) ───────────────────────────────────────────
