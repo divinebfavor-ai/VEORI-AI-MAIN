@@ -151,7 +151,7 @@ async function getCallIntelligence({ lead, operator }) {
   const tag   = lead.primary_tag || 'absentee_owner';
   const state = lead.property_state;
 
-  const [profileRes, playbooksRes, patternsRes, anchorsRes, objectionsRes, lastCallRes] = await Promise.allSettled([
+  const [profileRes, playbooksRes, patternsRes, anchorsRes, objectionsRes, lastCallRes, outcomesRes] = await Promise.allSettled([
     // This seller's specific profile
     supabase.from('seller_profiles')
       .select('*')
@@ -198,6 +198,13 @@ async function getCallIntelligence({ lead, operator }) {
       .order('created_at', { ascending: false })
       .limit(1)
       .single(),
+
+    // Rule 3 (outcome learning): real closed/dead outcomes in THIS state, so Alex
+    // knows what's actually converting where this property is — not a guess.
+    supabase.from('deal_outcome_learning')
+      .select('outcome, days_to_outcome')
+      .eq('state', state)
+      .limit(200),
   ]);
 
   const sellerProfile = profileRes.value?.data || null;
@@ -206,6 +213,26 @@ async function getCallIntelligence({ lead, operator }) {
   const anchors       = anchorsRes.value?.data || [];
   const objectionData = objectionsRes.value?.data || [];
   const lastCall      = lastCallRes.value?.data || null;
+  const outcomeRows   = outcomesRes.value?.data || [];
+
+  // Rule 3 — same-state win rate from real terminal outcomes. Only surfaced with a
+  // meaningful sample (min 3 decided) so a single deal can't mislead the caller.
+  const isWonOutcome  = o => /clos|won|assigned|funded/i.test(o?.outcome || '');
+  const isLostOutcome = o => /fell|fail|dead|lost|cancel|withdraw/i.test(o?.outcome || '');
+  const wonCount      = outcomeRows.filter(isWonOutcome).length;
+  const lostCount     = outcomeRows.filter(isLostOutcome).length;
+  const decidedCount  = wonCount + lostCount;
+  const wonDaysArr    = outcomeRows.filter(o => isWonOutcome(o) && o.days_to_outcome != null)
+                                   .map(o => Number(o.days_to_outcome));
+  const stateLearning = decidedCount >= 3 ? {
+    state,
+    won:               wonCount,
+    decided:           decidedCount,
+    win_rate:          Math.round((wonCount / decidedCount) * 100),
+    avg_days_to_close: wonDaysArr.length
+      ? Math.round(wonDaysArr.reduce((s, d) => s + d, 0) / wonDaysArr.length)
+      : null,
+  } : null;
 
   // Build price intelligence
   const closedDeals  = anchors.filter(a => a.deal_closed && a.offer_made);
@@ -221,11 +248,11 @@ async function getCallIntelligence({ lead, operator }) {
     }, {});
   const topObjCategory = Object.entries(unresolvedObjs).sort((a,b)=>b[1]-a[1])[0]?.[0];
 
-  return { sellerProfile, playbooks, patterns, anchors, avgDiscount, topObjCategory, objectionData, lastCall };
+  return { sellerProfile, playbooks, patterns, anchors, avgDiscount, topObjCategory, objectionData, lastCall, stateLearning };
 }
 
 // ─── Format intelligence block for Alex's system prompt ──────────────────────
-function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns, avgDiscount, topObjCategory, lastCall, lead }) {
+function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns, avgDiscount, topObjCategory, lastCall, stateLearning, lead }) {
   const lines = [];
 
   lines.push('');
@@ -309,6 +336,21 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
     lines.push(`MARKET PRICE INTELLIGENCE (${lead.property_state || 'this market'}):`);
     lines.push(`- Deals for this lead type have closed at ~${avgDiscount}% below ARV`);
     lines.push(`- Use this to anchor your offer with confidence`);
+  }
+
+  // Rule 3 — what's ACTUALLY closing in this state (real terminal outcomes).
+  if (stateLearning) {
+    lines.push('');
+    lines.push(`WHAT'S ACTUALLY CLOSING IN ${stateLearning.state || 'THIS STATE'} (from ${stateLearning.decided} real outcomes):`);
+    lines.push(`- ${stateLearning.win_rate}% of decided deals here have closed (${stateLearning.won}/${stateLearning.decided})`);
+    if (stateLearning.avg_days_to_close != null) {
+      lines.push(`- Deals that close here average ${stateLearning.avg_days_to_close} days start-to-close`);
+    }
+    if (stateLearning.win_rate >= 50) {
+      lines.push('- This is a strong market for us — push with confidence, this is a winnable deal.');
+    } else {
+      lines.push('- Tougher market — qualify hard, lead with value, do not over-chase a weak fit.');
+    }
   }
 
   // What to watch for
