@@ -725,6 +725,26 @@ router.post('/:id/send-photo-request', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/leads/:id/imagery — Feature A: aerial + street-view imagery for the
+// property, derived from the lead's stored address. Owner-scoped. Returns null
+// URLs (available:false) when GOOGLE_MAPS_API_KEY is unset or the lead has no
+// address — never errors, never blocks the page.
+router.get('/:id/imagery', async (req, res, next) => {
+  try {
+    const { data: lead, error } = await supabase
+      .from('leads')
+      .select('id, property_address, property_city, property_state, property_zip')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (error) throw error;
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+    const { buildLeadImagery } = require('../services/propertyImageryService');
+    res.json({ success: true, imagery: buildLeadImagery(lead) });
+  } catch (err) { next(err); }
+});
+
 // GET /api/leads/:id/photos — list photos for a lead
 router.get('/:id/photos', async (req, res, next) => {
   try {

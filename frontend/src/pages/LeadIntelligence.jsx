@@ -17,7 +17,7 @@ const SENTIMENT_CONFIG = {
 }
 
 function authHeader() {
-  const token = localStorage.getItem('token') || localStorage.getItem('authToken') || ''
+  const token = localStorage.getItem('veori_token') || localStorage.getItem('token') || localStorage.getItem('authToken') || ''
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
@@ -67,6 +67,8 @@ export default function LeadIntelligence() {
   const [memory, setMemory]       = useState([])
   const [timeline, setTimeline]   = useState([])
   const [prob, setProb]           = useState(null)
+  const [imagery, setImagery]     = useState(null)   // Feature A — aerial + street view
+  const [photos, setPhotos]       = useState([])     // seller MMS / upload photos
   const [loading, setLoading]     = useState(false)
 
   // Fetch lead list
@@ -89,6 +91,12 @@ export default function LeadIntelligence() {
       setTimeline(sent.timeline || [])
       setProb(dp)
     }).catch(() => {}).finally(() => setLoading(false))
+
+    // Feature A — fetch property imagery + any seller photos (best-effort, never blocks)
+    fetch(`${API}/leads/${selectedLead}/imagery`, { headers: authHeader() })
+      .then(r => r.json()).then(d => setImagery(d.imagery || null)).catch(() => setImagery(null))
+    fetch(`${API}/leads/${selectedLead}/photos`, { headers: authHeader() })
+      .then(r => r.json()).then(d => setPhotos(d.photos || [])).catch(() => setPhotos([]))
   }, [selectedLead])
 
   const s = {
@@ -131,6 +139,59 @@ export default function LeadIntelligence() {
 
       {selectedLead && !loading && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+
+          {/* Feature A — Property Imagery (aerial + street view) + seller photos */}
+          <div style={{ ...s.card, gridColumn: '1 / -1' }}>
+            <div style={s.label}>Property Imagery</div>
+            {imagery?.available ? (
+              <>
+                {imagery.address && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 12 }}>{imagery.address}</div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+                  {imagery.satellite_url && (
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#00C37A', marginBottom: 6 }}>Aerial</div>
+                      <img src={imagery.satellite_url} alt="Aerial view of property"
+                        style={{ width: '100%', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)', display: 'block' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                    </div>
+                  )}
+                  {imagery.street_view_url && (
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#C9A84C', marginBottom: 6 }}>Street View</div>
+                      <img src={imagery.street_view_url} alt="Street view of property"
+                        style={{ width: '100%', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)', display: 'block' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>
+                {imagery && !imagery.address
+                  ? 'No property address on this lead yet — add one to see aerial & street view.'
+                  : 'Aerial & street-view imagery unavailable. (Configure GOOGLE_MAPS_API_KEY to enable.)'}
+              </div>
+            )}
+
+            {photos.length > 0 && (
+              <div style={{ marginTop: 18 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: 8 }}>
+                  Seller Photos ({photos.length})
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
+                  {photos.map((p) => (
+                    <a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer">
+                      <img src={p.url} alt={p.file_name || 'Seller photo'}
+                        style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.07)', display: 'block' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Deal Probability */}
           <div style={s.card}>
