@@ -234,6 +234,40 @@ export default function COOCommandCenter() {
             </div>
           )}
 
+          {/* What I've Learned — Rule 3 (outcome learning) made visible */}
+          {data.learning && (
+            <div style={{ ...s.card, border: '1px solid rgba(201,168,76,0.20)' }}>
+              <div style={s.eyebrow('#C9A84C')}>What I've Learned</div>
+              {data.learning.learned ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 14 }}>
+                    {[
+                      { label: 'Deals Closed', value: data.learning.won, color: '#00C37A' },
+                      { label: 'Deals Dead',   value: data.learning.lost, color: '#EF4444' },
+                      { label: 'Win Rate',     value: pct(data.learning.win_rate), color: '#C9A84C' },
+                      { label: 'Avg Days to Close', value: data.learning.avg_days_to_close ?? '—', color: '#fff' },
+                      {
+                        label: 'Strongest Market',
+                        value: data.learning.best_state ? data.learning.best_state.state : '—',
+                        sub: data.learning.best_state ? `${pct(data.learning.best_state.win_rate)} win` : null,
+                        color: '#00C37A',
+                      },
+                    ].map(item => (
+                      <div key={item.label} style={s.stat}>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: item.color, marginBottom: 4 }}>{item.value ?? '—'}</div>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', fontWeight: 600 }}>{item.label}</div>
+                        {item.sub && <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)', marginTop: 2 }}>{item.sub}</div>}
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, margin: 0 }}>{data.learning.summary}</p>
+                </>
+              ) : (
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: 0 }}>{data.learning.summary}</p>
+              )}
+            </div>
+          )}
+
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textAlign: 'center', marginTop: 4 }}>
             Generated {data.generated_at ? new Date(data.generated_at).toLocaleString() : ''} · derived from real pipeline data, no fabricated numbers
           </div>

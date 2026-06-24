@@ -68,6 +68,79 @@ function whatIsHappening({ leads, deals, callsToday, followUpsDue }) {
 }
 
 /**
+ * LEARNING SUMMARY (Rule 3, made visible) — aggregate the deal_outcome_learning
+ * history the engine already learns from, so the operator can SEE what the AI has
+ * picked up. This is read-only over real recorded outcomes.
+ *
+ * NEVER FABRICATES: with no history it returns { learned:false } and null metrics —
+ * no invented win-rates. Only counts rows whose outcome is unambiguously won/lost.
+ * Returns the best-performing state (highest close rate, min 3 samples) when known.
+ */
+function summarizeLearning(outcomes) {
+  const rows = Array.isArray(outcomes) ? outcomes : [];
+  const isWon  = o => /clos|won|assigned|funded/i.test(o?.outcome || '');
+  const isLost = o => /fell|fail|dead|lost|cancel|withdraw/i.test(o?.outcome || '');
+
+  const won  = rows.filter(isWon).length;
+  const lost = rows.filter(isLost).length;
+  const decided = won + lost;
+
+  if (decided === 0) {
+    return {
+      learned: false,
+      sample_size: rows.length,
+      won: 0, lost: 0,
+      win_rate: null,
+      avg_days_to_close: null,
+      best_state: null,
+      summary: 'No closed/dead deals recorded yet — the AI starts learning as deals reach an outcome.',
+    };
+  }
+
+  const winRate = Math.round((won / decided) * 100);
+
+  // Average days-to-close over WON deals that carry a days_to_outcome.
+  const wonDays = rows.filter(o => isWon(o) && o.days_to_outcome != null)
+                      .map(o => n(o.days_to_outcome));
+  const avgDays = wonDays.length
+    ? Math.round(wonDays.reduce((s, d) => s + d, 0) / wonDays.length)
+    : null;
+
+  // Best-performing state by close rate (min 3 decided samples → no noise).
+  const byState = new Map();
+  for (const o of rows) {
+    const st = (o.state || '').trim();
+    if (!st) continue;
+    const w = isWon(o) ? 1 : 0;
+    const l = isLost(o) ? 1 : 0;
+    if (!w && !l) continue;
+    const cur = byState.get(st) || { won: 0, decided: 0 };
+    cur.won += w; cur.decided += w + l;
+    byState.set(st, cur);
+  }
+  let bestState = null;
+  for (const [st, v] of byState) {
+    if (v.decided < 3) continue;
+    const rate = v.won / v.decided;
+    if (!bestState || rate > bestState.rate) {
+      bestState = { state: st, rate, win_rate: Math.round(rate * 100), won: v.won, decided: v.decided };
+    }
+  }
+
+  return {
+    learned: true,
+    sample_size: rows.length,
+    won, lost,
+    win_rate: winRate,
+    avg_days_to_close: avgDays,
+    best_state: bestState ? { state: bestState.state, win_rate: bestState.win_rate, won: bestState.won, decided: bestState.decided } : null,
+    summary: `Learned from ${decided} decided deals: ${won} closed / ${lost} dead (${winRate}% win rate)`
+           + (avgDays != null ? `, avg ${avgDays} days to close` : '')
+           + (bestState ? `. Strongest market: ${bestState.state} (${bestState.win_rate}%).` : '.'),
+  };
+}
+
+/**
  * ANSWER 4 (computed early — drives the others) — run the REAL predictor across
  * active leads and rank by expected value. This is the profit × close-probability
  * prioritization the rules demand. Each item carries the prediction's own
@@ -300,8 +373,11 @@ function buildBriefing(rows) {
     // A compact headline the dashboard can show at the top.
     headline: happening.summary,
     opportunities_count: opportunities.length,
+    // What the AI has LEARNED so far (Rule 3, made visible). Best-effort: null/false
+    // when there's no recorded outcome history yet — never a fabricated win-rate.
+    learning: summarizeLearning(outcomes),
     rules_applied: [
-      'rule1_no_fabrication', 'rule2_confidence_evidence',
+      'rule1_no_fabrication', 'rule2_confidence_evidence', 'rule3_outcome_learning',
       'rule5_prioritize_profit_x_close', 'rule6_auditable',
     ],
   };
