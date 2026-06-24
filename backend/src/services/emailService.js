@@ -1,5 +1,6 @@
 const { Resend } = require('resend');
 const supabase = require('../config/supabase');
+const { isEmailSuppressed } = require('./emailSuppression');
 
 // Lazy-init Resend — don't crash on boot if key is missing
 const RESEND_KEY = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
@@ -8,8 +9,28 @@ try {
   if (RESEND_KEY) resend = new Resend(RESEND_KEY);
 } catch (e) { /* key not set — email will simulate */ }
 
-async function sendEmail({ userId, leadId, dealId, to, subject, body, html: htmlParam, emailType }) {
+// Feature C — opt-in suppression check. Existing callers pass no unsubscribeUrl
+// and (unless explicitly suppressed) behave exactly as before. unsubscribeUrl,
+// when supplied, appends a CAN-SPAM footer + List-Unsubscribe header.
+async function sendEmail({ userId, leadId, dealId, to, subject, body, html: htmlParam, emailType, unsubscribeUrl }) {
   try {
+    // Suppression gate (fails open-safe — returns false if table/Supabase absent)
+    if (await isEmailSuppressed(userId, to)) {
+      console.log(`[Email] Suppressed (opted out) — not sending to ${to}: ${subject}`);
+      if (supabase && userId) {
+        await supabase.from('email_log').insert({
+          user_id: userId,
+          lead_id: leadId || null,
+          deal_id: dealId || null,
+          to_email: to,
+          subject,
+          body,
+          email_type: emailType || 'general',
+          status: 'suppressed',
+        }).then(() => {}, () => {}); // best-effort; ignore if 'suppressed' status unsupported
+      }
+      return { success: false, suppressed: true };
+    }
     // Look up operator's custom email settings (from_name, reply_to)
     let fromName = 'Alex at Veori';
     let replyTo  = null;
@@ -26,7 +47,14 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, html: html
     // Resend requires "from" to be a verified domain — keep domain but use operator's name
     const from = `${fromName} <${defaultFrom}>`;
     // Accept either html: or body: — html: takes precedence (used by welcome email, 2FA OTP)
-    const content = htmlParam || body || '';
+    let content = htmlParam || body || '';
+    // Feature C — CAN-SPAM footer. Only appended when caller supplies an
+    // unsubscribeUrl (cold drips do); transactional emails pass none → unchanged.
+    if (unsubscribeUrl) {
+      content += content.includes('<')
+        ? `<br><br><hr><p style="font-size:12px;color:#888">If you'd rather not receive these, <a href="${unsubscribeUrl}">unsubscribe here</a>.</p>`
+        : `\n\n—\nIf you'd rather not receive these, unsubscribe here: ${unsubscribeUrl}`;
+    }
     const html = content.includes('<') ? content : content.replace(/\n/g, '<br>');
     const text = content.replace(/<[^>]+>/g, '');
 
@@ -36,6 +64,13 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, html: html
     }
     const emailPayload = { from, to, subject, html, text };
     if (replyTo) emailPayload.reply_to = replyTo;
+    // One-click unsubscribe header (RFC 8058) — improves deliverability.
+    if (unsubscribeUrl) {
+      emailPayload.headers = {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      };
+    }
     const { data: info, error } = await resend.emails.send(emailPayload);
     if (error) throw new Error(error.message || JSON.stringify(error));
 
@@ -167,6 +202,32 @@ function thankYou({ firstName, address, assignmentFee, operatorName }) {
   };
 }
 
+// ─── Feature C — Cold Email Drip (3 touches) ─────────────────────────────────
+// A standalone nurture drip for leads where we only have an email. Plain-text,
+// short, CAN-SPAM compliant (every send carries an unsubscribe link via the
+// email_drip sequence). NEW — does not alter any template above.
+
+function coldDrip1({ firstName, address, operatorName, callbackNumber }) {
+  return {
+    subject: `Your property on ${address}`,
+    body: `Hey ${firstName || 'there'},\n\nI work with local buyers and your property on ${address} came across my desk. I'd like to make you a fair cash offer — no repairs, no agent fees, you pick the closing date.\n\nWould it be worth a quick conversation?\n\n${operatorName || 'Alex'}\n${callbackNumber || ''}`,
+  };
+}
+
+function coldDrip2({ firstName, address, operatorName }) {
+  return {
+    subject: `Re: ${address}`,
+    body: `Hey ${firstName || 'there'},\n\nFollowing up on my note about ${address}. A lot of owners I talk to are surprised what a cash buyer will pay when they don't have to fix anything up first.\n\nIf you're even a little curious what the number would be, just reply and I'll put one together — no obligation.\n\n${operatorName || 'Alex'}`,
+  };
+}
+
+function coldDrip3({ firstName, address, operatorName }) {
+  return {
+    subject: `Last note on ${address}`,
+    body: `Hey ${firstName || 'there'},\n\nI don't want to keep filling your inbox, so this is my last note. If the timing isn't right for ${address}, no problem at all.\n\nIf anything changes — even months from now — keep my email. I can usually close in a couple weeks when a seller's ready.\n\nWishing you the best,\n${operatorName || 'Alex'}`,
+  };
+}
+
 module.exports = {
   sendEmail,
   templates: {
@@ -180,5 +241,8 @@ module.exports = {
     thankYou,
     titleCompanyNotification,
     buyerAlert,
+    coldDrip1,
+    coldDrip2,
+    coldDrip3,
   },
 };

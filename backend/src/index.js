@@ -286,6 +286,10 @@ app.use('/api/privacy', privacyRouter);
 const photoUploadRouter = require('./routes/photoUpload');
 app.use('/api/photo-upload', photoUploadRouter);
 
+// ─── Email Opt-Out / Unsubscribe (public — no auth, Feature C) ────────────────
+const emailOptOutRouter = require('./routes/emailOptOut');
+app.use('/api/email', emailOptOutRouter);
+
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 const adminRouter = require('./routes/admin');
 app.use('/api/admin', adminRouter);

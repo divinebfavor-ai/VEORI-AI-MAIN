@@ -14,6 +14,7 @@ const SEQUENCE_TYPES = [
   { key: 'offer_considering',  label: 'Offer Consideration',     desc: 'Nurture leads reviewing your offer',       color: '#9B59B6', steps: 4 },
   { key: 'contract_sent',      label: 'Contract Follow-Up',      desc: 'Remind seller to sign the contract',       color: '#FF9500', steps: 3 },
   { key: 'closed',             label: 'Post-Close Nurture',      desc: 'Stay top-of-mind for referrals',           color: '#00C37A', steps: 4 },
+  { key: 'email_drip',         label: 'Cold Email Drip',         desc: 'Email-only nurture for leads (with unsubscribe)', color: '#1ABC9C', steps: 3 },
 ]
 
 const STATUS_META = {

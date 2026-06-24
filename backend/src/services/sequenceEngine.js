@@ -2,6 +2,13 @@ const supabase = require('../config/supabase');
 const emailService = require('./emailService');
 const { sendSMSDirect, escalateToCall } = require('./smsService');
 const { isWithinTcpaWindow, msUntilNextWindow } = require('./tcpaWindow');
+const { mintOptOutToken } = require('./emailSuppression');
+
+// Public API base for one-click unsubscribe links (Railway injects this in prod).
+const PUBLIC_API_BASE =
+  process.env.PUBLIC_API_BASE ||
+  (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
+  '';
 
 const SEQUENCE_DEFINITIONS = {
   not_interested: [
@@ -33,6 +40,13 @@ const SEQUENCE_DEFINITIONS = {
     { day: 30,  action: 'sms',    message: 'Hi {firstName}, hope the move went smoothly! If you or anyone you know ever needs a quick cash offer, please think of us.' },
     { day: 90,  action: 'email',  template: 'marketUpdate' },
     { day: 180, action: 'sms',    message: 'Hi {firstName}, this is {aiName}. Hope all is well! We are always buying in your area — if you know anyone looking for a quick cash sale, we would love the referral.' },
+  ],
+  // Feature C — pure-email cold drip (3 touches). optOut:true → each send carries
+  // a one-click unsubscribe link + CAN-SPAM footer. Email-only; no SMS/call steps.
+  email_drip: [
+    { day: 0,  action: 'email', template: 'coldDrip1', optOut: true },
+    { day: 4,  action: 'email', template: 'coldDrip2', optOut: true },
+    { day: 9,  action: 'email', template: 'coldDrip3', optOut: true },
   ],
 };
 
@@ -111,9 +125,22 @@ async function executeSequenceStep(seq) {
         address: vars.address,
         operatorName: vars.aiName,
         companyName: vars.company,
+        callbackNumber: user?.phone || user?.callback_number || '',
         offerAmount: lead?.offer_price,
         expiryDate: new Date(Date.now() + 14 * 86400000).toLocaleDateString(),
       });
+
+      // Feature C — for opt-out drips, mint a one-click unsubscribe link.
+      let unsubscribeUrl;
+      if (step.optOut && PUBLIC_API_BASE) {
+        const token = await mintOptOutToken({
+          userId: seq.user_id,
+          email: lead.email,
+          leadId: seq.lead_id,
+        });
+        if (token) unsubscribeUrl = `${PUBLIC_API_BASE}/api/email/unsubscribe/${token}`;
+      }
+
       await emailService.sendEmail({
         userId: seq.user_id,
         leadId: seq.lead_id,
@@ -121,6 +148,7 @@ async function executeSequenceStep(seq) {
         subject,
         body,
         emailType: step.template,
+        unsubscribeUrl,
       });
     }
   } else if (step.action === 'sms') {
