@@ -74,8 +74,16 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, html: html
     const { data: info, error } = await resend.emails.send(emailPayload);
     if (error) throw new Error(error.message || JSON.stringify(error));
 
+    // Resend returns the provider message id under `id` (current SDK) or
+    // `messageId` (older). Persist it so the webhook can correlate engagement
+    // events (delivered/opened/clicked/bounced) back to this exact send row.
+    const messageId = info?.id || info?.messageId || null;
+
     // Log to database
     if (supabase && userId) {
+      // message_id is a NEW nullable column (2026-06-27 migration). Try WITH it
+      // first; if the column doesn't exist yet (pre-migration), retry WITHOUT it
+      // so send-logging never regresses.
       await supabase.from('email_log').insert({
         user_id: userId,
         lead_id: leadId || null,
@@ -85,10 +93,24 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, html: html
         body,
         email_type: emailType || 'general',
         status: 'sent',
-      });
+        message_id: messageId,
+      }).then(({ error: logErr }) => {
+        if (logErr) {
+          return supabase.from('email_log').insert({
+            user_id: userId,
+            lead_id: leadId || null,
+            deal_id: dealId || null,
+            to_email: to,
+            subject,
+            body,
+            email_type: emailType || 'general',
+            status: 'sent',
+          });
+        }
+      }, () => {});
     }
 
-    return { success: true, messageId: info.messageId };
+    return { success: true, messageId };
   } catch (err) {
     console.error('Email send error:', err.message);
     // Log failure

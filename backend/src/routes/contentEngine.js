@@ -253,15 +253,31 @@ router.post('/email-blast', async (req, res) => {
 
     // Send via email service
     let sentCount = 0;
+    let suppressedCount = 0;
     try {
       const emailService = require('../services/emailService');
+      const { buildUnsubscribeUrl } = require('../services/emailSuppression');
       for (const r of recipients) {
         if (!r.email) continue;
-        await emailService.sendEmail({
+        // Per-recipient one-click unsubscribe (CAN-SPAM). Null if no public base
+        // is configured — sendEmail then omits the footer/header, but suppression
+        // + logging below still apply because we pass userId.
+        const unsubscribeUrl = await buildUnsubscribeUrl({
+          userId: req.user.id,
+          email:  r.email,
+        });
+        // CRITICAL FIX: pass userId so the suppression gate + email_log both fire.
+        // Previously the blast omitted userId, which silently bypassed every
+        // unsubscribe AND wrote no log row (a CAN-SPAM exposure on bulk sends).
+        const result = await emailService.sendEmail({
+          userId:  req.user.id,
           to:      r.email,
           subject,
           html:    body_html.replace(/\{\{name\}\}/g, r.name || 'Investor'),
+          emailType: 'email_blast',
+          unsubscribeUrl,
         });
+        if (result && result.suppressed) { suppressedCount++; continue; }
         sentCount++;
       }
 
@@ -275,7 +291,7 @@ router.post('/email-blast', async (req, res) => {
       await supabase.from('email_blasts').update({ status: 'failed' }).eq('id', blast.id);
     }
 
-    res.json({ success: true, blast: { ...blast, sent_count: sentCount }, recipients_found: recipients.length });
+    res.json({ success: true, blast: { ...blast, sent_count: sentCount }, suppressed_count: suppressedCount, recipients_found: recipients.length });
   } catch (err) {
     console.error('[Content] email-blast error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to send email blast' });

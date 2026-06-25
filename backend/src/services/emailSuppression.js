@@ -17,6 +17,28 @@
 const crypto   = require('crypto');
 const supabase = require('../config/supabase');
 
+// Resolve the public base URL for one-click unsubscribe links. Single source of
+// truth so the drip AND the buyer blast build identical links. Railway injects
+// RAILWAY_PUBLIC_DOMAIN; PUBLIC_API_BASE overrides. Returns '' if neither set.
+function publicApiBase() {
+  return (
+    process.env.PUBLIC_API_BASE ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
+    ''
+  );
+}
+
+// Mint a token AND return the full unsubscribe URL in one step. Returns null if
+// no public base is configured OR the token couldn't be minted, so callers can
+// decide whether to send. Used by every CAN-SPAM send path.
+async function buildUnsubscribeUrl({ userId, email, leadId = null }) {
+  const base = publicApiBase();
+  if (!base) return null;
+  const token = await mintOptOutToken({ userId, email, leadId });
+  if (!token) return null;
+  return `${base}/api/email/unsubscribe/${token}`;
+}
+
 // Is (userId, email) on the operator's do-not-email list?
 // Returns false on any error so the migration being unrun never blocks sends.
 async function isEmailSuppressed(userId, email) {
@@ -98,10 +120,36 @@ async function markTokenUsed(token) {
   } catch (_e) { /* best-effort */ }
 }
 
+// Auto-suppress on a deliverability event (hard bounce / spam complaint).
+// Called by the Resend webhook. Mirrors suppressEmail but stamps the precise
+// reason so list hygiene + complaint-rate (must stay <0.3%) are protected.
+// Fail-safe: any error is swallowed; a missing migration never crashes the hook.
+async function autoSuppressOnEvent({ userId, email, leadId = null, reason }) {
+  if (!supabase || !userId || !email) return { success: false };
+  const allowed = new Set(['bounce', 'complaint']);
+  const r = allowed.has(reason) ? reason : 'bounce';
+  try {
+    const { error } = await supabase
+      .from('email_suppressions')
+      .upsert(
+        { user_id: userId, email: String(email).trim(), lead_id: leadId, reason: r },
+        { onConflict: 'user_id,email' }
+      );
+    if (error) throw error;
+    return { success: true };
+  } catch (e) {
+    console.error('[emailSuppression] auto-suppress error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 module.exports = {
   isEmailSuppressed,
   suppressEmail,
   mintOptOutToken,
   resolveOptOutToken,
   markTokenUsed,
+  autoSuppressOnEvent,
+  publicApiBase,
+  buildUnsubscribeUrl,
 };
