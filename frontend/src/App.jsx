@@ -157,7 +157,7 @@ export default function App() {
         {/* ── Advanced Acquisition (Features 13-21) ────────────────────── */}
         <Route path="/smart-list" element={<SmartList />} />
         <Route path="/lead-engine" element={<LeadEngine />} />
-        <Route path="/dfd" element={<Navigate to="/virtual-dfd" replace />} />
+        <Route path="/dfd" element={<DrivingForDollars />} />
         <Route path="/call-analytics" element={<CallAnalyticsDashboard />} />
         <Route path="/caller-reputation" element={<CallerReputation />} />
         <Route path="/rehab-estimator" element={<RehabEstimator />} />

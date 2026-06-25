@@ -27,7 +27,7 @@ const CONDITIONS = ['vacant', 'distressed', 'good', 'unknown']
 
 const API = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
 function authHeader() {
-  const t = localStorage.getItem('token') || localStorage.getItem('authToken') || ''
+  const t = localStorage.getItem('veori_token') || localStorage.getItem('token') || localStorage.getItem('authToken') || ''
   return t ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
 }
 

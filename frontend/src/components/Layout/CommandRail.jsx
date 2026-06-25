@@ -35,6 +35,7 @@ const NAV = [
   { to: '/aria',             icon: MessageSquare,   label: 'Aria AI' },
   // ── Acquisition ───────────────────────────────────────────────────────────
   { to: '/virtual-dfd',      icon: Map,             label: 'AI Driving for Dollars' },
+  { to: '/dfd',              icon: Car,             label: 'Driving for Dollars' },
   { to: '/direct-mail',      icon: Mail,            label: 'Direct Mail' },
   // ── Disposition ───────────────────────────────────────────────────────────
   { to: '/listings',         icon: Home,            label: 'Listings' },
