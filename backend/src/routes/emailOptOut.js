@@ -89,6 +89,8 @@ router.get('/unsubscribe/:token', async (req, res) => {
 // if it's unset we still accept (so the feature works before the secret is wired)
 // but log a warning — set the secret in Railway to lock it down.
 
+const crypto = require('crypto');
+
 const RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET || '';
 
 // Maps a Resend event type → the email_log column to stamp.
@@ -100,15 +102,64 @@ const EVENT_COLUMN = {
   'email.complained': 'complained_at',
 };
 
-router.post('/webhook', express.json({ type: '*/*' }), async (req, res) => {
+// Capture the raw request bytes alongside the parsed JSON. The Svix/HMAC
+// signature is computed over the EXACT raw payload, so a re-serialized
+// JSON.stringify(req.body) would not match. Scoped to this route's middleware
+// only — does not affect any other route's body parsing.
+const captureRaw = express.json({
+  type: '*/*',
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+});
+
+// Full Svix-scheme HMAC-SHA256 verification (the scheme Resend uses).
+//   signedContent = `${svix-id}.${svix-timestamp}.${rawBody}`
+//   secret        = base64-decode of the part after the "whsec_" prefix
+//   expected      = base64( HMAC-SHA256(secret, signedContent) )
+// The svix-signature header is a space-separated list of "v1,<sig>" entries;
+// a match on ANY entry passes. Uses a constant-time compare. Returns true only
+// on a verified match; false otherwise.
+function verifyResendSignature(req) {
   try {
-    // Optional signature gate (Resend signs with svix-style headers). We do a
-    // lightweight presence/secret check — full HMAC verification can be layered
-    // later without changing this contract.
+    const id        = req.headers['svix-id'];
+    const timestamp = req.headers['svix-timestamp'];
+    const sigHeader = req.headers['svix-signature'] || req.headers['resend-signature'] || '';
+    if (!id || !timestamp || !sigHeader || !req.rawBody) return false;
+
+    const secret = RESEND_WEBHOOK_SECRET.startsWith('whsec_')
+      ? RESEND_WEBHOOK_SECRET.slice(6)
+      : RESEND_WEBHOOK_SECRET;
+    const key = Buffer.from(secret, 'base64');
+
+    const signedContent = `${id}.${timestamp}.${req.rawBody.toString('utf8')}`;
+    const expected = crypto.createHmac('sha256', key).update(signedContent).digest('base64');
+    const expectedBuf = Buffer.from(expected);
+
+    // Header looks like "v1,<sig> v1,<sig2>" — compare against each candidate.
+    for (const part of String(sigHeader).split(' ')) {
+      const comma = part.indexOf(',');
+      const candidate = comma === -1 ? part : part.slice(comma + 1);
+      if (!candidate) continue;
+      const candBuf = Buffer.from(candidate);
+      if (candBuf.length === expectedBuf.length &&
+          crypto.timingSafeEqual(candBuf, expectedBuf)) {
+        return true;
+      }
+    }
+    return false;
+  } catch (_e) {
+    return false;
+  }
+}
+
+router.post('/webhook', captureRaw, async (req, res) => {
+  try {
+    // Signature gate. When RESEND_WEBHOOK_SECRET is set, require a cryptographically
+    // valid Svix/HMAC signature — reject anything that doesn't verify. When the
+    // secret is unset, accept unverified events (so the feature works before the
+    // secret is wired) but log a warning. Set the secret in Railway to lock down.
     if (RESEND_WEBHOOK_SECRET) {
-      const sig = req.headers['svix-signature'] || req.headers['resend-signature'] || '';
-      if (!sig) {
-        console.warn('[ResendWebhook] missing signature header — rejecting');
+      if (!verifyResendSignature(req)) {
+        console.warn('[ResendWebhook] signature verification failed — rejecting');
         return res.status(401).json({ ok: false });
       }
     } else {
