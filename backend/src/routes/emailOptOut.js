@@ -274,7 +274,7 @@ router.get('/analytics', requireAuth, async (req, res) => {
       .from('email_log')
       .select('email_type, status, delivered_at, opened_at, clicked_at, bounced_at, complained_at, open_count')
       .eq('user_id', uid)
-      .gte('created_at', since)
+      .gte('sent_at', since)
       .limit(5000);
 
     if (error || !Array.isArray(rows)) return res.json({ ...empty, range_days: days });
