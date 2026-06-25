@@ -4,6 +4,8 @@ const { sendSMSDirect, escalateToCall } = require('./smsService');
 const { isWithinTcpaWindow, msUntilNextWindow } = require('./tcpaWindow');
 const { mintOptOutToken } = require('./emailSuppression');
 const { dropVoicemail } = require('./voicemailService');
+const { spin } = require('./emailSpintax');           // Tier 2a — per-recipient variation
+const { chooseSubject } = require('./emailSubjectAB'); // Tier 2b — A/B subject rotation
 
 // Public API base for one-click unsubscribe links (Railway injects this in prod).
 const PUBLIC_API_BASE =
@@ -129,7 +131,7 @@ async function executeSequenceStep(seq) {
   if (step.action === 'email' && lead?.email && step.template) {
     const templateFn = emailService.templates[step.template];
     if (templateFn) {
-      const { subject, body } = templateFn({
+      const rendered = templateFn({
         firstName: vars.firstName,
         address: vars.address,
         operatorName: vars.aiName,
@@ -138,6 +140,29 @@ async function executeSequenceStep(seq) {
         offerAmount: lead?.offer_price,
         expiryDate: new Date(Date.now() + 14 * 86400000).toLocaleDateString(),
       });
+
+      // Tier 2a/2b — stable per-recipient seed so a lead's subject + body copy is
+      // identical across retries/re-logs (no wording drift) yet differs lead-to-
+      // lead (anti-fingerprinting). lead id preferred; email is the fallback.
+      const seed = lead?.id || lead?.email || seq.lead_id || '';
+
+      // 2b: pick an A/B subject variant. Falls back to the template's own subject
+      // (variant 'A') for any template without a registered bank — zero change.
+      const { subject: abSubject, variant } = chooseSubject(
+        step.template, vars, seed, rendered.subject
+      );
+
+      // 2a: spin {a|b|c} groups in BOTH subject and body with that seed. Strings
+      // without spintax groups pass through byte-for-byte unchanged.
+      const subject = spin(abSubject, seed);
+      const body = spin(rendered.body, seed);
+
+      // Record which subject variant was used by suffixing emailType, so the
+      // Tier 1 engagement columns (opened_at/open_count) already attribute opens
+      // per variant in email_log — no extra column required.
+      const emailType = variant && variant !== 'A'
+        ? `${step.template}:${variant}`
+        : step.template;
 
       // Feature C — for opt-out drips, mint a one-click unsubscribe link.
       let unsubscribeUrl;
@@ -156,7 +181,7 @@ async function executeSequenceStep(seq) {
         to: lead.email,
         subject,
         body,
-        emailType: step.template,
+        emailType,
         unsubscribeUrl,
       });
     }

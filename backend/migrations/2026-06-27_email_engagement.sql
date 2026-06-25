@@ -15,6 +15,23 @@
 --   3. Indexes message_id for fast webhook lookups.
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- 0. Self-heal: create email_log if it was never applied to this database
+--    (some Supabase projects never ran the root schema.sql). IF NOT EXISTS → an
+--    existing table is left byte-for-byte untouched.
+CREATE TABLE IF NOT EXISTS email_log (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid,
+  lead_id    uuid,
+  deal_id    uuid,
+  to_email   text NOT NULL,
+  subject    text NOT NULL,
+  body       text,
+  email_type text,
+  sent_at    timestamptz DEFAULT now(),
+  status     text DEFAULT 'sent',
+  error      text
+);
+
 -- 1 + 2. Engagement columns on the existing send log. IF NOT EXISTS → safe to
 --        re-run; never drops or rewrites an existing column.
 ALTER TABLE email_log ADD COLUMN IF NOT EXISTS message_id   text;

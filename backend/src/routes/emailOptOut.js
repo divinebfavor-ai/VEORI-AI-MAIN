@@ -19,6 +19,7 @@ const {
   markTokenUsed,
   autoSuppressOnEvent,
 } = require('../services/emailSuppression');
+const { handleInboundReply } = require('../services/emailReplyStop');
 
 const router = express.Router();
 
@@ -165,6 +166,63 @@ router.post('/webhook', express.json({ type: '*/*' }), async (req, res) => {
   } catch (err) {
     // Never 500 a provider webhook — that triggers retry storms. Log + ack.
     console.error('[ResendWebhook] error:', err.message);
+    return res.json({ ok: true, error: 'handled' });
+  }
+});
+
+// ─── Inbound reply → auto-stop the drip ─────────────────────────────────────
+//
+//   POST /api/email/inbound   — Resend Inbound (or any mailbox forwarder) posts a
+//                               received reply here. When a lead emails back, we
+//                               stop their active cold-email drip (a human is now
+//                               in the loop). Public: provider posts server-to-
+//                               server. Optional shared-secret gate below.
+//
+// What it does:
+//   • Pulls the sender ("from") out of the inbound payload (several provider
+//     shapes supported) and an optional operator id, then cancels that lead's
+//     ACTIVE email sequences via emailReplyStop.handleInboundReply.
+//
+// SAFETY: fail-open. Any DB/parse error returns 200 (so the forwarder doesn't
+// retry-storm) and never throws. Only flips sequences active→cancelled — never
+// touches the send path, leads, or email_log. A no-match is a clean no-op.
+
+const EMAIL_INBOUND_SECRET = process.env.EMAIL_INBOUND_SECRET || '';
+
+router.post('/inbound', express.json({ type: '*/*' }), async (req, res) => {
+  try {
+    // Optional shared-secret gate (set EMAIL_INBOUND_SECRET in Railway to lock it
+    // down). Accepts the secret via header or ?key= so any forwarder can pass it.
+    if (EMAIL_INBOUND_SECRET) {
+      const provided =
+        req.headers['x-inbound-secret'] || req.query.key || '';
+      if (provided !== EMAIL_INBOUND_SECRET) {
+        console.warn('[EmailInbound] bad/missing secret — rejecting');
+        return res.status(401).json({ ok: false });
+      }
+    }
+
+    const body = req.body || {};
+    const data = body.data || body; // Resend nests under data; forwarders post flat.
+
+    // Sender address across common provider shapes (Resend inbound, SendGrid
+    // parse, generic forwarders). Recipient may be array/string.
+    const fromRaw =
+      data.from ||
+      data.sender ||
+      data.From ||
+      (data.envelope && data.envelope.from) ||
+      (Array.isArray(data.from) ? data.from[0] : null) ||
+      null;
+
+    // Operator hint, if the forwarder supplies one (optional — service falls back
+    // to an unscoped lookup when absent).
+    const userId = body.user_id || data.user_id || req.query.user_id || null;
+
+    const result = await handleInboundReply({ fromRaw, userId });
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[EmailInbound] error:', err.message);
     return res.json({ ok: true, error: 'handled' });
   }
 });
