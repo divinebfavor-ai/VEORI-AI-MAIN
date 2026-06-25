@@ -3,6 +3,7 @@ const emailService = require('./emailService');
 const { sendSMSDirect, escalateToCall } = require('./smsService');
 const { isWithinTcpaWindow, msUntilNextWindow } = require('./tcpaWindow');
 const { mintOptOutToken } = require('./emailSuppression');
+const { dropVoicemail } = require('./voicemailService');
 
 // Public API base for one-click unsubscribe links (Railway injects this in prod).
 const PUBLIC_API_BASE =
@@ -47,6 +48,14 @@ const SEQUENCE_DEFINITIONS = {
     { day: 0,  action: 'email', template: 'coldDrip1', optOut: true },
     { day: 4,  action: 'email', template: 'coldDrip2', optOut: true },
     { day: 9,  action: 'email', template: 'coldDrip3', optOut: true },
+  ],
+  // Feature B — ringless voicemail nurture (3 touches). Each step delegates to
+  // voicemailService.dropVoicemail (federal + internal DNC + phone-rotation gated)
+  // and the rvm dispatch defers off-hours to stay inside the TCPA window.
+  voicemail_touch: [
+    { day: 0,  action: 'rvm', template: 'first_contact' },
+    { day: 5,  action: 'rvm', template: 'follow_up' },
+    { day: 12, action: 'rvm', template: 'last_attempt' },
   ],
 };
 
@@ -185,6 +194,27 @@ async function executeSequenceStep(seq) {
     // writes the calls row, and triggers the Vapi outbound. It self-logs + catches.
     if (lead?.phone) {
       await escalateToCall(lead, seq.user_id);
+    }
+  } else if (step.action === 'rvm') {
+    // Ringless voicemail drop (Feature B). Delegates to voicemailService.dropVoicemail,
+    // which owns the federal-DNC + internal-DNC + phone-rotation gates. Here we add the
+    // SAME TCPA defer behavior the SMS branch uses, so an automated drip touch lands
+    // in-window (8 AM–9 PM local) rather than being skipped. Fail-safe: never sends off-hours.
+    if (lead?.phone) {
+      if (!isWithinTcpaWindow(lead.property_state)) {
+        const delay = msUntilNextWindow(lead.property_state);
+        const deferUntil = new Date(Date.now() + delay).toISOString();
+        await supabase.from('sequences').update({
+          next_action_at: deferUntil,
+          updated_at: new Date().toISOString(),
+        }).eq('id', seq.id);
+        console.log(`[SEQUENCE RVM] deferred lead ${seq.lead_id} to ${deferUntil} (TCPA)`);
+        return; // do NOT advance — retry cleanly in-window
+      }
+      const templateKey = step.template || 'first_contact';
+      await dropVoicemail({ lead, operator: user || {}, templateKey })
+        .catch((e) => console.error(`[SEQUENCE RVM] drop failed for lead ${seq.lead_id}:`, e.message));
+      console.log(`[SEQUENCE RVM] dropped to lead ${seq.lead_id} (step ${seq.current_step})`);
     }
   }
 

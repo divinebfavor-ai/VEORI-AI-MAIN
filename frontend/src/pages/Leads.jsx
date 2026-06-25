@@ -271,7 +271,16 @@ function LeadPanel({ lead, onClose, onNavigate }) {
     try {
       const r = await leads.dropVoicemail(lead.id, 'first_contact')
       const d = r.data?.data || r.data
-      toast.success(d?.simulated ? 'Voicemail queued' : 'Voicemail drop initiated')
+      if (d?.skipped) {
+        const why = d.reason === 'dnc' || d.reason === 'federal_dnc'
+          ? 'Number is on the DNC list'
+          : d.reason === 'tcpa_quiet_hours'
+            ? 'Outside calling hours (8 AM–9 PM local) — try again in-window'
+            : 'Voicemail not sent'
+        toast.error(why)
+      } else {
+        toast.success(d?.simulated ? 'Voicemail queued' : 'Voicemail drop initiated')
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Voicemail drop failed')
     } finally { setDropping(false) }

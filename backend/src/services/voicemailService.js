@@ -13,6 +13,7 @@
 const axios = require('axios');
 const supabase = require('../config/supabase');
 const phoneRotation = require('./phoneRotation');
+const { isWithinTcpaWindow } = require('./tcpaWindow');
 
 const VAPI_API_KEY = process.env.VAPI_API_KEY;
 const VAPI_BASE    = process.env.VAPI_BASE_URL || 'https://api.vapi.ai';
@@ -72,6 +73,31 @@ async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact
     }
   } catch (e) {
     console.warn('[RVM][TCPA] Federal DNC check skipped:', e.message);
+  }
+
+  // Internal DNC list (authoritative `dnc_records` table) — hard stop. The route
+  // already checks lead.is_on_dnc, but a number can land on dnc_records without
+  // the lead flag being set (mirrors the SMS path in smsService/sequenceEngine).
+  // Fail-safe: any DB error here does NOT block the drop (the FTC + lead.is_on_dnc
+  // checks already gate it); a confirmed hit DOES block.
+  try {
+    const { data: dncHit } = await supabase
+      .from('dnc_records').select('id').eq('phone', lead.phone).maybeSingle();
+    if (dncHit) {
+      console.log(`[RVM] Internal DNC hit — skipping voicemail drop to ${lead.phone}`);
+      return { skipped: true, reason: 'dnc' };
+    }
+  } catch (e) {
+    console.warn('[RVM] Internal DNC check skipped:', e.message);
+  }
+
+  // TCPA quiet-hours — NEVER drop a voicemail outside 8 AM–9 PM in the lead's
+  // local time. Mirrors the sequence-engine SMS gate. Fail-safe: we only send
+  // when we can CONFIRM we're inside the window; a drop is skipped (not deferred)
+  // here since this is a manual/one-shot action — the caller can retry in-window.
+  if (!isWithinTcpaWindow(lead.property_state)) {
+    console.log(`[RVM] Outside TCPA window for state ${lead.property_state || '?'} — skipping drop to ${lead.phone}`);
+    return { skipped: true, reason: 'tcpa_quiet_hours' };
   }
 
   const aiName     = operator.ai_caller_name || 'Alex';
