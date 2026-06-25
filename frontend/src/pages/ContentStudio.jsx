@@ -33,6 +33,10 @@ export default function ContentStudio() {
   const [sending, setSending]           = useState(false)
   const [blastResult, setBlastResult]   = useState(null)
   const [calendar, setCalendar]         = useState([])
+  // Tier 4 — cold-email analytics (opens/clicks/replies + winning subject variant)
+  const [emailStats, setEmailStats]     = useState(null)
+  const [statsDays, setStatsDays]       = useState(30)
+  const [statsLoading, setStatsLoading] = useState(false)
 
   function load() {
     setLoading(true)
@@ -50,6 +54,21 @@ export default function ContentStudio() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Tier 4 — fetch email analytics. Lazy: only loads when the Email Stats tab is
+  // opened (or its range changes), so the page's initial load stays untouched.
+  function loadEmailStats(days) {
+    setStatsLoading(true)
+    fetch(`${API}/email/analytics?days=${days}`, { headers: authHeader() })
+      .then(r => r.json())
+      .then(d => setEmailStats(d || null))
+      .catch(() => setEmailStats(null))
+      .finally(() => setStatsLoading(false))
+  }
+  useEffect(() => {
+    if (tab === 'email-stats') loadEmailStats(statsDays)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, statsDays])
 
   async function connectPlatform(platform) {
     try {
@@ -123,9 +142,9 @@ export default function ContentStudio() {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {['captions','email-blast','calendar','library'].map(t => (
+        {['captions','email-blast','email-stats','calendar','library'].map(t => (
           <button key={t} style={s.tab(tab === t)} onClick={() => setTab(t)}>
-            {t === 'captions' ? '✍️ AI Captions' : t === 'email-blast' ? '📧 Email Blast' : t === 'calendar' ? '📅 Calendar' : '📁 Library'}
+            {t === 'captions' ? '✍️ AI Captions' : t === 'email-blast' ? '📧 Email Blast' : t === 'email-stats' ? '📊 Email Stats' : t === 'calendar' ? '📅 Calendar' : '📁 Library'}
           </button>
         ))}
       </div>
@@ -255,6 +274,86 @@ export default function ContentStudio() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Email Stats (Tier 4) */}
+      {!loading && tab === 'email-stats' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.45)' }}>COLD-EMAIL PERFORMANCE</div>
+            <div style={{ flex: 1 }} />
+            {[7, 30, 90].map(d => (
+              <button key={d} onClick={() => setStatsDays(d)}
+                style={{ ...s.tab(statsDays === d), padding: '6px 12px' }}>
+                {d}d
+              </button>
+            ))}
+          </div>
+
+          {statsLoading && <div style={{ textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.45)' }}>Loading…</div>}
+
+          {!statsLoading && emailStats && (emailStats.totals?.sent || 0) === 0 && (
+            <div style={{ ...s.card, textAlign: 'center', padding: 48, color: 'rgba(255,255,255,0.35)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+              <div>No cold emails sent in this window yet. Once your drips send, opens, clicks and the winning subject line show up here.</div>
+            </div>
+          )}
+
+          {!statsLoading && emailStats && (emailStats.totals?.sent || 0) > 0 && (
+            <>
+              {/* Funnel KPI cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+                {[
+                  { label: 'Sent',       value: emailStats.totals.sent,        sub: null,                         color: '#FFFFFF' },
+                  { label: 'Delivered',  value: `${emailStats.rates.delivered}%`, sub: `${emailStats.totals.delivered}`, color: '#00C37A' },
+                  { label: 'Open rate',  value: `${emailStats.rates.open}%`,    sub: `${emailStats.totals.opened} opens`,  color: '#00C37A' },
+                  { label: 'Click rate', value: `${emailStats.rates.click}%`,   sub: `${emailStats.totals.clicked} clicks`, color: '#C9A84C' },
+                  { label: 'Bounce',     value: `${emailStats.rates.bounce}%`,  sub: `${emailStats.totals.bounced}`,   color: emailStats.rates.bounce > 2 ? '#FF5C5C' : 'rgba(255,255,255,0.75)' },
+                  { label: 'Complaints', value: `${emailStats.rates.complaint}%`, sub: `${emailStats.totals.complained}`, color: emailStats.rates.complaint > 0.3 ? '#FF5C5C' : 'rgba(255,255,255,0.75)' },
+                  { label: 'Unsubscribed', value: emailStats.totals.suppressed, sub: 'opted out',                   color: 'rgba(255,255,255,0.55)' },
+                ].map(k => (
+                  <div key={k.label} style={s.card}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{k.label}</div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: k.color, marginTop: 6 }}>{k.value}</div>
+                    {k.sub && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{k.sub}</div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Deliverability guard note */}
+              {(emailStats.rates.bounce > 2 || emailStats.rates.complaint > 0.3) && (
+                <div style={{ background: 'rgba(255,92,92,0.08)', border: '1px solid rgba(255,92,92,0.25)', borderRadius: 10, padding: '12px 16px', fontSize: 12, color: '#FF9C9C' }}>
+                  ⚠️ {emailStats.rates.complaint > 0.3 ? `Spam-complaint rate (${emailStats.rates.complaint}%) is above the 0.3% Gmail/Yahoo ceiling. ` : ''}
+                  {emailStats.rates.bounce > 2 ? `Bounce rate (${emailStats.rates.bounce}%) is above the 2% safe threshold. ` : ''}
+                  Slow your send volume and verify list quality to protect domain reputation.
+                </div>
+              )}
+
+              {/* Winning subject variants */}
+              <div style={s.card}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: '#00C37A' }}>WINNING SUBJECT LINES (A/B)</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>Open rate per subject variant. Winner needs ≥5 sends to qualify.</div>
+                {(!emailStats.variants || emailStats.variants.length === 0) ? (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>No A/B drip data yet in this window.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {emailStats.variants.map(v => (
+                      <div key={`${v.template}-${v.variant}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: v.winner ? 'rgba(0,195,122,0.08)' : 'rgba(255,255,255,0.03)', border: v.winner ? '1px solid rgba(0,195,122,0.3)' : '1px solid transparent', borderRadius: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#C9A84C', minWidth: 90 }}>{v.template}</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.8)', minWidth: 24 }}>{v.variant}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>{v.open_rate}% open · {v.click_rate}% click</div>
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{v.sent} sent · {v.opened} opened</div>
+                        </div>
+                        {v.winner && <span style={{ fontSize: 11, fontWeight: 800, color: '#00C37A', background: 'rgba(0,195,122,0.15)', padding: '3px 10px', borderRadius: 6 }}>🏆 WINNER</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 

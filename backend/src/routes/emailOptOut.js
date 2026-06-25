@@ -20,6 +20,7 @@ const {
   autoSuppressOnEvent,
 } = require('../services/emailSuppression');
 const { handleInboundReply } = require('../services/emailReplyStop');
+const { requireAuth } = require('../middleware/auth'); // Tier 4 — authed analytics
 
 const router = express.Router();
 
@@ -224,6 +225,123 @@ router.post('/inbound', express.json({ type: '*/*' }), async (req, res) => {
   } catch (err) {
     console.error('[EmailInbound] error:', err.message);
     return res.json({ ok: true, error: 'handled' });
+  }
+});
+
+// ─── Tier 4 — Email analytics (authed) ──────────────────────────────────────
+//
+//   GET /api/email/analytics?days=30   — per-operator email performance.
+//
+// Reads ONLY email_log (existing + Tier 1 engagement columns). Computes funnel
+// rates (sent → delivered → opened → clicked), suppression/bounce/complaint
+// counts, and — using the Tier 2b variant suffix on email_type (e.g.
+// "coldDrip1:B") — the WINNING subject variant per drip template by open rate.
+//
+// SAFETY: read-only, operator-scoped (user_id = req.user.id). Fail-soft: any
+// query/parse error returns a zeroed payload rather than 500, so the dashboard
+// card never breaks. No writes, no new tables.
+
+// Split an email_type into its base template + variant letter.
+//   "coldDrip1:B" → { base: 'coldDrip1', variant: 'B' }
+//   "coldDrip1"   → { base: 'coldDrip1', variant: 'A' }
+function splitVariant(emailType) {
+  const t = String(emailType || 'general');
+  const i = t.indexOf(':');
+  if (i === -1) return { base: t, variant: 'A' };
+  return { base: t.slice(0, i), variant: t.slice(i + 1) || 'A' };
+}
+
+function pct(n, d) {
+  if (!d) return 0;
+  return Math.round((n / d) * 1000) / 10; // one decimal place
+}
+
+router.get('/analytics', requireAuth, async (req, res) => {
+  const empty = {
+    range_days: 0,
+    totals: { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, suppressed: 0 },
+    rates: { delivered: 0, open: 0, click: 0, bounce: 0, complaint: 0 },
+    variants: [],
+  };
+  try {
+    if (!supabase) return res.json(empty);
+    const uid = req.user.id;
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+
+    // Pull the operator's recent log rows (capped) with just the columns we need.
+    const { data: rows, error } = await supabase
+      .from('email_log')
+      .select('email_type, status, delivered_at, opened_at, clicked_at, bounced_at, complained_at, open_count')
+      .eq('user_id', uid)
+      .gte('created_at', since)
+      .limit(5000);
+
+    if (error || !Array.isArray(rows)) return res.json({ ...empty, range_days: days });
+
+    const totals = { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, suppressed: 0 };
+    // variant aggregation keyed by "base|variant"
+    const vmap = new Map();
+
+    for (const r of rows) {
+      const status = r.status || '';
+      if (status === 'suppressed') { totals.suppressed += 1; continue; }
+      if (status !== 'sent') continue; // throttled/failed don't count toward funnel
+
+      totals.sent += 1;
+      const delivered = !!r.delivered_at;
+      const opened    = !!r.opened_at || (r.open_count || 0) > 0;
+      const clicked   = !!r.clicked_at;
+      if (delivered) totals.delivered += 1;
+      if (opened)    totals.opened    += 1;
+      if (clicked)   totals.clicked   += 1;
+      if (r.bounced_at)    totals.bounced    += 1;
+      if (r.complained_at) totals.complained += 1;
+
+      const { base, variant } = splitVariant(r.email_type);
+      const key = `${base}|${variant}`;
+      const v = vmap.get(key) || { template: base, variant, sent: 0, opened: 0, clicked: 0 };
+      v.sent += 1;
+      if (opened)  v.opened  += 1;
+      if (clicked) v.clicked += 1;
+      vmap.set(key, v);
+    }
+
+    // Build variant rows with open rate, sorted by template then open rate desc,
+    // and flag the winner (highest open rate, min 5 sends) per template.
+    const variants = Array.from(vmap.values()).map((v) => ({
+      ...v,
+      open_rate: pct(v.opened, v.sent),
+      click_rate: pct(v.clicked, v.sent),
+    }));
+    const bestByTemplate = new Map();
+    for (const v of variants) {
+      if (v.sent < 5) continue; // not enough signal to crown a winner
+      const cur = bestByTemplate.get(v.template);
+      if (!cur || v.open_rate > cur.open_rate) bestByTemplate.set(v.template, v);
+    }
+    for (const v of variants) {
+      v.winner = bestByTemplate.get(v.template) === v;
+    }
+    variants.sort((a, b) =>
+      a.template === b.template ? b.open_rate - a.open_rate : a.template.localeCompare(b.template)
+    );
+
+    return res.json({
+      range_days: days,
+      totals,
+      rates: {
+        delivered: pct(totals.delivered, totals.sent),
+        open:      pct(totals.opened,    totals.sent),
+        click:     pct(totals.clicked,   totals.sent),
+        bounce:    pct(totals.bounced,   totals.sent),
+        complaint: pct(totals.complained, totals.sent),
+      },
+      variants,
+    });
+  } catch (err) {
+    console.error('[EmailAnalytics] error:', err.message);
+    return res.json(empty);
   }
 });
 

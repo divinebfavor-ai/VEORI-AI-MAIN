@@ -1,6 +1,8 @@
 const { Resend } = require('resend');
 const supabase = require('../config/supabase');
 const { isEmailSuppressed } = require('./emailSuppression');
+const { canSendCold } = require('./emailSendGuard');          // Tier 3a — daily caps + warmup ramp
+const { chooseFromAddress } = require('./emailFromRotation');  // Tier 3b — multi-domain from rotation
 
 // Lazy-init Resend — don't crash on boot if key is missing
 const RESEND_KEY = process.env.SMTP_PASS || process.env.RESEND_API_KEY;
@@ -31,6 +33,30 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, html: html
       }
       return { success: false, suppressed: true };
     }
+
+    // Tier 3a — daily send cap + warmup ramp. COLD/MARKETING ONLY: canSendCold
+    // returns allowed:true for any non-throttleable (transactional) type, so 2FA/
+    // welcome/contract mail is never gated. Fail-open: a guard fault → allowed.
+    // When over cap we log a 'throttled' row (so the drip retries cleanly next day
+    // without double-counting) and return without sending.
+    const gate = await canSendCold(userId, emailType);
+    if (!gate.allowed) {
+      console.log(`[Email] Throttled (cap ${gate.cap}, sent ${gate.sentToday} today) — deferring ${to}: ${subject}`);
+      if (supabase && userId) {
+        await supabase.from('email_log').insert({
+          user_id: userId,
+          lead_id: leadId || null,
+          deal_id: dealId || null,
+          to_email: to,
+          subject,
+          body,
+          email_type: emailType || 'general',
+          status: 'throttled',
+        }).then(() => {}, () => {}); // best-effort; ignore if 'throttled' status unsupported
+      }
+      return { success: false, throttled: true, cap: gate.cap, sentToday: gate.sentToday };
+    }
+
     // Look up operator's custom email settings (from_name, reply_to)
     let fromName = 'Alex at Veori';
     let replyTo  = null;
@@ -44,8 +70,13 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, html: html
       }
     }
     const defaultFrom = process.env.EMAIL_FROM || 'alex@veori.net';
+    // Tier 3b — rotate the sending address across a verified pool (EMAIL_FROM_POOL).
+    // Deterministic per recipient (seed = leadId || to) so a lead always gets the
+    // SAME sender across their whole drip — never mid-thread sender swaps. Returns
+    // defaultFrom unchanged when the pool env is unset → zero behavior change.
+    const fromAddress = chooseFromAddress(leadId || to, defaultFrom);
     // Resend requires "from" to be a verified domain — keep domain but use operator's name
-    const from = `${fromName} <${defaultFrom}>`;
+    const from = `${fromName} <${fromAddress}>`;
     // Accept either html: or body: — html: takes precedence (used by welcome email, 2FA OTP)
     let content = htmlParam || body || '';
     // Feature C — CAN-SPAM footer. Only appended when caller supplies an

@@ -193,6 +193,12 @@ export const analytics = {
   getRevenue:      () => api.get('/api/analytics/revenue'),
 }
 
+// ─── Email analytics (Tier 4) ─────────────────────────────────────────────────
+// Per-operator cold-email performance: funnel rates + winning subject variant.
+export const email = {
+  getAnalytics: (days) => api.get('/api/email/analytics', { params: { days } }),
+}
+
 // ─── AI ──────────────────────────────────────────────────────────────────────
 export const ai = {
   sendAssistantMessage: (message, history) => api.post('/api/vapi/assistant', { message, history }),
