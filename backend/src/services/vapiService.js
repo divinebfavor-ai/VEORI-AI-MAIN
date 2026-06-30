@@ -1,5 +1,10 @@
 const axios = require('axios');
 const { getCallIntelligence, buildAccumulatedIntelligenceBlock, getBuyerIntelligence, buildBuyerIntelBlock } = require('./dataMotService');
+// Veteran "read" + negotiation "chess" layers (pure, additive — no I/O, never throw).
+// Imported defensively so a missing file can never break the call path.
+let readDeal, buildNegotiationBlock;
+try { ({ readDeal } = require('./dealIntelligence')); } catch (_e) { readDeal = null; }
+try { ({ buildNegotiationBlock } = require('./negotiationPlaybook')); } catch (_e) { buildNegotiationBlock = null; }
 
 const VAPI_API_KEY = process.env.VAPI_API_KEY;
 const VAPI_BASE    = process.env.VAPI_BASE_URL || 'https://api.vapi.ai';
@@ -108,6 +113,7 @@ const STRATEGY_PLAYBOOK = {
       `"What if you stop paying?" → "We put it in writing, and you can require proof of payment. We're in the business of keeping these current — a missed payment hurts us too."`,
     ],
     closeLine: `"If we take over the payments, catch up what's behind, and put a little cash in your hand at closing — would getting out from under this be a relief?"`,
+    marketReality: `DUE-ON-SALE REALITY: almost every mortgage has a due-on-sale clause — the lender CAN call the loan if title transfers. In practice lenders rarely call a performing, current loan (they want the payments), but NEVER tell a seller it's impossible or "not a real risk." If they raise it, be honest: "It's in the contract, it's uncommon when payments stay current, and we keep it current precisely so it stays a non-issue." HIGH-RATE EDGE: a low locked-in rate (sub-5%) is the prize here — that cheap debt is exactly why sub-to beats a new loan today; if their rate is high, sub-to is weaker and cash/novation may fit better. NEVER advise them to hide the transfer from the lender or skip insurance — keep it clean and disclosed.`,
   },
   seller_finance: {
     label: 'SELLER FINANCE (owner carries the note)',
@@ -124,6 +130,7 @@ const STRATEGY_PLAYBOOK = {
       `"What if you stop paying me?" → "The property secures the note — if we ever default, it comes back to you, and you keep everything paid so far."`,
     ],
     closeLine: `"If I gave you a solid down payment and a reliable monthly check at a fair rate — and a higher overall price than any cash buyer — would you be open to carrying it for me?"`,
+    marketReality: `EQUITY/LIEN REALITY: seller-finance only works cleanly when the seller can actually carry — i.e. they own free-and-clear or have a loan small enough to pay off at closing. If there's still a sizable mortgage, the underlying loan has its OWN due-on-sale exposure (that's sub-to territory, not true owner-carry) — don't conflate them. HIGH-RATE EDGE: this is the strategy's moment — when bank rates are high, an owner-carried note at a fair-but-below-bank rate is a genuine win for BOTH sides (seller beats CD/savings yield, buyer beats the bank). TAX ANGLE IS REAL BUT NOT ADVICE: spreading gain over an installment sale is a legitimate benefit — mention it as a reason to consider, but always defer the specifics to their CPA; never give tax or legal advice as fact.`,
   },
   lease_option: {
     label: 'LEASE-OPTION (control now, buy later)',
@@ -140,6 +147,7 @@ const STRATEGY_PLAYBOOK = {
       `"What if you don't buy at the end?" → "You keep the non-refundable option fee and the property — you're never worse off than today."`,
     ],
     closeLine: `"If I take the landlord headaches off your plate, send you a steady monthly check, and lock a fair price to buy it down the road — is that worth a conversation?"`,
+    marketReality: `STRUCTURE REALITY: keep the LEASE and the OPTION as understandable, separate pieces — rent is rent, the option fee buys the right to purchase at a set price by a set date. Some states scrutinize lease-options that look like disguised sales (equitable-interest / disguised financing); never structure it to dodge a foreclosure or transfer-tax — keep it a clean, plainly-worded agreement. EQUITY TRAP TO AVOID: don't lock an option price so high the deal can't profitably exercise, or so low the seller feels robbed later — a fair, defensible future price keeps the relationship clean. The seller stays on title, so their insurance/tax obligations continue; make sure that's clearly understood, not glossed over.`,
   },
   novation: {
     label: 'NOVATION (re-paper the deal, resell near retail)',
@@ -156,6 +164,7 @@ const STRATEGY_PLAYBOOK = {
       `"How do I know you'll actually close?" → "We put it in writing with a real contract and timeline. You keep the home and your price is protected until we perform."`,
     ],
     closeLine: `"So if I can get you right around [their number] and handle all the marketing and the sale myself, is that something you'd put under contract this week?"`,
+    marketReality: `SPREAD REALITY: novation only works when the locked acquisition price + light reno + agent commission + closing STILL leaves room under true retail. If their ask already meets or beats retail, or the home needs heavy (not cosmetic) work, the spread evaporates — that's the walk, don't paper a deal you can't profitably resell. DISCLOSURE: a novation re-papers the original contract so YOU control the resale — be transparent with the seller about what you're doing; never imply you're the end buyer at their price if you intend to assign/resell. The seller keeps title until you perform, which protects them — say so plainly. This is the right play in a STRONG retail market where buyers are paying near-list; in a soft market the resale risk rises, so price the acquisition more conservatively.`,
   },
 };
 
@@ -192,7 +201,9 @@ ASK THESE (work them in naturally, don't interrogate):
 ${play.discovery.map(q => `- ${q}`).join('\n')}
 
 HOW TO FRAME THE OFFER: ${play.offerFraming}
-${Array.isArray(play.objections) && play.objections.length ? `
+${play.marketReality ? `
+MARKET & LEGAL REALITY (know this cold — it's what separates a pro from an amateur):
+${play.marketReality}` : ''}${Array.isArray(play.objections) && play.objections.length ? `
 HANDLE THESE PUSHBACKS (reframe, don't argue):
 ${play.objections.map(o => `- ${o}`).join('\n')}` : ''}${play.closeLine ? `
 
@@ -220,6 +231,64 @@ PRIMARY STRATEGY: ${labelOf(primary)}  |  FALLBACK: ${labelOf(fallback)}
 Lead with the PRIMARY way of buying. If the seller pushes back hard or clearly
 wants something else, pivot to the FALLBACK — and if neither lands, a clean cash
 offer is always acceptable. Never force a structure on a seller who won't have it.`;
+}
+
+// ─── Veteran read + negotiation chess (additive) ──────────────────────────────
+// Renders the "10,000-deal veteran" layer on top of the strategy overlay: the
+// seller psychology read (motivation + leverage), the go/no-go deal grade, and the
+// per-strategy negotiation playbook keyed to the leverage posture. This is what
+// makes the AI think like a closer who's seen everything — not just read a script.
+//
+// FULLY DEFENSIVE: if either helper module failed to load (try/catch at require
+// time left them null), this returns '' and the prompt is exactly what it was
+// before. Cash/wholesale is fully supported (readDeal grades every lead; the
+// negotiation block has a real `cash` entry), so the default flow is ENRICHED,
+// never broken. Never throws — any unexpected shape degrades to ''.
+function buildVeteranReadBlock(lead = {}) {
+  if (typeof readDeal !== 'function') return '';
+  let read;
+  try { read = readDeal(lead); } catch (_e) { return ''; }
+  if (!read || !read.deal || !read.motivation || !read.leverage) return '';
+
+  const { motivation: mot, leverage: lev, deal } = read;
+  const driverLines = Array.isArray(mot.drivers) && mot.drivers.length
+    ? mot.drivers.map(d => `- ${d}`).join('\n')
+    : '- No strong distress signals on file — treat as an explorer until they tell you otherwise.';
+  const whyLines = Array.isArray(deal.why) && deal.why.length
+    ? deal.why.map(w => `- ${w}`).join('\n')
+    : '';
+  const factorLines = Array.isArray(lev.factors) && lev.factors.length
+    ? lev.factors.map(f => `- ${f}`).join('\n')
+    : '';
+
+  const readBlock = `
+══════════════════════════════════════════════════════
+VETERAN READ — size up this seller BEFORE you dial in
+══════════════════════════════════════════════════════
+This is the read a 10,000-deal closer makes on sight. Use it to choose your tone,
+your angle, and how hard to push — but let what the seller ACTUALLY says override
+any assumption here. Never recite this to them; it's your internal read only.
+
+DEAL GRADE: ${deal.grade} (${deal.score}/100). ${deal.verdict}${whyLines ? `
+WHY:
+${whyLines}` : ''}
+
+SELLER MOTIVATION: ${String(mot.level).toUpperCase()} (${mot.score}/100). Lead with the angle that fits what's really driving them:
+${driverLines}
+
+LEVERAGE: ${String(lev.posture).toUpperCase()}-SIDE.${factorLines ? `
+${factorLines}` : ''}
+${lev.guidance}`;
+
+  // Negotiation chess, keyed to the resolved strategy + the leverage posture.
+  let negBlock = '';
+  if (typeof buildNegotiationBlock === 'function') {
+    try {
+      negBlock = buildNegotiationBlock(resolveStrategy(lead), lev.posture) || '';
+    } catch (_e) { negBlock = ''; }
+  }
+
+  return `${readBlock}\n${negBlock}`;
 }
 
 // ─── Per-strategy offer math ──────────────────────────────────────────────────
@@ -624,6 +693,7 @@ This is the most specific layer and wins on conflict with the operator/campaign 
 ` : ''}
 ${buildStrategyLine(lead)}
 ${buildStrategyBlock(lead)}
+${buildVeteranReadBlock(lead)}
 ${buildTagIntelligenceBlock(lead)}`;
 }
 
@@ -1737,4 +1807,5 @@ module.exports = {
   STRATEGY_PLAYBOOK,
   resolveStrategy,
   buildStrategyBlock,
+  buildVeteranReadBlock,
 };
