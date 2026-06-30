@@ -17,6 +17,8 @@ router.post('/:id/start', auth, async (req, res, next) => {
   try {
     const result = await smsFirst.start(req.params.id, req.user.id, {
       blastCount: req.body?.blast_count,   // 1× / 2× / 3× non-responder cadence (optional; defaults to 1×)
+      templateId: req.body?.template_id,   // saved sms_templates row to blast with (optional; falls back to campaign col, then built-in copy)
+      customBody: req.body?.custom_body,   // raw operator copy for this blast (optional; takes precedence over templateId)
     });
     res.json({ success: true, data: result });
   } catch (err) {

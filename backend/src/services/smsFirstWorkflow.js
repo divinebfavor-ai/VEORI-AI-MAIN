@@ -48,7 +48,18 @@ function isWithinSMSHours(state) {
 }
 
 // ─── SMS templates by lead type ───────────────────────────────────────────────
-function buildSMSBody(lead, operatorName) {
+// `customTemplate` (optional) — an operator-authored template body with {tokens}.
+// When provided, it REPLACES the built-in per-tag copy: we render its placeholders
+// for this lead and return that. When omitted/empty (every existing caller), behavior
+// is byte-for-byte the original built-in template selection below — zero regression.
+function buildSMSBody(lead, operatorName, customTemplate = null) {
+  if (customTemplate && String(customTemplate).trim()) {
+    try {
+      const { renderTemplate } = require('./customSmsService');
+      return renderTemplate(customTemplate, lead, operatorName);
+    } catch (_) { /* fall through to built-in copy on any render failure */ }
+  }
+
   const first    = lead.first_name  || 'there';
   const street   = (lead.property_address || '').split(',')[0] || 'your property';
   const city     = lead.property_city    || 'your area';
@@ -120,14 +131,14 @@ async function buildLeadQueue(campaignId, userId, filter = {}) {
 //   • Redis absent   → fall back to the original inline 200ms loop so a single-box /
 //     no-Redis deploy still works exactly as before.
 // SMS-hours compliance + buildSMSBody are applied in BOTH paths.
-async function sendSMSBatch(campaignId, userId, leads, operatorName) {
+async function sendSMSBatch(campaignId, userId, leads, operatorName, customBody = null) {
   return queueService.REDIS_AVAILABLE
-    ? enqueueSMSBatch(campaignId, userId, leads, operatorName)
-    : inlineSMSBatch(campaignId, userId, leads, operatorName);
+    ? enqueueSMSBatch(campaignId, userId, leads, operatorName, customBody)
+    : inlineSMSBatch(campaignId, userId, leads, operatorName, customBody);
 }
 
 // Heavy-scale path: create a 'queued' row + enqueue a job per eligible lead.
-async function enqueueSMSBatch(campaignId, userId, leads, operatorName) {
+async function enqueueSMSBatch(campaignId, userId, leads, operatorName, customBody = null) {
   let queued = 0;
 
   for (const lead of leads) {
@@ -140,7 +151,7 @@ async function enqueueSMSBatch(campaignId, userId, leads, operatorName) {
       ? 0
       : msUntilNextWindow(lead.property_state);
 
-    const body = buildSMSBody(lead, operatorName);
+    const body = buildSMSBody(lead, operatorName, customBody);
     const rowId = uuidv4();
 
     // Create the tracking row up front in 'queued' (or 'deferred_quiet_hours' if
@@ -198,7 +209,7 @@ async function enqueueSMSBatch(campaignId, userId, leads, operatorName) {
 }
 
 // Fallback path (no Redis): the original synchronous send loop, unchanged.
-async function inlineSMSBatch(campaignId, userId, leads, operatorName) {
+async function inlineSMSBatch(campaignId, userId, leads, operatorName, customBody = null) {
   let sent = 0;
 
   for (const lead of leads) {
@@ -210,7 +221,7 @@ async function inlineSMSBatch(campaignId, userId, leads, operatorName) {
       continue;
     }
 
-    const body = buildSMSBody(lead, operatorName);
+    const body = buildSMSBody(lead, operatorName, customBody);
 
     // sendReply handles DNC gate, Telnyx send, and sms_messages logging
     const msgId = await sendReply(lead.phone, body, userId, lead.id);
@@ -339,9 +350,9 @@ async function monitorReplies(campaignId, userId) {
 
         if (touchCount < blastCount && sinceTouch >= BLAST_INTERVAL_MS) {
           // Re-send the opener as the next touch. Reuse buildSMSBody so the copy is
-          // identical to the initial blast; sendReply applies the DNC gate + logs to
-          // sms_messages exactly like the first send.
-          const body  = buildSMSBody(lead, session.operatorName);
+          // identical to the initial blast (custom template included); sendReply
+          // applies the DNC gate + logs to sms_messages exactly like the first send.
+          const body  = buildSMSBody(lead, session.operatorName, session.customBody);
 
           // Respect TCPA quiet-hours — if it's off-hours in the lead's state, skip
           // this tick and try again on the next 2-min poll (no touch consumed).
@@ -549,6 +560,32 @@ async function start(campaignId, userId, options = {}) {
     options.blastCount ?? campaign.sms_blast_count ?? 1,
   );
 
+  // Optional operator-authored custom SMS copy for THIS blast. Resolution order:
+  //   1. options.customBody — raw text passed straight in by the caller, or
+  //   2. options.templateId / campaign.custom_sms_template_id — a saved, already-
+  //      moderated sms_templates row owned by this operator.
+  // Null = no custom template → every send path falls back to the built-in per-tag
+  // copy (byte-for-byte today's behavior). The body is rendered per-lead at send
+  // time via buildSMSBody's customTemplate arg, so {tokens} personalize per lead.
+  let customBody = options.customBody || null;
+  if (!customBody) {
+    const templateId = options.templateId || campaign.custom_sms_template_id || null;
+    if (templateId) {
+      const { data: tpl } = await supabase
+        .from('sms_templates')
+        .select('body, is_active, moderation_status')
+        .eq('id', templateId)
+        .eq('user_id', userId)            // operator can only use their OWN templates
+        .single();
+      // Only use a template that is this operator's, active, and guard-approved.
+      if (tpl && tpl.is_active !== false && tpl.moderation_status !== 'rejected') {
+        customBody = tpl.body || null;
+      } else {
+        console.warn(`[SMSFirst] template ${templateId} not usable (missing/inactive/rejected) — using built-in copy`);
+      }
+    }
+  }
+
   await supabase.from('campaigns').update({
     sms_first_mode:   true,
     sms_first_status: 'sending',
@@ -579,6 +616,7 @@ async function start(campaignId, userId, options = {}) {
     campaign,
     operatorName,
     blastCount,                 // 1× / 2× / 3× — total touches a non-responder gets
+    customBody,                 // operator custom SMS copy for this blast (null = built-in)
     replyCount:       0,
     callCount:        0,
     callQueue:        [],
@@ -589,7 +627,7 @@ async function start(campaignId, userId, options = {}) {
   activeSessions.set(campaignId, session);
 
   // Send SMS batch (async — don't block the API response)
-  sendSMSBatch(campaignId, userId, leads, operatorName).catch(err =>
+  sendSMSBatch(campaignId, userId, leads, operatorName, customBody).catch(err =>
     console.error('[SMSFirst] SMS batch error:', err.message)
   );
 

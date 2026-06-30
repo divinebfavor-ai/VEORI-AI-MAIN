@@ -45,6 +45,7 @@ const waitlistRouter         = require('./routes/waitlist');
 const notificationsRouter    = require('./routes/notifications');
 const smsRouter              = require('./routes/sms');
 const smsFirstRouter         = require('./routes/smsFirst');
+const smsTemplatesRouter     = require('./routes/smsTemplates');
 const wealthRouter           = require('./routes/wealth');
 const billingRouter          = require('./routes/billing');
 const feedbackRouter         = require('./routes/feedback');
@@ -204,6 +205,7 @@ app.use('/api/waitlist',        waitlistRouter);
 app.use('/api/notifications',   notificationsRouter);
 app.use('/api/sms',             smsRouter);
 app.use('/api/sms-first',       smsFirstRouter);
+app.use('/api/sms-templates',   smsTemplatesRouter);
 app.use('/api/v2/voices',       v2VoicesRouter); // Twilio+ElevenLabs voice layer (parallel to Vapi)
 app.use('/api/v2/voice',        v2VoiceRouter);  // Twilio voice webhooks: twiml/status/recording
 app.use('/api/wealth',          wealthRouter);
