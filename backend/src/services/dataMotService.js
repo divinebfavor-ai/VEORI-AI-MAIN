@@ -570,6 +570,117 @@ function buildDealContextBlock(deal) {
   return lines.length > 2 ? lines.join('\n') : '';
 }
 
+// ─── E — OPERATOR TRACK-RECORD ADAPTATION ────────────────────────────────────
+// Everything above remembers the MARKET (sellers, buyers, tags, the deal). This
+// one remembers the OPERATOR running Veori — and makes the AI call the way THIS
+// operator's best calls already go. Until now every operator's AI behaved
+// identically; a closer with a 30% appointment rate and a brand-new user got the
+// exact same prompt. This reads the operator's OWN history — their real win rate
+// from `calls`, the seller personality they convert best, and their typical
+// agreed-price discount + assignment fee from `deals` — and feeds it back so the
+// AI leans into what's working for them. ONLY verified columns are read: `calls`
+// (user_id, outcome, seller_personality, created_at) and `deals` (user_id,
+// status, seller_agreed_price, arv, assignment_fee). Read-only, two scoped
+// reads, non-blocking: any failure / a brand-new operator returns null and the
+// call behaves byte-for-byte as it did before. Needs a real sample before it
+// says anything (MIN_CALLS) so a single lucky/unlucky call never skews the AI.
+const OPERATOR_MIN_CALLS = 10; // don't characterize an operator on thin data
+const OPERATOR_WIN_OUTCOMES = ['verbal_yes', 'appointment', 'offer_made'];
+
+async function getOperatorTrackRecord(userId) {
+  if (!supabase || !userId) return null;
+  try {
+    // Last 500 of the operator's own calls + deals — enough to see a pattern,
+    // bounded so a heavy user's read stays cheap.
+    const [callsRes, dealsRes] = await Promise.allSettled([
+      supabase
+        .from('calls')
+        .select('outcome, seller_personality, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(500),
+      supabase
+        .from('deals')
+        .select('status, seller_agreed_price, arv, assignment_fee')
+        .eq('user_id', userId)
+        .limit(500),
+    ]);
+
+    const calls = callsRes.status === 'fulfilled' ? (callsRes.value.data || []) : [];
+    const deals = dealsRes.status === 'fulfilled' ? (dealsRes.value.data || []) : [];
+
+    const decided = calls.filter(c => c.outcome); // ignore in-flight/unlabeled rows
+    if (decided.length < OPERATOR_MIN_CALLS) return null; // too thin to characterize
+
+    // Win rate = share of decided calls that hit a motivated outcome.
+    const wins = decided.filter(c => OPERATOR_WIN_OUTCOMES.includes(c.outcome));
+    const winRate = Math.round((wins.length / decided.length) * 100);
+
+    // Which seller personality this operator converts best (only counts wins that
+    // actually recorded a personality). Needs ≥2 wins of a type to be a "pattern".
+    const personalityWins = {};
+    for (const w of wins) {
+      const p = w.seller_personality;
+      if (!p) continue;
+      personalityWins[p] = (personalityWins[p] || 0) + 1;
+    }
+    let bestPersonality = null;
+    let bestPersonalityCount = 0;
+    for (const [p, n] of Object.entries(personalityWins)) {
+      if (n > bestPersonalityCount) { bestPersonality = p; bestPersonalityCount = n; }
+    }
+    if (bestPersonalityCount < 2) bestPersonality = null;
+
+    // Deal economics: typical agreed-price-as-%-of-ARV and average assignment fee,
+    // from deals that carry the relevant numbers. Null when no deal has them yet.
+    const pricedDeals = deals.filter(d => d.seller_agreed_price > 0 && d.arv > 0);
+    let avgDiscountPct = null;
+    if (pricedDeals.length) {
+      const ratios = pricedDeals.map(d => d.seller_agreed_price / d.arv);
+      const avgRatio = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+      avgDiscountPct = Math.round((1 - avgRatio) * 100); // e.g. agreed 70% of ARV → 30
+    }
+
+    const feeDeals = deals.filter(d => d.assignment_fee > 0);
+    let avgAssignmentFee = null;
+    if (feeDeals.length) {
+      avgAssignmentFee = Math.round(
+        feeDeals.reduce((a, d) => a + Number(d.assignment_fee), 0) / feeDeals.length
+      );
+    }
+
+    return {
+      sampleSize: decided.length,
+      winRate,
+      bestPersonality,
+      bestPersonalityCount,
+      avgDiscountPct,
+      avgAssignmentFee,
+    };
+  } catch (e) {
+    return null; // brand-new operator / read failure — AI behaves as before
+  }
+}
+
+// Format the operator's track record into a short prompt block. Returns '' when
+// there's no usable record so a new operator's AI runs the byte-for-byte original
+// prompt. Kept tight — this rides on top of the full call prompt.
+function buildOperatorTrackRecordBlock(track) {
+  if (!track) return '';
+  const lines = ['', "HOW THIS OPERATOR'S BEST CALLS GO (lean into what's working for them):"];
+  lines.push(`- Their AI converts ${track.winRate}% of calls to a yes/appointment/offer (over ${track.sampleSize} calls) — match that energy.`);
+  if (track.bestPersonality) {
+    lines.push(`- They close "${track.bestPersonality}" sellers best — when you read this personality, press toward the close.`);
+  }
+  if (track.avgDiscountPct != null) {
+    lines.push(`- Their deals typically land around ${track.avgDiscountPct}% below ARV — that's a realistic anchor for this operator's market.`);
+  }
+  if (track.avgAssignmentFee != null) {
+    lines.push(`- Their typical spread is about $${Number(track.avgAssignmentFee).toLocaleString()} — leave room for it; don't over-offer.`);
+  }
+  return lines.length > 2 ? lines.join('\n') : '';
+}
+
 module.exports = {
   recordCallIntelligence,
   recordWinningPlaybook,
@@ -582,4 +693,6 @@ module.exports = {
   recordBuyerDealOutcome,
   getDealContext,
   buildDealContextBlock,
+  getOperatorTrackRecord,
+  buildOperatorTrackRecordBlock,
 };

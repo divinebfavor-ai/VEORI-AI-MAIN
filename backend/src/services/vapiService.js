@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { getCallIntelligence, buildAccumulatedIntelligenceBlock, getBuyerIntelligence, buildBuyerIntelBlock, getDealContext, buildDealContextBlock } = require('./dataMotService');
+const { getCallIntelligence, buildAccumulatedIntelligenceBlock, getBuyerIntelligence, buildBuyerIntelBlock, getDealContext, buildDealContextBlock, getOperatorTrackRecord, buildOperatorTrackRecordBlock } = require('./dataMotService');
 // Veteran "read" + negotiation "chess" layers (pure, additive — no I/O, never throw).
 // Imported defensively so a missing file can never break the call path.
 let readDeal, buildNegotiationBlock;
@@ -1351,12 +1351,25 @@ async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useC
     console.warn('[Vapi] Deal context read failed (non-blocking):', e.message);
   }
 
+  // Operator track-record adaptation: make the AI call the way THIS operator's
+  // best calls go — their real win rate, the seller personality they convert
+  // best, their typical discount/spread — pulled from their OWN calls + deals.
+  // Own try/catch — a brand-new operator (thin sample) / read miss degrades to ''
+  // so the prompt is byte-for-byte the original.
+  let operatorBlock = '';
+  try {
+    operatorBlock = buildOperatorTrackRecordBlock(await getOperatorTrackRecord(operator?.id));
+  } catch (e) {
+    console.warn('[Vapi] Operator track-record read failed (non-blocking):', e.message);
+  }
+
   // F8 — resolve the call language (defaults to English; Spanish if lead/campaign/
   // operator prefers it) and append the Spanish directive when applicable.
   const langInfo = resolveLanguage({ operator, campaign, lead });
   const systemPrompt = getScriptByLeadTag(lead, operator, useCaseOverride, campaign)
     + accumulatedIntel
     + dealBlock
+    + operatorBlock
     + buildLanguageDirective(langInfo);
 
   // Accept BOTH the [Bracket] tokens shown in the Settings UI and the legacy
@@ -1692,6 +1705,16 @@ async function buildInboundAssistantConfig({ callerPhone, operator = {}, lead = 
     }
   }
 
+  // Operator track-record applies to EVERY inbound call (known caller or not) —
+  // it's the operator's own history, not the lead's. Same non-blocking degrade
+  // to '' for a thin-sample/new operator. Keyed on operator.id, outside `known`.
+  let operatorBlock = '';
+  try {
+    operatorBlock = buildOperatorTrackRecordBlock(await getOperatorTrackRecord(operator?.id));
+  } catch (e) {
+    console.warn('[Vapi Inbound] Operator track-record read failed (non-blocking):', e.message);
+  }
+
   const firstName = lead?.first_name || '';
 
   // Branch the goal + opening on whether we recognize the caller.
@@ -1728,7 +1751,7 @@ Apply the same call flow as outbound calls.
 Always be warm — they called YOU, which means they have some interest.
 
 PERSONALITY STYLE:
-${getToneStyle(operator)}${accumulatedIntel}${dealBlock}${buildLanguageDirective(langInfo)}`;
+${getToneStyle(operator)}${accumulatedIntel}${dealBlock}${operatorBlock}${buildLanguageDirective(langInfo)}`;
 
   // Known callers get a personalized, warm callback greeting; unknown callers get
   // the neutral inbound opener.
