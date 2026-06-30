@@ -22,6 +22,7 @@ const NAV = [
   { to: '/monitor',          icon: Radio,           label: 'Live Calls',     live: true },
   { to: '/pipeline',         icon: Columns,         label: 'Pipeline' },
   { to: '/campaigns',        icon: Briefcase,       label: 'Campaigns' },
+  { to: '/sms-templates',    icon: MessageSquare,   label: 'SMS Templates' },
   { to: '/buyers',           icon: Building2,       label: 'Buyers' },
   { to: '/title-companies',  icon: Building2,       label: 'Title Companies' },
   { to: '/follow-ups',       icon: Bell,            label: 'Follow-Ups' },

@@ -72,6 +72,7 @@ import LeadPipeline from './pages/LeadPipeline'
 import Sequences    from './pages/Sequences'
 import Appointments from './pages/Appointments'
 import MissedCalls  from './pages/MissedCalls'
+import SmsTemplates from './pages/SmsTemplates'
 
 const ADMIN_EMAILS = ['divineqflash@gmail.com']
 
@@ -186,6 +187,7 @@ export default function App() {
         <Route path="/sequences"     element={<Sequences />} />
         <Route path="/appointments"  element={<Appointments />} />
         <Route path="/missed-calls"  element={<MissedCalls />} />
+        <Route path="/sms-templates" element={<SmsTemplates />} />
       </Route>
 
       {/* Public tour viewer - no auth */}

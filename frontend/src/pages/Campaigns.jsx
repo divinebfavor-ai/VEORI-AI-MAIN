@@ -3,7 +3,7 @@ import { Plus, Play, Pause, Square, X, ChevronRight, Trash2 } from 'lucide-react
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
-import { campaigns } from '../services/api'
+import { campaigns, smsTemplates } from '../services/api'
 
 function statusVariant(s) {
   const m = { active:'green', running:'green', paused:'amber', draft:'gray', completed:'gray', stopped:'gray' }
@@ -26,9 +26,19 @@ function CreateModal({ onClose, onCreated }) {
   const [form, setForm]       = useState({ name:'', tags:[], use_case:'', concurrent_lines:1, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
   const [smsFirst, setSmsFirst] = useState(false)
   const [blastCount, setBlastCount] = useState(1)   // 1× / 2× / 3× non-responder cadence
+  const [smsTemplateId, setSmsTemplateId] = useState('')   // '' = built-in copy
+  const [templates, setTemplates] = useState([])
   const [saving, setSaving]   = useState(false)
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
   const toggleTag = t => setForm(f => ({ ...f, tags: f.tags.includes(t) ? f.tags.filter(x => x !== t) : [...f.tags, t] }))
+
+  // Load the operator's saved SMS templates so they can blast with custom copy.
+  // Non-blocking — failure just leaves the picker showing "built-in copy" only.
+  useEffect(() => {
+    smsTemplates.getAll()
+      .then(r => { const raw = r.data?.data ?? r.data; setTemplates(Array.isArray(raw) ? raw : []) })
+      .catch(() => setTemplates([]))
+  }, [])
 
   const launch = async () => {
     if (!form.name) { toast.error('Campaign name required'); return }
@@ -37,7 +47,7 @@ function CreateModal({ onClose, onCreated }) {
       const created = await campaigns.createCampaign({ ...form, use_case: form.use_case || null, concurrent_lines: Number(form.concurrent_lines), daily_limit_per_number: Number(form.daily_limit_per_number), lead_filter: { tags: form.tags } })
       const campaignId = created?.data?.data?.id || created?.data?.id
       if (smsFirst && campaignId) {
-        await campaigns.startSMSFirst(campaignId, blastCount)
+        await campaigns.startSMSFirst(campaignId, blastCount, smsTemplateId || undefined)
         toast.success(`SMS First campaign launched — ${blastCount}× blast to non-responders`)
       } else {
         toast.success('Campaign created')
@@ -154,6 +164,28 @@ function CreateModal({ onClose, onCreated }) {
                 </p>
               </div>
             )}
+
+            {/* Custom SMS template picker — pick saved copy, or use built-in. */}
+            {smsFirst && (
+              <div className="mb-5 pl-1" onClick={e => e.stopPropagation()}>
+                <label className="label-caps block mb-2">SMS Copy</label>
+                <select value={smsTemplateId} onChange={e => setSmsTemplateId(e.target.value)}
+                  className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary"
+                >
+                  <option value="">Built-in copy (auto per lead type)</option>
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}{t.lead_type ? ` · ${t.lead_type.replace(/_/g, ' ')}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-text-muted mt-2">
+                  {smsTemplateId
+                    ? 'This blast uses your saved template, personalized per lead.'
+                    : 'Veori picks the built-in template that matches each lead. Manage your own copy under SMS Templates.'}
+                </p>
+              </div>
+            )}
             <div className="space-y-5">
               <div>
                 <label className="label-caps block mb-3">Concurrent Lines: <span className="text-text-primary">{form.concurrent_lines}</span></label>
@@ -200,6 +232,7 @@ function CreateModal({ onClose, onCreated }) {
                 ['Use Case',       ({ wholesale:'Wholesaler / Cash Investor', agent_listing:'Real Estate Agent — Listing', buyer_agent:"Buyer's Agent", landlord_pm:'Property Management', investor_outreach:'Investor Outreach', general:'General Real Estate' }[form.use_case]) || 'Account default'],
                 ['Target Leads',   form.tags.length === 0 ? 'All leads' : form.tags.map(t => (LEAD_TAGS.find(([v]) => v === t)?.[1]) || t).join(', ')],
                 ['Mode',           smsFirst ? `💬 SMS First (${blastCount}× blast)` : '📞 Direct Call'],
+                ...(smsFirst ? [['SMS Copy', smsTemplateId ? (templates.find(t => t.id === smsTemplateId)?.name || 'Custom template') : 'Built-in (auto)']] : []),
                 ['Concurrent Lines', form.concurrent_lines],
                 ['Daily Limit',    `${form.daily_limit_per_number} calls / number`],
                 ['Calling Hours',  `${form.calling_hours_start} – ${form.calling_hours_end}`],

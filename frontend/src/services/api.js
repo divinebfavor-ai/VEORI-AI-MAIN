@@ -124,7 +124,7 @@ export const campaigns = {
   createCampaign:   (data)     => api.post('/api/campaigns', data),
   updateCampaign:   (id, data) => api.put(`/api/campaigns/${id}`, data),
   startCampaign:    (id)       => api.post(`/api/campaigns/${id}/start`),
-  startSMSFirst:    (id, blastCount) => api.post(`/api/sms-first/${id}/start`, { blast_count: blastCount }),
+  startSMSFirst:    (id, blastCount, templateId) => api.post(`/api/sms-first/${id}/start`, { blast_count: blastCount, template_id: templateId || undefined }),
   stopSMSFirst:     (id)       => api.post(`/api/sms-first/${id}/stop`),
   getSMSFirstStatus:(id)       => api.get(`/api/sms-first/${id}/status`),
   getSMSFirstLeads: (id)       => api.get(`/api/sms-first/${id}/leads`),
@@ -256,6 +256,18 @@ export const sequences = {
   getAll:  ()                         => api.get('/api/sequences'),
   enroll:  (lead_id, sequence_type)   => api.post('/api/sequences/enroll', { lead_id, sequence_type }),
   cancel:  (id)                       => api.delete(`/api/sequences/${id}`),
+}
+
+// ─── Custom SMS Templates ─────────────────────────────────────────────────────
+// Operator-authored / AI-generated wholesale-RE SMS copy. All bodies are guard-
+// railed server-side (create/edit re-moderate; generate self-moderates).
+export const smsTemplates = {
+  getAll:   ()         => api.get('/api/sms-templates'),
+  create:   (data)     => api.post('/api/sms-templates', data),
+  update:   (id, data) => api.put(`/api/sms-templates/${id}`, data),
+  delete:   (id)       => api.delete(`/api/sms-templates/${id}`),
+  generate: (data)     => api.post('/api/sms-templates/generate', data),
+  moderate: (body)     => api.post('/api/sms-templates/moderate', { body }),
 }
 
 // ─── Compliance ──────────────────────────────────────────────────────────────
