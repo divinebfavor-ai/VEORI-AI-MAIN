@@ -68,6 +68,20 @@ async function processInboundSMS(data) {
     return { skipped: 'no_lead' };
   }
 
+  // ── Reply auto-stop ────────────────────────────────────────────────────────
+  // The lead just replied, so the "no reply" assumption behind any already-queued
+  // SMS follow-up is now false. Cancel still-pending SMS follow-ups for this lead
+  // (the auto 48h/7-day rows from smsFirstWorkflow + the cold-lead row below) so a
+  // lead who engaged is never re-touched as a non-responder. Idempotent: a no-op
+  // once nothing is pending; never cancels a follow-up the operator already sent.
+  await supabase
+    .from('follow_ups')
+    .update({ status: 'cancelled', notes: 'Auto-cancelled — lead replied via SMS.' })
+    .eq('lead_id', leadId)
+    .eq('type', 'sms')
+    .eq('status', 'pending')
+    .catch(() => {});
+
   // Conversation history (same shape the webhook built).
   const { data: history } = await supabase
     .from('sms_messages')

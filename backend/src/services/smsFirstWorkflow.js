@@ -268,6 +268,16 @@ async function monitorReplies(campaignId, userId) {
           .update({ status: 'replied', replied_at: reply.sent_at, reply_body: reply.body })
           .eq('id', row.id);
 
+        // Reply auto-stop: cancel any still-pending SMS follow-up for this lead so a
+        // lead who replied is never re-touched as a "no reply" (a prior tick may have
+        // queued the 48h/7-day row before this reply landed). Idempotent no-op when clean.
+        await supabase.from('follow_ups')
+          .update({ status: 'cancelled', notes: 'Auto-cancelled — lead replied via SMS.' })
+          .eq('lead_id', row.lead_id)
+          .eq('type', 'sms')
+          .eq('status', 'pending')
+          .catch(() => {});
+
         // Update campaign reply counter
         await supabase.from('campaigns')
           .update({ sms_first_replies: (session.replyCount = (session.replyCount || 0) + 1) })

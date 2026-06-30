@@ -405,20 +405,26 @@ async function sendReply(toPhone, body, userId, leadId) {
 
 async function escalateToCall(lead, userId) {
   try {
-    const vapiService = require('./vapiService');
+    const vapiService  = require('./vapiService');
+    const phoneRotation = require('./phoneRotation');
 
-    // Get operator phone number
-    const { data: phoneNumbers } = await supabase
-      .from('phone_numbers')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .eq('health_status', 'healthy')
-      .limit(1);
+    // Derive the lead's area code for local-presence matching (305 lead → 305 number).
+    // Mirrors smsFirstWorkflow.js so a hot-reply call keeps the same local-presence edge.
+    const leadDigits   = String(lead.phone || '').replace(/\D/g, '');
+    const leadAreaCode = leadDigits.length === 11 && leadDigits.startsWith('1')
+      ? leadDigits.slice(1, 4)
+      : (leadDigits.length === 10 ? leadDigits.slice(0, 3) : null);
 
-    const phoneNumber = phoneNumbers?.[0];
+    // selectBestNumber handles geo/area-code tiers, cooldown/daily-cap health,
+    // and excludes toll-free (calls go on LOCAL numbers only).
+    const phoneNumber = await phoneRotation.selectBestNumber(
+      userId,
+      lead.property_state || null,
+      [],
+      leadAreaCode,
+    );
     if (!phoneNumber) {
-      console.warn('[SMS] No active phone number for escalation');
+      console.warn('[SMS] No healthy local phone number for escalation');
       return;
     }
 
@@ -447,7 +453,10 @@ async function escalateToCall(lead, userId) {
       operator: operator || {},
     });
 
-    console.log(`[SMS] Escalated to call — lead ${lead.id} scored hot`);
+    // Apply cooldown + increment daily/weekly counters so this number rotates correctly.
+    await phoneRotation.recordCallStart(phoneNumber.id);
+
+    console.log(`[SMS] Escalated to call — lead ${lead.id} scored hot (number ${phoneNumber.phone_number || phoneNumber.id})`);
   } catch (err) {
     console.error('[SMS] Escalation failed:', err.message);
   }
