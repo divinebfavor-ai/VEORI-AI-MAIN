@@ -24,6 +24,20 @@ const { isWithinTcpaWindow, msUntilNextWindow, tcpaLocalHour } = require('./tcpa
 // Active SMS-first sessions (in-memory, same pattern as campaignManager)
 const activeSessions = new Map();
 
+// ─── Multi-touch blast cadence ────────────────────────────────────────────────
+// The operator chooses how many times to text a NON-responder (1× / 2× / 3×).
+// Touch 1 is the initial blast. Touches 2-3 are re-sends to leads who still
+// haven't replied, spaced BLAST_INTERVAL_MS apart. The moment a lead replies,
+// the reply branch marks them 'replied' and they leave the re-blast loop, so a
+// responder is never re-texted. Clamp keeps it inside the 1-3 the UI offers.
+const MAX_BLAST_TOUCHES = 3;
+const BLAST_INTERVAL_MS = Number(process.env.SMS_BLAST_INTERVAL_DAYS || 3) * 24 * 60 * 60 * 1000;
+function clampBlastCount(n) {
+  const v = Math.floor(Number(n));
+  if (!Number.isFinite(v) || v < 1) return 1;
+  return Math.min(v, MAX_BLAST_TOUCHES);
+}
+
 // ─── TCPA quiet-hours (8am–9pm in the LEAD's local time) ─────────────────────
 // Delegates to the shared, DST-safe tcpaWindow service (Intl-based, full 50-state
 // map) instead of the old fixed-UTC-offset table, which was wrong for half the
@@ -139,7 +153,16 @@ async function enqueueSMSBatch(campaignId, userId, leads, operatorName) {
       lead_id:     lead.id,
       sms_body:    body,
       status:      offHoursDelay > 0 ? 'deferred_quiet_hours' : 'queued',
-    }).catch((e) => console.warn('[SMSFirst] queued-row insert failed:', e.message));
+      touch_count: 1,                         // 1st of up-to-3 blast touches (2026-06-30 col; tolerated if absent)
+    }).catch(() => supabase.from('sms_first_leads').insert({
+      // Retry without the cadence column if the migration hasn't run yet.
+      id:          rowId,
+      campaign_id: campaignId,
+      user_id:     userId,
+      lead_id:     lead.id,
+      sms_body:    body,
+      status:      offHoursDelay > 0 ? 'deferred_quiet_hours' : 'queued',
+    }).catch((e) => console.warn('[SMSFirst] queued-row insert failed:', e.message)));
 
     let jobId = null;
     try {
@@ -199,15 +222,27 @@ async function inlineSMSBatch(campaignId, userId, leads, operatorName) {
     }
 
     // Log in sms_first_leads
+    const nowIso = new Date().toISOString();
     await supabase.from('sms_first_leads').insert({
+      id:            uuidv4(),
+      campaign_id:   campaignId,
+      user_id:       userId,
+      lead_id:       lead.id,
+      sms_sent_at:   nowIso,
+      sms_body:      body,
+      status:        'sms_sent',
+      touch_count:   1,                       // 1st of up-to-3 blast touches (2026-06-30 col)
+      last_touch_at: nowIso,
+    }).catch(() => supabase.from('sms_first_leads').insert({
+      // Retry without cadence columns if the migration hasn't run yet.
       id:          uuidv4(),
       campaign_id: campaignId,
       user_id:     userId,
       lead_id:     lead.id,
-      sms_sent_at: new Date().toISOString(),
+      sms_sent_at: nowIso,
       sms_body:    body,
       status:      'sms_sent',
-    });
+    }));
 
     sent++;
 
@@ -289,24 +324,66 @@ async function monitorReplies(campaignId, userId) {
         session.callQueue = session.callQueue || [];
         session.callQueue.push({ row, lead });
 
-      } else if (elapsed >= hours48) {
-        // 48 hours passed, no reply — enter existing follow-up sequence
-        await supabase.from('sms_first_leads')
-          .update({ status: 'no_reply' })
-          .eq('id', row.id);
+      } else {
+        // ── No reply yet — multi-touch blast cadence ──────────────────────────
+        // Operator chose 1× / 2× / 3× touches for non-responders. Touch 1 was the
+        // initial blast; touches 2-3 are re-sends spaced BLAST_INTERVAL_MS apart.
+        // We only re-blast a lead who STILL hasn't replied (this branch == no reply
+        // found above), so a responder is never re-texted. When the lead has had
+        // all their touches and still no reply, fall through to the original
+        // 48h→7-day follow-up so existing behavior is preserved for the last touch.
+        const blastCount   = session.blastCount || 1;
+        const touchCount   = row.touch_count || 1;     // null pre-migration → treat as 1
+        const lastTouchAt  = row.last_touch_at ? new Date(row.last_touch_at).getTime() : sentAt;
+        const sinceTouch   = now - lastTouchAt;
 
-        const followUpDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        await supabase.from('follow_ups').insert({
-          user_id:      userId,
-          lead_id:      lead.id,
-          type:         'sms',
-          scheduled_at: followUpDate.toISOString(),
-          status:       'pending',
-          notes:        'No reply to SMS First campaign after 48 hours. Auto-scheduled 7-day follow-up.',
-          created_at:   new Date().toISOString(),
-        }).catch(() => {});
+        if (touchCount < blastCount && sinceTouch >= BLAST_INTERVAL_MS) {
+          // Re-send the opener as the next touch. Reuse buildSMSBody so the copy is
+          // identical to the initial blast; sendReply applies the DNC gate + logs to
+          // sms_messages exactly like the first send.
+          const body  = buildSMSBody(lead, session.operatorName);
 
-        console.log(`[SMSFirst] No reply after 48h for ${lead.phone} — follow-up scheduled`);
+          // Respect TCPA quiet-hours — if it's off-hours in the lead's state, skip
+          // this tick and try again on the next 2-min poll (no touch consumed).
+          if (!isWithinSMSHours(lead.property_state)) continue;
+
+          const msgId = await sendReply(lead.phone, body, userId, lead.id);
+          if (msgId === null) continue;  // DNC/send error — don't consume a touch
+
+          const touchNowIso = new Date().toISOString();
+          await supabase.from('sms_first_leads')
+            .update({ touch_count: touchCount + 1, last_touch_at: touchNowIso, sms_sent_at: touchNowIso })
+            .eq('id', row.id)
+            .catch(() => {
+              // Pre-migration: cadence cols absent — just refresh sms_sent_at so the
+              // 48h fallback below still measures from the latest send.
+              return supabase.from('sms_first_leads')
+                .update({ sms_sent_at: touchNowIso })
+                .eq('id', row.id);
+            });
+
+          console.log(`[SMSFirst] Re-blast touch ${touchCount + 1}/${blastCount} sent to ${lead.phone}`);
+
+        } else if (elapsed >= hours48) {
+          // Final touch reached (or 1× cadence) and 48h passed with no reply —
+          // enter the original follow-up sequence, unchanged.
+          await supabase.from('sms_first_leads')
+            .update({ status: 'no_reply' })
+            .eq('id', row.id);
+
+          const followUpDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+          await supabase.from('follow_ups').insert({
+            user_id:      userId,
+            lead_id:      lead.id,
+            type:         'sms',
+            scheduled_at: followUpDate.toISOString(),
+            status:       'pending',
+            notes:        'No reply to SMS First campaign after all blast touches. Auto-scheduled 7-day follow-up.',
+            created_at:   new Date().toISOString(),
+          }).catch(() => {});
+
+          console.log(`[SMSFirst] No reply after ${blastCount} touch(es) for ${lead.phone} — follow-up scheduled`);
+        }
       }
     }
 
@@ -454,7 +531,7 @@ async function finishMonitoring(campaignId) {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-async function start(campaignId, userId) {
+async function start(campaignId, userId, options = {}) {
   const { data: campaign } = await supabase
     .from('campaigns').select('*').eq('id', campaignId).eq('user_id', userId).single();
 
@@ -465,12 +542,29 @@ async function start(campaignId, userId) {
     .from('users').select('ai_caller_name, full_name').eq('id', userId).single();
   const operatorName = operator?.ai_caller_name || operator?.full_name || 'Alex';
 
+  // How many total touches a non-responder gets (1× / 2× / 3×). Operator-chosen,
+  // falls back to any value already persisted on the campaign, then 1 (= today's
+  // single-blast behavior). Clamped to 1-3.
+  const blastCount = clampBlastCount(
+    options.blastCount ?? campaign.sms_blast_count ?? 1,
+  );
+
   await supabase.from('campaigns').update({
     sms_first_mode:   true,
     sms_first_status: 'sending',
+    sms_blast_count:  blastCount,   // Phase: 2026-06-30 column (additive; tolerated if absent pre-migration)
     status:           'active',
     updated_at:       new Date().toISOString(),
-  }).eq('id', campaignId);
+  }).eq('id', campaignId).catch(() => {
+    // If sms_blast_count column doesn't exist yet (migration not run), retry
+    // without it so the campaign still starts — cadence then defaults to 1×.
+    return supabase.from('campaigns').update({
+      sms_first_mode:   true,
+      sms_first_status: 'sending',
+      status:           'active',
+      updated_at:       new Date().toISOString(),
+    }).eq('id', campaignId);
+  });
 
   const leads = await buildLeadQueue(campaignId, userId, campaign.lead_filter || {});
 
@@ -484,6 +578,7 @@ async function start(campaignId, userId) {
     userId,
     campaign,
     operatorName,
+    blastCount,                 // 1× / 2× / 3× — total touches a non-responder gets
     replyCount:       0,
     callCount:        0,
     callQueue:        [],

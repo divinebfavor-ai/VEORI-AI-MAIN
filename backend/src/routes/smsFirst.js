@@ -15,7 +15,9 @@ const smsFirst = require('../services/smsFirstWorkflow');
 // POST /api/sms-first/:id/start
 router.post('/:id/start', auth, async (req, res, next) => {
   try {
-    const result = await smsFirst.start(req.params.id, req.user.id);
+    const result = await smsFirst.start(req.params.id, req.user.id, {
+      blastCount: req.body?.blast_count,   // 1× / 2× / 3× non-responder cadence (optional; defaults to 1×)
+    });
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });

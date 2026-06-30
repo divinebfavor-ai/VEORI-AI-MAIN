@@ -25,6 +25,7 @@ function CreateModal({ onClose, onCreated }) {
   const [step, setStep]       = useState(1)
   const [form, setForm]       = useState({ name:'', tags:[], use_case:'', concurrent_lines:1, daily_limit_per_number:50, calling_hours_start:'09:00', calling_hours_end:'20:00' })
   const [smsFirst, setSmsFirst] = useState(false)
+  const [blastCount, setBlastCount] = useState(1)   // 1× / 2× / 3× non-responder cadence
   const [saving, setSaving]   = useState(false)
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
   const toggleTag = t => setForm(f => ({ ...f, tags: f.tags.includes(t) ? f.tags.filter(x => x !== t) : [...f.tags, t] }))
@@ -36,8 +37,8 @@ function CreateModal({ onClose, onCreated }) {
       const created = await campaigns.createCampaign({ ...form, use_case: form.use_case || null, concurrent_lines: Number(form.concurrent_lines), daily_limit_per_number: Number(form.daily_limit_per_number), lead_filter: { tags: form.tags } })
       const campaignId = created?.data?.data?.id || created?.data?.id
       if (smsFirst && campaignId) {
-        await campaigns.startSMSFirst(campaignId)
-        toast.success('SMS First campaign launched — texts going out now')
+        await campaigns.startSMSFirst(campaignId, blastCount)
+        toast.success(`SMS First campaign launched — ${blastCount}× blast to non-responders`)
       } else {
         toast.success('Campaign created')
       }
@@ -129,6 +130,30 @@ function CreateModal({ onClose, onCreated }) {
                 <p className="text-[11px] text-text-muted mt-0.5">Text every lead first. Only leads that reply get called by Alex — cuts cost, increases response rate.</p>
               </div>
             </div>
+
+            {/* Blast cadence — how many times a non-responder gets texted (1× / 2× / 3×) */}
+            {smsFirst && (
+              <div className="mb-5 pl-1" onClick={e => e.stopPropagation()}>
+                <label className="label-caps block mb-2">Blast cadence</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[1, 2, 3].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setBlastCount(n)}
+                      className={`h-[44px] rounded-[6px] border text-[14px] font-semibold transition-colors ${blastCount === n ? 'border-primary bg-primary/10 text-text-primary' : 'border-border-subtle text-text-muted hover:border-border-default'}`}
+                    >
+                      {n}×
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-text-muted mt-2">
+                  {blastCount === 1
+                    ? 'Text non-responders once.'
+                    : `Re-text leads who don't reply up to ${blastCount} times, a few days apart.`}
+                </p>
+              </div>
+            )}
             <div className="space-y-5">
               <div>
                 <label className="label-caps block mb-3">Concurrent Lines: <span className="text-text-primary">{form.concurrent_lines}</span></label>
@@ -174,7 +199,7 @@ function CreateModal({ onClose, onCreated }) {
                 ['Campaign Name',  form.name],
                 ['Use Case',       ({ wholesale:'Wholesaler / Cash Investor', agent_listing:'Real Estate Agent — Listing', buyer_agent:"Buyer's Agent", landlord_pm:'Property Management', investor_outreach:'Investor Outreach', general:'General Real Estate' }[form.use_case]) || 'Account default'],
                 ['Target Leads',   form.tags.length === 0 ? 'All leads' : form.tags.map(t => (LEAD_TAGS.find(([v]) => v === t)?.[1]) || t).join(', ')],
-                ['Mode',           smsFirst ? '💬 SMS First' : '📞 Direct Call'],
+                ['Mode',           smsFirst ? `💬 SMS First (${blastCount}× blast)` : '📞 Direct Call'],
                 ['Concurrent Lines', form.concurrent_lines],
                 ['Daily Limit',    `${form.daily_limit_per_number} calls / number`],
                 ['Calling Hours',  `${form.calling_hours_start} – ${form.calling_hours_end}`],
@@ -187,7 +212,7 @@ function CreateModal({ onClose, onCreated }) {
             </div>
             {smsFirst && (
               <div className="rounded-lg bg-primary/5 border border-primary/20 px-4 py-3 text-[12px] text-text-muted leading-relaxed">
-                <span className="text-primary font-semibold">SMS First mode:</span> Personalised texts go to every lead immediately. Leads that reply get called by Alex within 5 minutes. No-reply leads enter follow-up after 48 hours.
+                <span className="text-primary font-semibold">SMS First mode:</span> Personalised texts go to every lead immediately. Leads that reply get called by Alex within 5 minutes. {blastCount > 1 ? `Non-responders are re-texted up to ${blastCount} times, a few days apart, then` : 'No-reply leads'} enter follow-up.
               </div>
             )}
           </div>
