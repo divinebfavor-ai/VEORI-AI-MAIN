@@ -54,6 +54,201 @@ router.post('/reset-stale-calling', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LEAD DEDUPLICATION — find duplicate homeowners and collapse them into ONE.
+//
+// WHY: the bulk import already dedups on EXACT (user_id, phone) via the unique index,
+// but copies still slip in: a lead added once by CSV and again by hand, the same
+// person with the phone typed differently, or two rows that share a name + address
+// with no phone at all. Those clutter the list and risk double-outreach. These two
+// routes let the operator FIND those groups and MERGE each down to a single canonical
+// record, re-homing every child row (calls, texts, photos, activity, deals) first so
+// nothing is orphaned.
+//
+// ADDITIVE + SAFE: brand-new routes; no existing endpoint signature changes. Every
+// query is scoped to req.user.id (an operator can only ever dedup their OWN leads).
+// Registered BEFORE `GET /:id` so the literal `/duplicates` path isn't swallowed by
+// the `:id` param route. The merge re-links children BEFORE deleting copies, so a
+// partial failure leaves data attached to a real lead, never floating.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Normalize a phone to its digit signature so "+1 (704) 555-0000" and "7045550000"
+// (and a leading US "1") collapse to the same dedup key. Empty when no digits.
+function phoneKey(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+}
+
+// Name + address signature — the fallback dedup key for leads that have NO phone
+// (a phone-less property can't use the phone index, but two hand-typed copies of the
+// same owner+house should still surface as duplicates). Returns '' if too thin to be
+// a confident match (we never guess on name alone).
+function identityKey(lead) {
+  const name = `${lead.first_name || ''} ${lead.last_name || ''}`.trim().toLowerCase().replace(/\s+/g, ' ');
+  const addr = String(lead.property_address || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (name && addr) return `na:${name}|${addr}`;
+  return '';
+}
+
+// Count how many non-empty fields a lead carries — used to pick the most COMPLETE
+// record as the survivor when two copies are otherwise equally old.
+function completeness(lead) {
+  const fields = ['first_name','last_name','phone','email','property_address','property_city',
+    'property_state','property_zip','property_type','estimated_value','estimated_equity',
+    'estimated_arv','notes','motivation_score'];
+  return fields.reduce((acc, k) => acc + (lead[k] != null && String(lead[k]).trim() !== '' ? 1 : 0), 0);
+}
+
+// Pick the canonical survivor for a duplicate group: prefer one already on DNC (so we
+// never lose a suppression flag), then the most complete, then the oldest (its
+// created_at + any linked history is the real one). Pure; never mutates input.
+function pickCanonical(group) {
+  return [...group].sort((a, b) => {
+    if (!!b.is_on_dnc !== !!a.is_on_dnc) return (b.is_on_dnc ? 1 : 0) - (a.is_on_dnc ? 1 : 0);
+    const c = completeness(b) - completeness(a);
+    if (c !== 0) return c;
+    return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+  })[0];
+}
+
+// GET /api/leads/duplicates — surface duplicate groups for THIS operator. Read-only.
+// Groups by normalized phone first; phone-less leads fall back to name+address. Only
+// groups with 2+ members are returned. Each group names its canonical survivor and the
+// ids that would be merged away, so the UI can show "merge 3 → 1" before acting.
+router.get('/duplicates', async (req, res, next) => {
+  try {
+    const { data: rows, error } = await supabase
+      .from('leads')
+      .select('id, first_name, last_name, phone, email, property_address, property_city, property_state, property_zip, property_type, estimated_value, estimated_equity, estimated_arv, notes, motivation_score, status, is_on_dnc, created_at')
+      .eq('user_id', req.user.id);
+    if (error) throw error;
+
+    const buckets = new Map();
+    for (const l of (rows || [])) {
+      const key = phoneKey(l.phone) ? `ph:${phoneKey(l.phone)}` : identityKey(l);
+      if (!key) continue; // no phone AND no name+address → not a dedup candidate
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(l);
+    }
+
+    const groups = [];
+    let duplicate_leads = 0;
+    for (const [key, members] of buckets) {
+      if (members.length < 2) continue;
+      const canonical = pickCanonical(members);
+      const mergeIds = members.filter(m => m.id !== canonical.id).map(m => m.id);
+      duplicate_leads += mergeIds.length;
+      groups.push({
+        key,
+        match_on: key.startsWith('ph:') ? 'phone' : 'name_address',
+        count: members.length,
+        canonical_id: canonical.id,
+        canonical,
+        merge_ids: mergeIds,
+        members,
+      });
+    }
+    // Biggest clusters first — that's where the most clutter is.
+    groups.sort((a, b) => b.count - a.count);
+
+    res.json({
+      success: true,
+      groups,
+      group_count: groups.length,
+      duplicate_leads, // how many rows would disappear if every group is merged
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/leads/merge — collapse duplicates into a single canonical lead.
+// Body: { canonical_id, merge_ids:[...] }  (merge the listed copies INTO canonical_id)
+//   — or { groups:[{canonical_id, merge_ids}] } to merge several groups in one call.
+// For each group we: (1) re-point every child row (calls, sms_messages, lead_photos,
+// deal_activity, deals) from a copy to the canonical lead, (2) carry over a DNC flag
+// if any copy had it, (3) delete the now-empty copies. All scoped to req.user.id.
+router.post('/merge', async (req, res, next) => {
+  try {
+    const uid = req.user.id;
+
+    // Accept either a single group or a batch; normalize to an array.
+    let groups = [];
+    if (Array.isArray(req.body.groups)) {
+      groups = req.body.groups;
+    } else if (req.body.canonical_id) {
+      groups = [{ canonical_id: req.body.canonical_id, merge_ids: req.body.merge_ids }];
+    }
+    if (!groups.length) {
+      return res.status(400).json({ success: false, error: 'canonical_id + merge_ids (or groups[]) required' });
+    }
+
+    // Child tables that reference a lead by lead_id. We re-home these before deleting
+    // the copy so a call/text/photo is never orphaned. `scoped` says whether the table
+    // carries a user_id column we can additionally filter on — `lead_photos` does NOT
+    // (the timeline query filters it on lead_id alone), so re-homing it must skip the
+    // user_id guard or the update would error and the photos would never move.
+    const CHILD_TABLES = [
+      { table: 'calls',        scoped: true  },
+      { table: 'sms_messages', scoped: true  },
+      { table: 'lead_photos',  scoped: false },
+      { table: 'deal_activity', scoped: true },
+      { table: 'deals',        scoped: true  },
+    ];
+
+    let merged_leads = 0;   // copies removed
+    let groups_done  = 0;
+    const errors = [];
+
+    for (const g of groups) {
+      const canonicalId = g.canonical_id;
+      const mergeIds = (Array.isArray(g.merge_ids) ? g.merge_ids : []).filter(id => id && id !== canonicalId);
+      if (!canonicalId || !mergeIds.length) continue;
+
+      // Verify the canonical lead belongs to this operator — never merge into someone
+      // else's record, and never trust an id from the client without this check.
+      const { data: canonical } = await supabase
+        .from('leads').select('id, is_on_dnc, status')
+        .eq('id', canonicalId).eq('user_id', uid).single();
+      if (!canonical) { errors.push({ canonical_id: canonicalId, error: 'canonical not found' }); continue; }
+
+      // Confirm the copies belong to this operator too; only operate on the verified set.
+      const { data: copies } = await supabase
+        .from('leads').select('id, is_on_dnc')
+        .eq('user_id', uid).in('id', mergeIds);
+      const verifiedIds = (copies || []).map(c => c.id);
+      if (!verifiedIds.length) { errors.push({ canonical_id: canonicalId, error: 'no valid copies' }); continue; }
+
+      // 1. Re-home children from each copy onto the canonical lead. Best-effort per
+      //    table — a missing table or column won't abort the whole merge.
+      for (const { table, scoped } of CHILD_TABLES) {
+        let q = supabase.from(table).update({ lead_id: canonicalId }).in('lead_id', verifiedIds);
+        if (scoped) q = q.eq('user_id', uid);
+        const { error: upErr } = await q;
+        if (upErr) console.warn(`[Leads merge] ${table} re-link skipped:`, upErr.message);
+      }
+
+      // 2. Preserve a DNC flag: if ANY copy was suppressed, the survivor must be too.
+      const anyDnc = !!canonical.is_on_dnc || (copies || []).some(c => c.is_on_dnc);
+      if (anyDnc && !canonical.is_on_dnc) {
+        const { error: dncErr } = await supabase.from('leads')
+          .update({ is_on_dnc: true, status: 'dnc' })
+          .eq('id', canonicalId).eq('user_id', uid);
+        if (dncErr) console.warn('[Leads merge] DNC carry-over skipped:', dncErr.message);
+      }
+
+      // 3. Delete the copies — children are already re-homed, so nothing is lost.
+      const { error: delErr } = await supabase
+        .from('leads').delete().eq('user_id', uid).in('id', verifiedIds);
+      if (delErr) { errors.push({ canonical_id: canonicalId, error: delErr.message }); continue; }
+
+      merged_leads += verifiedIds.length;
+      groups_done  += 1;
+    }
+
+    res.json({ success: true, groups_merged: groups_done, merged_leads, errors });
+  } catch (err) { next(err); }
+});
+
 // GET /api/leads/:id — full lead with call history
 router.get('/:id', async (req, res, next) => {
   try {

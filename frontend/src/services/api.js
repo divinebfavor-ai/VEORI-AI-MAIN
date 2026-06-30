@@ -96,6 +96,8 @@ export const leads = {
   retagLead:          (id)        => api.post(`/api/leads/${id}/retag`),
   retagAll:           ()          => api.post('/api/leads/retag-all'),
   resetStaleCallingStatus: ()     => api.post('/api/leads/reset-stale-calling'),
+  findDuplicates:     ()          => api.get('/api/leads/duplicates'),
+  mergeDuplicates:    (payload)   => api.post('/api/leads/merge', payload),
 }
 
 // ─── Calls ────────────────────────────────────────────────────────────────────

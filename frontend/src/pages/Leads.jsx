@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users, Camera, Image } from 'lucide-react'
+import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users, Camera, Image, Copy, GitMerge } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -820,6 +820,7 @@ export default function Leads() {
   const [importing, setImporting] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
+  const [showDupes, setShowDupes]     = useState(false)
   const fileRef  = useRef()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -965,6 +966,9 @@ export default function Leads() {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFile} />
+            <Button variant="secondary" size="sm" onClick={() => setShowDupes(true)}>
+              <Copy size={13} /> Find Duplicates
+            </Button>
             <Button variant="secondary" size="sm" loading={importing} onClick={() => fileRef.current?.click()}>
               <Upload size={13} /> Import CSV
             </Button>
@@ -1148,6 +1152,150 @@ export default function Leads() {
 
       {/* ── Add Lead Modal ────────────────────────────────────────────────────── */}
       {showAddLead && <AddLeadModal onClose={() => setShowAddLead(false)} onSaved={(lead) => { setShowAddLead(false); load().then(() => setSelected(lead)) }} />}
+
+      {/* ── Duplicate Leads Modal ─────────────────────────────────────────────── */}
+      {showDupes && <DuplicatesModal onClose={() => setShowDupes(false)} onMerged={() => load()} />}
+    </div>
+  )
+}
+
+// ─── Duplicate Leads Modal ────────────────────────────────────────────────────
+// Surfaces duplicate groups (same phone, or same name+address when phone-less) and
+// lets the operator collapse each group down to ONE canonical lead. Read-only until
+// the operator clicks Merge; merging re-homes all child rows server-side then deletes
+// the copies. Additive — touches no existing modal or row.
+function DuplicatesModal({ onClose, onMerged }) {
+  const [loading, setLoading] = useState(true)
+  const [groups, setGroups]   = useState([])
+  const [summary, setSummary] = useState({ group_count: 0, duplicate_leads: 0 })
+  const [merging, setMerging] = useState(false)
+  const [done, setDone]       = useState(false)
+
+  const fetchDupes = async () => {
+    setLoading(true)
+    try {
+      const r = await leads.findDuplicates()
+      const d = r.data || {}
+      setGroups(Array.isArray(d.groups) ? d.groups : [])
+      setSummary({ group_count: d.group_count || 0, duplicate_leads: d.duplicate_leads || 0 })
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not scan for duplicates')
+      setGroups([])
+    } finally { setLoading(false) }
+  }
+
+  useEffect(() => { fetchDupes() }, [])
+
+  const leadLabel = (l) => {
+    const name = `${l.first_name || ''} ${l.last_name || ''}`.trim()
+    return name || l.phone || l.property_address || 'Unnamed lead'
+  }
+
+  const mergeOne = async (g) => {
+    setMerging(true)
+    try {
+      await leads.mergeDuplicates({ canonical_id: g.canonical_id, merge_ids: g.merge_ids })
+      toast.success(`Merged ${g.merge_ids.length + 1} → 1`)
+      setGroups(prev => prev.filter(x => x.key !== g.key))
+      onMerged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Merge failed')
+    } finally { setMerging(false) }
+  }
+
+  const mergeAll = async () => {
+    if (!groups.length) return
+    setMerging(true)
+    try {
+      const payload = { groups: groups.map(g => ({ canonical_id: g.canonical_id, merge_ids: g.merge_ids })) }
+      const r = await leads.mergeDuplicates(payload)
+      const removed = r.data?.merged_leads ?? 0
+      toast.success(`Cleaned up ${removed} duplicate${removed === 1 ? '' : 's'}`)
+      setGroups([])
+      setDone(true)
+      onMerged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Merge failed')
+    } finally { setMerging(false) }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 640, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Copy size={16} /> Duplicate Leads
+            </h2>
+            <p style={{ fontSize: 12, color: 'var(--t4)', marginTop: 3 }}>
+              {loading ? 'Scanning…'
+                : summary.group_count === 0 ? 'No duplicates found — your list is clean.'
+                : `${summary.group_count} group${summary.group_count === 1 ? '' : 's'} · ${summary.duplicate_leads} extra row${summary.duplicate_leads === 1 ? '' : 's'} to merge away`}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t4)', padding: 4 }}><X size={18} /></button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          {loading && (
+            <div style={{ textAlign: 'center', color: 'var(--t4)', fontSize: 13, padding: '40px 0' }}>Scanning your leads…</div>
+          )}
+
+          {!loading && groups.length === 0 && (
+            <div style={{ textAlign: 'center', color: 'var(--t4)', fontSize: 13, padding: '40px 0' }}>
+              {done ? 'All duplicates merged.' : 'Nothing to merge — no duplicate leads detected.'}
+            </div>
+          )}
+
+          {!loading && groups.map(g => {
+            const canonical = g.canonical || g.members?.find(m => m.id === g.canonical_id)
+            const copies = (g.members || []).filter(m => m.id !== g.canonical_id)
+            return (
+              <div key={g.key} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, marginBottom: 10, background: 'var(--surface-bg)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--t4)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Matched on {g.match_on === 'phone' ? 'phone number' : 'name + address'} · {g.count} copies
+                  </span>
+                  <Button variant="primary" size="sm" loading={merging} onClick={() => mergeOne(g)}>
+                    <GitMerge size={12} /> Merge {g.count} → 1
+                  </Button>
+                </div>
+
+                {/* Canonical survivor */}
+                {canonical && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 7, background: 'rgba(0,195,122,0.08)', marginBottom: 4 }}>
+                    <Badge color="green">Keep</Badge>
+                    <span style={{ fontSize: 13, color: 'var(--t1)', fontWeight: 600 }}>{leadLabel(canonical)}</span>
+                    <span style={{ fontSize: 11, color: 'var(--t4)', marginLeft: 'auto' }}>{canonical.phone || '—'}</span>
+                  </div>
+                )}
+
+                {/* Copies that get folded in */}
+                {copies.map(c => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 7, opacity: 0.6 }}>
+                    <Badge color="red">Merge</Badge>
+                    <span style={{ fontSize: 13, color: 'var(--t2)' }}>{leadLabel(c)}</span>
+                    <span style={{ fontSize: 11, color: 'var(--t4)', marginLeft: 'auto' }}>{c.phone || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        {!loading && groups.length > 0 && (
+          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, color: 'var(--t4)' }}>Keeps the most complete record · re-links calls, texts & deals</span>
+            <Button variant="primary" size="sm" loading={merging} onClick={mergeAll}>
+              <GitMerge size={13} /> Merge All ({summary.duplicate_leads})
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
