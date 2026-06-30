@@ -479,6 +479,36 @@ router.post('/', async (req, res, next) => {
     const { first_name, last_name, phone, email, property_address, property_city, property_state, property_zip, property_type, estimated_value, estimated_equity, source, notes, tags } = req.body;
     if (!phone) return res.status(400).json({ success: false, error: 'phone required' });
 
+    // AUTOMATIC DEDUP — before inserting, check whether this operator already has this
+    // person. The bulk import dedups on the unique index, but a single hand-add had no
+    // guard, so the same lead typed twice made a second row. We catch it two ways:
+    //   • same normalized phone (so "+1 (704) 555-0000" == "7045550000"), and
+    //   • same name + property address when the new add has no phone.
+    // On a hit we DON'T create a copy — we return the existing lead (200, deduped:true)
+    // so the UI just opens the lead the operator already has. Fully automatic; the
+    // operator never sees a duplicate appear. Best-effort: any scan error falls through
+    // to a normal insert rather than blocking lead creation.
+    try {
+      const incomingPhoneKey = phoneKey(phone);
+      const incomingIdentity = identityKey({ first_name, last_name, property_address });
+      const { data: existingRows } = await supabase
+        .from('leads')
+        .select('id, first_name, last_name, phone, property_address, status, is_on_dnc, created_at')
+        .eq('user_id', req.user.id);
+      const match = (existingRows || []).find(r =>
+        (incomingPhoneKey && phoneKey(r.phone) === incomingPhoneKey) ||
+        (!incomingPhoneKey && incomingIdentity && identityKey(r) === incomingIdentity)
+      );
+      if (match) {
+        // Already have this lead — return it instead of duplicating.
+        const { data: full } = await supabase.from('leads').select('*')
+          .eq('id', match.id).eq('user_id', req.user.id).single();
+        return res.status(200).json({ success: true, deduped: true, data: full || match });
+      }
+    } catch (e) {
+      console.warn('[Leads create] dedup scan skipped:', e.message);
+    }
+
     // DNC check
     const { data: dnc } = await supabase.from('dnc_records').select('id').eq('phone', phone).single();
     const is_on_dnc = !!dnc;
@@ -552,9 +582,36 @@ router.post('/bulk', async (req, res, next) => {
       status: dncSet.has(l.phone) ? 'dnc' : 'new',
     })).filter(r => r.phone);
 
-    // Deduplicate by phone within batch
+    // Deduplicate within the batch AND against what the operator already has, using a
+    // NORMALIZED phone signature so "+1 (704) 555-0000" and "7045550000" collapse to
+    // one (the unique index only catches byte-identical phones). Phone-less rows fall
+    // back to a name+address signature. This makes the import filter copies out for the
+    // operator automatically, before anything is inserted. Best-effort on the existing
+    // pull — if it fails we still dedup within the batch and lean on the unique index.
+    let existingKeys = new Set();
+    try {
+      const { data: existingRows } = await supabase
+        .from('leads')
+        .select('phone, first_name, last_name, property_address')
+        .eq('user_id', req.user.id);
+      for (const r of (existingRows || [])) {
+        const k = phoneKey(r.phone) ? `ph:${phoneKey(r.phone)}` : identityKey(r);
+        if (k) existingKeys.add(k);
+      }
+    } catch (e) {
+      console.warn('[Leads import] existing-key scan skipped:', e.message);
+    }
+
     const seen = new Set();
-    const unique = records.filter(r => { if (seen.has(r.phone)) return false; seen.add(r.phone); return true; });
+    const unique = records.filter(r => {
+      const key = phoneKey(r.phone) ? `ph:${phoneKey(r.phone)}` : identityKey(r);
+      if (!key) return true;                 // nothing to dedup on → let it through
+      if (seen.has(key) || existingKeys.has(key)) return false; // dupe in-batch or already owned
+      seen.add(key);
+      return true;
+    });
+    // Rows filtered here as already-owned never reach the upsert, so count them as skips.
+    const preFiltered = records.filter(r => r.phone).length - unique.length;
 
     let imported = 0;
     let duplicates = 0;
@@ -619,7 +676,7 @@ router.post('/bulk', async (req, res, next) => {
       success: true,
       imported,
       dnc_flagged: unique.filter(r => r.is_on_dnc).length,
-      duplicates_skipped: duplicates,
+      duplicates_skipped: duplicates + preFiltered, // index-ignored + auto-filtered copies
       total_received: leads.length,
     });
   } catch (err) { next(err); }

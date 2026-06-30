@@ -1311,7 +1311,11 @@ function AddLeadModal({ onClose, onSaved }) {
     setSaving(true)
     try {
       const { data } = await leads.createLead(form)
-      toast.success('Lead added')
+      if (data?.deduped) {
+        toast.success('This lead already exists — opening it')
+      } else {
+        toast.success('Lead added')
+      }
       onSaved(data?.lead || data?.data || form)
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to add lead')
