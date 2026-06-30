@@ -81,11 +81,16 @@ async function selectSmsNumber(userId) {
 
   // Pick the first candidate that still has daily headroom. A number whose
   // reset date is stale (before today) is treated as freshly reset → full cap.
-  // A toll-free number is only a deliverable SMS sender once carrier SMS-verified;
-  // carriers silently filter texts from un-verified toll-free numbers. Local
-  // numbers carry no toll-free verification requirement, so they pass through.
+  //
+  // STAGE POLICY (pre-A2P): SMS only ever sends from a carrier-VERIFIED TOLL-FREE
+  // number. Local numbers are CALLS-ONLY (bought on Twilio, imported into Vapi for
+  // the voice dialer) and must NEVER be chosen as an SMS sender — carriers also
+  // silently filter SMS from un-verified toll-free numbers. So the deliverable
+  // SMS pool is strictly: is_toll_free === true AND sms_verification_status ===
+  // 'verified'. (When A2P 10DLC is funded later, local SMS routes via the
+  // operator's Messaging Service in smsService — tier 1 — not through this pool.)
   const deliverable = candidates.filter(c =>
-    !c.is_toll_free || c.sms_verification_status === 'verified');
+    c.is_toll_free && c.sms_verification_status === 'verified');
 
   for (const c of deliverable) {
     const stale = !c.sms_last_reset_date || c.sms_last_reset_date < today;
