@@ -74,20 +74,57 @@ function buildSMSBody(lead, operatorName, customTemplate = null) {
     'default'
   ).toLowerCase().replace(/[^a-z_]/g, '_');
 
+  // WHAMMY 1 — the opener text is a pure CURIOSITY QUESTION, not a pitch.
+  // No "buy"/"cash"/"as-is" trigger words (those read as wholesaler spam, get
+  // ignored, and poison toll-free deliverability). A short yes/no question the
+  // owner can answer in one tap maximizes reply rate; once they reply, the
+  // existing AI reply engine (smsInboundProcessor → scoreReply / continueConversation
+  // / escalateToCall) delivers WHAMMY 2 (the actual value/pitch). So the templates
+  // below carry ZERO pitch on purpose.
+  //
+  // COPY STRUCTURE — "tight base + warm A/B":
+  //   The top-level {TIGHT | WARM} group makes spin() flip a coin per lead between
+  //   a TERSE opener (lowest friction, fastest tap-to-reply) and a WARMER, slightly
+  //   more human one. Because the branch is seeded by lead.id, the split is a live,
+  //   even A/B test across the whole blast — half your list gets each, and the reply
+  //   rates tell you which voice your market answers. Inner {a|b} groups still vary
+  //   wording within each arm so a 10k send is never byte-identical (carriers bulk-
+  //   filter fingerprinted blasts).
+  //
+  // WRONG-NUMBER TAIL ({Wrong number|My bad} if not): the single biggest reply-rate
+  // lever on a cold list. People who AREN'T the owner now have a reason to write back
+  // ("wrong #") — and a correction is still a reply that warms the thread / cleans the
+  // list. It also reads as polite and human, not like a blast.
+  const tail = `{Wrong number|My bad|No worries} if not.`;
+  // NOTE on the signature: each arm names the sender EXACTLY ONCE. The TIGHT arm is
+  // unsigned mid-sentence and carries the trailing "- ${sender}". The WARM arm says
+  // "${sender} here" / "this is ${sender}" inline and ends at the tail — no double-sign.
   const templates = {
-    tax_delinquent: `Hey ${first} I noticed the property on ${street} may have some back taxes. I buy properties as-is and can close fast. Would that help your situation at all? - ${sender}`,
-    absentee_owner: `Hey ${first} I saw you own a property in ${city} but live out of state. Managing property from a distance can be tough. If you ever considered selling I would love to make it easy. Worth a quick chat? - ${sender}`,
-    absentee:       `Hey ${first} I saw you own a property in ${city} but live out of state. Managing property from a distance can be tough. If you ever considered selling I would love to make it easy. Worth a quick chat? - ${sender}`,
-    probate:        `Hey ${first} I understand you may have recently inherited property at ${address}. No pressure at all but if selling would simplify things I can make it very straightforward. Would that be helpful? - ${sender}`,
-    inherited:      `Hey ${first} I understand you may have recently inherited property at ${address}. No pressure at all but if selling would simplify things I can make it very straightforward. Would that be helpful? - ${sender}`,
-    vacant_land:    `Hey ${first} I came across your land parcel in ${county}. Holding vacant land can get expensive with taxes. If you have ever thought about selling I would love to talk. Is that something you are open to? - ${sender}`,
-    rural_land:     `Hey ${first} I came across your land parcel in ${county}. Holding vacant land can get expensive with taxes. If you have ever thought about selling I would love to talk. Is that something you are open to? - ${sender}`,
-    lis_pendens:    `Hey ${first} I know things can get stressful when facing foreclosure on ${street}. I buy properties fast and can help you avoid that. Would a quick conversation help? - ${sender}`,
-    pre_foreclosure:`Hey ${first} I know things can get stressful when facing foreclosure on ${street}. I buy properties fast and can help you avoid that. Would a quick conversation help? - ${sender}`,
-    default:        `Hey ${first} I came across your property at ${address} and wanted to reach out directly. I buy properties as-is for cash and can close on your timeline. Is that something worth a quick conversation? - ${sender}`,
+    tax_delinquent: `{${first}? You still own ${street}? ${tail} - ${sender}|{Hey|Hi} ${first}, ${sender} here. Quick one — is ${street} still yours? ${tail}}`,
+    absentee_owner: `{${first}? Still own the place in ${city}? ${tail} - ${sender}|{Hey|Hi} ${first}, this is ${sender}. Do you still own the property in ${city}? ${tail}}`,
+    absentee:       `{${first}? Still own the place in ${city}? ${tail} - ${sender}|{Hey|Hi} ${first}, this is ${sender}. Do you still own the property in ${city}? ${tail}}`,
+    probate:        `{${first}? Right person to ask about ${street}? ${tail} - ${sender}|{Hi|Hey} ${first}, ${sender} here. Are you the one to ask about the property on ${street}? ${tail}}`,
+    inherited:      `{${first}? Right person to ask about ${street}? ${tail} - ${sender}|{Hi|Hey} ${first}, ${sender} here. Are you the one to ask about the property on ${street}? ${tail}}`,
+    vacant_land:    `{${first}? Still own that parcel in ${county}? ${tail} - ${sender}|{Hey|Hi} ${first}, this is ${sender}. Do you still own the land in ${county}? ${tail}}`,
+    rural_land:     `{${first}? Still own that parcel in ${county}? ${tail} - ${sender}|{Hey|Hi} ${first}, this is ${sender}. Do you still own the land in ${county}? ${tail}}`,
+    lis_pendens:    `{${first}? Still the owner at ${street}? ${tail} - ${sender}|{Hi|Hey} ${first}, ${sender} here. Are you still the owner over at ${street}? ${tail}}`,
+    pre_foreclosure:`{${first}? Still the owner at ${street}? ${tail} - ${sender}|{Hi|Hey} ${first}, ${sender} here. Are you still the owner over at ${street}? ${tail}}`,
+    default:        `{${first}? Is ${street} still yours? ${tail} - ${sender}|{Hey|Hi} ${first}, this is ${sender}. Is the place on ${street} still yours? ${tail}}`,
   };
 
-  return templates[type] || templates.default;
+  const chosen = templates[type] || templates.default;
+
+  // Resolve spintax per-lead. Seed by lead.id so retries/resends pick the SAME
+  // branch (idempotent); fall back to phone/name if id is missing — still
+  // deterministic. spin() returns any string with no {a|b} group unchanged.
+  try {
+    const { spin } = require('./emailSpintax');
+    return spin(chosen, lead.id || lead.phone || first);
+  } catch (_) {
+    // If the spintax helper is somehow unavailable, take the FIRST branch of each
+    // group rather than ever leaking literal {a|b} braces to a recipient.
+    return chosen.replace(/\{([^{}]*\|[^{}]*)\}/g, (_m, g) => g.split('|')[0]);
+  }
 }
 
 const SMS_TYPE_MAP = {
