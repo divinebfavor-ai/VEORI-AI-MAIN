@@ -32,6 +32,7 @@ const QUEUE_NAMES = {
   SMS_DAILY_RESET:    'sms-daily-reset', // nightly zero of per-number SMS counters
   ANALYTICS_ROLLUP:   'analytics-rollup', // nightly per-operator daily stats rollup
   SEQUENCE_SCAN:      'sequence-scan',   // periodic nurture scan (processReadySequences)
+  TOLLFREE_VERIFY_POLL: 'tollfree-verify-poll', // refresh pending toll-free SMS verifications from Twilio
 };
 
 // Single-instance cron gate: only ONE box should register repeatable jobs (so we
@@ -287,6 +288,16 @@ function initWorkers() {
     await runTitleWarningsScan();
   }, { connection: conn, concurrency: 1 });
 
+  // ── Toll-free SMS verification poller ─────────────────────────────────────
+  // Refreshes every toll-free number stuck in 'pending' against Twilio, flipping
+  // it to 'verified' once carrier review approves — so Veori-bought numbers become
+  // SMS-deliverable with zero operator action.
+  new Worker(QUEUE_NAMES.TOLLFREE_VERIFY_POLL, async (job) => {
+    const { pollPendingVerifications } = require('./numberProvisioning');
+    const r = await pollPendingVerifications();
+    if (r.changed) console.log(`[Queue] tollfree-verify-poll: ${r.changed}/${r.checked} number(s) advanced`);
+  }, { connection: conn, concurrency: 1 });
+
   // ── Repeatable (cron) jobs — register on the cron instance only ───────────
   if (RUN_CRON) {
     const marketQueue = getQueue(QUEUE_NAMES.MARKET_INTELLIGENCE);
@@ -321,6 +332,13 @@ function initWorkers() {
     seqScanQueue.add('sequence-scan', {}, {
       jobId: 'sequence-scan',
       repeat: { pattern: '*/15 * * * *' }, // every 15 min — nurture due-step scan
+      removeOnComplete: 5,
+    }).catch(() => {});
+
+    const tfVerifyQueue = getQueue(QUEUE_NAMES.TOLLFREE_VERIFY_POLL);
+    tfVerifyQueue.add('tollfree-verify-poll', {}, {
+      jobId: 'tollfree-verify-poll',
+      repeat: { pattern: '*/30 * * * *' }, // every 30 min — carrier approval takes days
       removeOnComplete: 5,
     }).catch(() => {});
   } else {

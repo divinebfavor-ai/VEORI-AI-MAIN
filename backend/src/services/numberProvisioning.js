@@ -339,8 +339,9 @@ async function buyTollFreeTwilioNumber(userId, label) {
 
   const boughtPrefix = number.replace(/\D/g, '').slice(1, 4);
 
+  const phoneId = uuidv4();
   await supabase.from('phone_numbers').insert([{
-    id:                   uuidv4(),
+    id:                   phoneId,
     user_id:              userId,
     number,
     friendly_name:        label,
@@ -358,6 +359,17 @@ async function buyTollFreeTwilioNumber(userId, label) {
     spam_score:           100,
     purchased_at:         new Date().toISOString(),
   }]);
+
+  // Auto-file the toll-free SMS verification using the operator's STORED business
+  // identity (operators never touch Twilio). Fire-and-forget: the number is ready
+  // for VOICE immediately; SMS deliverability follows once Twilio approves. If the
+  // operator hasn't finished their business identity yet, this no-ops cleanly and
+  // the number stays 'unverified' until they do (then the poller / next provision
+  // can re-file). NEVER let verification failure break number provisioning.
+  if (purchased.sid) {
+    submitTollFreeVerification(userId, { id: phoneId, number, twilio_phone_number_sid: purchased.sid })
+      .catch((e) => console.warn(`[NumberProvisioning] auto SMS-verify failed for ${number}: ${e.message}`));
+  }
 
   return { number, area_code: boughtPrefix, vapi_phone_number_id: vapiId, is_toll_free: true };
 }
@@ -582,6 +594,165 @@ async function ensureCapacity(userId) {
   };
 }
 
+// ── Toll-free SMS verification (auto, on Veori's behalf) ─────────────────────
+// Twilio enums (must match Twilio's accepted values — mirrors phones.js).
+const TF_OPT_IN_TYPES   = ['VERBAL', 'WEB_FORM', 'PAPER_FORM', 'VIA_TEXT', 'MOBILE_QR_CODE', 'IMPORT'];
+const TF_BUSINESS_TYPES = ['PRIVATE_PROFIT', 'PUBLIC_PROFIT', 'SOLE_PROPRIETOR', 'NON_PROFIT', 'GOVERNMENT'];
+
+// Map Twilio's verification status to our internal 3-state model.
+//   TWILIO_APPROVED → verified · TWILIO_REJECTED → unverified · else → pending.
+function mapTwilioVerifyStatus(twStatus) {
+  const tw = (twStatus || '').toUpperCase();
+  return tw === 'TWILIO_APPROVED' ? 'verified'
+    : tw === 'TWILIO_REJECTED' ? 'unverified'
+    : 'pending';
+}
+
+/**
+ * File a Twilio toll-free SMS verification for a number Veori bought, using the
+ * operator's STORED business identity (from the `users` row) — no operator action,
+ * no Twilio console. Flips the number to 'pending' on success.
+ *
+ * Additive twin of POST /api/phones/:id/sms-verification/submit, but fed by stored
+ * identity instead of a request body. Never throws — provisioning must not break.
+ *
+ * @param {string} userId
+ * @param {{id:string, number?:string, twilio_phone_number_sid:string}} phoneRow
+ * @returns {Promise<{submitted:boolean, status?:string, reason?:string}>}
+ */
+async function submitTollFreeVerification(userId, phoneRow) {
+  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+    return { submitted: false, reason: 'Twilio not configured' };
+  }
+  if (!phoneRow || !phoneRow.twilio_phone_number_sid) {
+    return { submitted: false, reason: 'No Twilio PN SID on file' };
+  }
+
+  // Pull the operator's business identity.
+  const { data: u, error: uErr } = await supabase
+    .from('users')
+    .select('company_name, legal_name, entity_type, website, business_email, business_phone, ' +
+            'business_street, business_street2, business_city, business_state, business_postal_code, business_country, ' +
+            'contact_first_name, contact_last_name, contact_email, contact_phone, ' +
+            'sms_business_type, sms_opt_in_type, sms_use_case_summary, sms_message_sample')
+    .eq('id', userId)
+    .single();
+  if (uErr || !u) return { submitted: false, reason: 'Operator profile not found' };
+
+  const businessName    = u.legal_name || u.company_name;
+  const notificationEmail = u.business_email || u.contact_email;
+  const useCaseSummary  = u.sms_use_case_summary
+    || 'Real-estate outreach: we text property owners who expressed interest in selling, to follow up on their inquiry and coordinate next steps.';
+  const messageSample   = u.sms_message_sample
+    || 'Hi, this is regarding your property — are you still open to a cash offer? Reply STOP to opt out.';
+
+  // Minimum coherent request. If the operator hasn't set a business name yet,
+  // skip cleanly (they'll complete identity in Settings; re-file happens later).
+  if (!businessName || !notificationEmail) {
+    return { submitted: false, reason: 'Operator business identity incomplete (business name / email)' };
+  }
+
+  const businessType = TF_BUSINESS_TYPES.includes(u.sms_business_type) ? u.sms_business_type : 'PRIVATE_PROFIT';
+  const optInType    = TF_OPT_IN_TYPES.includes(u.sms_opt_in_type) ? u.sms_opt_in_type : 'VERBAL';
+
+  const params = new URLSearchParams();
+  params.append('TollfreePhoneNumberSid', phoneRow.twilio_phone_number_sid);
+  params.append('BusinessName', businessName);
+  params.append('BusinessType', businessType);
+  params.append('NotificationEmail', notificationEmail);
+  params.append('UseCaseSummary', useCaseSummary);
+  params.append('ProductionMessageSample', messageSample);
+  params.append('OptInType', optInType);
+  params.append('MessageVolume', '10,000');
+  params.append('UseCaseCategories', 'MARKETING');
+  if (u.website) params.append('BusinessWebsite', u.website);
+  if (u.business_street) params.append('BusinessStreetAddress', u.business_street);
+  if (u.business_street2) params.append('BusinessStreetAddress2', u.business_street2);
+  if (u.business_city) params.append('BusinessCity', u.business_city);
+  if (u.business_state) params.append('BusinessStateProvinceRegion', u.business_state);
+  if (u.business_postal_code) params.append('BusinessPostalCode', u.business_postal_code);
+  if (u.business_country) params.append('BusinessCountry', u.business_country);
+  if (u.contact_first_name) params.append('BusinessContactFirstName', u.contact_first_name);
+  if (u.contact_last_name) params.append('BusinessContactLastName', u.contact_last_name);
+  if (u.contact_email) params.append('BusinessContactEmail', u.contact_email);
+  if (u.contact_phone || u.business_phone) params.append('BusinessContactPhone', u.contact_phone || u.business_phone);
+
+  let verificationSid = null;
+  let twStatus = 'PENDING_REVIEW';
+  try {
+    const r = await axios.post(
+      'https://messaging.twilio.com/v1/Tollfree/Verifications',
+      params.toString(),
+      {
+        auth: { username: process.env.TWILIO_ACCOUNT_SID, password: process.env.TWILIO_AUTH_TOKEN },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 20000,
+      }
+    );
+    verificationSid = r.data?.sid || null;
+    twStatus = (r.data?.status || 'PENDING_REVIEW').toUpperCase();
+  } catch (e) {
+    const msg = e.response?.data?.message || e.response?.data?.error || e.message;
+    return { submitted: false, reason: `Twilio rejected verification: ${msg}` };
+  }
+
+  const mapped = mapTwilioVerifyStatus(twStatus);
+  await supabase
+    .from('phone_numbers')
+    .update({
+      sms_verification_status: mapped,
+      sms_verification_sid:    verificationSid,
+      sms_verification_at:     new Date().toISOString(),
+    })
+    .eq('id', phoneRow.id)
+    .eq('user_id', userId);
+
+  console.log(`[NumberProvisioning] toll-free SMS verification filed for ${phoneRow.number || phoneRow.id} → ${mapped}`);
+  return { submitted: true, status: mapped };
+}
+
+/**
+ * Cron worker: refresh every toll-free number stuck in 'pending' against Twilio,
+ * flipping it to 'verified' (or back to 'unverified') as carrier review completes.
+ * Reuses the GET /:id/sms-verification status-mapping logic. Never throws.
+ *
+ * @returns {Promise<{checked:number, changed:number}>}
+ */
+async function pollPendingVerifications() {
+  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+    return { checked: 0, changed: 0 };
+  }
+
+  const { data: pend, error } = await supabase
+    .from('phone_numbers')
+    .select('id, user_id, number, sms_verification_status, sms_verification_sid')
+    .eq('is_toll_free', true)
+    .eq('sms_verification_status', 'pending')
+    .not('sms_verification_sid', 'is', null);
+  if (error || !pend || !pend.length) return { checked: 0, changed: 0 };
+
+  let changed = 0;
+  for (const p of pend) {
+    try {
+      const r = await axios.get(
+        `https://messaging.twilio.com/v1/Tollfree/Verifications/${p.sms_verification_sid}`,
+        { auth: { username: process.env.TWILIO_ACCOUNT_SID, password: process.env.TWILIO_AUTH_TOKEN }, timeout: 10000 }
+      );
+      const mapped = mapTwilioVerifyStatus(r.data?.status);
+      if (mapped !== p.sms_verification_status) {
+        await supabase.from('phone_numbers')
+          .update({ sms_verification_status: mapped, sms_verification_at: new Date().toISOString() })
+          .eq('id', p.id).eq('user_id', p.user_id);
+        changed += 1;
+        console.log(`[NumberProvisioning] toll-free ${p.number} verification: pending → ${mapped}`);
+      }
+    } catch (e) {
+      console.warn(`[NumberProvisioning] verification poll failed for ${p.number}: ${e.message}`);
+    }
+  }
+  return { checked: pend.length, changed };
+}
+
 /**
  * Handle plan activation / upgrade
  */
@@ -604,6 +775,8 @@ module.exports = {
   splitNumberCounts,
   handlePlanUpgrade,
   ensureCapacity,
+  submitTollFreeVerification,
+  pollPendingVerifications,
   PLAN_NUMBER_COUNTS,
   PLAN_TOLLFREE_COUNTS,
   STATE_AREA_CODES,
