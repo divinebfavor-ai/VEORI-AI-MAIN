@@ -253,7 +253,7 @@ async function sendOpeningSMS(lead, userId) {
 // sellerContext (optional) is the seller_profiles row from dataMotService —
 // when present, the score is judged WITH the seller's call history behind it
 // (A — unified memory). Omitted/null → identical behavior to before.
-async function scoreReply(conversationHistory, newMessage, sellerContext = null) {
+async function scoreReply(conversationHistory, newMessage, sellerContext = null, dealBlock = '') {
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_KEY) return 50;
 
@@ -263,6 +263,9 @@ async function scoreReply(conversationHistory, newMessage, sellerContext = null)
       const { buildSMSContextBlock } = require('./dataMotService');
       contextBlock = buildSMSContextBlock(sellerContext);
     } catch (_) { contextBlock = ''; }
+    // Deal-state awareness: an in-flight deal means this isn't a cold reply —
+    // score it knowing the seller already engaged/agreed. '' when no deal.
+    if (dealBlock) contextBlock += dealBlock;
 
     const prompt = `You are an expert real estate acquisitions analyst. Score the seller's motivation to sell their property from 0 to 100 based on this SMS conversation.
 
@@ -299,7 +302,7 @@ Reply with ONLY a JSON object: {"score": <0-100>, "reason": "<one sentence>", "n
 
 // ─── Continue SMS conversation (score 40-60) ─────────────────────────────────
 
-async function continueConversation(lead, sellerMessage, conversationHistory, sellerContext = null) {
+async function continueConversation(lead, sellerMessage, conversationHistory, sellerContext = null, dealBlock = '') {
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_KEY) return null;
 
@@ -309,6 +312,9 @@ async function continueConversation(lead, sellerMessage, conversationHistory, se
       const { buildSMSContextBlock } = require('./dataMotService');
       contextBlock = buildSMSContextBlock(sellerContext);
     } catch (_) { contextBlock = ''; }
+    // Deal-state awareness: continue the text knowing where the deal stands so
+    // Alex advances it instead of re-asking settled questions. '' when no deal.
+    if (dealBlock) contextBlock += dealBlock;
 
     // D — per-tag talk-track: text this seller in the SAME voice the call would use
     // for their lead type (empty string for unknown/missing tag → unchanged behavior).

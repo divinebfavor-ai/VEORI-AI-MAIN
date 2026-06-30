@@ -522,6 +522,54 @@ function buildBuyerIntelBlock(intel) {
   return lines.length > 2 ? lines.join('\n') : '';
 }
 
+// ─── D — DEAL-STATE AWARENESS ────────────────────────────────────────────────
+// The seller/buyer brains remember PEOPLE. This one remembers the DEAL itself.
+// Until now the AI dialed every lead like a cold first-touch even when a deal
+// already existed — re-pitching a seller who'd already given a verbal yes, which
+// reads as broken to an experienced investor. This pulls the lead's most recent
+// deal so the AI knows where things actually stand (already agreed? under
+// contract? closing scheduled?). Read-only, single row, non-blocking: any
+// failure / no deal returns null and the call behaves exactly as it did before.
+async function getDealContext(leadId) {
+  if (!supabase || !leadId) return null;
+  try {
+    const { data } = await supabase
+      .from('deals')
+      .select('status, offer_price, seller_agreed_price, arv, assignment_fee, closing_date, created_at')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data || null;
+  } catch (e) {
+    return null; // no deal yet (true cold lead) — not an error
+  }
+}
+
+// Format the deal into a short prompt block so the AI opens from the RIGHT place
+// in the pipeline instead of re-pitching from scratch. Returns '' when there is
+// no deal so a genuine first-touch lead gets the byte-for-byte original prompt.
+function buildDealContextBlock(deal) {
+  if (!deal) return '';
+  const lines = ['', 'WHERE THIS DEAL ALREADY STANDS (do NOT re-pitch from scratch):'];
+
+  const status = String(deal.status || '').toLowerCase();
+  const STATUS_GUIDANCE = {
+    under_contract: 'You already have a verbal/contract agreement — this call is to confirm & advance to closing, NOT to re-negotiate price.',
+    closing:        'Deal is heading to close — call is logistics (title, dates, signatures), not a fresh pitch.',
+    won:            'Deal already closed — treat as a relationship/referral touch, not a new offer.',
+    lead:           'Appointment/early-stage deal exists — pick up where the last conversation left off.',
+    new:            'A deal record exists but is early — continue the existing thread, don\'t cold-open.',
+  };
+  if (deal.status) lines.push(`- Stage: ${deal.status}${STATUS_GUIDANCE[status] ? ' — ' + STATUS_GUIDANCE[status] : ''}`);
+  if (deal.seller_agreed_price) lines.push(`- Seller already agreed to: $${Number(deal.seller_agreed_price).toLocaleString()} — anchor here, do not lower it on them.`);
+  else if (deal.offer_price)    lines.push(`- Offer on the table: $${Number(deal.offer_price).toLocaleString()}.`);
+  if (deal.closing_date)        lines.push(`- Closing date: ${new Date(deal.closing_date).toDateString()}.`);
+  if (deal.arv)                 lines.push(`- ARV on file: $${Number(deal.arv).toLocaleString()}.`);
+
+  return lines.length > 2 ? lines.join('\n') : '';
+}
+
 module.exports = {
   recordCallIntelligence,
   recordWinningPlaybook,
@@ -532,4 +580,6 @@ module.exports = {
   getBuyerIntelligence,
   buildBuyerIntelBlock,
   recordBuyerDealOutcome,
+  getDealContext,
+  buildDealContextBlock,
 };

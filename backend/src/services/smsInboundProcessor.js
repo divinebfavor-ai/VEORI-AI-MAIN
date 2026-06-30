@@ -24,7 +24,7 @@ const supabase = require('../config/supabase');
 const {
   scoreReply, continueConversation, sendReply, escalateToCall,
 } = require('./smsService');
-const { getSellerContextForSMS } = require('./dataMotService');
+const { getSellerContextForSMS, getDealContext, buildDealContextBlock } = require('./dataMotService');
 
 /**
  * Run reply scoring + the resulting action for one inbound SMS.
@@ -97,8 +97,16 @@ async function processInboundSMS(data) {
   // null (first touch / read fail) leaves scoring exactly as it was before.
   const sellerContext = await getSellerContextForSMS(leadId);
 
+  // Deal-state awareness (same source the voice brain reads): if a deal is
+  // already in flight, score/continue knowing it — don't treat an agreed seller
+  // like a cold reply. Non-blocking — null / no deal → '' → behavior unchanged.
+  let dealBlock = '';
+  try {
+    dealBlock = buildDealContextBlock(await getDealContext(leadId));
+  } catch (_) { dealBlock = ''; }
+
   // Score the reply (the slow part we moved off the webhook).
-  const scoring = await scoreReply(formattedHistory, body, sellerContext);
+  const scoring = await scoreReply(formattedHistory, body, sellerContext, dealBlock);
   const score = typeof scoring === 'number' ? scoring : scoring.score;
   const nextAction = scoring.next_action ||
     (score >= 60 ? 'call_now' : score >= 40 ? 'continue_sms' : 'follow_up_7_days');
@@ -114,7 +122,7 @@ async function processInboundSMS(data) {
 
   } else if (nextAction === 'continue_sms' || (score >= 40 && score < 60)) {
     // Warm lead — continue the SMS conversation (with seller memory in context).
-    const reply = await continueConversation(lead, body, formattedHistory, sellerContext);
+    const reply = await continueConversation(lead, body, formattedHistory, sellerContext, dealBlock);
     if (reply) await sendReply(from, reply, userId, leadId);
 
   } else {

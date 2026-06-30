@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { getCallIntelligence, buildAccumulatedIntelligenceBlock, getBuyerIntelligence, buildBuyerIntelBlock } = require('./dataMotService');
+const { getCallIntelligence, buildAccumulatedIntelligenceBlock, getBuyerIntelligence, buildBuyerIntelBlock, getDealContext, buildDealContextBlock } = require('./dataMotService');
 // Veteran "read" + negotiation "chess" layers (pure, additive — no I/O, never throw).
 // Imported defensively so a missing file can never break the call path.
 let readDeal, buildNegotiationBlock;
@@ -1340,11 +1340,23 @@ async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useC
     console.warn('[Vapi] Data moat read failed (non-blocking):', e.message);
   }
 
+  // Deal-state awareness: if a deal already exists for this lead, tell the AI
+  // where it stands so it advances the pipeline instead of re-pitching a seller
+  // who already agreed. Own try/catch — a read miss / no deal degrades to '' and
+  // the prompt is byte-for-byte the original cold-lead prompt.
+  let dealBlock = '';
+  try {
+    dealBlock = buildDealContextBlock(await getDealContext(lead?.id));
+  } catch (e) {
+    console.warn('[Vapi] Deal context read failed (non-blocking):', e.message);
+  }
+
   // F8 — resolve the call language (defaults to English; Spanish if lead/campaign/
   // operator prefers it) and append the Spanish directive when applicable.
   const langInfo = resolveLanguage({ operator, campaign, lead });
   const systemPrompt = getScriptByLeadTag(lead, operator, useCaseOverride, campaign)
     + accumulatedIntel
+    + dealBlock
     + buildLanguageDirective(langInfo);
 
   // Accept BOTH the [Bracket] tokens shown in the Settings UI and the legacy
@@ -1663,12 +1675,20 @@ async function buildInboundAssistantConfig({ callerPhone, operator = {}, lead = 
   // a read failure must never drop the inbound call, so it degrades to the cold path.
   const known = !!lead?.id;
   let accumulatedIntel = '';
+  let dealBlock = '';
   if (known) {
     try {
       const intel = await getCallIntelligence({ lead, operator });
       accumulatedIntel = buildAccumulatedIntelligenceBlock({ ...intel, lead });
     } catch (e) {
       console.warn('[Vapi Inbound] Data moat read failed (non-blocking):', e.message);
+    }
+    // Same deal-state awareness as outbound: a known caller may already have a
+    // deal in flight — resume the pipeline, don't re-pitch. Non-blocking → ''.
+    try {
+      dealBlock = buildDealContextBlock(await getDealContext(lead.id));
+    } catch (e) {
+      console.warn('[Vapi Inbound] Deal context read failed (non-blocking):', e.message);
     }
   }
 
@@ -1708,7 +1728,7 @@ Apply the same call flow as outbound calls.
 Always be warm — they called YOU, which means they have some interest.
 
 PERSONALITY STYLE:
-${getToneStyle(operator)}${accumulatedIntel}${buildLanguageDirective(langInfo)}`;
+${getToneStyle(operator)}${accumulatedIntel}${dealBlock}${buildLanguageDirective(langInfo)}`;
 
   // Known callers get a personalized, warm callback greeting; unknown callers get
   // the neutral inbound opener.
