@@ -145,6 +145,10 @@ function PhoneTab({ phoneList, setPhoneList }) {
   const [buyingTollFree, setBuyingTollFree] = useState(false)
   const [releaseTarget, setReleaseTarget] = useState(null) // phone to release
   const [releasing, setReleasing] = useState(false)
+  const [smsVerifyTarget, setSmsVerifyTarget] = useState(null) // toll-free phone whose SMS verification we're editing
+  const [smsVerifyForm, setSmsVerifyForm] = useState({ status: 'pending', verification_sid: '' })
+  const [smsVerifySaving, setSmsVerifySaving] = useState(false)
+  const [smsRefreshingId, setSmsRefreshingId] = useState(null)
 
   useEffect(() => {
     phones.getPlanStatus().then(r => setPlanStatus(r.data)).catch(() => {})
@@ -265,6 +269,54 @@ function PhoneTab({ phoneList, setPhoneList }) {
     return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   }
 
+  // Refresh a toll-free number's SMS verification status live from Twilio (server
+  // re-queries by the stored verification SID and persists any change).
+  const handleRefreshSmsVerification = async (phone) => {
+    setSmsRefreshingId(phone.id)
+    try {
+      const { data } = await phones.getSmsVerification(phone.id)
+      const fresh = data?.data || data
+      if (fresh) {
+        setPhoneList(prev => prev.map(x => x.id === phone.id
+          ? { ...x, sms_verification_status: fresh.sms_verification_status, sms_verification_sid: fresh.sms_verification_sid, sms_verification_at: fresh.sms_verification_at }
+          : x))
+        toast.success(`SMS status: ${fresh.sms_verification_status}`)
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to refresh SMS status')
+    } finally {
+      setSmsRefreshingId(null)
+    }
+  }
+
+  // Save the operator-entered SMS verification state (record the Twilio toll-free
+  // verification SID + mark pending, or mark verified once the carrier approves).
+  const handleSaveSmsVerification = async () => {
+    if (!smsVerifyTarget) return
+    setSmsVerifySaving(true)
+    try {
+      const body = { status: smsVerifyForm.status }
+      if (smsVerifyForm.verification_sid.trim()) body.verification_sid = smsVerifyForm.verification_sid.trim()
+      const { data } = await phones.setSmsVerification(smsVerifyTarget.id, body)
+      const fresh = data?.data || data
+      setPhoneList(prev => prev.map(x => x.id === smsVerifyTarget.id
+        ? { ...x, sms_verification_status: fresh.sms_verification_status, sms_verification_sid: fresh.sms_verification_sid, sms_verification_at: fresh.sms_verification_at }
+        : x))
+      toast.success('SMS verification updated')
+      setSmsVerifyTarget(null)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update SMS verification')
+    } finally {
+      setSmsVerifySaving(false)
+    }
+  }
+
+  // Map an SMS verification status to a badge variant + label.
+  const smsVerifyBadge = s =>
+    s === 'verified' ? { variant: 'success', label: 'SMS Verified' }
+    : s === 'pending' ? { variant: 'warning', label: 'SMS Pending' }
+    : { variant: 'danger', label: 'SMS Unverified' }
+
   return (
     <Section title="Phone Numbers" description="Buy and manage phone numbers for AI calling">
       {/* Plan status bar */}
@@ -327,6 +379,31 @@ function PhoneTab({ phoneList, setPhoneList }) {
                     <span style={{ fontSize: 11, color: 'var(--t4)' }}>Active since {fmtDate(p.purchased_at)}</span>
                   )}
                 </div>
+                {/* Toll-free SMS carrier verification — only toll-free numbers need
+                    this. US carriers silently filter SMS from un-verified toll-free
+                    numbers, so an operator must verify before they're picked as an
+                    SMS sender. Local numbers route SMS via A2P 10DLC, not this. */}
+                {p.is_toll_free && (
+                  <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
+                    {(() => { const b = smsVerifyBadge(p.sms_verification_status); return <Badge variant={b.variant}>{b.label}</Badge> })()}
+                    <button
+                      onClick={() => { setSmsVerifyForm({ status: p.sms_verification_status === 'verified' ? 'verified' : 'pending', verification_sid: p.sms_verification_sid || '' }); setSmsVerifyTarget(p) }}
+                      style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}
+                    >
+                      Manage SMS
+                    </button>
+                    {p.sms_verification_sid && (
+                      <button
+                        onClick={() => handleRefreshSmsVerification(p)}
+                        disabled={smsRefreshingId === p.id}
+                        title="Refresh status from Twilio"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--t4)', background: 'none', border: 'none', cursor: smsRefreshingId === p.id ? 'wait' : 'pointer', padding: 2 }}
+                      >
+                        <RotateCcw size={12} className={smsRefreshingId === p.id ? 'animate-spin' : ''} />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={healthColor(p.health_status)}>{p.health_status || 'healthy'}</Badge>
@@ -438,6 +515,94 @@ function PhoneTab({ phoneList, setPhoneList }) {
               <button
                 onClick={() => setReleaseTarget(null)}
                 disabled={releasing}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid var(--border)',
+                  background: 'var(--surface-bg)', color: 'var(--t2)', fontWeight: 600,
+                  fontSize: 13, cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toll-free SMS verification modal */}
+      {smsVerifyTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'var(--card-bg)', border: '1px solid var(--border)',
+            borderRadius: 16, padding: 28, maxWidth: 460, width: '90%',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+          }}>
+            <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+              <FileCheck size={18} style={{ color: '#00C37A' }} />
+              <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Toll-Free SMS Verification</p>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--t3)', margin: '0 0 4px', fontFamily: 'Geist Mono, monospace' }}>{smsVerifyTarget.number}</p>
+            <p style={{ fontSize: 12, color: 'var(--t4)', margin: '0 0 18px', lineHeight: 1.55 }}>
+              US carriers silently block SMS from un-verified toll-free numbers. Submit
+              toll-free verification in your Twilio console, paste the request SID here
+              and set status to <strong>Pending</strong>. Once Twilio approves it, set it
+              to <strong>Verified</strong> — only then will Veori send SMS from this number.
+            </p>
+
+            <label className="label-caps block mb-1.5">Twilio Verification SID (optional)</label>
+            <Input
+              value={smsVerifyForm.verification_sid}
+              onChange={e => setSmsVerifyForm(p => ({ ...p, verification_sid: e.target.value }))}
+              placeholder="HHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            />
+            <p style={{ fontSize: 11, color: 'var(--t4)', margin: '4px 0 16px' }}>
+              With a SID on file, the refresh button pulls live status straight from Twilio.
+            </p>
+
+            <label className="label-caps block mb-1.5">Status</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
+              {[
+                { v: 'unverified', l: 'Unverified' },
+                { v: 'pending',    l: 'Pending' },
+                { v: 'verified',   l: 'Verified' },
+              ].map(opt => {
+                const active = smsVerifyForm.status === opt.v
+                return (
+                  <button
+                    key={opt.v}
+                    onClick={() => setSmsVerifyForm(p => ({ ...p, status: opt.v }))}
+                    style={{
+                      flex: 1, minWidth: 110, padding: '9px 0', borderRadius: 10,
+                      border: active ? '1px solid #00C37A' : '1px solid var(--border)',
+                      background: active ? 'rgba(0,195,122,0.10)' : 'var(--surface-bg)',
+                      color: active ? '#00C37A' : 'var(--t3)', fontWeight: 600, fontSize: 13,
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    {opt.l}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={handleSaveSmsVerification}
+                disabled={smsVerifySaving}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+                  background: '#00C37A', color: '#04140C', fontWeight: 700,
+                  fontSize: 13, cursor: smsVerifySaving ? 'not-allowed' : 'pointer', opacity: smsVerifySaving ? 0.6 : 1,
+                }}
+              >
+                {smsVerifySaving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={() => setSmsVerifyTarget(null)}
+                disabled={smsVerifySaving}
                 style={{
                   flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid var(--border)',
                   background: 'var(--surface-bg)', color: 'var(--t2)', fontWeight: 600,

@@ -149,6 +149,10 @@ export const phones = {
   releasePhone:   (id, reason)   => api.post(`/api/phones/${id}/release`, { reason }),
   deletePhone:    (id)           => api.delete(`/api/phones/${id}`),
   bulkAddPhones:  (numbers)      => api.post('/api/phones/bulk', { numbers }),
+  // Toll-free SMS carrier verification (deliverability gate). GET refreshes live
+  // status from Twilio when a verification SID is on file; POST records SID/status.
+  getSmsVerification: (id)        => api.get(`/api/phones/${id}/sms-verification`),
+  setSmsVerification: (id, body)  => api.post(`/api/phones/${id}/sms-verification`, body),
 }
 
 // ─── Deals ───────────────────────────────────────────────────────────────────
