@@ -314,6 +314,136 @@ router.post('/:id/sms-verification', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Twilio toll-free verification enums (must match Twilio's accepted values).
+const TF_OPT_IN_TYPES = ['VERBAL', 'WEB_FORM', 'PAPER_FORM', 'VIA_TEXT', 'MOBILE_QR_CODE', 'IMPORT'];
+const TF_BUSINESS_TYPES = ['PRIVATE_PROFIT', 'PUBLIC_PROFIT', 'SOLE_PROPRIETOR', 'NON_PROFIT', 'GOVERNMENT'];
+
+// POST /api/phones/:id/sms-verification/submit — file a TOLL-FREE SMS verification
+// request with Twilio FROM INSIDE VEORI (so the operator skips the Twilio console).
+// Creates a Twilio Tollfree/Verifications request for this number, stores the
+// returned verification SID, and flips the number to 'pending'. Toll-free only,
+// and only for numbers Veori bought through Twilio (we need the Twilio PN SID).
+//
+// Body (all strings unless noted):
+//   business_name*        BusinessName
+//   business_type         BusinessType  (one of TF_BUSINESS_TYPES; default PRIVATE_PROFIT)
+//   business_website      BusinessWebsite
+//   street, street2, city, state, postal_code, country  -> Business* address
+//   contact_first_name, contact_last_name, contact_email, contact_phone
+//   notification_email*   NotificationEmail (verification result notice)
+//   use_case_categories   array of strings (default ['MARKETING'])
+//   use_case_summary*     UseCaseSummary (what you text leads)
+//   message_sample*       ProductionMessageSample (an example outbound text)
+//   opt_in_type           OptInType (one of TF_OPT_IN_TYPES; default VERBAL)
+//   opt_in_image_urls     array of publicly-hosted opt-in proof image URLs
+//   message_volume        MessageVolume (Twilio enum string, e.g. '10,000'; default '10,000')
+router.post('/:id/sms-verification/submit', async (req, res, next) => {
+  try {
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+      return res.status(503).json({ success: false, error: 'Twilio not configured — cannot submit toll-free verification yet' });
+    }
+
+    const { data: phone, error: fetchErr } = await supabase
+      .from('phone_numbers')
+      .select('id, number, is_toll_free, provider, twilio_phone_number_sid, sms_verification_status')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (fetchErr || !phone) return res.status(404).json({ success: false, error: 'Phone number not found' });
+    if (!phone.is_toll_free) {
+      return res.status(400).json({ success: false, error: 'SMS verification applies to toll-free numbers only' });
+    }
+    if (!phone.twilio_phone_number_sid) {
+      return res.status(409).json({ success: false, error: 'This toll-free number has no Twilio SID on file. Only toll-free numbers purchased through Veori (provider:twilio) can be submitted for SMS verification from here.' });
+    }
+    if (phone.sms_verification_status === 'verified') {
+      return res.status(409).json({ success: false, error: 'This number is already SMS-verified' });
+    }
+
+    const b = req.body || {};
+    // Required-by-us fields (Twilio also enforces most of the address/opt-in set
+    // for an approval, but these four are the minimum to file a coherent request).
+    const missing = [];
+    if (!b.business_name) missing.push('business_name');
+    if (!b.notification_email) missing.push('notification_email');
+    if (!b.use_case_summary) missing.push('use_case_summary');
+    if (!b.message_sample) missing.push('message_sample');
+    if (missing.length) {
+      return res.status(400).json({ success: false, error: `Missing required fields: ${missing.join(', ')}` });
+    }
+
+    const businessType = TF_BUSINESS_TYPES.includes(b.business_type) ? b.business_type : 'PRIVATE_PROFIT';
+    const optInType = TF_OPT_IN_TYPES.includes(b.opt_in_type) ? b.opt_in_type : 'VERBAL';
+    const useCaseCategories = Array.isArray(b.use_case_categories) && b.use_case_categories.length
+      ? b.use_case_categories : ['MARKETING'];
+    const optInImageUrls = Array.isArray(b.opt_in_image_urls) ? b.opt_in_image_urls : [];
+    const messageVolume = b.message_volume || '10,000';
+
+    // Twilio's REST API takes form-encoded params; arrays repeat the key.
+    const params = new URLSearchParams();
+    params.append('TollfreePhoneNumberSid', phone.twilio_phone_number_sid);
+    params.append('BusinessName', b.business_name);
+    params.append('BusinessType', businessType);
+    params.append('NotificationEmail', b.notification_email);
+    params.append('UseCaseSummary', b.use_case_summary);
+    params.append('ProductionMessageSample', b.message_sample);
+    params.append('OptInType', optInType);
+    params.append('MessageVolume', messageVolume);
+    useCaseCategories.forEach(c => params.append('UseCaseCategories', c));
+    optInImageUrls.forEach(u => params.append('OptInImageUrls', u));
+    if (b.business_website) params.append('BusinessWebsite', b.business_website);
+    if (b.street) params.append('BusinessStreetAddress', b.street);
+    if (b.street2) params.append('BusinessStreetAddress2', b.street2);
+    if (b.city) params.append('BusinessCity', b.city);
+    if (b.state) params.append('BusinessStateProvinceRegion', b.state);
+    if (b.postal_code) params.append('BusinessPostalCode', b.postal_code);
+    if (b.country) params.append('BusinessCountry', b.country);
+    if (b.contact_first_name) params.append('BusinessContactFirstName', b.contact_first_name);
+    if (b.contact_last_name) params.append('BusinessContactLastName', b.contact_last_name);
+    if (b.contact_email) params.append('BusinessContactEmail', b.contact_email);
+    if (b.contact_phone) params.append('BusinessContactPhone', b.contact_phone);
+
+    let verificationSid = null;
+    let twStatus = 'PENDING_REVIEW';
+    try {
+      const r = await axios.post(
+        'https://messaging.twilio.com/v1/Tollfree/Verifications',
+        params.toString(),
+        {
+          auth: { username: process.env.TWILIO_ACCOUNT_SID, password: process.env.TWILIO_AUTH_TOKEN },
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 20000,
+        }
+      );
+      verificationSid = r.data?.sid || null;
+      twStatus = (r.data?.status || 'PENDING_REVIEW').toUpperCase();
+    } catch (e) {
+      const msg = e.response?.data?.message || e.response?.data?.error || e.message;
+      return res.status(502).json({ success: false, error: `Twilio rejected the verification request: ${msg}` });
+    }
+
+    // Map Twilio's status to our 3-state model and persist (pending until approved).
+    const mapped = twStatus === 'TWILIO_APPROVED' ? 'verified'
+      : twStatus === 'TWILIO_REJECTED' ? 'unverified'
+      : 'pending';
+
+    const { data, error } = await supabase
+      .from('phone_numbers')
+      .update({
+        sms_verification_status: mapped,
+        sms_verification_sid:    verificationSid,
+        sms_verification_at:     new Date().toISOString(),
+      })
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .select('id, number, is_toll_free, sms_verification_status, sms_verification_sid, sms_verification_at')
+      .single();
+    if (error) throw error;
+
+    res.status(201).json({ success: true, data, twilio_status: twStatus });
+  } catch (err) { next(err); }
+});
+
 // ── Shared toll-free pool (admin only) ───────────────────────────────────────
 // Gate: requires the ADMIN_API_KEY secret in the X-Admin-Key header (on top of
 // requireAuth). Operators can't fill the shared pool — only the platform owner.

@@ -167,6 +167,10 @@ app.get('/health', (_req, res) =>
     supabase: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     vapi: !!process.env.VAPI_API_KEY,
     ai: !!process.env.ANTHROPIC_API_KEY,
+    // Twilio creds gate the buy-tollfree / buy-local / toll-free SMS-verification
+    // routes (they 503 without both). Surfaced here so the operator can confirm
+    // provisioning will work before attempting a purchase.
+    twilio: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN),
   })
 );
 

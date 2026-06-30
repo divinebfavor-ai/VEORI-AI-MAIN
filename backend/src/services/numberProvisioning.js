@@ -347,6 +347,7 @@ async function buyTollFreeTwilioNumber(userId, label) {
     area_code:            boughtPrefix,
     state:                null,            // toll-free is not geographic
     vapi_phone_number_id: vapiId,
+    twilio_phone_number_sid: purchased.sid || null,  // PNxxxx — needed to submit toll-free SMS verification
     provider:             'twilio',
     is_toll_free:         true,
     pool_status:          'assigned',

@@ -153,6 +153,8 @@ export const phones = {
   // status from Twilio when a verification SID is on file; POST records SID/status.
   getSmsVerification: (id)        => api.get(`/api/phones/${id}/sms-verification`),
   setSmsVerification: (id, body)  => api.post(`/api/phones/${id}/sms-verification`, body),
+  // File a toll-free SMS verification request with Twilio from inside Veori.
+  submitSmsVerification: (id, body) => api.post(`/api/phones/${id}/sms-verification/submit`, body),
 }
 
 // ─── Deals ───────────────────────────────────────────────────────────────────

@@ -153,6 +153,15 @@ function PhoneTab({ phoneList, setPhoneList }) {
   const [capDraft, setCapDraft] = useState('')          // in-flight cap input value
   const [capSavingId, setCapSavingId] = useState(null)
   const [blastSize, setBlastSize] = useState('')        // pre-flight estimator input
+  const [tfSubmitTarget, setTfSubmitTarget] = useState(null)  // toll-free we're filing Twilio SMS verification for
+  const [tfSubmitting, setTfSubmitting] = useState(false)
+  const [tfForm, setTfForm] = useState({                // in-app toll-free verification form
+    business_name: '', business_type: 'PRIVATE_PROFIT', business_website: '',
+    street: '', city: '', state: '', postal_code: '', country: 'US',
+    contact_first_name: '', contact_last_name: '', contact_email: '', contact_phone: '',
+    notification_email: '', use_case_summary: '', message_sample: '',
+    opt_in_type: 'VERBAL', message_volume: '10,000',
+  })
 
   useEffect(() => {
     phones.getPlanStatus().then(r => setPlanStatus(r.data)).catch(() => {})
@@ -312,6 +321,32 @@ function PhoneTab({ phoneList, setPhoneList }) {
       toast.error(err.response?.data?.error || 'Failed to update SMS verification')
     } finally {
       setSmsVerifySaving(false)
+    }
+  }
+
+  // File a toll-free SMS verification request with Twilio from inside Veori.
+  // POSTs the form to the new submit route, which creates the Twilio Tollfree
+  // verification, stores the returned SID, and flips the number to 'pending'.
+  const handleSubmitTfVerification = async () => {
+    if (!tfSubmitTarget) return
+    if (!tfForm.business_name.trim() || !tfForm.notification_email.trim()
+        || !tfForm.use_case_summary.trim() || !tfForm.message_sample.trim()) {
+      toast.error('Business name, notification email, use-case summary and a sample message are required')
+      return
+    }
+    setTfSubmitting(true)
+    try {
+      const { data } = await phones.submitSmsVerification(tfSubmitTarget.id, tfForm)
+      const fresh = data?.data || data
+      setPhoneList(prev => prev.map(x => x.id === tfSubmitTarget.id
+        ? { ...x, sms_verification_status: fresh.sms_verification_status, sms_verification_sid: fresh.sms_verification_sid, sms_verification_at: fresh.sms_verification_at }
+        : x))
+      toast.success('Toll-free verification submitted to Twilio — now pending carrier review')
+      setTfSubmitTarget(null)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to submit toll-free verification')
+    } finally {
+      setTfSubmitting(false)
     }
   }
 
@@ -497,6 +532,16 @@ function PhoneTab({ phoneList, setPhoneList }) {
                 {p.is_toll_free && (
                   <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
                     {(() => { const b = smsVerifyBadge(p.sms_verification_status); return <Badge variant={b.variant}>{b.label}</Badge> })()}
+                    {/* In-app Twilio submit — only for numbers Veori bought through
+                        Twilio (have a PN SID) and not yet verified. Skips the console. */}
+                    {p.twilio_phone_number_sid && p.sms_verification_status !== 'verified' && (
+                      <button
+                        onClick={() => { setTfForm(f => ({ ...f, business_name: f.business_name })); setTfSubmitTarget(p) }}
+                        style={{ fontSize: 11, fontWeight: 700, color: '#04140C', background: '#00C37A', border: 'none', borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}
+                      >
+                        Submit Verification
+                      </button>
+                    )}
                     <button
                       onClick={() => { setSmsVerifyForm({ status: p.sms_verification_status === 'verified' ? 'verified' : 'pending', verification_sid: p.sms_verification_sid || '' }); setSmsVerifyTarget(p) }}
                       style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}
@@ -760,6 +805,133 @@ function PhoneTab({ phoneList, setPhoneList }) {
                 disabled={smsVerifySaving}
                 style={{
                   flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid var(--border)',
+                  background: 'var(--surface-bg)', color: 'var(--t2)', fontWeight: 600,
+                  fontSize: 13, cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-app toll-free SMS verification SUBMIT modal — files the request with
+          Twilio directly so the operator skips the Twilio console. */}
+      {tfSubmitTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}>
+          <div style={{
+            background: 'var(--card-bg)', border: '1px solid var(--border)',
+            borderRadius: 16, padding: 28, maxWidth: 560, width: '100%',
+            maxHeight: '90vh', overflowY: 'auto',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+          }}>
+            <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+              <FileCheck size={18} style={{ color: '#00C37A' }} />
+              <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Submit Toll-Free SMS Verification</p>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--t3)', margin: '0 0 4px', fontFamily: 'Geist Mono, monospace' }}>{tfSubmitTarget.number}</p>
+            <p style={{ fontSize: 12, color: 'var(--t4)', margin: '0 0 18px', lineHeight: 1.55 }}>
+              Files your toll-free verification straight to Twilio — no console needed.
+              Once submitted, status goes to <strong>Pending</strong> and the refresh button
+              tracks carrier review. Carriers approve faster with a real business name,
+              address, and a clear opt-in description.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Input label="Business name *" value={tfForm.business_name} onChange={e => setTfForm(f => ({ ...f, business_name: e.target.value }))} placeholder="Veori Holdings LLC" />
+              <div>
+                <label className="label-caps block mb-1.5">Business type</label>
+                <select value={tfForm.business_type} onChange={e => setTfForm(f => ({ ...f, business_type: e.target.value }))}
+                  className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
+                  {['PRIVATE_PROFIT','PUBLIC_PROFIT','SOLE_PROPRIETOR','NON_PROFIT','GOVERNMENT'].map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <Input label="Business website" value={tfForm.business_website} onChange={e => setTfForm(f => ({ ...f, business_website: e.target.value }))} placeholder="https://veori.net" />
+            <div style={{ height: 12 }} />
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Input label="Street address" value={tfForm.street} onChange={e => setTfForm(f => ({ ...f, street: e.target.value }))} placeholder="123 Main St" />
+              <Input label="City" value={tfForm.city} onChange={e => setTfForm(f => ({ ...f, city: e.target.value }))} placeholder="Charlotte" />
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <Input label="State" value={tfForm.state} onChange={e => setTfForm(f => ({ ...f, state: e.target.value }))} placeholder="NC" />
+              <Input label="Postal code" value={tfForm.postal_code} onChange={e => setTfForm(f => ({ ...f, postal_code: e.target.value }))} placeholder="28202" />
+              <Input label="Country" value={tfForm.country} onChange={e => setTfForm(f => ({ ...f, country: e.target.value }))} placeholder="US" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Input label="Contact first name" value={tfForm.contact_first_name} onChange={e => setTfForm(f => ({ ...f, contact_first_name: e.target.value }))} placeholder="Jane" />
+              <Input label="Contact last name" value={tfForm.contact_last_name} onChange={e => setTfForm(f => ({ ...f, contact_last_name: e.target.value }))} placeholder="Doe" />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Input label="Contact email" value={tfForm.contact_email} onChange={e => setTfForm(f => ({ ...f, contact_email: e.target.value }))} placeholder="ops@veori.net" />
+              <Input label="Contact phone" value={tfForm.contact_phone} onChange={e => setTfForm(f => ({ ...f, contact_phone: e.target.value }))} placeholder="+17045551234" />
+            </div>
+
+            <Input label="Notification email *" value={tfForm.notification_email} onChange={e => setTfForm(f => ({ ...f, notification_email: e.target.value }))} placeholder="Where Twilio emails the result" />
+            <div style={{ height: 12 }} />
+
+            <label className="label-caps block mb-1.5">Use-case summary *</label>
+            <textarea
+              value={tfForm.use_case_summary}
+              onChange={e => setTfForm(f => ({ ...f, use_case_summary: e.target.value }))}
+              placeholder="We text real-estate sellers who asked us to follow up about buying their property."
+              rows={2}
+              className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2 text-[14px] text-text-primary focus:outline-none focus:border-primary"
+              style={{ marginBottom: 12, resize: 'vertical' }}
+            />
+
+            <label className="label-caps block mb-1.5">Sample message *</label>
+            <textarea
+              value={tfForm.message_sample}
+              onChange={e => setTfForm(f => ({ ...f, message_sample: e.target.value }))}
+              placeholder="Hi {name}, it's Alex with Veori following up on your property at {address}. Still open to an offer? Reply STOP to opt out."
+              rows={2}
+              className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2 text-[14px] text-text-primary focus:outline-none focus:border-primary"
+              style={{ marginBottom: 12, resize: 'vertical' }}
+            />
+
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div>
+                <label className="label-caps block mb-1.5">Opt-in type</label>
+                <select value={tfForm.opt_in_type} onChange={e => setTfForm(f => ({ ...f, opt_in_type: e.target.value }))}
+                  className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
+                  {['VERBAL','WEB_FORM','PAPER_FORM','VIA_TEXT','MOBILE_QR_CODE','IMPORT'].map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label-caps block mb-1.5">Est. monthly volume</label>
+                <select value={tfForm.message_volume} onChange={e => setTfForm(f => ({ ...f, message_volume: e.target.value }))}
+                  className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
+                  {['10','100','1,000','10,000','100,000','250,000','500,000','750,000','1,000,000'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={handleSubmitTfVerification}
+                disabled={tfSubmitting}
+                style={{
+                  flex: 1, padding: '11px 0', borderRadius: 10, border: 'none',
+                  background: '#00C37A', color: '#04140C', fontWeight: 700,
+                  fontSize: 13, cursor: tfSubmitting ? 'not-allowed' : 'pointer', opacity: tfSubmitting ? 0.6 : 1,
+                }}
+              >
+                {tfSubmitting ? 'Submitting…' : 'Submit to Twilio'}
+              </button>
+              <button
+                onClick={() => setTfSubmitTarget(null)}
+                disabled={tfSubmitting}
+                style={{
+                  flex: 1, padding: '11px 0', borderRadius: 10, border: '1px solid var(--border)',
                   background: 'var(--surface-bg)', color: 'var(--t2)', fontWeight: 600,
                   fontSize: 13, cursor: 'pointer',
                 }}
