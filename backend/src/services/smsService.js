@@ -46,12 +46,17 @@ async function sendSMS(to, text, userId = null) {
     if (op?.a2p_messaging_service_sid) {
       sender = { messagingServiceSid: op.a2p_messaging_service_sid };
     } else {
+      // Only pick a toll-free as the SMS sender if it is carrier SMS-VERIFIED.
+      // US carriers silently filter/block SMS from un-verified toll-free numbers,
+      // so an unverified toll-free must NOT be chosen here — we fall through to the
+      // deliverable env fallback below instead of sending into a black hole.
       const { data: tf } = await supabase
         .from('phone_numbers')
         .select('number')
         .eq('user_id', userId)
         .eq('is_toll_free', true)
         .eq('is_active', true)
+        .eq('sms_verification_status', 'verified')
         .limit(1)
         .maybeSingle();
       if (tf?.number) sender = { from: tf.number };

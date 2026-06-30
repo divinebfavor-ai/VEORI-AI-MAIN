@@ -65,7 +65,7 @@ async function selectSmsNumber(userId) {
   try {
     const { data, error } = await supabase
       .from('phone_numbers')
-      .select('id, number, sms_daily_limit, sms_sent_today, sms_last_reset_date, sms_last_used_at')
+      .select('id, number, is_toll_free, sms_verification_status, sms_daily_limit, sms_sent_today, sms_last_reset_date, sms_last_used_at')
       .eq('user_id', userId)
       .eq('sms_enabled', true)
       .eq('is_active', true)
@@ -81,7 +81,13 @@ async function selectSmsNumber(userId) {
 
   // Pick the first candidate that still has daily headroom. A number whose
   // reset date is stale (before today) is treated as freshly reset → full cap.
-  for (const c of candidates) {
+  // A toll-free number is only a deliverable SMS sender once carrier SMS-verified;
+  // carriers silently filter texts from un-verified toll-free numbers. Local
+  // numbers carry no toll-free verification requirement, so they pass through.
+  const deliverable = candidates.filter(c =>
+    !c.is_toll_free || c.sms_verification_status === 'verified');
+
+  for (const c of deliverable) {
     const stale = !c.sms_last_reset_date || c.sms_last_reset_date < today;
     const usedToday = stale ? 0 : (c.sms_sent_today || 0);
     const limit = c.sms_daily_limit == null ? 1000 : c.sms_daily_limit;
@@ -90,8 +96,8 @@ async function selectSmsNumber(userId) {
     }
   }
 
-  // Operator HAS numbers but they're all capped for today → defer (null).
-  if (candidates.length > 0) return null;
+  // Operator HAS deliverable numbers but they're all capped for today → defer.
+  if (deliverable.length > 0) return null;
 
   // Operator has no provisioned numbers at all → fall back to env sender so the
   // un-provisioned account can still send (matches smsService's fallback chain).

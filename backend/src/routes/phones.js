@@ -224,6 +224,96 @@ router.post('/import-twilio', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Toll-free SMS carrier verification ───────────────────────────────────────
+// US carriers SILENTLY filter SMS sent from a toll-free number that has not
+// completed toll-free verification. smsService.sendSMS / smsRotation only pick a
+// toll-free as an SMS sender when sms_verification_status === 'verified', so an
+// operator must mark/confirm verification before their toll-free starts texting.
+//
+// Statuses: 'unverified' (default) → 'pending' (submitted to Twilio) → 'verified'.
+const SMS_VERIFY_STATES = ['unverified', 'pending', 'verified'];
+
+// GET /api/phones/:id/sms-verification — current SMS verification state for a number.
+// If a Twilio verification SID is on file, refresh the live status from Twilio's
+// Messaging Compliance REST endpoint (best-effort) and persist any change.
+router.get('/:id/sms-verification', async (req, res, next) => {
+  try {
+    const { data: phone, error } = await supabase
+      .from('phone_numbers')
+      .select('id, number, is_toll_free, sms_verification_status, sms_verification_sid, sms_verification_at')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (error || !phone) return res.status(404).json({ success: false, error: 'Phone number not found' });
+    if (!phone.is_toll_free) {
+      return res.json({ success: true, data: { ...phone, applicable: false, note: 'SMS verification applies to toll-free numbers only; local numbers use A2P 10DLC.' } });
+    }
+
+    // Live refresh from Twilio if we have a verification request SID.
+    let status = phone.sms_verification_status || 'unverified';
+    if (phone.sms_verification_sid && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+      try {
+        const r = await axios.get(
+          `https://messaging.twilio.com/v1/Tollfree/Verifications/${phone.sms_verification_sid}`,
+          { auth: { username: process.env.TWILIO_ACCOUNT_SID, password: process.env.TWILIO_AUTH_TOKEN }, timeout: 10000 }
+        );
+        // Twilio statuses: PENDING_REVIEW / IN_REVIEW / TWILIO_APPROVED / TWILIO_REJECTED.
+        const tw = (r.data?.status || '').toUpperCase();
+        const mapped = tw === 'TWILIO_APPROVED' ? 'verified'
+          : tw === 'TWILIO_REJECTED' ? 'unverified'
+          : 'pending';
+        if (mapped !== status) {
+          status = mapped;
+          await supabase.from('phone_numbers')
+            .update({ sms_verification_status: status, sms_verification_at: new Date().toISOString() })
+            .eq('id', phone.id).eq('user_id', req.user.id);
+        }
+      } catch (e) {
+        console.warn(`[Phone] toll-free verification refresh failed for ${phone.number}: ${e.message}`);
+      }
+    }
+
+    res.json({ success: true, data: { ...phone, applicable: true, sms_verification_status: status } });
+  } catch (err) { next(err); }
+});
+
+// POST /api/phones/:id/sms-verification — set SMS verification state for a toll-free number.
+// Body: { status: 'unverified'|'pending'|'verified', verification_sid?: 'HHxxxx' }.
+// Used to (a) record a Twilio verification request SID + flip to 'pending', or
+// (b) mark a number 'verified' once Twilio approves. Toll-free numbers only.
+router.post('/:id/sms-verification', async (req, res, next) => {
+  try {
+    const { status, verification_sid } = req.body;
+    if (!SMS_VERIFY_STATES.includes(status)) {
+      return res.status(400).json({ success: false, error: `status must be one of: ${SMS_VERIFY_STATES.join(', ')}` });
+    }
+    const { data: phone, error: fetchErr } = await supabase
+      .from('phone_numbers')
+      .select('id, is_toll_free')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+    if (fetchErr || !phone) return res.status(404).json({ success: false, error: 'Phone number not found' });
+    if (!phone.is_toll_free) {
+      return res.status(400).json({ success: false, error: 'SMS verification applies to toll-free numbers only' });
+    }
+
+    const updates = { sms_verification_status: status, sms_verification_at: new Date().toISOString() };
+    if (verification_sid !== undefined) updates.sms_verification_sid = verification_sid || null;
+
+    const { data, error } = await supabase
+      .from('phone_numbers')
+      .update(updates)
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .select('id, number, is_toll_free, sms_verification_status, sms_verification_sid, sms_verification_at')
+      .single();
+    if (error) throw error;
+
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
 // ── Shared toll-free pool (admin only) ───────────────────────────────────────
 // Gate: requires the ADMIN_API_KEY secret in the X-Admin-Key header (on top of
 // requireAuth). Operators can't fill the shared pool — only the platform owner.
