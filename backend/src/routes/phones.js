@@ -547,9 +547,14 @@ router.post('/bulk', async (req, res, next) => {
 // PUT /api/phones/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['friendly_name','daily_call_limit','is_active','health_status','spam_score'];
+    const allowed = ['friendly_name','daily_call_limit','is_active','health_status','spam_score','sms_daily_limit','sms_enabled'];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    // Coerce the SMS cap to a sane non-negative integer (carrier-safe ceiling per number).
+    if (updates.sms_daily_limit !== undefined) {
+      const n = parseInt(updates.sms_daily_limit, 10);
+      updates.sms_daily_limit = Number.isFinite(n) && n >= 0 ? n : 0;
+    }
     const { data, error } = await supabase.from('phone_numbers').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
     if (error) throw error;
     res.json({ success: true, data });

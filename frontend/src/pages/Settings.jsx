@@ -149,6 +149,10 @@ function PhoneTab({ phoneList, setPhoneList }) {
   const [smsVerifyForm, setSmsVerifyForm] = useState({ status: 'pending', verification_sid: '' })
   const [smsVerifySaving, setSmsVerifySaving] = useState(false)
   const [smsRefreshingId, setSmsRefreshingId] = useState(null)
+  const [capEditId, setCapEditId] = useState(null)      // toll-free whose SMS daily cap is being edited
+  const [capDraft, setCapDraft] = useState('')          // in-flight cap input value
+  const [capSavingId, setCapSavingId] = useState(null)
+  const [blastSize, setBlastSize] = useState('')        // pre-flight estimator input
 
   useEffect(() => {
     phones.getPlanStatus().then(r => setPlanStatus(r.data)).catch(() => {})
@@ -311,6 +315,40 @@ function PhoneTab({ phoneList, setPhoneList }) {
     }
   }
 
+  // Save a toll-free number's per-number SMS daily cap (carrier-safe ceiling).
+  // Additive: rides the existing PUT /api/phones/:id allow-list (sms_daily_limit).
+  const DEFAULT_SMS_CAP = 1000  // matches smsRotation.js fallback when column is null
+  const handleSaveCap = async (phone) => {
+    const n = parseInt(capDraft, 10)
+    if (!Number.isFinite(n) || n < 0) { toast.error('Enter a valid daily cap (0 or more)'); return }
+    if (n > 3000) toast('Heads up: >3,000/day on one toll-free risks carrier filtering', { icon: '⚠️' })
+    setCapSavingId(phone.id)
+    try {
+      const { data } = await phones.updatePhone(phone.id, { sms_daily_limit: n })
+      const fresh = data?.data || data
+      setPhoneList(prev => prev.map(x => x.id === phone.id
+        ? { ...x, sms_daily_limit: fresh?.sms_daily_limit ?? n }
+        : x))
+      toast.success('SMS daily cap updated')
+      setCapEditId(null)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update SMS cap')
+    } finally {
+      setCapSavingId(null)
+    }
+  }
+
+  // ── SMS capacity math (client-side, no extra endpoint) ──────────────────────
+  // Deliverable SMS senders are strictly verified toll-free (mirrors the backend
+  // STAGE POLICY in smsRotation.js). Each number's ceiling is its sms_daily_limit,
+  // falling back to the same 1,000 default the rotator uses when the column is null.
+  const verifiedTollFree = phoneList.filter(p =>
+    !p.released_at && p.is_toll_free && p.sms_verification_status === 'verified')
+  const dailyCapacity = verifiedTollFree.reduce((sum, p) =>
+    sum + (p.sms_daily_limit == null ? DEFAULT_SMS_CAP : p.sms_daily_limit), 0)
+  const pendingTollFree = phoneList.filter(p =>
+    !p.released_at && p.is_toll_free && p.sms_verification_status === 'pending').length
+
   // Map an SMS verification status to a badge variant + label.
   const smsVerifyBadge = s =>
     s === 'verified' ? { variant: 'success', label: 'SMS Verified' }
@@ -339,6 +377,79 @@ function PhoneTab({ phoneList, setPhoneList }) {
           </div>
         </div>
       )}
+
+      {/* SMS daily capacity — verified toll-free senders × their per-number caps.
+          Stage policy: ONLY verified toll-free can send SMS (mirrors smsRotation.js),
+          so this is the real ceiling a blast can clear in one day. Lets the operator
+          size a blast before launching instead of flying blind. */}
+      <div style={{
+        padding: '14px 16px', borderRadius: 10, marginBottom: 20,
+        background: dailyCapacity > 0 ? 'rgba(0,195,122,0.05)' : 'var(--surface-bg)',
+        border: `1px solid ${dailyCapacity > 0 ? 'rgba(0,195,122,0.20)' : 'var(--border)'}`,
+      }}>
+        <div className="flex items-center justify-between" style={{ gap: 12, flexWrap: 'wrap' }}>
+          <div className="flex items-center gap-2">
+            <Smartphone size={16} style={{ color: dailyCapacity > 0 ? '#00C37A' : 'var(--t4)' }} />
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>
+                {dailyCapacity.toLocaleString()} SMS / day available
+              </p>
+              <p style={{ fontSize: 11, color: 'var(--t4)', margin: '2px 0 0' }}>
+                {verifiedTollFree.length} verified toll-free sender{verifiedTollFree.length !== 1 ? 's' : ''}
+                {pendingTollFree > 0 ? ` · ${pendingTollFree} pending verification` : ''}
+              </p>
+            </div>
+          </div>
+          {dailyCapacity === 0 && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#D98A30', background: 'rgba(217,138,48,0.10)', border: '1px solid rgba(217,138,48,0.25)', borderRadius: 6, padding: '4px 9px' }}>
+              No deliverable SMS sender yet — verify a toll-free number to send
+            </span>
+          )}
+        </div>
+
+        {/* Pre-flight estimator: type a blast size → senders needed, days to clear,
+            and the realistic response/callable funnel (industry cold-SMS rates). */}
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <label className="label-caps block mb-1.5">Blast Pre-Flight Estimator</label>
+          <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+            <div style={{ maxWidth: 180 }}>
+              <Input
+                value={blastSize}
+                onChange={e => setBlastSize(e.target.value.replace(/[^\d]/g, '').slice(0, 8))}
+                placeholder="50000"
+              />
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--t4)' }}>homeowners to text</span>
+          </div>
+          {(() => {
+            const size = parseInt(blastSize, 10)
+            if (!Number.isFinite(size) || size <= 0) {
+              return <p style={{ fontSize: 11, color: 'var(--t4)', margin: '10px 0 0' }}>Enter a blast size to see numbers needed, days to clear, and the expected reply → callable funnel.</p>
+            }
+            // Funnel rates (conservative cold-SMS industry ranges):
+            //   reply 1–3% → of replies, ~25% are warm/callable.
+            const replyLo = Math.round(size * 0.01), replyHi = Math.round(size * 0.03)
+            const callLo = Math.round(replyLo * 0.25), callHi = Math.round(replyHi * 0.25)
+            const perNumberSafe = 2000  // carrier-safe verified toll-free daily ceiling
+            const numbersNeeded = Math.ceil(size / perNumberSafe)  // to clear in ~1 day
+            const daysAtCurrent = dailyCapacity > 0 ? Math.ceil(size / dailyCapacity) : null
+            const stat = (label, value, color) => (
+              <div style={{ flex: '1 1 120px', minWidth: 120, padding: '10px 12px', borderRadius: 8, background: 'var(--surface-bg)', border: '1px solid var(--border)' }}>
+                <p style={{ fontSize: 17, fontWeight: 700, color: color || 'var(--t1)', margin: 0 }}>{value}</p>
+                <p style={{ fontSize: 10, color: 'var(--t4)', margin: '2px 0 0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</p>
+              </div>
+            )
+            return (
+              <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+                {stat('Verified toll-free to clear in ~1 day', `${numbersNeeded}`, '#00C37A')}
+                {stat('Days to clear at current capacity', daysAtCurrent == null ? '—' : `${daysAtCurrent}`, daysAtCurrent == null ? '#D98A30' : 'var(--t1)')}
+                {stat('Expected replies (1–3%)', `${replyLo.toLocaleString()}–${replyHi.toLocaleString()}`)}
+                {stat('Warm / callable (~25% of replies)', `${callLo.toLocaleString()}–${callHi.toLocaleString()}`)}
+              </div>
+            )
+          })()}
+        </div>
+      </div>
 
       {/* Phone list */}
       <div className="space-y-2 mb-5">
@@ -401,6 +512,50 @@ function PhoneTab({ phoneList, setPhoneList }) {
                       >
                         <RotateCcw size={12} className={smsRefreshingId === p.id ? 'animate-spin' : ''} />
                       </button>
+                    )}
+                  </div>
+                )}
+                {/* Per-number SMS daily cap — only meaningful once the toll-free is a
+                    deliverable (verified) sender. Carrier-safe ceiling per number;
+                    rides PUT /api/phones/:id (sms_daily_limit). Default 1,000. */}
+                {p.is_toll_free && p.sms_verification_status === 'verified' && (
+                  <div className="flex items-center gap-2" style={{ marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--t4)' }}>SMS daily cap:</span>
+                    {capEditId === p.id ? (
+                      <>
+                        <div style={{ width: 90 }}>
+                          <Input
+                            value={capDraft}
+                            onChange={e => setCapDraft(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
+                            placeholder="2000"
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleSaveCap(p)}
+                          disabled={capSavingId === p.id}
+                          style={{ fontSize: 11, fontWeight: 700, color: '#04140C', background: '#00C37A', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: capSavingId === p.id ? 'wait' : 'pointer', opacity: capSavingId === p.id ? 0.6 : 1 }}
+                        >
+                          {capSavingId === p.id ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => setCapEditId(null)}
+                          style={{ fontSize: 11, fontWeight: 600, color: 'var(--t4)', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--t2)' }}>
+                          {(p.sms_daily_limit == null ? DEFAULT_SMS_CAP : p.sms_daily_limit).toLocaleString()}/day
+                        </span>
+                        <button
+                          onClick={() => { setCapDraft(String(p.sms_daily_limit == null ? DEFAULT_SMS_CAP : p.sms_daily_limit)); setCapEditId(p.id) }}
+                          style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}
+                        >
+                          Edit cap
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
