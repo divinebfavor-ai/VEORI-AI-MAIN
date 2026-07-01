@@ -774,7 +774,7 @@ async function submitTollFreeVerification(userId, phoneRow) {
     .select('company_name, legal_name, entity_type, website, business_email, business_phone, ' +
             'business_street, business_street2, business_city, business_state, business_postal_code, business_country, ' +
             'contact_first_name, contact_last_name, contact_email, contact_phone, ' +
-            'sms_business_type, sms_opt_in_type, sms_use_case_summary, sms_message_sample')
+            'sms_business_type, sms_opt_in_type, sms_use_case_summary, sms_message_sample, sms_opt_in_image_urls')
     .eq('id', userId)
     .single();
   if (uErr || !u) return { submitted: false, reason: 'Operator profile not found' };
@@ -792,6 +792,17 @@ async function submitTollFreeVerification(userId, phoneRow) {
     return { submitted: false, reason: 'Operator business identity incomplete (business name / email)' };
   }
 
+  // Twilio now REQUIRES OptInImageUrls (public image URLs proving recipient opt-in).
+  // Filing without them fails with "optInImageUrls is required". When the operator
+  // hasn't hosted any yet, SKIP cleanly here — the toll-free purchase must NOT break
+  // on this. The operator files later from Settings (which collects the image URLs).
+  const optInImageUrls = Array.isArray(u.sms_opt_in_image_urls)
+    ? u.sms_opt_in_image_urls.map(s => String(s).trim()).filter(Boolean)
+    : [];
+  if (!optInImageUrls.length) {
+    return { submitted: false, reason: 'No opt-in proof image URLs on file — file toll-free SMS verification from Settings once opt-in images are hosted' };
+  }
+
   const businessType = TF_BUSINESS_TYPES.includes(u.sms_business_type) ? u.sms_business_type : 'PRIVATE_PROFIT';
   const optInType    = TF_OPT_IN_TYPES.includes(u.sms_opt_in_type) ? u.sms_opt_in_type : 'VERBAL';
 
@@ -805,6 +816,7 @@ async function submitTollFreeVerification(userId, phoneRow) {
   params.append('OptInType', optInType);
   params.append('MessageVolume', '10,000');
   params.append('UseCaseCategories', 'MARKETING');
+  optInImageUrls.forEach(url => params.append('OptInImageUrls', url));
   if (u.website) params.append('BusinessWebsite', u.website);
   if (u.business_street) params.append('BusinessStreetAddress', u.business_street);
   if (u.business_street2) params.append('BusinessStreetAddress2', u.business_street2);

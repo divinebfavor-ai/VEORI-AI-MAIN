@@ -161,6 +161,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
     contact_first_name: '', contact_last_name: '', contact_email: '', contact_phone: '',
     notification_email: '', use_case_summary: '', message_sample: '',
     opt_in_type: 'VERBAL', message_volume: '10,000',
+    opt_in_image_urls: '', // newline/comma-separated public URLs of opt-in proof images; split to array on submit
   })
 
   useEffect(() => {
@@ -370,9 +371,19 @@ function PhoneTab({ phoneList, setPhoneList }) {
       toast.error('Business name, notification email, use-case summary and a sample message are required')
       return
     }
+    // Twilio now REQUIRES opt-in proof image URLs — the exact field whose absence
+    // caused "optInImageUrls is required". Split the textarea (newlines/commas) into
+    // the array the backend/Twilio expect, and block an empty submit early with a
+    // clear message instead of letting Twilio reject it.
+    const optInImageUrls = String(tfForm.opt_in_image_urls || '')
+      .split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+    if (!optInImageUrls.length) {
+      toast.error('Add at least one opt-in proof image URL — Twilio requires it for toll-free SMS')
+      return
+    }
     setTfSubmitting(true)
     try {
-      const { data } = await phones.submitSmsVerification(tfSubmitTarget.id, tfForm)
+      const { data } = await phones.submitSmsVerification(tfSubmitTarget.id, { ...tfForm, opt_in_image_urls: optInImageUrls })
       const fresh = data?.data || data
       setPhoneList(prev => prev.map(x => x.id === tfSubmitTarget.id
         ? { ...x, sms_verification_status: fresh.sms_verification_status, sms_verification_sid: fresh.sms_verification_sid, sms_verification_at: fresh.sms_verification_at }
@@ -936,6 +947,19 @@ function PhoneTab({ phoneList, setPhoneList }) {
               className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2 text-[14px] text-text-primary focus:outline-none focus:border-primary"
               style={{ marginBottom: 12, resize: 'vertical' }}
             />
+
+            <label className="label-caps block mb-1.5">Opt-in proof image URLs *</label>
+            <textarea
+              value={tfForm.opt_in_image_urls}
+              onChange={e => setTfForm(f => ({ ...f, opt_in_image_urls: e.target.value }))}
+              placeholder={"https://veori.net/optin-form.png\nOne public image URL per line (screenshot of the web form / checkbox / written consent where recipients opted in). Twilio REQUIRES this."}
+              rows={2}
+              className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2 text-[14px] text-text-primary focus:outline-none focus:border-primary"
+              style={{ marginBottom: 6, resize: 'vertical' }}
+            />
+            <p style={{ fontSize: 11, color: 'var(--t4)', margin: '0 0 12px', lineHeight: 1.5 }}>
+              Must be publicly-accessible image URLs showing how recipients consented to texts. One per line.
+            </p>
 
             <div className="grid grid-cols-2 gap-3 mb-5">
               <div>
