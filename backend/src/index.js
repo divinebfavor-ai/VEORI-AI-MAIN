@@ -171,6 +171,10 @@ app.get('/health', (_req, res) =>
     // routes (they 503 without both). Surfaced here so the operator can confirm
     // provisioning will work before attempting a purchase.
     twilio: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN),
+    // Redis gates BullMQ (the fast path for timed "call me at 5" callbacks). When
+    // false, callbacks still fire via the Redis-independent 2-min sweep, just not
+    // to-the-second. Surfaced so the operator can confirm the fast path is live.
+    redis: !!process.env.REDIS_URL,
   })
 );
 
