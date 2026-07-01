@@ -1257,6 +1257,14 @@ export default function Settings() {
   const [bankAccounts, setBankAccounts] = useState([])
   const [showAddBank, setShowAddBank]   = useState(false)
   const [profileForm, setProfileForm] = useState({ full_name: '', company_name: '', email: '', phone: '', email_from_name: '', email_reply_to: '' })
+  // Business identity — Veori auto-files toll-free SMS verification with these on your behalf.
+  const [bizForm, setBizForm] = useState({
+    legal_name: '', business_email: '', website: '',
+    business_street: '', business_street2: '', business_city: '', business_state: '', business_postal_code: '', business_country: 'US',
+    contact_first_name: '', contact_last_name: '', contact_email: '', contact_phone: '',
+    sms_business_type: 'PRIVATE_PROFIT', sms_opt_in_type: 'VERBAL', sms_use_case_summary: '', sms_message_sample: '',
+  })
+  const [bizSaving, setBizSaving] = useState(false)
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' })
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false })
   const user = useAuthStore(s => s.user)
@@ -1351,6 +1359,33 @@ export default function Settings() {
   }, [user])
 
   useEffect(() => {
+    if (tab === 'profile') {
+      // Business-identity fields live on the operator profile, not the auth-store
+      // user object — load them so Veori can auto-file toll-free SMS verification.
+      operatorApi.getProfile().then(r => {
+        const p = r.data?.profile || {}
+        setBizForm(f => ({
+          ...f,
+          legal_name:           p.legal_name || p.company_name || '',
+          business_email:       p.business_email || '',
+          website:              p.website || '',
+          business_street:      p.business_street || '',
+          business_street2:     p.business_street2 || '',
+          business_city:        p.business_city || '',
+          business_state:       p.business_state || '',
+          business_postal_code: p.business_postal_code || '',
+          business_country:     p.business_country || 'US',
+          contact_first_name:   p.contact_first_name || '',
+          contact_last_name:    p.contact_last_name || '',
+          contact_email:        p.contact_email || '',
+          contact_phone:        p.contact_phone || '',
+          sms_business_type:    p.sms_business_type || 'PRIVATE_PROFIT',
+          sms_opt_in_type:      p.sms_opt_in_type || 'VERBAL',
+          sms_use_case_summary: p.sms_use_case_summary || '',
+          sms_message_sample:   p.sms_message_sample || '',
+        }))
+      }).catch(() => {})
+    }
     if (tab === 'phones') {
       phones.getPhones().then(r => {
         const raw = r.data?.numbers ?? r.data?.data ?? r.data
@@ -1413,6 +1448,39 @@ export default function Settings() {
       toast.error(err.response?.data?.error || 'Failed to save profile')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const saveBusinessIdentity = async () => {
+    if (!bizForm.legal_name.trim())     { toast.error('Legal business name is required'); return }
+    if (!bizForm.business_email.trim()) { toast.error('Business email is required'); return }
+
+    setBizSaving(true)
+    try {
+      await operatorApi.updateProfile({
+        legal_name:           bizForm.legal_name.trim(),
+        business_email:       bizForm.business_email.trim(),
+        website:              bizForm.website.trim(),
+        business_street:      bizForm.business_street.trim(),
+        business_street2:     bizForm.business_street2.trim(),
+        business_city:        bizForm.business_city.trim(),
+        business_state:       bizForm.business_state.trim(),
+        business_postal_code: bizForm.business_postal_code.trim(),
+        business_country:     bizForm.business_country.trim() || 'US',
+        contact_first_name:   bizForm.contact_first_name.trim(),
+        contact_last_name:    bizForm.contact_last_name.trim(),
+        contact_email:        bizForm.contact_email.trim(),
+        contact_phone:        bizForm.contact_phone.trim(),
+        sms_business_type:    bizForm.sms_business_type,
+        sms_opt_in_type:      bizForm.sms_opt_in_type,
+        sms_use_case_summary: bizForm.sms_use_case_summary.trim(),
+        sms_message_sample:   bizForm.sms_message_sample.trim(),
+      })
+      toast.success('Business identity saved — Veori will use this to verify your texting numbers')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to save business identity')
+    } finally {
+      setBizSaving(false)
     }
   }
 
@@ -1521,6 +1589,82 @@ export default function Settings() {
                   <Input label="Phone" type="tel" value={profileForm.phone} onChange={e => setProfileForm(p => ({...p, phone: e.target.value}))} placeholder="+1 (555) 000-0000" />
                   <div className="pt-2">
                     <Button onClick={saveProfile} loading={loading}>Save Changes</Button>
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Business Identity" description="Veori uses these details to automatically verify your texting numbers with the carriers — you never touch Twilio. Fill this in once and every number Veori buys for you gets SMS-verified in the background.">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="Legal Business Name *" value={bizForm.legal_name} onChange={e => setBizForm(f => ({...f, legal_name: e.target.value}))} placeholder="Smith Acquisitions LLC" />
+                    <div>
+                      <label className="label-caps block mb-1.5">Business Type</label>
+                      <select value={bizForm.sms_business_type} onChange={e => setBizForm(f => ({...f, sms_business_type: e.target.value}))}
+                        className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
+                        {['PRIVATE_PROFIT','PUBLIC_PROFIT','SOLE_PROPRIETOR','NON_PROFIT','GOVERNMENT'].map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="Business Email *" type="email" value={bizForm.business_email} onChange={e => setBizForm(f => ({...f, business_email: e.target.value}))} placeholder="ops@yourcompany.com" hint="Where carriers send verification results" />
+                    <Input label="Website" value={bizForm.website} onChange={e => setBizForm(f => ({...f, website: e.target.value}))} placeholder="https://yourcompany.com" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="Street Address" value={bizForm.business_street} onChange={e => setBizForm(f => ({...f, business_street: e.target.value}))} placeholder="123 Main St" />
+                    <Input label="Suite / Unit" value={bizForm.business_street2} onChange={e => setBizForm(f => ({...f, business_street2: e.target.value}))} placeholder="Suite 200" />
+                  </div>
+                  <div className="grid grid-cols-4 gap-4">
+                    <Input label="City" value={bizForm.business_city} onChange={e => setBizForm(f => ({...f, business_city: e.target.value}))} placeholder="Charlotte" />
+                    <Input label="State" value={bizForm.business_state} onChange={e => setBizForm(f => ({...f, business_state: e.target.value}))} placeholder="NC" />
+                    <Input label="Postal Code" value={bizForm.business_postal_code} onChange={e => setBizForm(f => ({...f, business_postal_code: e.target.value}))} placeholder="28202" />
+                    <Input label="Country" value={bizForm.business_country} onChange={e => setBizForm(f => ({...f, business_country: e.target.value}))} placeholder="US" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="Contact First Name" value={bizForm.contact_first_name} onChange={e => setBizForm(f => ({...f, contact_first_name: e.target.value}))} placeholder="Jane" />
+                    <Input label="Contact Last Name" value={bizForm.contact_last_name} onChange={e => setBizForm(f => ({...f, contact_last_name: e.target.value}))} placeholder="Doe" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="Contact Email" type="email" value={bizForm.contact_email} onChange={e => setBizForm(f => ({...f, contact_email: e.target.value}))} placeholder="jane@yourcompany.com" />
+                    <Input label="Contact Phone" type="tel" value={bizForm.contact_phone} onChange={e => setBizForm(f => ({...f, contact_phone: e.target.value}))} placeholder="+1 (555) 000-0000" />
+                  </div>
+
+                  <div>
+                    <label className="label-caps block mb-1.5">Opt-In Type</label>
+                    <select value={bizForm.sms_opt_in_type} onChange={e => setBizForm(f => ({...f, sms_opt_in_type: e.target.value}))}
+                      className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
+                      {['VERBAL','WEB_FORM','PAPER_FORM','VIA_TEXT','MOBILE_QR_CODE','IMPORT'].map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                    </select>
+                    <p className="text-[11px] text-text-muted mt-1">How sellers agreed to be texted. Most cold-outreach operators use VERBAL.</p>
+                  </div>
+
+                  <div>
+                    <label className="label-caps block mb-1.5">Use-Case Summary</label>
+                    <textarea
+                      value={bizForm.sms_use_case_summary}
+                      onChange={e => setBizForm(f => ({...f, sms_use_case_summary: e.target.value}))}
+                      placeholder="We text real-estate sellers who asked us to follow up about buying their property."
+                      rows={2}
+                      className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2 text-[14px] text-text-primary focus:outline-none focus:border-primary"
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label-caps block mb-1.5">Sample Message</label>
+                    <textarea
+                      value={bizForm.sms_message_sample}
+                      onChange={e => setBizForm(f => ({...f, sms_message_sample: e.target.value}))}
+                      placeholder="Hi {name}, it's Alex following up on your property at {address}. Still open to an offer? Reply STOP to opt out."
+                      rows={2}
+                      className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2 text-[14px] text-text-primary focus:outline-none focus:border-primary"
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <div className="pt-2">
+                    <Button onClick={saveBusinessIdentity} loading={bizSaving}>Save Business Identity</Button>
                   </div>
                 </div>
               </Section>
