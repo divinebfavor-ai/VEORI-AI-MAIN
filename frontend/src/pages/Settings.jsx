@@ -205,6 +205,35 @@ function PhoneTab({ phoneList, setPhoneList }) {
     }
   }
 
+  // Manual kickstart for the geo-matched calling-capacity engine (same one that
+  // fires automatically on every lead import). Sizes the LOCAL calling fleet to
+  // callable-lead volume + geography, plan-capped, and buys only the shortfall.
+  // Runs synchronously — the buy result comes straight back.
+  const [autoScaling, setAutoScaling] = useState(false)
+
+  const handleAutoScale = async () => {
+    setAutoScaling(true)
+    try {
+      const { data } = await phones.autoScale()
+      if (data.scaled === false) {
+        toast(data.reason === 'no_callable_leads'
+          ? 'No callable leads yet — import leads first and numbers buy automatically.'
+          : data.reason === 'no_twilio'
+            ? 'Number buying is not configured on the server.'
+            : 'Nothing to scale right now.', { duration: 6000 })
+      } else {
+        toast.success(data.message || 'Calling capacity updated', { duration: 6000 })
+        const fresh = await phones.getPhones()
+        const raw = fresh.data?.numbers ?? fresh.data?.data ?? fresh.data
+        setPhoneList(Array.isArray(raw) ? raw : [])
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to scale calling capacity')
+    } finally {
+      setAutoScaling(false)
+    }
+  }
+
   const handleFixWebhooks = async () => {
     setFixingWebhooks(true)
     try {
@@ -635,6 +664,9 @@ function PhoneTab({ phoneList, setPhoneList }) {
           </Button>
           <Button variant="secondary" loading={provisioningPool} onClick={handleProvisionPool} title="Auto-provision the right number pool for your plan">
             Auto-Setup Numbers
+          </Button>
+          <Button variant="secondary" loading={autoScaling} onClick={handleAutoScale} title="Size & buy local calling numbers to match your imported leads (runs automatically on every import)">
+            Buy Numbers for My Leads
           </Button>
           <Button variant="secondary" loading={syncing} onClick={handleSync}>
             Sync Numbers

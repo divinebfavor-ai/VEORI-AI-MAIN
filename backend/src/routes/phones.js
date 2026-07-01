@@ -774,4 +774,37 @@ router.post('/provision-pool', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/phones/auto-scale — manually kick off geo-matched calling-capacity sizing + buy.
+// This is the same engine that fires automatically on every lead import (ensureCallingCapacity):
+// it counts callable leads, sizes the local fleet to burn them at a healthy pace (plan-capped,
+// per-operator paced), and buys only the per-state shortfall via the uncapped Twilio→Vapi path.
+// The auto-on-import trigger stays intact; this endpoint is a manual override / kickstart so an
+// operator can force the sizing now instead of waiting for the next import. Runs synchronously
+// and returns the exact sizing + buy result so the operator can see what happened.
+router.post('/auto-scale', async (req, res, next) => {
+  try {
+    const { ensureCallingCapacity } = require('../services/numberProvisioning');
+    const result = await ensureCallingCapacity(req.user.id);
+
+    // ensureCallingCapacity never throws — it returns a skipped/error shape instead.
+    if (result?.skipped) {
+      return res.json({
+        success: true,
+        scaled: false,
+        reason: result.skipped,
+        detail: result,
+      });
+    }
+
+    return res.json({
+      success: true,
+      scaled: true,
+      message: result.bought > 0
+        ? `Bought ${result.bought} local number${result.bought === 1 ? '' : 's'} — sized to ${result.callableLeads} callable leads at a ${result.pace_days}-day pace.`
+        : `Already at capacity — ${result.currentLocal} local number${result.currentLocal === 1 ? '' : 's'} cover ${result.callableLeads} callable leads. Nothing to buy.`,
+      ...result,
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

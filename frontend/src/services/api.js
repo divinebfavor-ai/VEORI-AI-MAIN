@@ -145,6 +145,7 @@ export const phones = {
   syncFromVapi:   ()             => api.post('/api/phones/sync-vapi'),
   fixWebhooks:    ()             => api.post('/api/phones/fix-webhooks'),
   provisionPool:  ()             => api.post('/api/phones/provision-pool'),
+  autoScale:      ()             => api.post('/api/phones/auto-scale'),
   updatePhone:    (id, data)     => api.put(`/api/phones/${id}`, data),
   releasePhone:   (id, reason)   => api.post(`/api/phones/${id}/release`, { reason }),
   deletePhone:    (id)           => api.delete(`/api/phones/${id}`),
