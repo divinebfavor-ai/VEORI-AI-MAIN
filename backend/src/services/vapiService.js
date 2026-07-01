@@ -24,8 +24,17 @@ const vapiHttp = axios.create({
 // ─── Personality tone adapters (shared across outbound / buyer / inbound) ─────
 // Keyed lowercase. The Settings dropdown sends Professional/Friendly/Direct/Warm,
 // so we normalize to lowercase and alias 'warm' → empathetic. Without this, any
-// tone but 'professional' silently fell back to default.
+// tone but the default silently fell back to default.
+//
+// DEFAULT = 'conversational'. Real sales research (PAVP tonality + mirroring) is
+// clear: a homeowner's guard goes UP when the caller sounds rushed/eager OR overly
+// calm/robotic. The winning baseline is a NORMAL person energy that MATCHES the
+// seller — not stuck in one fixed mode. 'professional' (stiff/crisp) is kept for
+// operators who explicitly pick it, but is no longer the silent default.
 const TONE_INSTRUCTIONS = {
+  conversational: `- Talk like a normal person on the phone, not a salesperson and not a robot. Regular energy — think "hey, how's it going" not a pitch and not a therapist.
+- MATCH the seller: if they're upbeat and quick, pick your energy up and move; if they're slow or serious, ease down and give them room. Never stay stuck in one gear.
+- Keep it real and casual — contractions, small filler ("honestly", "I mean", "you know"), react in the moment. Warm, but not soft. Confident, but not stiff.`,
   professional: `- Speak professionally and crisply. Get to the point quickly.
 - Use measured language: "I appreciate your time", "I respect that"
 - Mirror the other person's pace — if they're formal, be formal`,
@@ -41,11 +50,11 @@ const TONE_INSTRUCTIONS = {
 };
 
 function getToneStyle(operator = {}) {
-  const tone = operator.ai_personality_tone || 'professional';
+  const tone = operator.ai_personality_tone || 'conversational';
   const toneKey = String(tone).toLowerCase() === 'warm'
     ? 'empathetic'
     : String(tone).toLowerCase();
-  return TONE_INSTRUCTIONS[toneKey] || TONE_INSTRUCTIONS.professional;
+  return TONE_INSTRUCTIONS[toneKey] || TONE_INSTRUCTIONS.conversational;
 }
 
 // ─── Use-case identity ────────────────────────────────────────────────────────
@@ -619,6 +628,24 @@ You are relaxed because you KNOW what you're doing. Carry that.
 - React in the moment. If they say something surprising, sound surprised. If it's good news, sound a little pleased. Flat affect = robot.
 - When you give a number or make your offer, say it like you're sure of it. No hedging, no "I think maybe around". You know your numbers.
 - Never sound like you're rushing to get through a list. You have all the time in the world for THIS person right now.
+
+══════════════════════════════════════════════════════
+MATCH THE PERSON — MIRROR THEIR ENERGY (THE MOST IMPORTANT DELIVERY SKILL)
+══════════════════════════════════════════════════════
+You are NOT stuck in one voice. The best callers sound like whoever they're talking to.
+Within the first 10 seconds, feel out their energy and MOVE TO MEET IT — then keep adjusting the whole call as it shifts. This is the difference between "a real person" and "a recording".
+
+Match FOUR things, moment to moment:
+- PACE: they talk fast → you talk a little faster and keep it moving. They talk slow → you slow down and leave room. Never talk faster than the person you're calling.
+- ENERGY: they're upbeat and chatty → be upbeat back, a little life in your voice. They're flat or tired → dial it down, easy and low-key. They're serious → get serious with them.
+- VOLUME & PUNCH: loud, animated person → be a bit more animated. Quiet, reserved person → soften and settle.
+- MOOD: they laugh → you can laugh. They're stressed → you get gentle and slow. They're all business → you get all business.
+
+DO NOT be overly calm or soothing by default — that's alarming on a cold call, it sounds like a scam or a robot. Start at NORMAL human energy (like picking up the phone to a neighbor), THEN mirror to wherever they are.
+
+Read the shift too: if they warm up, warm up with them. If they tense up, back off and soften. If they get short with you, get more concise. You are a mirror the whole call, not just the opening.
+
+Never mirror the NEGATIVE — if they're angry or rude, do NOT get angry back. Stay warm and grounded, let them vent, then gently steer.
 
 ${personalityStyle}
 
@@ -1449,6 +1476,12 @@ async function initiateCallVapi({ lead, phoneNumber, callId, operator = {}, useC
       voice: {
         provider: 'vapi',
         voiceId,
+        // Speaking rate. 1.0 = the voice's natural human pace (NOT slowed — an
+        // over-slow voice reads as robotic/creepy on a cold call). Env-tunable on
+        // Railway with NO redeploy: nudge to ~0.95 if it ever sounds rushed, or
+        // ~1.05 for a snappier feel. The prompt still tells the AI to MIRROR the
+        // seller's pace conversationally on top of this baseline rate.
+        speed: process.env.VAPI_VOICE_SPEED ? parseFloat(process.env.VAPI_VOICE_SPEED) : 1.0,
       },
       // ── Human-pacing pack ──────────────────────────────────────────────────
       // Makes the AI feel like a calm person on the phone instead of an eager
@@ -1638,6 +1671,7 @@ YOUR GOAL: Qualify the buyer and get them to commit to reviewing the deal packag
 CALL FLOW:
 1. "Hi ${buyer.name}, this is ${aiName}. I have an off-market deal in ${deal.property_city}, ${deal.property_state} that I think fits your criteria. Do you have a quick two minutes?"
 2. Lead with the numbers that matter MOST to THIS buyer type (see Buyer Profile above)
+   (MATCH their energy — busy/fast buyer, keep it tight and quick; relaxed buyer, ease up. Talk like a normal person, never robotic or overly calm.)
 3. Ask: "Does this fit your buy box?" / "Are you actively buying in this area?"
 4. If interested: "Perfect — I'll text you the full deal package right now. Can you look at it within 24 hours? We have another buyer interested."
 5. If not interested: "No problem. What does your ideal deal look like right now? I'll keep you in mind."
@@ -1658,7 +1692,12 @@ ${getToneStyle(operator)}`;
       name: aiName,
       transcriber: { provider: 'deepgram', model: 'nova-2' },
       model: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', messages: [{ role: 'system', content: systemPrompt }], maxTokens: 300, temperature: 0.7 },
-      voice: { provider: 'vapi', voiceId },
+      voice: {
+        provider: 'vapi',
+        voiceId,
+        // Same natural-pace baseline + Railway dial as the outbound seller call.
+        speed: process.env.VAPI_VOICE_SPEED ? parseFloat(process.env.VAPI_VOICE_SPEED) : 1.0,
+      },
       firstMessage: `Hi ${buyer.name}, this is ${aiName}. I have an off-market deal in ${deal.property_city || 'your target area'} that I think matches your buy box. Do you have two quick minutes?`,
       recordingEnabled: true,
       maxDurationSeconds: 600,
@@ -1750,6 +1789,8 @@ If wrong number/not interested: "No problem at all — sorry to bother you. Have
 Apply the same call flow as outbound calls.
 Always be warm — they called YOU, which means they have some interest.
 
+MATCH THEIR ENERGY: talk like a normal person, not a robot and not overly calm. Feel out their pace, energy, and mood in the first few seconds and mirror it — fast/upbeat caller, pick it up; slow/serious caller, ease down. Keep adjusting as their tone shifts. Never mirror anger — stay warm and grounded.
+
 PERSONALITY STYLE:
 ${getToneStyle(operator)}${accumulatedIntel}${dealBlock}${operatorBlock}${buildLanguageDirective(langInfo)}`;
 
@@ -1773,7 +1814,12 @@ ${getToneStyle(operator)}${accumulatedIntel}${dealBlock}${operatorBlock}${buildL
       temperature: 0.75,
       maxTokens: 600,
     },
-    voice: { provider: 'vapi', voiceId },
+    voice: {
+      provider: 'vapi',
+      voiceId,
+      // Same natural-pace baseline + Railway dial as the outbound seller call.
+      speed: process.env.VAPI_VOICE_SPEED ? parseFloat(process.env.VAPI_VOICE_SPEED) : 1.0,
+    },
     // Same human-pacing pack as outbound — confident, present turn-taking, smart
     // endpointing, backchanneling, no cut-offs, faint office room-tone. (See initiateCall.)
     backchannelingEnabled: true,
