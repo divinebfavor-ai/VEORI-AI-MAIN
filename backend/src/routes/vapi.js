@@ -7,6 +7,9 @@ const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { enrollLeadInSequence } = require('../services/sequenceEngine');
 const { recordCallIntelligence } = require('../services/dataMotService');
 const { lookupPropertyValue, formatForAlex } = require('../services/compsService');
+const { parseCallTime } = require('../services/dualAIService');
+const { scheduleVapiCall } = require('../services/queueService');
+const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
@@ -485,26 +488,107 @@ async function handleCallEnded(call, event) {
       .catch(e => console.error('[MissedCall] Non-fatal error:', e.message));
   }
 
-  // ── Auto-create appointment record when outcome is 'appointment' ─────────────
-  if (outcome === 'appointment' && callRec.lead_id && callRec.user_id) {
-    const leadForAppt = callRec.leads;
-    if (leadForAppt) {
-      const scheduledAt = new Date();
-      scheduledAt.setDate(scheduledAt.getDate() + 1); // default: next day
-      scheduledAt.setHours(10, 0, 0, 0);              // default: 10am
+  // ── Honor the time the seller actually asked for ────────────────────────────
+  // When outcome is 'appointment' or 'callback_requested', read the requested
+  // time straight off the transcript (GPT-4o parseCallTime — same parser the SMS
+  // path uses). Previously appointments were hardcoded to tomorrow-10am and
+  // callbacks were never scheduled at all. This makes "call me at 5" fire at 5.
+  const TIME_SENSITIVE = ['appointment', 'callback_requested'];
+  if (TIME_SENSITIVE.includes(outcome) && callRec.lead_id && callRec.user_id) {
+    let parsed = null;
+    if (finalTranscript) {
+      try {
+        parsed = await parseCallTime(finalTranscript);
+        console.log(`[Vapi] parseCallTime → ${parsed?.requested_time || 'none'} (conf ${parsed?.confidence ?? '?'})`);
+      } catch (e) {
+        console.error('[Vapi] parseCallTime error (falling back to default time):', e.message);
+      }
+    }
 
+    // Resolve the operative time. Use the parsed time only if it's a real,
+    // future timestamp; otherwise fall back to tomorrow-10am so a bad/absent
+    // parse never drops the follow-up entirely (safe, non-destructive default).
+    const now2 = new Date();
+    let whenIso = null;
+    if (parsed?.requested_time) {
+      const t = new Date(parsed.requested_time);
+      if (!isNaN(t.getTime()) && t.getTime() > now2.getTime() + 60 * 1000) {
+        whenIso = t.toISOString();
+      }
+    }
+    if (!whenIso) {
+      const fallback = new Date();
+      fallback.setDate(fallback.getDate() + 1);
+      fallback.setHours(10, 0, 0, 0);
+      whenIso = fallback.toISOString();
+    }
+
+    const leadForAppt = callRec.leads || {};
+    // parseCallTime returns requested_time/timezone/confidence (no raw text field),
+    // so we persist the parsed ISO as the audit value and the confidence score.
+    const rawSaid = parsed?.requested_time || null;
+    const conf    = typeof parsed?.confidence === 'number' ? parsed.confidence : null;
+
+    // (a) Appointment record — book it at the REAL requested time.
+    if (outcome === 'appointment') {
       supabase.from('appointments').insert({
-        user_id:          callRec.user_id,
-        lead_id:          callRec.lead_id,
-        lead_name:        `${leadForAppt.first_name || ''} ${leadForAppt.last_name || ''}`.trim() || 'Unknown',
-        lead_phone:       leadForAppt.phone || callRec.phone_number || null,
-        property_address: leadForAppt.property_address || null,
-        motivation_score: aiAnalysis.motivation_score || null,
-        scheduled_at:     scheduledAt.toISOString(),
-        status:           'scheduled',
-        call_notes:       aiAnalysis.ai_summary || 'Appointment set during AI call.',
-        created_at:       new Date().toISOString(),
+        user_id:            callRec.user_id,
+        lead_id:            callRec.lead_id,
+        lead_name:          `${leadForAppt.first_name || ''} ${leadForAppt.last_name || ''}`.trim() || 'Unknown',
+        lead_phone:         leadForAppt.phone || callRec.phone_number || null,
+        property_address:   leadForAppt.property_address || null,
+        motivation_score:   aiAnalysis.motivation_score || null,
+        scheduled_at:       whenIso,
+        status:             'scheduled',
+        call_notes:         aiAnalysis.ai_summary || 'Appointment set during AI call.',
+        requested_time_raw: rawSaid,
+        requested_timezone: parsed?.timezone || null,
+        time_confidence:    conf,
+        source:             'ai_call',
+        created_at:         now2.toISOString(),
       }).catch(e => console.error('[Appointment] Auto-create failed:', e.message));
+    }
+
+    // (b) Schedule the actual voice CALLBACK at the requested time.
+    // A follow_ups row makes it visible in the CRM; a BullMQ delayed job
+    // (scheduleVapiCall) fires the call at exactly whenIso. processScheduledCall
+    // reads leadId + does its own phone/operator resolution, so this is enough.
+    try {
+      const followUpId = uuidv4();
+      const { error: fuErr } = await supabase.from('follow_ups').insert({
+        id:                 followUpId,
+        user_id:            callRec.user_id,
+        contact_id:         callRec.lead_id,
+        contact_type:       'seller',
+        follow_up_type:     'call',
+        next_follow_up_at:  whenIso,
+        reason:             outcome === 'appointment'
+                              ? 'Seller booked an appointment — AI callback at requested time.'
+                              : 'Seller asked for a callback — AI callback at requested time.',
+        status:             'scheduled',
+        requested_time_raw: rawSaid,
+        time_confidence:    conf,
+        created_at:         now2.toISOString(),
+      });
+      if (fuErr) {
+        console.error('[Callback] follow_ups insert failed:', fuErr.message);
+      } else {
+        const jobId = await scheduleVapiCall({
+          followUpId,
+          dealId: null,
+          leadId: callRec.lead_id,
+          runAt:  whenIso,
+          script: null,
+        });
+        if (jobId) {
+          await supabase.from('follow_ups').update({ bullmq_job_id: String(jobId) }).eq('id', followUpId);
+          console.log(`[Callback] Scheduled AI callback for lead ${callRec.lead_id} at ${whenIso} (job ${jobId})`);
+        } else {
+          console.warn(`[Callback] scheduleVapiCall returned no job (Redis off, or time in past) for ${whenIso} — follow_up row remains for the sequence cron to pick up.`);
+        }
+      }
+    } catch (e) {
+      console.error('[Callback] Scheduling error (non-fatal):', e.message);
     }
   }
 }

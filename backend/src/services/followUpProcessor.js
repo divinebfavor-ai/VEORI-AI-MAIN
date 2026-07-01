@@ -31,17 +31,52 @@ async function processFollowUp({ followUpId, dealId, contactId, contactType, typ
 }
 
 // ─── Process a scheduled Vapi call ───────────────────────────────────────────
+// Fires a real outbound AI call at the scheduled time (e.g. the "call me at 5"
+// callback booked by routes/vapi.js). Mirrors the live dialer (routes/calls.js /
+// campaignManager.js) EXACTLY: resolve operator → select a healthy local number →
+// insert a calls row → initiateCall({ lead, phoneNumber, callId, operator }).
 async function processScheduledCall({ followUpId, dealId, leadId, script }) {
   try {
-    const vapiService = require('./vapiService');
+    const vapiService   = require('./vapiService');
+    const phoneRotation = require('./phoneRotation');
+    const { v4: uuidv4 } = require('uuid');
+
     const { data: lead } = await supabase.from('leads').select('*').eq('id', leadId).single();
     if (!lead) throw new Error('Lead not found');
 
+    // Who owns this callback? Prefer the follow_up's user_id, fall back to the lead's.
+    const { data: fu } = await supabase.from('follow_ups').select('user_id').eq('id', followUpId).single();
+    const userId = fu?.user_id || lead.user_id;
+    if (!userId) throw new Error('No operator (user_id) for scheduled call');
+
+    // Full operator row — carries AI persona (voice, tone, scripts, use case).
+    const { data: operator } = await supabase.from('users').select('*').eq('id', userId).single();
+
+    // Healthy local number, area-code matched to the lead where possible.
+    const leadDigits   = String(lead.phone || '').replace(/\D/g, '');
+    const leadAreaCode = leadDigits.length === 11 && leadDigits.startsWith('1')
+      ? leadDigits.slice(1, 4)
+      : (leadDigits.length === 10 ? leadDigits.slice(0, 3) : null);
+    const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, [], leadAreaCode);
+    if (!phoneNum) throw new Error('No healthy phone numbers available');
+
+    // Call record — links the call to the CRM (webhook updates it on end).
+    const callId = uuidv4();
+    await supabase.from('calls').insert([{
+      id: callId,
+      user_id: userId,
+      lead_id: lead.id,
+      phone_number_id: phoneNum.id,
+      status: 'initiated',
+      started_at: new Date().toISOString(),
+    }]);
+
     const callResult = await vapiService.initiateCall({
-      leadId,
-      phone: lead.phone,
-      systemPromptOverride: script,
-      metadata: { dealId, followUpId, type: 'scheduled_follow_up' },
+      lead,
+      phoneNumber: phoneNum,
+      callId,
+      operator: operator || {},
+      useCaseOverride: operator?.ai_use_case || null,
     });
 
     await supabase.from('follow_ups').update({
@@ -53,7 +88,7 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
       dealId,
       contactId: leadId,
       actionType: 'scheduled_call_initiated',
-      messageSent: script?.substring(0, 200),
+      messageSent: script?.substring(0, 200) || `Scheduled AI callback to ${lead.phone}`,
       outcome: callResult?.id ? 'call_started' : 'failed',
     });
   } catch (err) {
