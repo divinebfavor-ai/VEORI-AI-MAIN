@@ -435,6 +435,17 @@ app.use(errorHandler);
 // ─── HTTP Server ──────────────────────────────────────────────────────────────
 const server = http.createServer(app);
 
+// ─── Real-time streaming voice engine (VOICE_ENGINE=stream) ───────────────────
+// ADDITIVE: attaches a WebSocket handler for /api/v2/voice/media-stream to the
+// SAME http server. Inert unless a call is routed through the streaming path
+// (VOICE_ENGINE=stream), which only Twilio's <Connect><Stream> ever connects to.
+// All other routes/behaviour are byte-identical with the flag unset.
+try {
+  require('./services/mediaStreamServer').attach(server);
+} catch (e) {
+  console.warn('[index] mediaStreamServer attach skipped:', e.message);
+}
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`
@@ -448,6 +459,7 @@ server.listen(PORT, '0.0.0.0', () => {
   Supabase  : ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Connected' : '⚠️  Key missing'}
   Vapi      : ${process.env.VAPI_API_KEY ? '✅ Connected' : '⚠️  Key missing'}
   Anthropic : ${process.env.ANTHROPIC_API_KEY ? '✅ Connected' : '⚠️  Key missing'}
+  Voice eng : ${(process.env.VOICE_ENGINE || 'elevenlabs')}${process.env.VOICE_ENGINE === 'stream' ? (process.env.DEEPGRAM_API_KEY ? ' (Deepgram ✅)' : ' (⚠️  DEEPGRAM_API_KEY missing)') : ''}
   `);
 });
 

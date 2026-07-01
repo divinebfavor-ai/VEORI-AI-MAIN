@@ -1318,6 +1318,16 @@ function toE164(phone) {
 // of new code required.
 async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null, campaign = {} }) {
   const engine = (process.env.VOICE_ENGINE || 'elevenlabs').toLowerCase();
+  if (engine === 'stream') {
+    // Real-time streaming engine (Twilio Media Streams ↔ Deepgram ↔ Claude ↔
+    // ElevenLabs streaming, with barge-in). Fully in-house, no Vapi. Identical
+    // { id } return contract, so the 6 callers stay untouched. Only active when
+    // the admin sets VOICE_ENGINE=stream on Railway; unset falls back to the
+    // proven turn-based elevenlabs path below (instant rollback).
+    console.log(`[engine=stream] dialing lead=${lead?.id} callId=${callId} via Twilio Media Streams`);
+    const twilioCallStreamService = require('./twilioCallStreamService');
+    return twilioCallStreamService.initiateCall({ lead, phoneNumber, callId, operator, useCaseOverride });
+  }
   if (engine === 'vapi') {
     // ACTIVE Vapi outbound path. Real-time conversational engine — used when the
     // admin sets VOICE_ENGINE=vapi on Railway because ElevenLabs TTS sounds robotic

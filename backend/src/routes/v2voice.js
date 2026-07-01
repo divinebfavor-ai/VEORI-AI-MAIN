@@ -250,6 +250,39 @@ router.post('/twiml', async (req, res) => {
   res.type('text/xml').send(vr.toString());
 });
 
+// POST|GET /api/v2/voice/twiml-stream — answer TwiML for the v2 "stream" engine.
+// ADDITIVE + inert: only twilioCallStreamService points calls here, and that only
+// runs when VOICE_ENGINE=stream. Returns <Connect><Stream> so Twilio opens a
+// bidirectional Media Stream WebSocket to mediaStreamServer (real-time STT ↔
+// Claude ↔ ElevenLabs with barge-in). callId rides in a <Parameter> so the WS
+// session can loadCallContext the right lead/operator/voice. The turn-based
+// /twiml above is untouched and still serves the elevenlabs engine.
+async function twimlStreamHandler(req, res) {
+  const callId = req.query.callId || req.body?.CallSid || '';
+  const vr = new twilio.twiml.VoiceResponse();
+
+  try {
+    // Public WS host: strip scheme from PUBLIC_BASE and use wss://.
+    const publicBase = process.env.PUBLIC_BASE_URL
+      || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '');
+    const host = publicBase.replace(/^https?:\/\//i, '');
+    if (!host) throw new Error('PUBLIC_BASE_URL / RAILWAY_PUBLIC_DOMAIN not set');
+
+    const connect = vr.connect();
+    const stream = connect.stream({ url: `wss://${host}/api/v2/voice/media-stream` });
+    stream.parameter({ name: 'callId', value: String(callId) });
+    console.log(`[v2voice] twiml-stream opened media stream callId=${callId}`);
+  } catch (e) {
+    console.warn('[v2voice] twiml-stream error, downgrading to turn-based:', e.message);
+    // Never leave the line dead — fall back to the proven turn-based conversation.
+    vr.redirect(`/api/v2/voice/twiml?callId=${encodeURIComponent(callId)}`);
+  }
+
+  res.type('text/xml').send(vr.toString());
+}
+router.post('/twiml-stream', twimlStreamHandler);
+router.get('/twiml-stream', twimlStreamHandler);
+
 // POST /api/v2/voice/gather — one conversational turn.
 // Twilio POSTs here after each <Gather> with the seller's transcribed speech in
 // SpeechResult. We load context, ask the brain for the next line (Module 7 wires
@@ -464,5 +497,11 @@ router.post('/recording', async (req, res) => {
     console.warn('[v2voice] recording handler error:', e.message);
   }
 });
+
+// ADDITIVE: expose loadCallContext on the router so the streaming media-stream
+// server (mediaStreamServer.js) reuses the exact same lead/operator/voice loader
+// the turn-based path uses. The default export stays the Express router so the
+// existing `app.use('/api/v2/voice', require('./routes/v2voice'))` mount is unchanged.
+router.loadCallContext = loadCallContext;
 
 module.exports = router;

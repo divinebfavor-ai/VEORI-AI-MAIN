@@ -216,6 +216,127 @@ async function synthesizeToUrl(text, { voiceId, callSid } = {}) {
   }
 }
 
+// ── v2 "stream" engine: WebSocket streaming TTS (ulaw_8000) ──────────────────
+// ADDITIVE. Used ONLY by the new mediaStreamServer.js streaming pipeline. The
+// existing REST synthesizeSpeech/synthesizeToUrl above are untouched and still
+// power the turn-based (elevenlabs) engine. This is inert unless VOICE_ENGINE=stream.
+//
+// We open ElevenLabs' input-streaming WebSocket and request output_format=ulaw_8000
+// so the audio Twilio Media Streams needs is produced natively — no transcoding,
+// only re-chunking into Twilio's 160-byte / 20ms frames (done by the caller).
+//
+// ElevenLabs WS reference:
+//   https://elevenlabs.io/docs/api-reference/websockets
+// Protocol: first message = BOS with voice_settings (+ xi-api-key), then one or
+// more text messages, then an EOS message ({ text: '' }). Server streams back
+// { audio: <base64>, isFinal } frames until it closes/flushes.
+const WebSocket = require('ws');
+
+// Low-latency streaming model + telephony output format (env-overridable).
+const STREAM_MODEL_ID = process.env.ELEVENLABS_STREAM_MODEL || 'eleven_flash_v2_5';
+const STREAM_OUTPUT_FORMAT = process.env.ELEVENLABS_STREAM_FORMAT || 'ulaw_8000';
+
+/**
+ * Stream a line of text to ulaw_8000 audio over the ElevenLabs WebSocket.
+ *
+ * Yields base64 mu-law audio chunks via onChunk(base64) as they arrive so the
+ * caller can push them to Twilio immediately (low latency). Resolves when the
+ * stream is fully flushed. Abortable mid-flight (barge-in) via an AbortSignal.
+ *
+ * Returns false (never throws) if no API key / no voice / on socket failure, so
+ * the caller can fall back gracefully (e.g. Twilio <Say>) and never leave dead air.
+ *
+ * @param {string}   text
+ * @param {object}   opts
+ * @param {string}   opts.voiceId          ElevenLabs voice_id (required)
+ * @param {function} opts.onChunk          (base64Ulaw) => void — per audio frame
+ * @param {AbortSignal} [opts.signal]      abort to stop mid-utterance (barge-in)
+ * @returns {Promise<boolean>}             true if audio streamed, false on failure/abort
+ */
+function streamTts(text, { voiceId, onChunk, signal } = {}) {
+  return new Promise((resolve) => {
+    const vId = voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
+    if (!ELEVENLABS_API_KEY || !vId || !text) {
+      if (!ELEVENLABS_API_KEY) console.warn('[ElevenLabs] streamTts skipped — no API key');
+      return resolve(false);
+    }
+    if (signal?.aborted) return resolve(false);
+
+    let settled = false;
+    let producedAudio = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      try { if (ws.readyState === WebSocket.OPEN) ws.close(); } catch (_) { /* noop */ }
+      resolve(val);
+    };
+
+    const wsUrl =
+      `${ELEVENLABS_API_URL.replace(/^http/i, 'ws')}` +
+      `/text-to-speech/${vId}/stream-input` +
+      `?model_id=${encodeURIComponent(STREAM_MODEL_ID)}` +
+      `&output_format=${encodeURIComponent(STREAM_OUTPUT_FORMAT)}`;
+
+    let ws;
+    try {
+      ws = new WebSocket(wsUrl, { headers: { 'xi-api-key': ELEVENLABS_API_KEY } });
+    } catch (err) {
+      console.warn('[ElevenLabs] streamTts socket construct failed:', err.message);
+      return resolve(false);
+    }
+
+    // Barge-in: abort the socket the instant the caller signals an interruption.
+    const onAbort = () => {
+      try { if (ws.readyState === WebSocket.OPEN) ws.close(); } catch (_) { /* noop */ }
+      finish(producedAudio);
+    };
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+
+    ws.on('open', () => {
+      try {
+        // BOS: voice_settings + auth. Reuse the same tuned profile as REST TTS.
+        ws.send(JSON.stringify({
+          text: ' ',
+          voice_settings: TTS_VOICE_SETTINGS,
+          xi_api_key: ELEVENLABS_API_KEY,
+        }));
+        // The actual line to speak.
+        ws.send(JSON.stringify({ text: `${text} `, try_trigger_generation: true }));
+        // EOS — flush and finish.
+        ws.send(JSON.stringify({ text: '' }));
+      } catch (err) {
+        console.warn('[ElevenLabs] streamTts send failed:', err.message);
+        finish(producedAudio);
+      }
+    });
+
+    ws.on('message', (raw) => {
+      if (signal?.aborted) return;
+      let msg;
+      try {
+        msg = JSON.parse(raw.toString());
+      } catch (_) {
+        return; // ignore non-JSON control frames
+      }
+      if (msg.audio) {
+        producedAudio = true;
+        try {
+          if (typeof onChunk === 'function') onChunk(msg.audio);
+        } catch (err) {
+          console.warn('[ElevenLabs] streamTts onChunk threw:', err.message);
+        }
+      }
+      if (msg.isFinal) finish(producedAudio);
+    });
+
+    ws.on('close', () => finish(producedAudio));
+    ws.on('error', (err) => {
+      console.warn('[ElevenLabs] streamTts socket error:', err.message);
+      finish(producedAudio);
+    });
+  });
+}
+
 module.exports = {
   fetchVoicesFromApi,
   getVoiceLibrary,
@@ -224,4 +345,5 @@ module.exports = {
   normaliseVoice,
   synthesizeSpeech,
   synthesizeToUrl,
+  streamTts,
 };
