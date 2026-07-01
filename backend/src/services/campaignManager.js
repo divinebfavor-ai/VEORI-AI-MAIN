@@ -18,6 +18,20 @@ async function start(campaignId, userId) {
   // Load operator profile so Alex uses the right voice/name/settings
   const { data: operator } = await supabase.from('users').select('*').eq('id', userId).single();
 
+  // AI provisioning: Starting a campaign IS the trigger to buy numbers. Before the
+  // first dial, size the LOCAL calling fleet to this operator's callable-lead volume
+  // + geography (plan-capped, per-operator paced) and buy only the shortfall via the
+  // uncapped Twilio→Vapi path. Awaited so the first calls go out on real geo-matched
+  // numbers. Idempotent (re-start won't re-buy) and never throws — a provisioning
+  // failure must never block the campaign; the dialer runs on whatever numbers exist.
+  try {
+    const { ensureCallingCapacity } = require('./numberProvisioning');
+    const provisionResult = await ensureCallingCapacity(userId);
+    console.log(`[Campaign ${campaignId}] Pre-dial provisioning:`, provisionResult);
+  } catch (provErr) {
+    console.error(`[Campaign ${campaignId}] Pre-dial provisioning error (starting anyway):`, provErr.message);
+  }
+
   await supabase.from('campaigns').update({ status: 'active', error_message: null, updated_at: new Date().toISOString() }).eq('id', campaignId);
 
   const leads = await buildLeadQueue(campaignId, userId, campaign.lead_filter || {});
@@ -154,6 +168,24 @@ async function dialerTick(campaignId) {
         : (leadDigits.length === 10 ? leadDigits.slice(0, 3) : null);
       const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, inUseIds, leadAreaCode);
       if (!phoneNum) {
+        // Distinguish "all numbers momentarily busy/cooling" (transient — wait for
+        // next tick) from "operator owns zero callable numbers" (permanent — the
+        // pre-dial buy found/bought nothing, so the campaign would silently never
+        // call). Only surface the hard-stop when there are no active calls to wait on.
+        if (activeCalls.size === 0) {
+          const { count: liveLocal } = await supabase
+            .from('phone_numbers')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .eq('is_toll_free', false)
+            .is('released_at', null);
+          if (!liveLocal) {
+            leadQueue.unshift(lead);
+            await pauseWithError(campaignId, 'No calling numbers available. Auto-provisioning could not buy a local number (check Twilio setup or plan). Add a number in Settings, then resume.');
+            return;
+          }
+        }
         console.log('[Campaign] No healthy numbers available — waiting for next tick');
         leadQueue.unshift(lead); // put lead back, try again next tick
         break;
