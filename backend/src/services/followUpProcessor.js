@@ -110,6 +110,63 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
   }
 }
 
+// ─── Safety-net sweep for due callbacks ───────────────────────────────────────
+// The primary path for a "call me at 5" callback is a BullMQ delayed job. If
+// REDIS_URL is missing / Redis is down / the box that enqueued restarts, that job
+// never fires and the follow_ups row sits status='scheduled' forever. This sweep
+// is the Redis-INDEPENDENT backstop: it runs on a plain setInterval from index.js
+// and picks up ANY due voice callback within its interval, so the "call them back
+// on time, no matter what" guarantee holds even with the queue fully offline.
+//
+// Double-dial safety: each due row is ATOMICALLY claimed (scheduled → processing,
+// guarded by .eq('status','scheduled')) before dispatch. If BullMQ's worker and
+// this sweep race for the same row, only one wins the claim; the loser's update
+// affects 0 rows and it skips. processScheduledCall flips it to completed/failed.
+async function pollDueCallbacks() {
+  try {
+    const nowIso = new Date().toISOString();
+
+    // Only voice callbacks that are actually due. Small batch per tick keeps a
+    // backlog from stampeding the dialer; the next tick drains the rest.
+    const { data: due, error } = await supabase
+      .from('follow_ups')
+      .select('id, user_id, contact_id, next_follow_up_at')
+      .eq('follow_up_type', 'call')
+      .eq('status', 'scheduled')
+      .lte('next_follow_up_at', nowIso)
+      .order('next_follow_up_at', { ascending: true })
+      .limit(25);
+
+    if (error) { console.error('[CallbackSweep] query error:', error.message); return 0; }
+    if (!due || due.length === 0) return 0;
+
+    let fired = 0;
+    for (const row of due) {
+      // Atomic claim — only the caller that flips scheduled→processing proceeds.
+      const { data: claimed, error: claimErr } = await supabase
+        .from('follow_ups')
+        .update({ status: 'processing' })
+        .eq('id', row.id)
+        .eq('status', 'scheduled')
+        .select('id');
+
+      if (claimErr) { console.error('[CallbackSweep] claim error:', claimErr.message); continue; }
+      if (!claimed || claimed.length === 0) continue; // lost the race — someone else has it
+
+      console.log(`[CallbackSweep] Firing overdue callback ${row.id} for lead ${row.contact_id} (due ${row.next_follow_up_at})`);
+      // processScheduledCall re-reads the row + owns the completed/failed transition.
+      await processScheduledCall({ followUpId: row.id, dealId: null, leadId: row.contact_id, script: null });
+      fired++;
+    }
+
+    if (fired) console.log(`[CallbackSweep] Dispatched ${fired} overdue callback(s)`);
+    return fired;
+  } catch (err) {
+    console.error('[CallbackSweep] Sweep error:', err.message);
+    return 0;
+  }
+}
+
 // ─── Process a sequence step ──────────────────────────────────────────────────
 async function processSequenceStep({ sequenceId, stepIndex }) {
   const { data: seq } = await supabase
@@ -257,4 +314,4 @@ async function sendFollowUpSms({ contactId, contactType, template }) {
   await sendVapiSms(contact.phone, message);
 }
 
-module.exports = { processFollowUp, processScheduledCall, processSequenceStep };
+module.exports = { processFollowUp, processScheduledCall, processSequenceStep, pollDueCallbacks };

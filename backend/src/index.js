@@ -405,6 +405,19 @@ async function autoSyncVapiCalls() {
 autoSyncVapiCalls();
 setInterval(autoSyncVapiCalls, 5 * 60 * 1000);
 
+// ─── Callback safety-net sweep (Redis-INDEPENDENT) ────────────────────────────
+// A "call me at 5" callback is normally fired by a BullMQ delayed job. If Redis
+// is down / unset / the enqueuing box restarts, that job is lost. This plain
+// setInterval sweep is the backstop: every 2 min it dispatches any due voice
+// callback whose follow_ups row is still 'scheduled', with an atomic claim so it
+// never double-dials alongside the queue. Guarantees callbacks go out on time
+// even with BullMQ fully offline.
+const { pollDueCallbacks } = require('./services/followUpProcessor');
+const CALLBACK_SWEEP_MS = Number(process.env.CALLBACK_SWEEP_MS) || 2 * 60 * 1000;
+setInterval(() => {
+  pollDueCallbacks().catch(err => console.error('[CallbackSweep] tick error:', err.message));
+}, CALLBACK_SWEEP_MS);
+
 // ─── New Features (Features: Missed Call Text-Back, SMS Inbox, Appointments) ──
 const missedCallsRouter  = require('./routes/missedCalls');
 const appointmentsRouter = require('./routes/appointments');
