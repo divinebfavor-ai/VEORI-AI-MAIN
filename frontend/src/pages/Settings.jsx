@@ -215,12 +215,19 @@ function PhoneTab({ phoneList, setPhoneList }) {
     setAutoScaling(true)
     try {
       const { data } = await phones.autoScale()
-      if (data.scaled === false) {
+      if (data.buy_failed) {
+        // Buy loop ran but every purchase failed — surface the real Twilio/Vapi error.
+        toast.error(data.message || 'Number purchase failed', { duration: 9000 })
+      } else if (data.scaled === false) {
         toast(data.reason === 'no_callable_leads'
           ? 'No callable leads yet — import leads first and numbers buy automatically.'
           : data.reason === 'no_twilio'
             ? 'Number buying is not configured on the server.'
-            : 'Nothing to scale right now.', { duration: 6000 })
+            : data.reason === 'no_local_allotment'
+              ? `Your plan (${data.detail?.plan || 'current'}) has no local calling numbers. Upgrade to enable calling.`
+              : data.reason === 'error'
+                ? `Auto-scale error: ${data.detail?.error || 'unknown'}`
+                : (data.message || 'Nothing to scale right now.'), { duration: 8000 })
       } else {
         toast.success(data.message || 'Calling capacity updated', { duration: 6000 })
         const fresh = await phones.getPhones()

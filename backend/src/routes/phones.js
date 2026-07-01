@@ -796,12 +796,26 @@ router.post('/auto-scale', async (req, res, next) => {
       });
     }
 
+    // bought:0 has TWO meanings — (a) nothing was needed (shortfall 0), or
+    // (b) the buy loop ran and every purchase failed (errors[] populated).
+    // Report them distinctly so a real Twilio/Vapi failure isn't masked as "at capacity".
+    const tried  = (result.neededLocal || 0) - (result.currentLocal || 0);
+    const failed = tried > 0 && result.bought === 0;
+    let message;
+    if (result.bought > 0) {
+      message = `Bought ${result.bought} local number${result.bought === 1 ? '' : 's'} — sized to ${result.callableLeads} callable leads at a ${result.pace_days}-day pace.`;
+    } else if (failed) {
+      const firstErr = result.errors?.[0]?.error || 'unknown error';
+      message = `Tried to buy ${tried} local number${tried === 1 ? '' : 's'} but all purchases failed: ${firstErr}`;
+    } else {
+      message = `Already at capacity — ${result.currentLocal} local number${result.currentLocal === 1 ? '' : 's'} cover ${result.callableLeads} callable leads. Nothing to buy.`;
+    }
+
     return res.json({
       success: true,
-      scaled: true,
-      message: result.bought > 0
-        ? `Bought ${result.bought} local number${result.bought === 1 ? '' : 's'} — sized to ${result.callableLeads} callable leads at a ${result.pace_days}-day pace.`
-        : `Already at capacity — ${result.currentLocal} local number${result.currentLocal === 1 ? '' : 's'} cover ${result.callableLeads} callable leads. Nothing to buy.`,
+      scaled: result.bought > 0,
+      buy_failed: failed,
+      message,
       ...result,
     });
   } catch (err) { next(err); }
