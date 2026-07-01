@@ -532,6 +532,14 @@ const CALLS_PER_NUMBER_PER_DAY = 60;
 // Safety clamp so a single huge import can't drain the whole shared pool at once.
 const MAX_AUTO_ASSIGN = 80;
 
+// ── Auto-buy pace (ensureCallingCapacity) ────────────────────────────────────
+// Operators in this allowlist get "aggressive" sizing — enough LOCAL numbers to
+// call every lead within ~2 work-weeks. Everyone else is sized for a ~1-month
+// healthy burn. Keyed by user id (no schema column needed).
+const AGGRESSIVE_OPERATOR_IDS = ['c7429397-e6a5-4d57-8a21-2eab0dfc3fea'];
+const WORKING_DAYS_TWO_WEEKS  = 11;   // ~2 work-weeks (aggressive)
+const WORKING_DAYS_ONE_MONTH  = 22;   // ~1 work-month (default)
+
 /**
  * Ensure an operator holds enough toll-free numbers to call their callable leads
  * while keeping each number healthy (≤40 calls/day). Sizes to ACTUAL callable lead
@@ -592,6 +600,138 @@ async function ensureCapacity(userId) {
     assigned:       result.assigned,
     pool_remaining: result.pool_remaining,
   };
+}
+
+/**
+ * Smart auto-scaling of an operator's LOCAL calling numbers, sized to their real
+ * callable-lead volume and geography, capped at their plan.
+ *
+ * Fired automatically after every lead import (fire-and-forget). It:
+ *   1. Sizes how many LOCAL numbers are needed to call all callable leads within
+ *      the operator's pace window (~2 weeks for aggressive operators, ~1 month
+ *      for everyone else) at the healthy rate of 60 dials/number/day.
+ *   2. Clamps that to the plan's LOCAL allotment (splitNumberCounts).
+ *   3. Compares against LOCAL numbers already owned, per state, and BUYS only the
+ *      shortfall — geographically matched to the lead distribution (via the same
+ *      buildAreaCodeListFromLeads engine used by provisionNumberPool), through the
+ *      uncapped Twilio→Vapi path (buyLocalTwilioNumber).
+ *
+ * Idempotent: re-importing the same leads won't re-buy (shortfall becomes 0).
+ * Never throws — a provisioning failure must never break a lead import.
+ *
+ * NOTE: toll-free numbers are intentionally ignored here — they are SMS-only and
+ * excluded from call rotation (phoneRotation.js). This function only manages the
+ * LOCAL calling fleet.
+ *
+ * @param {string} userId
+ * @returns {Promise<object>} sizing + buy result (or a {skipped} reason)
+ */
+async function ensureCallingCapacity(userId) {
+  try {
+    // Auto-buy uses the uncapped Twilio→Vapi path ONLY. Without Twilio creds we
+    // do nothing (never silently create capped Vapi-owned numbers in background).
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+      console.log(`[CallingCapacity] ${userId} — Twilio not configured, skipping auto-buy`);
+      return { skipped: 'no_twilio' };
+    }
+
+    // 1. Callable leads (not on DNC, has a phone).
+    const { count: callableCount } = await supabase
+      .from('leads')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_on_dnc', false)
+      .not('phone', 'is', null);
+    const callable = callableCount || 0;
+    if (callable === 0) return { skipped: 'no_callable_leads', callableLeads: 0 };
+
+    // 2. Plan → LOCAL cap.
+    const { data: u } = await supabase
+      .from('users')
+      .select('subscription_plan')
+      .eq('id', userId)
+      .single();
+    const plan = u?.subscription_plan || 'starter';
+    const { local: localTarget } = splitNumberCounts(plan);
+    if (!localTarget) {
+      console.log(`[CallingCapacity] ${userId} — plan '${plan}' has 0 local allotment, skipping`);
+      return { skipped: 'no_local_allotment', plan };
+    }
+
+    // 3. Pace window → numbers needed, clamped to plan local cap.
+    const paceDays    = AGGRESSIVE_OPERATOR_IDS.includes(userId) ? WORKING_DAYS_TWO_WEEKS : WORKING_DAYS_ONE_MONTH;
+    const capacityPer = CALLS_PER_NUMBER_PER_DAY * paceDays;      // dials one number handles in the window
+    const neededLocal = Math.min(Math.ceil(callable / capacityPer), localTarget);
+
+    // 4. LOCAL numbers already owned, grouped by state.
+    const { data: owned } = await supabase
+      .from('phone_numbers')
+      .select('state')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .eq('is_toll_free', false)
+      .is('released_at', null);
+    const currentLocal = owned?.length || 0;
+
+    const ownedByState = {};
+    for (const n of (owned || [])) {
+      const st = (n.state || '').toUpperCase();
+      if (st) ownedByState[st] = (ownedByState[st] || 0) + 1;
+    }
+
+    const shortfall = Math.max(0, neededLocal - currentLocal);
+    if (shortfall === 0) {
+      console.log(`[CallingCapacity] ${userId} — ${callable} callable leads, has ${currentLocal}/${neededLocal} local (${paceDays}d pace, ${plan}) — no buy needed`);
+      return { callableLeads: callable, currentLocal, neededLocal, localTarget, pace_days: paceDays, bought: 0 };
+    }
+
+    // 5. Ideal geo-matched distribution for the FULL target, then subtract what's
+    //    already owned per state so we buy the correct area codes for the shortfall.
+    const idealAreaCodes = await buildAreaCodeListFromLeads(userId, neededLocal); // proportional by lead state
+    const idealByState   = {};
+    for (const ac of idealAreaCodes) {
+      const st = stateForAreaCode(ac) || '??';
+      idealByState[st] = idealByState[st] || [];
+      idealByState[st].push(ac);
+    }
+
+    // Build the shortfall buy-list: for each state, the area codes beyond what's owned.
+    const buyList = [];
+    for (const [st, codes] of Object.entries(idealByState)) {
+      const alreadyHave = ownedByState[st] || 0;
+      const toBuy       = Math.max(0, codes.length - alreadyHave);
+      for (let i = 0; i < toBuy; i++) buyList.push(codes[i % codes.length]);
+    }
+    // Trim/pad to exactly `shortfall` (guards rounding drift from per-state math).
+    while (buyList.length > shortfall) buyList.pop();
+    while (buyList.length < shortfall) buyList.push(idealAreaCodes[buyList.length % idealAreaCodes.length]);
+
+    console.log(`[CallingCapacity] ${userId} — ${callable} callable leads, plan '${plan}', ${paceDays}d pace → need ${neededLocal} local, have ${currentLocal}, buying ${buyList.length}: [${buyList.join(', ')}]`);
+
+    // 6. Buy the shortfall (uncapped Twilio→Vapi). Each failure logged; loop continues.
+    let bought = 0;
+    const errors = [];
+    for (let i = 0; i < buyList.length; i++) {
+      const areaCode = buyList[i];
+      const label    = `Veori Line ${currentLocal + bought + 1} (${areaCode})`;
+      try {
+        const result = await buyLocalTwilioNumber(userId, areaCode, label);
+        console.log(`[CallingCapacity] ✅ bought ${result.number} — ${result.state || areaCode}`);
+        bought++;
+        if (i < buyList.length - 1) await new Promise(r => setTimeout(r, 1500));
+      } catch (err) {
+        console.error(`[CallingCapacity] ❌ area code ${areaCode}: ${err.message}`);
+        errors.push({ areaCode, error: err.message });
+      }
+    }
+
+    console.log(`[CallingCapacity] ${userId} — complete: bought ${bought}/${buyList.length}`);
+    return { callableLeads: callable, currentLocal, neededLocal, localTarget, pace_days: paceDays, bought, errors };
+  } catch (err) {
+    // Never let a provisioning failure break a lead import.
+    console.error(`[CallingCapacity] ${userId} — unexpected error: ${err.message}`);
+    return { skipped: 'error', error: err.message };
+  }
 }
 
 // ── Toll-free SMS verification (auto, on Veori's behalf) ─────────────────────
@@ -775,6 +915,7 @@ module.exports = {
   splitNumberCounts,
   handlePlanUpgrade,
   ensureCapacity,
+  ensureCallingCapacity,
   submitTollFreeVerification,
   pollPendingVerifications,
   PLAN_NUMBER_COUNTS,

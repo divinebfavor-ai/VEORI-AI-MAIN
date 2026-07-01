@@ -541,11 +541,13 @@ router.post('/', async (req, res, next) => {
       }
     });
 
-    // Auto-size the operator's toll-free number pool to their callable lead volume
-    // (async — never blocks lead creation, never throws into the response)
+    // Auto-size the operator's toll-free (SMS) pool + local (calling) capacity to
+    // their callable lead volume, geo-matched. (async — never blocks, never throws)
     setImmediate(() => {
       require('../services/numberProvisioning').ensureCapacity(req.user.id)
         .catch(err => console.error('[Leads] ensureCapacity error:', err.message));
+      require('../services/numberProvisioning').ensureCallingCapacity(req.user.id)
+        .catch(err => console.error('[Leads] ensureCallingCapacity error:', err.message));
     });
 
     res.status(201).json({ success: true, data });
@@ -670,6 +672,8 @@ router.post('/bulk', async (req, res, next) => {
     setImmediate(() => {
       require('../services/numberProvisioning').ensureCapacity(req.user.id)
         .catch(err => console.error('[Leads] ensureCapacity (bulk) error:', err.message));
+      require('../services/numberProvisioning').ensureCallingCapacity(req.user.id)
+        .catch(err => console.error('[Leads] ensureCallingCapacity (bulk) error:', err.message));
     });
 
     res.status(201).json({
@@ -824,6 +828,8 @@ router.post('/ingest', async (req, res, next) => {
     setImmediate(() => {
       require('../services/numberProvisioning').ensureCapacity(req.user.id)
         .catch(err => console.error('[Leads] ensureCapacity (ingest) error:', err.message));
+      require('../services/numberProvisioning').ensureCallingCapacity(req.user.id)
+        .catch(err => console.error('[Leads] ensureCallingCapacity (ingest) error:', err.message));
     });
 
     res.status(201).json({ success: true, seller });
