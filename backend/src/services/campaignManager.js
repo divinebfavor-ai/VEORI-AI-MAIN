@@ -214,11 +214,16 @@ async function dialerTick(campaignId) {
         vapiCall = await vapiService.initiateCall({ lead, phoneNumber: phoneNum, callId, operator, useCaseOverride: campaign.use_case || null, campaign });
       } catch (vapiErr) {
         const errData = vapiErr?.response?.data;
-        const msg = errData?.message || errData?.error || vapiErr.message || 'Unknown Vapi error';
+        const baseMsg = errData?.message || errData?.error || vapiErr.message || 'Unknown dial error';
+        // Twilio REST errors carry a numeric .code (e.g. 21215 geo-permission,
+        // 21606 invalid caller-ID, 21210 unverified from) and a .moreInfo URL.
+        // Surface them — the code is the single most useful field for diagnosis.
+        const twilioCode = vapiErr?.code || errData?.code || null;
+        const msg = twilioCode ? `[Twilio ${twilioCode}] ${baseMsg}` : baseMsg;
 
-        console.error(`[Campaign ${campaignId}] Vapi REJECTED call for lead ${lead.id} (${lead.phone}):`, msg);
-        console.error(`[Campaign ${campaignId}] Vapi response status: ${vapiErr?.response?.status}`);
-        console.error(`[Campaign ${campaignId}] Full error:`, JSON.stringify(errData || {}, null, 2));
+        console.error(`[Campaign ${campaignId}] DIAL REJECTED for lead ${lead.id} (${lead.phone}):`, msg);
+        console.error(`[Campaign ${campaignId}] Twilio code=${twilioCode} status=${vapiErr?.status || vapiErr?.response?.status} moreInfo=${vapiErr?.moreInfo || ''}`);
+        console.error(`[Campaign ${campaignId}] Full error:`, JSON.stringify(errData || { code: twilioCode, message: baseMsg }, null, 2));
 
         // Mark call as failed
         await supabase.from('calls').update({ status: 'failed', ended_at: new Date().toISOString() }).eq('id', callId);
