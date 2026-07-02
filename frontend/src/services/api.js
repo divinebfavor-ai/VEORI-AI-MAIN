@@ -239,6 +239,10 @@ export const v2voices = {
   getSelection:  ()                       => api.get('/api/v2/voices/selection'),
   saveSelection: (selected_voice_id, ai_caller_name) =>
     api.post('/api/v2/voices/selection', { selected_voice_id, ai_caller_name }),
+  // Generate (once, then cached) a real preview clip using the SAME tuned TTS the
+  // live call uses. Returns { voice_preview_url }. force=true regenerates.
+  preview:       (voiceId, force = false) =>
+    api.post(`/api/v2/voices/${voiceId}/preview${force ? '?force=1' : ''}`),
 }
 
 // ─── Vapi voice catalog (active picker) ──────────────────────────────────────

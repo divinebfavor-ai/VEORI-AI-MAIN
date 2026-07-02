@@ -1313,6 +1313,7 @@ export default function Settings() {
   const [voices, setVoices]       = useState([])     // ElevenLabs voice library (veori_voice_library)
   const [selectedVoiceId, setSelectedVoiceId] = useState('')  // operator's saved choice (veori_operator_voice_settings)
   const previewAudioRef           = useRef(null)   // shared <Audio> so a new preview stops the previous one
+  const [previewLoading, setPreviewLoading] = useState('') // voice_id currently generating a preview clip
   const [scriptIdea, setScriptIdea]   = useState('')      // operator's plain-English description for AI script generation
   const [genningScript, setGenningScript] = useState(false)
   const [importScript, setImportScript]   = useState('')  // F11 — pasted existing script/workflow to distill
@@ -1914,24 +1915,47 @@ export default function Settings() {
                       </select>
                       {(() => {
                         const sel = voices.find(v => v.voice_id === (selectedVoiceId || voices[0]?.voice_id))
-                        return sel?.voice_preview_url ? (
+                        if (!sel) return null
+                        const busy = previewLoading === sel.voice_id
+                        // Play a URL, stopping any clip already playing.
+                        const play = (url) => {
+                          try {
+                            if (previewAudioRef.current) {
+                              previewAudioRef.current.pause()
+                              previewAudioRef.current.currentTime = 0
+                            }
+                            const a = new Audio(url)
+                            previewAudioRef.current = a
+                            a.play()
+                          } catch {}
+                        }
+                        return (
                           <button type="button"
-                            onClick={() => {
+                            disabled={busy}
+                            onClick={async () => {
+                              // Cached clip → play instantly. No cache → generate on
+                              // demand with the live-call tuning, cache it, then play.
+                              if (sel.voice_preview_url) { play(sel.voice_preview_url); return }
+                              setPreviewLoading(sel.voice_id)
                               try {
-                                // Stop whatever is currently previewing before starting the new clip.
-                                if (previewAudioRef.current) {
-                                  previewAudioRef.current.pause()
-                                  previewAudioRef.current.currentTime = 0
+                                const { data } = await v2voices.preview(sel.voice_id)
+                                const url = data?.voice_preview_url
+                                if (url) {
+                                  setVoices(vs => vs.map(v => v.voice_id === sel.voice_id ? { ...v, voice_preview_url: url } : v))
+                                  play(url)
+                                } else {
+                                  toast.error('Could not generate preview')
                                 }
-                                const a = new Audio(sel.voice_preview_url)
-                                previewAudioRef.current = a
-                                a.play()
-                              } catch {}
+                              } catch {
+                                toast.error('Preview failed — check the voice is in your ElevenLabs account')
+                              } finally {
+                                setPreviewLoading('')
+                              }
                             }}
-                            className="h-[44px] px-3 rounded-[6px] border border-border-subtle text-[13px] text-text-primary hover:border-primary whitespace-nowrap">
-                            ▶ Preview
+                            className="h-[44px] px-3 rounded-[6px] border border-border-subtle text-[13px] text-text-primary hover:border-primary whitespace-nowrap disabled:opacity-50">
+                            {busy ? 'Generating…' : '▶ Preview'}
                           </button>
-                        ) : null
+                        )
                       })()}
                     </div>
                   </div>
