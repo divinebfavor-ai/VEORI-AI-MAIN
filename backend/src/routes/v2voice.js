@@ -59,16 +59,23 @@ async function speakLine(vr, text, { voiceId, callSid, emotion } = {}) {
   const spoken = parsed.text;
   const useEmotion = emotion || parsed.emotion || null;
   if (!spoken) return;
+  // PACING (additive): insert the natural pauses/breaths a real person makes so
+  // the line isn't rushed and doesn't run on (ElevenLabs has no speed knob — pace
+  // comes from punctuation in the text). Runs AFTER the emotion cue is stripped,
+  // so a "{cue}" is never spoken. Gated by VOICE_PACING (default on); off → this
+  // returns the text unchanged. The <Say> fallback speaks the paced text too so
+  // cadence survives a synth miss.
+  const paced = elevenLabs.humanizePacing(spoken);
   let url = null;
   try {
-    url = await elevenLabs.synthesizeToUrl(spoken, { voiceId, callSid, emotion: useEmotion });
+    url = await elevenLabs.synthesizeToUrl(paced, { voiceId, callSid, emotion: useEmotion });
   } catch (e) {
     console.warn('[v2voice] speakLine synth error:', e.message);
   }
   if (url) {
     vr.play(url);
   } else {
-    vr.say({ voice: FALLBACK_SAY_VOICE }, spoken);
+    vr.say({ voice: FALLBACK_SAY_VOICE }, paced);
   }
 }
 

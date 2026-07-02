@@ -181,16 +181,22 @@ const TTS_VOICE_SETTINGS = {
   //                     too high (>0.6) goes flat/monotone. 0.40 = human cadence.
   //   similarity 0.85 — 0.82-0.88 is where a clone stops sounding like an
   //                     impression and sounds like the actual person. Kept.
-  //   style 0.28      — a touch more expressiveness/warmth than a neutral read so
-  //                     it sounds engaged, not scripted. 0.15-0.30 is the natural
-  //                     band; >0.30 tips into performative/theatrical (and adds
-  //                     instability on the streaming model). 0.28 = warm, not hammy.
+  //   style 0.22      — a touch of warmth over a neutral read so it sounds
+  //                     engaged, not scripted — but LOW enough that the DEFAULT
+  //                     read doesn't sit bright/high (the "high in pitch when it's
+  //                     not supposed to be" complaint). 0.15-0.30 is the natural
+  //                     band; >0.30 tips performative. 0.22 = warm, grounded, calm.
+  //                     Per-line emotion (EMOTION_PROFILES) lifts style back up ONLY
+  //                     where the moment calls for it (excited/playful), so energy
+  //                     MOVES line-to-line instead of every line landing bright.
   //   speaker_boost   — lifts presence/clarity on a compressed phone line.
   // Every value stays env-overridable so live delivery can be nudged on Railway
-  // WITHOUT a code redeploy — set ELEVENLABS_TTS_* and it wins.
+  // WITHOUT a code redeploy — set ELEVENLABS_TTS_* and it wins. If a test call
+  // still reads high, raise ELEVENLABS_TTS_STABILITY or drop ELEVENLABS_TTS_STYLE
+  // live (no redeploy) until it's right, then optionally bake the winner in here.
   stability:        process.env.ELEVENLABS_TTS_STABILITY ? parseFloat(process.env.ELEVENLABS_TTS_STABILITY) : 0.40,
   similarity_boost: process.env.ELEVENLABS_TTS_SIMILARITY ? parseFloat(process.env.ELEVENLABS_TTS_SIMILARITY) : 0.85,
-  style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.28,
+  style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.22,
   use_speaker_boost: true,
 };
 
@@ -215,25 +221,32 @@ const TTS_VOICE_SETTINGS = {
 // style 0.28) — deliberately within the natural bands (stability 0.30-0.55,
 // style 0.20-0.45) so no emotion tips into warble or ham. Unknown/absent tag →
 // base profile (identical to today's behavior). All values clamp on apply.
+// WIDER-BUT-BOUNDED spread (v2): the previous deltas were so tight that every
+// line landed on nearly the same energy — which reads flat/robotic even on a good
+// voice. These pull the calm emotions LOWER/steadier and push the lively ones
+// HIGHER, so pitch/energy audibly MOVES between lines, while every value stays
+// inside the natural bands (stability ~0.30-0.58, style ~0.16-0.50) so nothing
+// warbles or turns theatrical. Base style dropped to 0.22, so a plain line sits
+// grounded and only the expressive emotions climb — the fix for "too high / flat".
 const EMOTION_PROFILES = {
-  // friendly default — essentially the base profile.
-  warm:       { stability: 0.40, style: 0.30 },
-  // soft, slow, tender — steadier + a little less animated so it lands gently.
-  gentle:     { stability: 0.52, style: 0.22 },
-  // caring/understanding — steady with a touch of warmth.
-  empathetic: { stability: 0.50, style: 0.26 },
-  // calm and reassuring — the steadiest profile so it feels safe/trustworthy.
-  reassuring: { stability: 0.55, style: 0.24 },
-  // genuine positive lift — lower stability + higher style = audible energy.
-  excited:    { stability: 0.32, style: 0.42 },
-  // sure and grounded (making the offer) — steady but with presence.
-  confident:  { stability: 0.44, style: 0.34 },
-  // light and interested (asking) — a little lift, not much swing.
-  curious:    { stability: 0.40, style: 0.34 },
-  // light/humor once rapport is real — most expressive, still bounded.
-  playful:    { stability: 0.34, style: 0.44 },
-  // measured and direct — plainer, controlled.
-  serious:    { stability: 0.50, style: 0.20 },
+  // friendly default — a hair of warmth over base, not bright.
+  warm:       { stability: 0.42, style: 0.30 },
+  // soft, slow, tender — steadier + plainer so it lands gently.
+  gentle:     { stability: 0.56, style: 0.18 },
+  // caring/understanding — steady, quietly warm.
+  empathetic: { stability: 0.54, style: 0.22 },
+  // calm and reassuring — the steadiest, plainest profile: safe/trustworthy.
+  reassuring: { stability: 0.58, style: 0.18 },
+  // genuine positive lift — clearly lower stability + higher style = real energy.
+  excited:    { stability: 0.30, style: 0.48 },
+  // sure and grounded (making the offer) — steady but present.
+  confident:  { stability: 0.46, style: 0.34 },
+  // light and interested (asking) — a little lift, gentle swing.
+  curious:    { stability: 0.40, style: 0.36 },
+  // light/humor once rapport is real — the most expressive, still bounded.
+  playful:    { stability: 0.32, style: 0.50 },
+  // measured and direct — plainest + very steady.
+  serious:    { stability: 0.54, style: 0.16 },
 };
 
 const clamp01 = (n) => Math.max(0, Math.min(1, n));
@@ -254,6 +267,96 @@ function parseEmotionCue(line) {
   return { emotion: null, text: raw.trim() };
 }
 
+// ── Human pacing / breath (fixes "too fast" + "no pauses") ───────────────────
+// ElevenLabs has NO speed/rate knob — cadence is controlled by the TEXT. This
+// pure helper inserts the small, natural pauses a real person makes, using ONLY
+// punctuation ElevenLabs already treats as timing (it does NOT read commas /
+// periods / ellipses aloud — they lengthen the gap between words). The result:
+// each sentence gets a full stop (a breath) instead of a run-on rush, the ask
+// isn't rushed, and a couple of human hesitations ("so...", "honestly...") land
+// where a person would actually pause. Deliberately LIGHT + CAPPED so it never
+// sounds over-paused or drunk.
+//
+// SAFE + ADDITIVE by design:
+//   - Pure string→string, no I/O, no throw. On any oddity it returns input.
+//   - Idempotent: running it twice == once (it won't stack "....." pauses).
+//   - Leaves URLs / decimals / numbers alone (only touches sentence boundaries
+//     and a small set of leading discourse words).
+//   - Gated by VOICE_PACING (default on). VOICE_PACING=off → returns text
+//     UNCHANGED, so the whole feature is one env var away from byte-identical
+//     to today. Hesitation count capped by VOICE_PACING_MAX_HESITATIONS (2).
+//
+// NOTE: call this on the words AFTER parseEmotionCue has stripped any "{emotion}"
+// tag — it operates on spoken text only and does not know about cues.
+const PACING_ON = (process.env.VOICE_PACING || 'on').toLowerCase() !== 'off';
+const PACING_MAX_HESITATIONS = Number.isFinite(parseInt(process.env.VOICE_PACING_MAX_HESITATIONS, 10))
+  ? Math.max(0, parseInt(process.env.VOICE_PACING_MAX_HESITATIONS, 10))
+  : 2;
+// Leading discourse markers that a human naturally trails a beat after. Matched
+// only at the very start of the line (case-insensitive), and only when followed
+// by a comma or space + more words — so we don't touch "Sold." or "Well!".
+const HESITATION_LEADS = ['so', 'well', 'look', 'honestly', 'okay', 'alright', 'right', 'now', 'yeah'];
+
+function humanizePacing(text, opts = {}) {
+  const on = opts.enabled != null ? opts.enabled : PACING_ON;
+  let s = String(text == null ? '' : text);
+  if (!on || !s.trim()) return s.trim();
+  try {
+    const maxHes = opts.maxHesitations != null ? Math.max(0, opts.maxHesitations) : PACING_MAX_HESITATIONS;
+
+    // 1) Normalise whitespace so downstream regexes are predictable.
+    s = s.replace(/\s+/g, ' ').trim();
+
+    // 2) One capped hesitation beat after a leading discourse marker, e.g.
+    //    "So I was calling about..." → "So... I was calling about...".
+    //    Only at the very start, only if there are words after it, and only if a
+    //    pause isn't already there (idempotent).
+    if (maxHes > 0) {
+      const lead = new RegExp(`^(${HESITATION_LEADS.join('|')})([ ,])`, 'i');
+      const m = s.match(lead);
+      if (m && !/^\w+\s*\.\.\./.test(s)) {
+        // drop an existing bare comma right after the lead so we don't get ",..."
+        const rest = s.slice(m[0].length).replace(/^\s*,?\s*/, '');
+        if (rest) s = `${m[1]}... ${rest}`;
+      }
+    }
+
+    // 3) Give the opening greeting a beat: "Hi John, ..." / "Hey there ..." →
+    //    "Hi John — ...". Uses an em dash (a clear breath) after a greeting +
+    //    name/word, only once, only near the start, only if not already dashed.
+    s = s.replace(
+      /^(hi|hey|hello)\s+([A-Za-z][\w'-]*)(,?\s+)(?!—)/i,
+      (_all, greet, who) => `${greet} ${who} — `,
+    );
+
+    // 4) Ensure sentence-final punctuation so the last clause gets a full stop
+    //    (a breath) rather than trailing off flat. Don't add if it already ends
+    //    in . ! ? … or a dash.
+    if (!/[.!?…—]$/.test(s)) s = `${s}.`;
+
+    // 5) Collapse any accidental doubled punctuation from the steps above so we
+    //    never emit ".." / " ,." / "—." etc. The intentional "..." pause is an
+    //    ATOM here: we placeholder it first so the collapse rules can't shred it
+    //    into a single "." (a period repeated looks like doubled punctuation).
+    const ELL = '\u0000';                     // safe sentinel (never in TTS text)
+    s = s
+      .replace(/\.{3,}/g, ELL)               // protect every ellipsis (3+ dots)
+      .replace(/\s*—\s*/g, ' — ')            // even spacing around em dash
+      .replace(/([.!?])\1+/g, '$1')          // ".." → "." (ellipsis already safe)
+      .replace(new RegExp(`\\s*,\\s*${ELL}`, 'g'), ELL) // " ,…" → "…"
+      .replace(/\s*,\s*\./g, '.')            // " ,." → "."
+      .replace(/\s+([,.!?])/g, '$1')         // no space before punctuation
+      .replace(new RegExp(ELL, 'g'), '...')  // restore ellipsis atoms
+      .replace(/\s{2,}/g, ' ')               // squeeze double spaces
+      .trim();
+
+    return s;
+  } catch (_e) {
+    // Never let pacing break a live turn — fall back to the trimmed input.
+    return String(text == null ? '' : text).trim();
+  }
+}
+
 // Resolve an emotion key to a full voice_settings object layered on the base
 // profile. null/unknown → the base profile unchanged. Env-tuned base still wins
 // for similarity/speaker_boost; only stability/style flex per emotion.
@@ -270,6 +373,16 @@ function voiceSettingsForEmotion(emotion) {
 // env is set. 'Brian' (nPczCjzI2devNBz1zQrb) is ElevenLabs' conversational,
 // human-sounding male — deliberately NOT the deep, robotic stock 'Adam'
 // (pNInz6obpgDQGcFmaJgB). Operators can still pick any voice from the library.
+//
+// "ROOM / PRESENCE" NOTE: the pacing + emotion tuning above make the DELIVERY
+// human, but studio TTS is dry by design — it can't manufacture the sense of a
+// real person on a mic in a room. The real fix for that texture is a licensed/
+// consented voice CLONE (a clone recorded on a real mic carries its own room
+// tone). When the clone is ready it is a pure DROP-IN — no code change:
+//   • set ELEVENLABS_DEFAULT_VOICE_ID=<clone voice_id> on Railway (global default), OR
+//   • pick it per-operator in the voice library (resolveOperatorVoiceId wins).
+// Every knob here (pacing, emotion profiles, base settings) still applies to the
+// clone, so it inherits all of this humanization automatically.
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_DEFAULT_VOICE_ID || 'nPczCjzI2devNBz1zQrb';
 // Supabase Storage bucket that holds the short TTS clips we hand to Twilio <Play>
 // AND the voice-picker preview clips. Public bucket that already exists (also used
@@ -479,4 +592,5 @@ module.exports = {
   streamTts,
   parseEmotionCue,
   voiceSettingsForEmotion,
+  humanizePacing,
 };
