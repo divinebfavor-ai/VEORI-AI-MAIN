@@ -4,9 +4,9 @@
 -- Does NOT touch users, veori_operator_voice_settings, or any other table.
 --
 -- WHY: The library was seeded with 8 stock ElevenLabs voices (Brian, Charlie,
--- Jessica, Liam, Lily, Matilda, River, Will). The operator has cloned 6 of their
+-- Jessica, Liam, Lily, Matilda, River, Will). The operator has cloned 7 of their
 -- OWN voices in ElevenLabs and wants the picker to show ONLY those. This:
---   1. Upserts the 6 real cloned voices (real voice_id + chosen display name).
+--   1. Upserts the 7 real cloned voices (real voice_id + chosen display name).
 --   2. Deactivates the 8 stock voices (is_active=false) so they vanish from the
 --      picker WITHOUT deleting the rows (reversible — flip is_active back to true).
 --
@@ -27,7 +27,8 @@ VALUES
   ('uwJhTSUhU9LVyeRjWtiC', 'Vexa',   'female', true, now()),
   ('hGQkZQUA5RiOXIw7P9iO', 'Kiora',  'female', true, now()),
   ('6YQMyaUWlj0VX652cY1C', 'Steven', 'male',   true, now()),
-  ('jHprmvvyQreWpRuutdmV', 'Blain',  'male',   true, now())
+  ('jHprmvvyQreWpRuutdmV', 'Blain',  'male',   true, now()),
+  ('aVR2rUXJY4MTezzJjPyQ', 'Angel',  'female', true, now())
 ON CONFLICT (voice_id) DO UPDATE
   SET voice_name   = EXCLUDED.voice_name,
       voice_gender = EXCLUDED.voice_gender,
