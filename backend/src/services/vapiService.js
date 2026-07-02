@@ -1413,16 +1413,19 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
   // (turn-based Twilio+ElevenLabs) on Railway — no redeploy needed. The default
   // itself is overridable via VOICE_ENGINE_DEFAULT for a belt-and-suspenders flip.
   let engine = (process.env.VOICE_ENGINE || process.env.VOICE_ENGINE_DEFAULT || 'stream').toLowerCase();
-  // HARD KILL-SWITCH: Vapi is decommissioned on the call path (operator no longer
-  // funds a Vapi wallet — only Twilio + ElevenLabs + Deepgram). A stale
-  // VOICE_ENGINE=vapi left on Railway MUST NOT be able to route a live dial back
-  // to Vapi and trigger a "balance is low" failure. So even when the env still
-  // says 'vapi', we refuse it unless a SECOND, deliberate opt-in (VAPI_ENABLED=true)
-  // is also present. Without that explicit flag, 'vapi' is rewritten to 'stream'
-  // and the call goes fully in-house. This is the belt-and-suspenders that lets the
-  // dial work even before the Railway env is cleaned up.
-  if (engine === 'vapi' && String(process.env.VAPI_ENABLED || '').toLowerCase() !== 'true') {
-    console.warn('[engine] VOICE_ENGINE=vapi is set but VAPI_ENABLED!=true — Vapi is decommissioned; routing this call through the in-house stream engine instead (no Vapi wallet touched).');
+  // ABSOLUTE KILL-SWITCH: Vapi is DECOMMISSIONED on the call path. The operator no
+  // longer funds a Vapi wallet — calls run only on Twilio + ElevenLabs + Deepgram.
+  // NO current Railway env may route a live dial to Vapi: neither VOICE_ENGINE=vapi
+  // NOR VAPI_ENABLED=true is honoured any more (both produced live "Account not
+  // allowed to call" / "balance is low" failures). 'vapi' is unconditionally
+  // rewritten to the in-house stream engine. The ONLY way to ever re-enable Vapi is
+  // a brand-new, deliberate break-glass flag that is intentionally NOT set anywhere:
+  //     VAPI_CALL_OVERRIDE=i-know-vapi-is-decommissioned
+  // Anything short of that exact value keeps Vapi fully off, so the dial works no
+  // matter what stale env vars remain on Railway.
+  const VAPI_BREAK_GLASS = 'i-know-vapi-is-decommissioned';
+  if (engine === 'vapi' && String(process.env.VAPI_CALL_OVERRIDE || '') !== VAPI_BREAK_GLASS) {
+    console.warn('[engine] VOICE_ENGINE=vapi requested, but Vapi is DECOMMISSIONED (no VAPI_CALL_OVERRIDE break-glass) — routing this call through the in-house stream engine. No Vapi request made.');
     engine = 'stream';
   }
   if (engine === 'stream') {

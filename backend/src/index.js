@@ -166,6 +166,19 @@ app.get('/health', (_req, res) =>
     uptime: process.uptime(),
     supabase: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     vapi: !!process.env.VAPI_API_KEY,
+    // voiceEngine = the engine a dial will ACTUALLY use, after the absolute Vapi
+    // kill-switch is applied. Mirrors the dispatcher logic in vapiService.initiateCall
+    // exactly: 'vapi' is rewritten to 'stream' unless the break-glass override is set.
+    // So even with a stale VOICE_ENGINE=vapi on Railway, this reports 'stream' —
+    // letting the operator confirm from the live /health URL that no dial can reach
+    // Vapi. If this ever shows 'vapi', the break-glass flag is (deliberately) set.
+    voiceEngine: (() => {
+      let eng = (process.env.VOICE_ENGINE || process.env.VOICE_ENGINE_DEFAULT || 'stream').toLowerCase();
+      const breakGlass = String(process.env.VAPI_CALL_OVERRIDE || '') === 'i-know-vapi-is-decommissioned';
+      if (eng === 'vapi' && !breakGlass) eng = 'stream';
+      return eng;
+    })(),
+    deepgram: !!process.env.DEEPGRAM_API_KEY,
     ai: !!process.env.ANTHROPIC_API_KEY,
     // Twilio creds gate the buy-tollfree / buy-local / toll-free SMS-verification
     // routes (they 503 without both). Surfaced here so the operator can confirm
@@ -461,11 +474,12 @@ server.listen(PORT, '0.0.0.0', () => {
   Voice eng : ${(() => {
     // Report the ENGINE THE DISPATCHER WILL ACTUALLY USE (matches vapiService).
     // Default is 'stream' (in-house Twilio+Deepgram+ElevenLabs). A stale
-    // VOICE_ENGINE=vapi is neutralised to 'stream' unless VAPI_ENABLED=true, so
-    // the banner shows the real, resolved path — no more misleading 'elevenlabs'.
+    // VOICE_ENGINE=vapi is neutralised to 'stream' unless the break-glass override
+    // VAPI_CALL_OVERRIDE=i-know-vapi-is-decommissioned is set, so the banner shows
+    // the real, resolved path — no more misleading 'elevenlabs' or silent Vapi.
     let eng = (process.env.VOICE_ENGINE || process.env.VOICE_ENGINE_DEFAULT || 'stream').toLowerCase();
-    const vapiEnabled = String(process.env.VAPI_ENABLED || '').toLowerCase() === 'true';
-    if (eng === 'vapi' && !vapiEnabled) eng = 'stream (vapi env ignored — decommissioned)';
+    const breakGlass = String(process.env.VAPI_CALL_OVERRIDE || '') === 'i-know-vapi-is-decommissioned';
+    if (eng === 'vapi' && !breakGlass) eng = 'stream (vapi env ignored — decommissioned)';
     const dg = process.env.DEEPGRAM_API_KEY ? ' (Deepgram ✅)' : ' (⚠️  DEEPGRAM_API_KEY missing)';
     return eng.startsWith('stream') ? eng + dg : eng;
   })()}
