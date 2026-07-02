@@ -433,13 +433,33 @@ async function stop(campaignId) {
 }
 
 function isWithinCallingHours(campaign) {
+  // Evaluate the operator's window in the LEAD's local time, not the server's.
+  // Railway runs in UTC, so the old now.getHours() read UTC: a 09:00–20:00
+  // window became 4 AM–3 PM Eastern, so an NC campaign could never dial in the
+  // evening. We reuse tcpaWindow's DST-correct per-state clock. The campaign's
+  // target state comes from its lead_filter (e.g. NC); unknown → Eastern (the
+  // most conservative common zone), matching tcpaWindow's own default.
+  const { tcpaLocalHour } = require('./tcpaWindow');
+  const stateCode = campaign?.lead_filter?.state || null;
   const now = new Date();
-  const hour = now.getHours();
+  const hour = tcpaLocalHour(stateCode, now); // 0–23 in the lead's local tz
+
+  // Day-of-week: also resolve in the lead's local tz so a late-night UTC tick
+  // doesn't misread the weekday around midnight.
+  const tz = require('./tcpaWindow').tzForState(stateCode);
+  const localDayName = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(now);
+  const isSunday = localDayName === 'Sun';
+
   const [startH] = (campaign.calling_hours_start || '09:00').split(':').map(Number);
   const [endH]   = (campaign.calling_hours_end   || '20:00').split(':').map(Number);
-  const day = now.getDay();
-  if (day === 0 && hour < 12) return false;
-  return hour >= startH && hour < endH;
+
+  // Never dial before the federal 8 AM / after 9 PM TCPA quiet hours, even if an
+  // operator set a wider window. The operator window can only be NARROWER.
+  const effStart = Math.max(startH, 8);
+  const effEnd   = Math.min(endH, 21);
+
+  if (isSunday && hour < 12) return false; // no Sunday calls before noon local
+  return hour >= effStart && hour < effEnd;
 }
 
 async function buildLeadQueue(campaignId, userId, filter = {}) {
