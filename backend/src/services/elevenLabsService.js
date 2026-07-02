@@ -85,9 +85,20 @@ async function getVoiceLibrary() {
 }
 
 /**
- * Sync the ElevenLabs catalog into veori_voice_library (upsert on voice_id).
- * Used by scripts/syncElevenLabsVoices.js. Returns { synced, voices }.
- * This is a WRITE to the new table only — it never touches existing tables.
+ * Backfill preview media onto the voices ALREADY in veori_voice_library.
+ *
+ * NAME-PRESERVING BY DESIGN: this only writes voice_preview_url / voice_accent /
+ * voice_description onto rows whose voice_id already exists in the library. It
+ * NEVER touches voice_name (operators keep their custom names like Matt/Vexa) and
+ * NEVER touches is_active (retired stock voices stay retired; it will not
+ * resurrect them). Voices in the ElevenLabs account that aren't in the library
+ * are ignored — so a full sync can't flood the picker with stock voices again.
+ *
+ * WHY: the library is seeded with real voice_ids but NULL preview_url. The ▶
+ * Preview button needs a real clip. This reads the live ElevenLabs catalog (which
+ * has the real preview_url per voice) and stamps it onto the matching rows.
+ *
+ * Runs on Railway (which holds ELEVENLABS_API_KEY). Returns { synced, voices }.
  */
 async function syncVoiceLibrary() {
   const voices = await fetchVoicesFromApi();
@@ -95,14 +106,35 @@ async function syncVoiceLibrary() {
     return { synced: 0, voices: [], note: 'No voices fetched (missing key or empty API response)' };
   }
 
-  const rows = voices.map((v) => ({ ...v, is_active: true, updated_at: new Date().toISOString() }));
-  const { data, error } = await supabase
+  // Which voice_ids are already in our library? Only those get backfilled.
+  const { data: existing, error: existErr } = await supabase
     .from('veori_voice_library')
-    .upsert(rows, { onConflict: 'voice_id' })
     .select('voice_id');
+  if (existErr) throw new Error(`voice_library read failed: ${existErr.message}`);
+  const known = new Set((existing || []).map((r) => r.voice_id));
 
-  if (error) throw new Error(`voice_library upsert failed: ${error.message}`);
-  return { synced: data ? data.length : rows.length, voices };
+  const targets = voices.filter((v) => known.has(v.voice_id));
+  if (targets.length === 0) {
+    return { synced: 0, voices, note: 'No catalog voice matched an existing library row' };
+  }
+
+  // Per-voice UPDATE of preview media ONLY — never voice_name, never is_active.
+  let synced = 0;
+  for (const v of targets) {
+    const patch = { updated_at: new Date().toISOString() };
+    if (v.voice_preview_url) patch.voice_preview_url = v.voice_preview_url;
+    if (v.voice_accent)      patch.voice_accent = v.voice_accent;
+    if (v.voice_description) patch.voice_description = v.voice_description;
+
+    const { error } = await supabase
+      .from('veori_voice_library')
+      .update(patch)
+      .eq('voice_id', v.voice_id);
+    if (error) throw new Error(`voice_library backfill failed for ${v.voice_id}: ${error.message}`);
+    synced += 1;
+  }
+
+  return { synced, voices: targets };
 }
 
 /**
