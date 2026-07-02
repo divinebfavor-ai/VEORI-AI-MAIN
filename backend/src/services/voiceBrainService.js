@@ -78,6 +78,57 @@ const GOODBYE_CUES = [
   'do not call', "don't call", 'lose my number', 'hang up',
 ];
 
+// ── Smart-ear dead-end detection (credit protection) ─────────────────────────
+// The model is told (withEndDirective) to wrap up a call that's going nowhere,
+// but a deterministic backstop guarantees we never keep burning a call that's
+// clearly dead even if the model keeps nursing it. We count consecutive
+// "dead-end" turns — silence, one-word/flat non-answers, and soft brush-offs —
+// and once they pile up past a threshold we close warmly ourselves, no model
+// call. ANY substantive seller turn resets the count to zero, so this only ever
+// fires on genuinely repeated dead air / brush-offs, never on a live conversation.
+
+// Soft brush-offs: the seller isn't opting out (that's GOODBYE_CUES) but is
+// signalling they're done for now. One of these counts as a strong dead-end hit.
+const BRUSHOFF_CUES = [
+  'gotta go', 'got to go', 'have to go', 'i gotta run', 'i gotta jump',
+  "i'm busy", 'im busy', 'kinda busy', 'really busy', "i'm at work", 'im at work',
+  'at work right now', "i'm driving", 'im driving', 'call me later',
+  'call back later', 'not a good time', 'bad time', 'busy right now',
+  'no time', "can't talk", 'cant talk', "can't right now", 'cant right now',
+  'leave me alone', 'quit calling',
+];
+
+// Flat non-answers that, when repeated with nothing else, mean the call is dead.
+const FLAT_NONANSWERS = [
+  'no', 'nope', 'nah', 'not really', "i don't know", 'i dont know', 'dunno',
+  'idk', 'maybe', 'i guess', 'whatever', 'sure', 'ok', 'okay', 'k', 'mm', 'hmm',
+];
+
+// Consecutive dead-end turns before the deterministic backstop closes the call.
+// Env-tunable. Kept low so credits aren't burned, but >1 so one stray flat reply
+// or a single silence never ends a call that's actually going somewhere.
+const DEAD_END_LIMIT = parseInt(process.env.VOICE_BRAIN_DEAD_END_LIMIT, 10) || 3;
+
+// Classify one seller turn's contribution to the dead-end count.
+//   2 -> strong dead-end (explicit brush-off) — pushes us to close fast
+//   1 -> weak dead-end (silence or a lone flat non-answer)
+//   0 -> substantive engagement — RESETS the streak
+// heardLower is the already-lowercased, trimmed seller speech ('' on silence).
+function deadEndWeight(heardLower) {
+  if (!heardLower) return 1; // silence / no response
+  if (BRUSHOFF_CUES.some((c) => heardLower.includes(c))) return 2;
+  // Strip trailing punctuation for the flat-answer exact match.
+  const bare = heardLower.replace(/[.!?,\s]+$/g, '').trim();
+  if (FLAT_NONANSWERS.includes(bare)) return 1;
+  // A very short utterance with no real content (<= 2 words, no digits) is weakly
+  // dead — but only if it isn't a question (a "?" means they're engaging).
+  const words = bare.split(/\s+/).filter(Boolean);
+  if (words.length > 0 && words.length <= 2 && !/\d/.test(bare) && !heardLower.includes('?')) {
+    return 1;
+  }
+  return 0; // real engagement — resets the streak
+}
+
 // Per-call conversation state: callId -> { messages: [{role, content}], turns }.
 // messages is the running transcript handed to Claude each turn (assistant =
 // agent lines, user = seller speech). Cleared when the call ends.
@@ -128,7 +179,26 @@ out, you've agreed on next steps, or there is genuinely nothing left to say —
 finish your final spoken sentence normally, then append the exact token ${END_SENTINEL}
 to the very end of your reply. Do NOT say the token out loud or reference it. It
 is a silent signal to hang up. If the conversation should continue, do NOT include
-it. Only ever place it at the end of your last line.`;
+it. Only ever place it at the end of your last line.
+
+READ THE ROOM — DON'T KEEP A DEAD CALL ALIVE.
+A great caller knows when it's over and lets the person go gracefully. Do NOT
+drag out a call that clearly isn't going anywhere — that wastes their time and
+yours. Wrap up (one warm closing line, then ${END_SENTINEL}) when you see any of these:
+- They're done talking: "I gotta go", "I'm busy", "this isn't a good time",
+  "call me later", "I'm at work" — offer to follow up, then let them go.
+- Repeated brush-offs: short, flat, non-committal answers two or three turns in a
+  row, or they keep saying "no"/"not really"/"I don't know" with no opening. You
+  already made your point; don't circle it again — close warmly.
+- Hard no on selling: they've made clear they will not sell and nothing you've
+  offered moved them. Respect it, leave the door open for the future, hang up.
+- Dead air / no real engagement: they went silent or keep giving one-word
+  non-answers and there's nothing to build on.
+When you wrap for any of these, keep it genuinely warm and no-pressure — never
+sound annoyed or like you're giving up on them. Example: "Totally understand —
+I'll get out of your hair. If anything changes, I'm around. Take care.${END_SENTINEL}"
+The goal is a smart ear: fight for a real conversation, but the moment it's clearly
+not one, end it cleanly instead of burning the call.`;
 }
 
 /**
@@ -181,9 +251,10 @@ async function nextTurn(args = {}) {
   // opener was built before callId was known), start a fresh transcript here.
   let session = sessions.get(callId);
   if (!session) {
-    session = { messages: [], turns: 0 };
+    session = { messages: [], turns: 0, deadEnds: 0 };
     sessions.set(callId, session);
   }
+  if (typeof session.deadEnds !== 'number') session.deadEnds = 0; // sessions seeded by openingLine
   session.turns += 1;
 
   // Seller explicitly opted out — close immediately and politely, no model call.
@@ -202,6 +273,22 @@ async function nextTurn(args = {}) {
   } else {
     // Silence: nudge once via a neutral user turn so Claude reprompts naturally.
     session.messages.push({ role: 'user', content: '(no response / silence)' });
+  }
+
+  // Smart-ear backstop — update the dead-end streak from THIS turn, and if the
+  // call has clearly flat-lined (repeated brush-offs / silence / one-word
+  // non-answers), close it warmly ourselves instead of burning more of the call.
+  // Any substantive turn resets the streak, so this only trips on a genuinely
+  // dead call. Never fires on the very first exchange (turns >= 2 required) so
+  // the opener always gets one real chance to land.
+  const weight = deadEndWeight(heardLower);
+  session.deadEnds = weight === 0 ? 0 : session.deadEnds + weight;
+  if (session.turns >= 2 && session.deadEnds >= DEAD_END_LIMIT) {
+    const closer = "I can tell I caught you at a busy time — I'll let you go. If anything changes down the road, I'm around. Take care.";
+    session.messages.push({ role: 'assistant', content: closer });
+    await persistTranscript(callId, session.messages); // flush before discarding
+    sessions.delete(callId);
+    return { reply: closer, end: true, emotion: 'warm' };
   }
 
   // Hard safety cap — always terminate eventually.
