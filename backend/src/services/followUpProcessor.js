@@ -248,6 +248,13 @@ async function processSequenceStep({ sequenceId, stepIndex }) {
 
 // ─── Send SMS via Vapi ────────────────────────────────────────────────────────
 async function sendVapiSms(phone, message) {
+  // Vapi is decommissioned — SMS now belongs to Twilio only. This legacy Vapi
+  // sender stays inert unless VAPI_ENABLED=true is deliberately set, so a stale
+  // VAPI_API_KEY on Railway can never spend the wallet on a sequence-step text.
+  if (String(process.env.VAPI_ENABLED || '').toLowerCase() !== 'true') {
+    console.warn('[SMS] Vapi decommissioned (VAPI_ENABLED!=true) — skipping legacy Vapi SMS; route sequence SMS through Twilio.');
+    return;
+  }
   try {
     const axios = require('axios');
     await axios.post('https://api.vapi.ai/message', {

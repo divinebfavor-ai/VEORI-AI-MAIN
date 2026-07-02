@@ -457,9 +457,18 @@ server.listen(PORT, '0.0.0.0', () => {
   Port      : ${PORT}
   Env       : ${process.env.NODE_ENV || 'development'}
   Supabase  : ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Connected' : '⚠️  Key missing'}
-  Vapi      : ${process.env.VAPI_API_KEY ? '✅ Connected' : '⚠️  Key missing'}
   Anthropic : ${process.env.ANTHROPIC_API_KEY ? '✅ Connected' : '⚠️  Key missing'}
-  Voice eng : ${(process.env.VOICE_ENGINE || 'elevenlabs')}${process.env.VOICE_ENGINE === 'stream' ? (process.env.DEEPGRAM_API_KEY ? ' (Deepgram ✅)' : ' (⚠️  DEEPGRAM_API_KEY missing)') : ''}
+  Voice eng : ${(() => {
+    // Report the ENGINE THE DISPATCHER WILL ACTUALLY USE (matches vapiService).
+    // Default is 'stream' (in-house Twilio+Deepgram+ElevenLabs). A stale
+    // VOICE_ENGINE=vapi is neutralised to 'stream' unless VAPI_ENABLED=true, so
+    // the banner shows the real, resolved path — no more misleading 'elevenlabs'.
+    let eng = (process.env.VOICE_ENGINE || process.env.VOICE_ENGINE_DEFAULT || 'stream').toLowerCase();
+    const vapiEnabled = String(process.env.VAPI_ENABLED || '').toLowerCase() === 'true';
+    if (eng === 'vapi' && !vapiEnabled) eng = 'stream (vapi env ignored — decommissioned)';
+    const dg = process.env.DEEPGRAM_API_KEY ? ' (Deepgram ✅)' : ' (⚠️  DEEPGRAM_API_KEY missing)';
+    return eng.startsWith('stream') ? eng + dg : eng;
+  })()}
   `);
 });
 

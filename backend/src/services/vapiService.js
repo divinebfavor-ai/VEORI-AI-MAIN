@@ -1412,7 +1412,19 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
   // back instantly, set VOICE_ENGINE=vapi (Vapi cloud) or VOICE_ENGINE=elevenlabs
   // (turn-based Twilio+ElevenLabs) on Railway — no redeploy needed. The default
   // itself is overridable via VOICE_ENGINE_DEFAULT for a belt-and-suspenders flip.
-  const engine = (process.env.VOICE_ENGINE || process.env.VOICE_ENGINE_DEFAULT || 'stream').toLowerCase();
+  let engine = (process.env.VOICE_ENGINE || process.env.VOICE_ENGINE_DEFAULT || 'stream').toLowerCase();
+  // HARD KILL-SWITCH: Vapi is decommissioned on the call path (operator no longer
+  // funds a Vapi wallet — only Twilio + ElevenLabs + Deepgram). A stale
+  // VOICE_ENGINE=vapi left on Railway MUST NOT be able to route a live dial back
+  // to Vapi and trigger a "balance is low" failure. So even when the env still
+  // says 'vapi', we refuse it unless a SECOND, deliberate opt-in (VAPI_ENABLED=true)
+  // is also present. Without that explicit flag, 'vapi' is rewritten to 'stream'
+  // and the call goes fully in-house. This is the belt-and-suspenders that lets the
+  // dial work even before the Railway env is cleaned up.
+  if (engine === 'vapi' && String(process.env.VAPI_ENABLED || '').toLowerCase() !== 'true') {
+    console.warn('[engine] VOICE_ENGINE=vapi is set but VAPI_ENABLED!=true — Vapi is decommissioned; routing this call through the in-house stream engine instead (no Vapi wallet touched).');
+    engine = 'stream';
+  }
   if (engine === 'stream') {
     // Real-time streaming engine (Twilio Media Streams ↔ Deepgram ↔ Claude ↔
     // ElevenLabs streaming, with barge-in). Fully in-house, no Vapi. Identical

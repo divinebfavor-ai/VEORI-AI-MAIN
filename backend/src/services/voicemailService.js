@@ -46,6 +46,15 @@ const VOICEMAIL_TEMPLATES = {
  * @param {string} templateKey — 'first_contact' | 'follow_up' | 'last_attempt'
  */
 async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact', callId = null }) {
+  // Vapi is decommissioned on the call path (no funded Vapi wallet). Ringless
+  // voicemail is the one feature still built on Vapi's /call/phone. Until it is
+  // re-platformed onto Twilio, it stays OFF unless someone deliberately opts back
+  // in with VAPI_ENABLED=true — so a stale VAPI_API_KEY on Railway can never spend
+  // the wallet by accident. Without the flag we simulate (no network call).
+  if (String(process.env.VAPI_ENABLED || '').toLowerCase() !== 'true') {
+    console.log(`[RVM] Vapi decommissioned (VAPI_ENABLED!=true) — simulating voicemail drop to ${lead.phone}`);
+    return { simulated: true, reason: 'vapi_disabled' };
+  }
   if (!VAPI_API_KEY) {
     console.log(`[RVM] VAPI_API_KEY not set — simulating voicemail drop to ${lead.phone}`);
     return { simulated: true };
