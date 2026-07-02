@@ -162,8 +162,21 @@ router.post('/sync', requireAuth, async (req, res, next) => {
 //
 // Gated by plain requireAuth (any logged-in operator can preview) — it only reads
 // the catalog + writes a preview URL, never changes names/selection/active state.
+// A LONGER, realistic cold-call sample so an operator can actually judge a voice
+// by ear — a short one-liner doesn't reveal pace, warmth, or how a voice handles a
+// question vs. a calm close. This mirrors a real opener → soft pitch → question →
+// no-pressure close, so the preview sounds like what a seller hears on the phone.
+// Still env-overridable: set ELEVENLABS_PREVIEW_TEXT to change it live on Railway
+// with no redeploy. (Previews are cached on voice_preview_url, so regenerate with
+// ?force=1 to pick up a new sample for a voice that already has a cached clip.)
 const PREVIEW_SAMPLE_TEXT = process.env.ELEVENLABS_PREVIEW_TEXT
-  || "Hi, this is a quick sample of how I'll sound on your calls. Thanks for taking a moment — I really appreciate it.";
+  || "Hey, how's it going? My name's Alex — I hope I'm not catching you at a bad time. "
+   + "I'll be real with you, this is a quick call about your property. I work with a few "
+   + "local buyers, and I came across your place and wanted to see if you'd ever consider "
+   + "an offer on it. Nothing pushy at all — I'm just trying to understand your situation. "
+   + "Out of curiosity, have you given any thought to selling, even down the road? "
+   + "Either way, I really appreciate you taking a second with me. If the timing's not "
+   + "right, no worries at all — I'm happy to follow up whenever works for you.";
 
 router.post('/:voiceId/preview', requireAuth, async (req, res, next) => {
   try {
