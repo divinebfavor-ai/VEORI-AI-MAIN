@@ -1,13 +1,32 @@
 const { Queue, Worker, QueueEvents } = require('bullmq');
 const IORedis = require('ioredis');
 
-const REDIS_AVAILABLE = !!process.env.REDIS_URL;
+/**
+ * Sanitise REDIS_URL. Some hosting dashboards paste the redis-cli invocation
+ * (e.g. ` -u redis://…`) into the value instead of the bare URL. ioredis then
+ * treats the whole string as a hostname → `connect ENOENT %20-u%20redis://…`
+ * crash-loop. Strip any leading redis-cli flag / whitespace so we're left with
+ * a clean `redis://` (or `rediss://`) URL. Returns null if nothing usable.
+ */
+function sanitizeRedisUrl(raw) {
+  if (!raw) return null;
+  let v = String(raw).trim();
+  // Drop a leading `-u`/`--uri` flag and its surrounding spaces if present.
+  v = v.replace(/^-{1,2}u(?:ri)?\s+/i, '').trim();
+  // If the URL is embedded after other tokens, grab from the scheme onward.
+  const m = v.match(/rediss?:\/\/\S+/i);
+  if (m) v = m[0];
+  return /^rediss?:\/\//i.test(v) ? v : null;
+}
+
+const REDIS_URL = sanitizeRedisUrl(process.env.REDIS_URL);
+const REDIS_AVAILABLE = !!REDIS_URL;
 let connection = null;
 
 function getRedisConnection() {
   if (!REDIS_AVAILABLE) return null;
   if (!connection) {
-    connection = new IORedis(process.env.REDIS_URL, {
+    connection = new IORedis(REDIS_URL, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       lazyConnect: true,

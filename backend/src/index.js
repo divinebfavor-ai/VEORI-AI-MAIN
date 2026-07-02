@@ -484,6 +484,19 @@ server.listen(PORT, '0.0.0.0', () => {
     return eng.startsWith('stream') ? eng + dg : eng;
   })()}
   `);
+
+  // ─── Rehydrate active campaigns after a restart ─────────────────────────────
+  // The dialer session (in-memory Map + setInterval) is wiped on every restart,
+  // but the DB still says status:'active' → a zombie campaign that dials nothing.
+  // Re-arm each live campaign's dialer here so calls resume automatically without
+  // the operator having to re-click Start. Best-effort; never blocks boot.
+  try {
+    const { rehydrateActiveCampaigns } = require('./services/campaignManager');
+    rehydrateActiveCampaigns().catch(err =>
+      console.warn('[Campaign] rehydrate on boot failed:', err.message));
+  } catch (e) {
+    console.warn('[Campaign] rehydrate wiring skipped:', e.message);
+  }
 });
 
 module.exports = app;

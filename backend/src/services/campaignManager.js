@@ -501,4 +501,51 @@ async function buildLeadQueue(campaignId, userId, filter = {}) {
   return out;
 }
 
-module.exports = { start, pause, resume, stop, activeCampaigns };
+/**
+ * Boot-time rehydration of active campaigns.
+ *
+ * The dialer session (activeCampaigns Map + setInterval) lives ONLY in process
+ * memory. When Railway restarts the box, every session is wiped but the DB row
+ * is still status:'active' — a zombie campaign that dials nothing, leaves no
+ * Twilio log, no call rows. Nothing was re-arming it, so the operator saw
+ * "active" forever with zero calls. This runs once on server boot: it finds
+ * every campaign the DB believes is live and re-arms its in-memory dialer.
+ *
+ * start() refuses a campaign whose status is already 'active'/'running'
+ * (campaignManager.js guard), so we first flip it to 'paused' to clear that
+ * guard, then start() flips it back to 'active' and builds a fresh leadQueue
+ * (already-called leads are skipped by buildLeadQueue's status filter — no
+ * double-dials). Fully self-contained, best-effort, never throws.
+ */
+async function rehydrateActiveCampaigns() {
+  try {
+    const { data: rows, error } = await supabase
+      .from('campaigns')
+      .select('id, user_id, status')
+      .in('status', ['active', 'running']);
+    if (error) { console.warn('[Campaign] rehydrate query failed:', error.message); return; }
+    if (!rows || rows.length === 0) { console.log('[Campaign] rehydrate: no active campaigns to restore'); return; }
+
+    console.log(`[Campaign] rehydrate: restoring ${rows.length} active campaign(s) after restart`);
+    for (const row of rows) {
+      if (activeCampaigns.has(row.id)) continue; // already live in this process
+      try {
+        // Clear the "already running" guard so start() will accept it.
+        await supabase.from('campaigns').update({ status: 'paused' }).eq('id', row.id);
+        await start(row.id, row.user_id);
+        console.log(`[Campaign] rehydrate: re-armed dialer for ${row.id}`);
+      } catch (e) {
+        console.warn(`[Campaign] rehydrate: failed to restore ${row.id}: ${e.message}`);
+        // Leave it paused so it's visibly not-dialing rather than a silent zombie.
+        await supabase.from('campaigns')
+          .update({ status: 'paused', error_message: `Auto-restore failed after restart: ${e.message}` })
+          .eq('id', row.id)
+          .then(() => {}, () => {});
+      }
+    }
+  } catch (e) {
+    console.warn('[Campaign] rehydrate: unexpected error:', e.message);
+  }
+}
+
+module.exports = { start, pause, resume, stop, activeCampaigns, rehydrateActiveCampaigns };
