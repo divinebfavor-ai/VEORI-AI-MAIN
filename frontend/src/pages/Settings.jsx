@@ -1907,8 +1907,12 @@ export default function Settings() {
                         }}
                         className="h-[44px] flex-1 bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
                         {voices.length === 0 && <option value="">Loading voices…</option>}
-                        {voices.map(v => (
+                        {/* Voices arrive rank-ordered from the API (most human first).
+                            The leading #N (and a ⭐ on the top pick) shows operators the
+                            ranking at a glance so they choose with confidence. */}
+                        {voices.map((v, i) => (
                           <option key={v.voice_id} value={v.voice_id}>
+                            {`#${i + 1}${i === 0 ? ' ⭐' : ''} `}
                             {v.voice_name}{v.voice_gender ? ` (${v.voice_gender}` : ''}{v.voice_accent ? `, ${v.voice_accent})` : (v.voice_gender ? ')' : '')}
                           </option>
                         ))}

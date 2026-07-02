@@ -69,8 +69,11 @@ async function fetchVoicesFromApi() {
 async function getVoiceLibrary() {
   const { data, error } = await supabase
     .from('veori_voice_library')
-    .select('voice_id, voice_name, voice_preview_url, voice_gender, voice_accent, voice_description')
+    .select('voice_id, voice_name, voice_preview_url, voice_gender, voice_accent, voice_description, voice_rank')
     .eq('is_active', true)
+    // Rank order first (lower = more human / shown first). NULLs sort last so an
+    // un-ranked voice never jumps to the top; ties fall back to name for stability.
+    .order('voice_rank', { ascending: true, nullsFirst: false })
     .order('voice_name', { ascending: true });
 
   if (error) {
@@ -171,22 +174,23 @@ const TTS_VOICE_SETTINGS = {
   // Natural human-conversation profile (tuned so a seller can't tell it's AI).
   // These are the ElevenLabs-recommended conversational bands, not extremes —
   // extremes are what actually GIVE AWAY a synthetic voice on a phone line:
-  //   stability 0.45  — 0.40-0.50 is the conversational sweet spot. Too low
-  //                     (<0.35) makes the voice wobble/warble between words,
-  //                     which reads as "AI glitching"; too high (>0.6) makes it
-  //                     flat/monotone. 0.45 = natural cadence without artifacts.
+  //   stability 0.40  — 0.38-0.45 is the conversational sweet spot. Slightly
+  //                     lower than a flat read gives more natural prosody variance
+  //                     (rise/fall between words) so it doesn't sound metronomic.
+  //                     Too low (<0.35) starts to wobble/warble ("AI glitching");
+  //                     too high (>0.6) goes flat/monotone. 0.40 = human cadence.
   //   similarity 0.85 — 0.82-0.88 is where a clone stops sounding like an
   //                     impression and sounds like the actual person. Kept.
-  //   style 0.20      — style >0.30 already sounds performative/theatrical (and
-  //                     adds latency + instability on the streaming model). For a
-  //                     natural cold call 0.15-0.25 is the ceiling; 0.20 gives
-  //                     warmth/inflection without the "reading a script" feel.
+  //   style 0.28      — a touch more expressiveness/warmth than a neutral read so
+  //                     it sounds engaged, not scripted. 0.15-0.30 is the natural
+  //                     band; >0.30 tips into performative/theatrical (and adds
+  //                     instability on the streaming model). 0.28 = warm, not hammy.
   //   speaker_boost   — lifts presence/clarity on a compressed phone line.
   // Every value stays env-overridable so live delivery can be nudged on Railway
   // WITHOUT a code redeploy — set ELEVENLABS_TTS_* and it wins.
-  stability:        process.env.ELEVENLABS_TTS_STABILITY ? parseFloat(process.env.ELEVENLABS_TTS_STABILITY) : 0.45,
+  stability:        process.env.ELEVENLABS_TTS_STABILITY ? parseFloat(process.env.ELEVENLABS_TTS_STABILITY) : 0.40,
   similarity_boost: process.env.ELEVENLABS_TTS_SIMILARITY ? parseFloat(process.env.ELEVENLABS_TTS_SIMILARITY) : 0.85,
-  style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.20,
+  style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.28,
   use_speaker_boost: true,
 };
 // Warm, natural default voice when no operator selection and no ELEVENLABS_VOICE_ID
