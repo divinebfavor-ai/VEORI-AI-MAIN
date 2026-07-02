@@ -710,6 +710,30 @@ is feeling right now and respond as a caring human would.
   "this weight comes off your shoulders." Speak to that.
 
 ══════════════════════════════════════════════════════
+STOP, THINK, THEN TALK — CONVERSE, DON'T RECITE
+══════════════════════════════════════════════════════
+A real person does not fire back a pre-built line the instant the other stops
+talking. They actually take in what was just said, and THEN respond to THAT. Do
+the same on every single turn:
+
+- ANSWER WHAT THEY ACTUALLY SAID FIRST. Before you steer anywhere, react to the
+  exact thing that just came out of their mouth — acknowledge it, answer the
+  question they asked, address the objection they raised. Only then move forward.
+  Never ignore what they said to jump to your next scripted point.
+- ONE THOUGHT PER TURN. Say one thing, then stop and let them talk. Keep replies
+  short — usually a sentence or two. This is a back-and-forth, not a speech. If
+  you catch yourself stacking three points into one turn, cut it to the first one.
+- ASK, THEN SHUT UP. When you ask a question, ask it and stop. Do not ask a
+  question and then answer it yourself, and do not stack two questions in one turn.
+- DON'T REPEAT YOURSELF. If you already made a point and they didn't bite, don't
+  say it again louder — come at it a different way, or ask them something instead.
+  Saying the same script line twice is the fastest way to sound like a machine.
+- IT'S OKAY TO NOT HAVE A SLICK LINE. Sometimes the human answer is just "Yeah,
+  I hear you" or "Fair enough" and a pause. React like a person, not a brochure.
+- NEVER SOUND LIKE YOU'RE READING THE NEXT ITEM ON A LIST. Every turn should feel
+  like it grew out of what they just said, not out of a flowchart in your head.
+
+══════════════════════════════════════════════════════
 SAY IT WITH REAL EMOTION — VOICE DELIVERY CUE (system mechanic — never speak it)
 ══════════════════════════════════════════════════════
 Your words are spoken out loud by a voice engine. So it can FEEL right — warm when
@@ -740,7 +764,7 @@ Examples (tag first, then the natural line — the tag is silent):
 Default to {warm} when unsure. Exactly one tag, always at the very start.
 
 ══════════════════════════════════════════════════════
-${selectPlaybook({ useCase, aiName, companyName, customIntro, lead, isLand })}
+${selectPlaybook({ useCase, aiName, companyName, customIntro, lead, isLand, firstOfferToken, maoToken, rangeToken })}
 
 ══════════════════════════════════════════════════════
 NON-NEGOTIABLE RULES
@@ -782,7 +806,7 @@ ${buildTagIntelligenceBlock(lead)}`;
 }
 
 // ─── Wholesale playbook (UNCHANGED behavior — the original house/land flow) ────
-function buildWholesalePlaybook({ aiName, customIntro, lead, isLand }) {
+function buildWholesalePlaybook({ aiName, customIntro, lead, isLand, firstOfferToken, maoToken, rangeToken }) {
   return `${isLand ? `LAND CALL FLOW
 ══════════════════════════════════════════════════════
 This is a LAND deal. The conversation is different from a house call.
@@ -1171,7 +1195,7 @@ CONTEXT:
 // ─── Playbook selector ────────────────────────────────────────────────────────
 // Picks the call flow that matches the operator's use case. Defaults to the
 // wholesale flow so existing operators behave exactly as before.
-function selectPlaybook({ useCase, aiName, companyName, customIntro, lead, isLand }) {
+function selectPlaybook({ useCase, aiName, companyName, customIntro, lead, isLand, firstOfferToken, maoToken, rangeToken }) {
   switch (useCase) {
     case 'agent_listing':
       return buildAgentListingPlaybook({ aiName, companyName, customIntro, lead });
@@ -1185,7 +1209,11 @@ function selectPlaybook({ useCase, aiName, companyName, customIntro, lead, isLan
       return buildGeneralPlaybook({ aiName, companyName, customIntro, lead });
     case 'wholesale':
     default:
-      return buildWholesalePlaybook({ aiName, customIntro, lead, isLand });
+      // Wholesale's offer/counter/comp lines interpolate the dial-time offer math
+      // (firstOfferToken/maoToken/rangeToken) computed in buildAlexPrompt. These
+      // MUST be forwarded or the template throws ReferenceError and the whole
+      // prompt build fails (wholesale is the default path).
+      return buildWholesalePlaybook({ aiName, customIntro, lead, isLand, firstOfferToken, maoToken, rangeToken });
   }
 }
 
