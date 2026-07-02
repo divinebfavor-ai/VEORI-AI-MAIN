@@ -194,9 +194,12 @@ const TTS_VOICE_SETTINGS = {
 // human-sounding male — deliberately NOT the deep, robotic stock 'Adam'
 // (pNInz6obpgDQGcFmaJgB). Operators can still pick any voice from the library.
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_DEFAULT_VOICE_ID || 'nPczCjzI2devNBz1zQrb';
-// Supabase Storage bucket that holds the short TTS clips we hand to Twilio <Play>.
-// Public bucket (created manually); clips are cheap, disposable per-turn audio.
-const TTS_BUCKET = process.env.ELEVENLABS_TTS_BUCKET || 'call-tts';
+// Supabase Storage bucket that holds the short TTS clips we hand to Twilio <Play>
+// AND the voice-picker preview clips. Public bucket that already exists (also used
+// by seed-voice-previews.js + vapiService VOICE_PREVIEW_BASE). Defaulting to
+// 'call-tts' (which was never created) made synthesizeToUrl uploads fail → null →
+// the ▶ preview returned 502. 'voice-previews' is the real public bucket.
+const TTS_BUCKET = process.env.ELEVENLABS_TTS_BUCKET || 'voice-previews';
 
 /**
  * Synthesize a line of text to MP3 via the ElevenLabs REST TTS endpoint.
