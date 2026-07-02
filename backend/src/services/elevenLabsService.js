@@ -251,6 +251,62 @@ const EMOTION_PROFILES = {
 
 const clamp01 = (n) => Math.max(0, Math.min(1, n));
 
+// ── Per-VOICE tuning (a specific clone reads too high / too narrated) ─────────
+// The base TTS_VOICE_SETTINGS + EMOTION_PROFILES apply to EVERY voice equally.
+// But individual clones have their own natural character: one reads bright/high,
+// another reads like an audiobook narrator (too even/measured). This map lets a
+// SPECIFIC voice_id carry its own stability/style correction that layers on top
+// of whatever the emotion picked — so the fix follows that voice on every line,
+// in every emotion, without changing any other voice.
+//
+// HOW IT LAYERS (see applyVoiceTuning): emotion is computed first (the swing),
+// then the per-voice delta is applied as an OVERRIDE of the final stability/style
+// for that voice only. similarity_boost / speaker_boost are never touched (the
+// voice stays the same person, stays present on the phone line). Values clamp.
+//
+// ADDITIVE + SAFE: a voice_id NOT in this map is byte-identical to before. Every
+// number is env-overridable so you can dial a voice live on Railway with NO
+// redeploy — set the matching ELEVENLABS_TUNE_* var and it wins. Set a var to a
+// number to override; leave unset to use the baked default below.
+//
+//   stability ↑ → steadier, less pitch movement (calmer, less "high/loud").
+//   stability ↓ → more conversational prosody (rise/fall) — kills the flat
+//                 audiobook-narrator read.
+//   style ↓     → plainer, less bright/performative.
+//   style ↑     → a touch more engaged/expressive (salesperson energy).
+const envNum = (name, fallback) => {
+  const v = parseFloat(process.env[name]);
+  return Number.isFinite(v) ? v : fallback;
+};
+const VOICE_TUNING = {
+  // Vexa (female, uwJhTSUhU9LVyeRjWtiC) — reads too HIGH and too LOUD. Push
+  // stability UP so her pitch stops jumping bright, and style DOWN so she sits
+  // warm/grounded instead of performative. Net: calmer, lower-energy, human.
+  uwJhTSUhU9LVyeRjWtiC: {
+    stability: envNum('ELEVENLABS_TUNE_VEXA_STABILITY', 0.62),
+    style:     envNum('ELEVENLABS_TUNE_VEXA_STYLE',     0.14),
+  },
+  // Steven (male, 6YQMyaUWlj0VX652cY1C) — reads like an AUDIOBOOK NARRATOR
+  // (too even/measured). Drop stability so he gets natural conversational
+  // rise/fall, and lift style a touch so he sounds like an engaged cold-caller,
+  // not a voiceover. Stays inside the natural band so he doesn't warble.
+  '6YQMyaUWlj0VX652cY1C': {
+    stability: envNum('ELEVENLABS_TUNE_STEVEN_STABILITY', 0.34),
+    style:     envNum('ELEVENLABS_TUNE_STEVEN_STYLE',     0.40),
+  },
+};
+
+// Layer a per-voice tuning override on top of an already-resolved voice_settings
+// object. No entry for this voice_id → returns settings unchanged (additive).
+function applyVoiceTuning(settings, voiceId) {
+  const tune = voiceId ? VOICE_TUNING[voiceId] : null;
+  if (!tune) return settings;
+  const out = { ...settings };
+  if (Number.isFinite(tune.stability)) out.stability = clamp01(tune.stability);
+  if (Number.isFinite(tune.style))     out.style     = clamp01(tune.style);
+  return out;
+}
+
 // Extract a leading "{emotion}" tag from a line. Returns { emotion, text } where
 // emotion is a lowercased known key (or null) and text is the line with the tag
 // removed + trimmed. Only a KNOWN tag at the very start is honored; anything else
@@ -443,7 +499,12 @@ async function synthesizeSpeech(text, voiceId, voiceSettings) {
  * @returns {Promise<string|null>}  public MP3 URL, or null
  */
 async function synthesizeToUrl(text, { voiceId, callSid, emotion, voiceSettings } = {}) {
-  const settings = voiceSettings || voiceSettingsForEmotion(emotion);
+  // Emotion (or an explicit override) resolves the base swing; then layer any
+  // per-voice tuning so a voice that reads too high/narrated is corrected on
+  // EVERY line. A voice with no tuning entry is unaffected (byte-identical).
+  const resolvedVoiceId = voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
+  const base = voiceSettings || voiceSettingsForEmotion(emotion);
+  const settings = applyVoiceTuning(base, resolvedVoiceId);
   const mp3 = await synthesizeSpeech(text, voiceId, settings);
   if (!mp3) return null;
   try {
@@ -592,5 +653,6 @@ module.exports = {
   streamTts,
   parseEmotionCue,
   voiceSettingsForEmotion,
+  applyVoiceTuning,
   humanizePacing,
 };
