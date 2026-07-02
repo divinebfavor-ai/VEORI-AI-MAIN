@@ -252,16 +252,28 @@ async function buyLocalTwilioNumber(userId, areaCode, label) {
     friendlyName: label,
   });
   const number = purchased.phoneNumber || chosen;
+  const twilioSidNumber = purchased.sid || null; // PNxxxx — proof this number lives in the operator's OWN Twilio account.
 
-  // 4. Import into Vapi (provider:'twilio'). Reuses the single Vapi import point.
-  const { importToVapi } = require('./poolService');
-  const vapiId = await importToVapi(number, label);
-  if (!vapiId) throw new Error('Vapi import returned no id (check VAPI_API_KEY)');
-
-  // Wire the number for inbound (assistant-request mode). Non-fatal — outbound
-  // works regardless; this just lets sellers call the number back into Veori.
-  await require('./vapiService').configureInboundNumber(vapiId).catch((e) =>
-    console.warn(`[NumberProvisioning] inbound wiring failed for ${number}: ${e.message}`));
+  // 4. Vapi is DECOMMISSIONED — the buy path no longer depends on it. The number
+  //    is already dialable from the operator's own Twilio account (it owns the SID
+  //    above). We only attempt a Vapi import if the break-glass flag is explicitly
+  //    set, and even then a failure NEVER aborts the purchase.
+  const VAPI_BREAK_GLASS = 'i-know-vapi-is-decommissioned';
+  let vapiId = null;
+  if (String(process.env.VAPI_CALL_OVERRIDE || '') === VAPI_BREAK_GLASS) {
+    try {
+      const { importToVapi } = require('./poolService');
+      vapiId = await importToVapi(number, label);
+    } catch (e) {
+      console.warn(`[NumberProvisioning] Vapi import skipped/failed (non-fatal) for ${number}: ${e.message}`);
+    }
+    // Wire the number for inbound (assistant-request mode). Non-fatal, and only
+    // meaningful when a Vapi id exists.
+    if (vapiId) {
+      await require('./vapiService').configureInboundNumber(vapiId).catch((e) =>
+        console.warn(`[NumberProvisioning] inbound wiring failed for ${number}: ${e.message}`));
+    }
+  }
 
   // 5. Derive the real area code from the purchased number (fallback path may
   //    have changed it) and persist.
@@ -269,21 +281,22 @@ async function buyLocalTwilioNumber(userId, areaCode, label) {
   const numberState    = stateForAreaCode(boughtAreaCode);
 
   await supabase.from('phone_numbers').insert([{
-    id:                   uuidv4(),
-    user_id:              userId,
+    id:                      uuidv4(),
+    user_id:                 userId,
     number,
-    friendly_name:        label,
-    area_code:            boughtAreaCode,
-    state:                numberState,
-    vapi_phone_number_id: vapiId,
-    provider:             'twilio',
-    is_toll_free:         false,
-    verified_status:      'verified',
-    health_status:        'healthy',
-    is_active:            true,
-    daily_call_limit:     60,
-    spam_score:           100,
-    purchased_at:         new Date().toISOString(),
+    friendly_name:           label,
+    area_code:               boughtAreaCode,
+    state:                   numberState,
+    vapi_phone_number_id:    vapiId || null,
+    twilio_phone_number_sid: twilioSidNumber, // marks the row Twilio-owned → dialable by the operator.
+    provider:                'twilio',
+    is_toll_free:            false,
+    verified_status:         'verified',
+    health_status:           'healthy',
+    is_active:               true,
+    daily_call_limit:        60,
+    spam_score:              100,
+    purchased_at:            new Date().toISOString(),
   }]);
 
   return { number, state: numberState, area_code: boughtAreaCode, vapi_phone_number_id: vapiId };

@@ -227,7 +227,10 @@ async function dialerTick(campaignId) {
         leadQueue.unshift(lead);
 
         session.consecutiveFailures++;
-        session.lastVapiError = `Vapi error: ${msg}`;
+        // NOTE: this is a DIAL error (Twilio), not a Vapi error. Vapi is decommissioned;
+        // the catch above traps any outbound-dial failure. Label it accurately so a real
+        // Twilio rejection (e.g. "Account not allowed to call") isn't mistaken for Vapi.
+        session.lastVapiError = `Dial error: ${msg}`;
 
         // Bail out of this tick immediately — don't try more leads
         break;

@@ -21,7 +21,8 @@ async function selectBestNumber(userId, sellerState = null, excludeIds = [], sel
     .eq('is_active', true)
     .not('health_status', 'eq', 'flagged')
     .not('health_status', 'eq', 'resting')
-    .not('is_toll_free', 'is', true);   // calls go out on LOCAL numbers only — toll-free is SMS-only (higher seller answer rate)
+    .not('is_toll_free', 'is', true)    // calls go out on LOCAL numbers only — toll-free is SMS-only (higher seller answer rate)
+    .not('twilio_phone_number_sid', 'is', null); // OWNERSHIP GATE: only dial FROM numbers in the operator's own Twilio account. Vapi-owned numbers (sid NULL) → "Account not allowed to call".
 
   if (error || !numbers?.length) return null;
 
