@@ -136,15 +136,25 @@ async function resolveOperatorVoiceId(operatorId) {
 // the phone line. These are tunable per-deploy via ELEVENLABS_* env vars below.
 const TTS_MODEL_ID = process.env.ELEVENLABS_TTS_MODEL || 'eleven_multilingual_v2';
 const TTS_VOICE_SETTINGS = {
-  // Human conversational profile (tuned to kill the "sounds so AI" monotone):
-  //   stability 0.30  — lower = more natural prosody/variation (high = flat, robotic)
-  //   similarity 0.85 — stays true to the chosen voice's character
-  //   style 0.55      — higher = real emotional inflection (low = dead read)
-  // Every value is still env-overridable so the live delivery can be nudged on
-  // Railway WITHOUT a redeploy of code — set ELEVENLABS_TTS_* and it wins.
-  stability:        process.env.ELEVENLABS_TTS_STABILITY ? parseFloat(process.env.ELEVENLABS_TTS_STABILITY) : 0.30,
+  // Natural human-conversation profile (tuned so a seller can't tell it's AI).
+  // These are the ElevenLabs-recommended conversational bands, not extremes —
+  // extremes are what actually GIVE AWAY a synthetic voice on a phone line:
+  //   stability 0.45  — 0.40-0.50 is the conversational sweet spot. Too low
+  //                     (<0.35) makes the voice wobble/warble between words,
+  //                     which reads as "AI glitching"; too high (>0.6) makes it
+  //                     flat/monotone. 0.45 = natural cadence without artifacts.
+  //   similarity 0.85 — 0.82-0.88 is where a clone stops sounding like an
+  //                     impression and sounds like the actual person. Kept.
+  //   style 0.20      — style >0.30 already sounds performative/theatrical (and
+  //                     adds latency + instability on the streaming model). For a
+  //                     natural cold call 0.15-0.25 is the ceiling; 0.20 gives
+  //                     warmth/inflection without the "reading a script" feel.
+  //   speaker_boost   — lifts presence/clarity on a compressed phone line.
+  // Every value stays env-overridable so live delivery can be nudged on Railway
+  // WITHOUT a code redeploy — set ELEVENLABS_TTS_* and it wins.
+  stability:        process.env.ELEVENLABS_TTS_STABILITY ? parseFloat(process.env.ELEVENLABS_TTS_STABILITY) : 0.45,
   similarity_boost: process.env.ELEVENLABS_TTS_SIMILARITY ? parseFloat(process.env.ELEVENLABS_TTS_SIMILARITY) : 0.85,
-  style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.55,
+  style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.20,
   use_speaker_boost: true,
 };
 // Warm, natural default voice when no operator selection and no ELEVENLABS_VOICE_ID
