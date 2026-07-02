@@ -10,7 +10,12 @@
  * changes:
  *
  *   openingLine(ctx) -> string
- *   nextTurn({ ...ctx, callId, callSid, speech, confidence }) -> { reply, end }
+ *   nextTurn({ ...ctx, callId, callSid, speech, confidence }) -> { reply, end, emotion }
+ *
+ * (emotion is an ADDITIVE field — an optional per-line delivery cue like 'gentle'
+ * or 'excited' that the audio seam maps to dynamic ElevenLabs voice_settings so
+ * the line is spoken with feeling instead of one flat setting. Callers that ignore
+ * it behave exactly as before.)
  *
  * ctx is what loadCallContext() returns: { call, lead, operator, operatorId,
  * leadId, voiceId }.
@@ -32,6 +37,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const vapiService = require('./vapiService');
 const supabase = require('../config/supabase');
+const elevenLabs = require('./elevenLabsService');
 
 // ── Anthropic client (lazy, mirrors dualAIService.js) ────────────────────────
 let anthropicClient = null;
@@ -163,7 +169,8 @@ function openingLine(ctx = {}) {
  * @param {string} args.speech       seller's transcribed words (may be empty on silence)
  * @param {object} [args.operator]
  * @param {object} [args.lead]
- * @returns {Promise<{ reply: string, end: boolean }>}
+ * @returns {Promise<{ reply: string, end: boolean, emotion: string|null }>}
+ *          emotion is the parsed per-line delivery cue (or null) — additive.
  */
 async function nextTurn(args = {}) {
   const { callId, speech = '', operator = {}, lead = {} } = args;
@@ -186,7 +193,7 @@ async function nextTurn(args = {}) {
     session.messages.push({ role: 'assistant', content: closer });
     await persistTranscript(callId, session.messages); // flush before discarding
     sessions.delete(callId);
-    return { reply: closer, end: true };
+    return { reply: closer, end: true, emotion: 'warm' };
   }
 
   // Record the seller's turn (skip empty/silence so we don't feed Claude blanks).
@@ -203,7 +210,7 @@ async function nextTurn(args = {}) {
     session.messages.push({ role: 'assistant', content: closer });
     await persistTranscript(callId, session.messages); // flush before discarding
     sessions.delete(callId);
-    return { reply: closer, end: true };
+    return { reply: closer, end: true, emotion: 'warm' };
   }
 
   try {
@@ -231,6 +238,15 @@ async function nextTurn(args = {}) {
     const end = reply.includes(END_SENTINEL);
     if (end) reply = reply.split(END_SENTINEL).join('').trim();
 
+    // Parse + strip the leading emotion cue ("{gentle} ...") the prompt asks
+    // Claude to prefix each line with. The cue must come off HERE — before the
+    // line is stored/fed back to Claude and before it's spoken — so the tag never
+    // pollutes the scored transcript nor the next-turn context, and never gets
+    // read aloud. Unknown/absent tag → emotion null → base voice (identical to
+    // today). The audio seam (speakLine) turns emotion into dynamic voice_settings.
+    const { emotion, text: spoken } = elevenLabs.parseEmotionCue(reply);
+    reply = spoken;
+
     // Empty completion guard — never speak nothing.
     if (!reply) {
       reply = 'Sorry, could you say that again?';
@@ -244,13 +260,14 @@ async function nextTurn(args = {}) {
     await persistTranscript(callId, session.messages);
 
     if (end) sessions.delete(callId);
-    return { reply, end };
+    return { reply, end, emotion };
   } catch (err) {
     console.warn('[voiceBrain] Claude turn failed, using fallback line:', err.message);
     // Don't drop the call — speak a safe line and keep the conversation going.
     return {
       reply: "Sorry, I didn't quite catch that — could you say that again?",
       end: false,
+      emotion: 'warm',
     };
   }
 }

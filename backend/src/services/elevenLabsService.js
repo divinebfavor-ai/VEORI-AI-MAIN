@@ -193,6 +193,79 @@ const TTS_VOICE_SETTINGS = {
   style:            process.env.ELEVENLABS_TTS_STYLE ? parseFloat(process.env.ELEVENLABS_TTS_STYLE) : 0.28,
   use_speaker_boost: true,
 };
+
+// ── Per-line emotion → voice_settings (dynamic delivery) ─────────────────────
+// The brain (voiceBrainService) prefixes each spoken line with ONE emotion tag
+// like "{gentle}" / "{excited}" (see vapiService buildAlexPrompt "VOICE DELIVERY
+// CUE"). We strip the tag from the words (never spoken) and use it to nudge the
+// ElevenLabs voice_settings FOR THAT ONE LINE, so an empathy line is actually
+// delivered soft/slow and a good-news line is delivered with a lift — instead of
+// every line coming out on one flat, identical setting (the thing that reads as
+// robotic even on a great clone).
+//
+// HOW THE KNOBS MAP TO FEELING (ElevenLabs semantics):
+//   stability ↓  → MORE emotional swing / expressiveness (but too low = wobble).
+//   stability ↑  → steadier, calmer, more controlled.
+//   style ↑      → more expressive/animated delivery (but too high = theatrical).
+//   style ↓      → plainer, more matter-of-fact.
+//   similarity_boost + use_speaker_boost are kept from the base profile so the
+//   voice stays the SAME person and stays present on the phone line.
+//
+// Each profile is a SMALL, human delta from the tuned base (stability 0.40 /
+// style 0.28) — deliberately within the natural bands (stability 0.30-0.55,
+// style 0.20-0.45) so no emotion tips into warble or ham. Unknown/absent tag →
+// base profile (identical to today's behavior). All values clamp on apply.
+const EMOTION_PROFILES = {
+  // friendly default — essentially the base profile.
+  warm:       { stability: 0.40, style: 0.30 },
+  // soft, slow, tender — steadier + a little less animated so it lands gently.
+  gentle:     { stability: 0.52, style: 0.22 },
+  // caring/understanding — steady with a touch of warmth.
+  empathetic: { stability: 0.50, style: 0.26 },
+  // calm and reassuring — the steadiest profile so it feels safe/trustworthy.
+  reassuring: { stability: 0.55, style: 0.24 },
+  // genuine positive lift — lower stability + higher style = audible energy.
+  excited:    { stability: 0.32, style: 0.42 },
+  // sure and grounded (making the offer) — steady but with presence.
+  confident:  { stability: 0.44, style: 0.34 },
+  // light and interested (asking) — a little lift, not much swing.
+  curious:    { stability: 0.40, style: 0.34 },
+  // light/humor once rapport is real — most expressive, still bounded.
+  playful:    { stability: 0.34, style: 0.44 },
+  // measured and direct — plainer, controlled.
+  serious:    { stability: 0.50, style: 0.20 },
+};
+
+const clamp01 = (n) => Math.max(0, Math.min(1, n));
+
+// Extract a leading "{emotion}" tag from a line. Returns { emotion, text } where
+// emotion is a lowercased known key (or null) and text is the line with the tag
+// removed + trimmed. Only a KNOWN tag at the very start is honored; anything else
+// is left untouched (so a stray brace in real speech never breaks the line).
+function parseEmotionCue(line) {
+  const raw = String(line == null ? '' : line);
+  const m = raw.match(/^\s*\{\s*([a-zA-Z_]+)\s*\}\s*/);
+  if (m) {
+    const key = m[1].toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(EMOTION_PROFILES, key)) {
+      return { emotion: key, text: raw.slice(m[0].length).trim() };
+    }
+  }
+  return { emotion: null, text: raw.trim() };
+}
+
+// Resolve an emotion key to a full voice_settings object layered on the base
+// profile. null/unknown → the base profile unchanged. Env-tuned base still wins
+// for similarity/speaker_boost; only stability/style flex per emotion.
+function voiceSettingsForEmotion(emotion) {
+  const delta = emotion ? EMOTION_PROFILES[emotion] : null;
+  if (!delta) return { ...TTS_VOICE_SETTINGS };
+  return {
+    ...TTS_VOICE_SETTINGS,
+    stability: clamp01(delta.stability),
+    style:     clamp01(delta.style),
+  };
+}
 // Warm, natural default voice when no operator selection and no ELEVENLABS_VOICE_ID
 // env is set. 'Brian' (nPczCjzI2devNBz1zQrb) is ElevenLabs' conversational,
 // human-sounding male — deliberately NOT the deep, robotic stock 'Adam'
@@ -214,9 +287,11 @@ const TTS_BUCKET = process.env.ELEVENLABS_TTS_BUCKET || 'voice-previews';
  * output_format=mp3_44100_128 (Twilio <Play> plays standard MP3 fine).
  * @param {string} text       the line to speak
  * @param {string} voiceId    ElevenLabs voice_id (falls back to ELEVENLABS_VOICE_ID)
+ * @param {object} [voiceSettings]  optional per-line voice_settings override
+ *                 (e.g. from voiceSettingsForEmotion). Omit → tuned base profile.
  * @returns {Promise<Buffer|null>}
  */
-async function synthesizeSpeech(text, voiceId) {
+async function synthesizeSpeech(text, voiceId, voiceSettings) {
   const client = getClient();
   const vId = voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
   if (!client || !vId || !text) {
@@ -224,9 +299,10 @@ async function synthesizeSpeech(text, voiceId) {
     return null;
   }
   try {
+    const settings = voiceSettings || TTS_VOICE_SETTINGS;
     const { data } = await client.post(
       `/text-to-speech/${vId}`,
-      { text, model_id: TTS_MODEL_ID, voice_settings: TTS_VOICE_SETTINGS },
+      { text, model_id: TTS_MODEL_ID, voice_settings: settings },
       { params: { output_format: 'mp3_44100_128' }, responseType: 'arraybuffer' },
     );
     return Buffer.from(data);
@@ -246,10 +322,16 @@ async function synthesizeSpeech(text, voiceId) {
  * @param {object} [opts]
  * @param {string} [opts.voiceId]   ElevenLabs voice_id
  * @param {string} [opts.callSid]   used to namespace the storage path
+ * @param {string} [opts.emotion]   optional emotion key (see EMOTION_PROFILES) →
+ *                                  dynamic per-line voice_settings. Unknown/absent
+ *                                  → base TTS_VOICE_SETTINGS (identical to before).
+ * @param {object} [opts.voiceSettings] optional explicit voice_settings override
+ *                                  (takes precedence over emotion). Backward-compatible.
  * @returns {Promise<string|null>}  public MP3 URL, or null
  */
-async function synthesizeToUrl(text, { voiceId, callSid } = {}) {
-  const mp3 = await synthesizeSpeech(text, voiceId);
+async function synthesizeToUrl(text, { voiceId, callSid, emotion, voiceSettings } = {}) {
+  const settings = voiceSettings || voiceSettingsForEmotion(emotion);
+  const mp3 = await synthesizeSpeech(text, voiceId, settings);
   if (!mp3) return null;
   try {
     const path = `${callSid || 'tts'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp3`;
@@ -395,4 +477,6 @@ module.exports = {
   synthesizeSpeech,
   synthesizeToUrl,
   streamTts,
+  parseEmotionCue,
+  voiceSettingsForEmotion,
 };

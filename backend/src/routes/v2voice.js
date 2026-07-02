@@ -44,18 +44,31 @@ const FALLBACK_SAY_VOICE = 'Polly.Joanna';
 // (synthesize → store → <Play> the public MP3 URL); on any miss falls back to
 // Twilio <Say>. Mutates the passed VoiceResponse. Returns nothing.
 // This is the single seam where ElevenLabs audio enters the live conversation.
-async function speakLine(vr, text, { voiceId, callSid } = {}) {
+//
+// EMOTION (additive): the brain prefixes each line with a "{emotion}" cue and
+// returns the parsed emotion in nextTurn(). We accept it as an explicit opt AND
+// defensively re-parse any cue still on the text here — so BOTH the deterministic
+// opener (no explicit emotion passed) and Claude's replies get delivered with the
+// right per-line voice_settings, and a stray cue is NEVER read aloud. Absent/
+// unknown emotion → base voice (byte-identical to before this change).
+async function speakLine(vr, text, { voiceId, callSid, emotion } = {}) {
   if (!text) return;
+  // Strip any leading "{cue}" that reached the text; prefer the explicit emotion
+  // the caller passed, else the one parsed off the text.
+  const parsed = elevenLabs.parseEmotionCue(text);
+  const spoken = parsed.text;
+  const useEmotion = emotion || parsed.emotion || null;
+  if (!spoken) return;
   let url = null;
   try {
-    url = await elevenLabs.synthesizeToUrl(text, { voiceId, callSid });
+    url = await elevenLabs.synthesizeToUrl(spoken, { voiceId, callSid, emotion: useEmotion });
   } catch (e) {
     console.warn('[v2voice] speakLine synth error:', e.message);
   }
   if (url) {
     vr.play(url);
   } else {
-    vr.say({ voice: FALLBACK_SAY_VOICE }, text);
+    vr.say({ voice: FALLBACK_SAY_VOICE }, spoken);
   }
 }
 
@@ -300,11 +313,13 @@ router.post('/gather', async (req, res) => {
     console.log(`[v2voice] gather callId=${callId} heard="${speech}" conf=${confidence ?? 'n/a'}`);
 
     // Ask the brain for the next turn. Stub today (Module 6); real Claude in M7.
-    const { reply, end } = await voiceBrain.nextTurn({
+    // emotion (additive) is the per-line delivery cue the brain parsed off the
+    // reply → dynamic voice_settings so the line is spoken with feeling.
+    const { reply, end, emotion } = await voiceBrain.nextTurn({
       ...ctx, callId, callSid, speech, confidence,
     });
 
-    await speakLine(vr, reply, { voiceId: ctx.voiceId, callSid });
+    await speakLine(vr, reply, { voiceId: ctx.voiceId, callSid, emotion });
 
     if (end) {
       vr.hangup();
