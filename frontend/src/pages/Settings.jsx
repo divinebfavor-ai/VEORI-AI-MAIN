@@ -6,7 +6,7 @@ import Input from '../components/ui/Input'
 import Badge from '../components/ui/Badge'
 import useAuthStore from '../store/authStore'
 import useThemeStore from '../store/themeStore'
-import { phones, operator as operatorApi, v2voices, vapiVoices, auth, twoFA } from '../services/api'
+import { phones, operator as operatorApi, v2voices, auth, twoFA } from '../services/api'
 import Compliance from './Compliance'
 
 const SOCIAL_PLATFORMS = [
@@ -1456,25 +1456,24 @@ export default function Settings() {
       }).catch(() => {})
     }
     if (tab === 'persona') {
-      // Load the operator profile; ai_voice_id holds the saved Vapi voice pick.
+      // Load the operator profile (ai_caller_name, use case, etc.).
       operatorApi.getProfile().then(r => {
         const p = r.data?.profile || {}
         setPersona(p)
-        setSelectedVoiceId(p.ai_voice_id || '')
       }).catch(() => {})
-      // Live call engine runs on Vapi, so the voice picker lists Vapi's native
-      // voices (Elliot, Savannah, …). Normalise the catalog's field names into
-      // the shape the dropdown + Preview button already expect (voice_id /
-      // voice_name / voice_gender / voice_preview_url) so no JSX change is needed.
-      vapiVoices.getCatalog().then(r => {
+      // The live streaming call engine resolves the voice from the ElevenLabs
+      // library via veori_operator_voice_settings.selected_voice_id — NOT Vapi
+      // and NOT users.ai_voice_id. So the picker lists the ElevenLabs voices
+      // (getLibrary already returns voice_id / voice_name / voice_gender /
+      // voice_accent / voice_preview_url — the exact shape the dropdown +
+      // Preview button expect) and the current selection is read from the same
+      // table the engine reads, so what you preview IS what the call speaks.
+      v2voices.getLibrary().then(r => {
         const raw = r.data?.voices ?? r.data?.data ?? r.data
-        const list = (Array.isArray(raw) ? raw : []).map(v => ({
-          voice_id:          v.voiceId,
-          voice_name:        v.name,
-          voice_gender:      v.gender,
-          voice_preview_url: v.previewUrl || null,
-        }))
-        setVoices(list)
+        setVoices(Array.isArray(raw) ? raw : [])
+      }).catch(() => {})
+      v2voices.getSelection().then(r => {
+        setSelectedVoiceId(r.data?.selected_voice_id || '')
       }).catch(() => {})
     }
     if (tab === 'banking') {
@@ -1896,9 +1895,12 @@ export default function Settings() {
                           const id = e.target.value
                           setSelectedVoiceId(id)
                           setPersona(p => ({ ...p, ai_voice_id: id }))
-                          // Persist immediately to users.ai_voice_id — the column
-                          // the Vapi call engine reads to pick this operator's voice.
-                          operatorApi.updateProfile({ ai_voice_id: id })
+                          // Persist to veori_operator_voice_settings.selected_voice_id
+                          // — the SAME column the live streaming call engine reads
+                          // (resolveOperatorVoiceId). Preserve the caller name so the
+                          // upsert doesn't reset it. This makes the picked voice the
+                          // one that actually speaks on the call.
+                          v2voices.saveSelection(id, persona.ai_caller_name || undefined)
                             .then(() => toast.success('Voice saved'))
                             .catch(() => toast.error('Failed to save voice'))
                         }}
