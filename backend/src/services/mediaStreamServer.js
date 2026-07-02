@@ -64,6 +64,41 @@ const SILENCE_NUDGE_MS = parseInt(process.env.STREAM_SILENCE_NUDGE_MS, 10) || 80
 // Active sessions keyed by streamSid (set once Twilio sends the `start` event).
 const sessions = new Map();
 
+// Secondary index: our calls.id → live StreamSession. Lets the live-listen WS find
+// the right call's audio without knowing the Twilio streamSid. Set in handleStart,
+// cleared in teardown. Additive — nothing else reads it.
+const sessionsByCallId = new Map();
+
+// WS path the operator's browser connects to for live-listen (one-way audio out).
+const LISTEN_PATH = '/api/v2/voice/listen';
+
+// ── mu-law (PCMU) → 16-bit linear PCM decode ────────────────────────────────────
+// Twilio media + our agent frames are 8kHz mu-law. The browser listen player expects
+// 16-bit little-endian PCM (mono). This is the standard G.711 mu-law expansion table;
+// pure math, no dependency. Precomputed once for speed.
+const MULAW_DECODE = (() => {
+  const table = new Int16Array(256);
+  for (let i = 0; i < 256; i++) {
+    const u = ~i & 0xff;
+    const sign = u & 0x80;
+    const exponent = (u >> 4) & 0x07;
+    const mantissa = u & 0x0f;
+    let sample = ((mantissa << 3) + 0x84) << exponent;
+    sample -= 0x84;
+    table[i] = sign ? -sample : sample;
+  }
+  return table;
+})();
+
+/** Decode a mu-law Buffer to a PCM16LE Buffer (mono, same sample count). */
+function mulawToPcm16(mulawBuf) {
+  const out = Buffer.allocUnsafe(mulawBuf.length * 2);
+  for (let i = 0; i < mulawBuf.length; i++) {
+    out.writeInt16LE(MULAW_DECODE[mulawBuf[i]], i * 2);
+  }
+  return out;
+}
+
 /**
  * One live streaming call. Owns the three sockets (Twilio WS in, Deepgram WS,
  * ElevenLabs WS via streamTts) plus turn state, barge-in, and teardown.
@@ -86,6 +121,40 @@ class StreamSession {
     this.turnCount = 0;
     this.ended = false;
     this.silenceTimer = null;
+
+    // Operator takeover: when true, the AI is silenced (no new turns, no reprompt)
+    // so a human operator can talk on the line. Default false → byte-identical to
+    // the normal autonomous behaviour. Toggled by muteAgent()/unmuteAgent().
+    this.muted = false;
+
+    // Live-listen: operator browser WebSockets subscribed to this call's audio.
+    // Empty by default → zero overhead. Each is a plain `ws` we push PCM16 frames to.
+    this.listeners = new Set();
+  }
+
+  // ── live-listen (in-house, replaces Vapi monitor.listenUrl) ──────────────────
+
+  /** Attach an operator browser socket. Sends the sampleRate config frame first. */
+  addListener(ws) {
+    if (this.ended) { try { ws.close(); } catch (_) { /* noop */ } return; }
+    try { ws.send(JSON.stringify({ sampleRate: 8000, channels: 1, codec: 'pcm16' })); } catch (_) { /* noop */ }
+    this.listeners.add(ws);
+    ws.on('close', () => this.listeners.delete(ws));
+    ws.on('error', () => this.listeners.delete(ws));
+  }
+
+  /**
+   * Fan one mu-law frame (caller OR agent audio) out to every listener as PCM16.
+   * No-op when no one is listening, so normal calls pay nothing.
+   */
+  broadcastAudio(mulawBuf) {
+    if (this.listeners.size === 0 || !mulawBuf || !mulawBuf.length) return;
+    let pcm = null;
+    for (const ws of this.listeners) {
+      if (ws.readyState !== WebSocket.OPEN) { this.listeners.delete(ws); continue; }
+      if (!pcm) pcm = mulawToPcm16(mulawBuf); // decode lazily, once per frame
+      try { ws.send(pcm); } catch (_) { this.listeners.delete(ws); }
+    }
   }
 
   // ── lifecycle ──────────────────────────────────────────────────────────────
@@ -96,6 +165,7 @@ class StreamSession {
     this.callId = params.callId || null;
     this.callSid = data.start?.callSid || null;
     sessions.set(this.streamSid, this);
+    if (this.callId) sessionsByCallId.set(this.callId, this);
 
     console.log(`[MediaStream] start streamSid=${this.streamSid} callSid=${this.callSid} callId=${this.callId}`);
 
@@ -142,10 +212,12 @@ class StreamSession {
   // ── inbound caller audio ─────────────────────────────────────────────────────
 
   handleMedia(data) {
-    // Twilio media.payload is base64 mu-law. Forward raw bytes to Deepgram.
+    // Twilio media.payload is base64 mu-law (the SELLER's audio).
     const payload = data.media?.payload;
-    if (!payload || !this.dg) return;
-    this.dg.send(Buffer.from(payload, 'base64'));
+    if (!payload) return;
+    const bytes = Buffer.from(payload, 'base64');
+    if (this.dg) this.dg.send(bytes);          // → Deepgram STT
+    if (this.listeners.size) this.broadcastAudio(bytes); // → live-listen (seller voice)
   }
 
   handleMark(data) {
@@ -185,7 +257,7 @@ class StreamSession {
   }
 
   async fireTurn() {
-    if (this.turnInFlight || this.ended) return;
+    if (this.turnInFlight || this.ended || this.muted) return;
     const heard = this.finalBuffer.trim();
     this.finalBuffer = '';
     if (!heard) return;
@@ -278,10 +350,43 @@ class StreamSession {
     this.pendingMarks = 0;
   }
 
+  // ── operator takeover (in-house equivalent of Vapi muteAssistant) ────────────
+
+  /**
+   * Silence the AI so a human operator can take over the line. Same primitives as
+   * bargeIn (flush queued audio, abort any in-flight TTS/turn) plus it latches
+   * `muted` so no NEW turn or silence-reprompt fires until unmuteAgent(). The
+   * caller (seller) audio still flows to Deepgram + live-listen untouched.
+   */
+  muteAgent() {
+    if (this.ended) return false;
+    this.muted = true;
+    this.clearSilenceTimer();
+    this.sendTwilioClear();
+    if (this.ttsAbort) this.ttsAbort.abort();
+    if (this.turnAbort) this.turnAbort.abort();
+    this.agentSpeaking = false;
+    this.pendingMarks = 0;
+    console.log(`[MediaStream] operator takeover — AI muted callId=${this.callId}`);
+    return true;
+  }
+
+  /** Hand control back to the AI: clear the latch and resume normal listening. */
+  unmuteAgent() {
+    if (this.ended) return false;
+    this.muted = false;
+    this.finalBuffer = '';
+    this.armSilenceTimer();
+    console.log(`[MediaStream] operator returned control — AI unmuted callId=${this.callId}`);
+    return true;
+  }
+
   // ── Twilio WS control frames ─────────────────────────────────────────────────
 
   sendTwilioMedia(b64) {
     this.sendTwilio({ event: 'media', streamSid: this.streamSid, media: { payload: b64 } });
+    // Mirror the AGENT's audio to any live-listeners so the operator hears both sides.
+    if (this.listeners.size) this.broadcastAudio(Buffer.from(b64, 'base64'));
   }
 
   sendTwilioMark(name) {
@@ -307,7 +412,7 @@ class StreamSession {
 
   armSilenceTimer() {
     this.clearSilenceTimer();
-    if (this.ended) return;
+    if (this.ended || this.muted) return; // muted = operator has the line; AI stays quiet
     this.silenceTimer = setTimeout(() => {
       // Seller went quiet — let the brain reprompt (empty speech), same as today.
       if (!this.ended && !this.turnInFlight && !this.agentSpeaking) {
@@ -325,7 +430,7 @@ class StreamSession {
   }
 
   async fireTurnWithSilence() {
-    if (this.turnInFlight || this.ended) return;
+    if (this.turnInFlight || this.ended || this.muted) return;
     this.turnInFlight = true;
     this.turnAbort = new AbortController();
     try {
@@ -384,7 +489,11 @@ class StreamSession {
     if (this.turnAbort) { try { this.turnAbort.abort(); } catch (_) { /* noop */ } }
     if (this.dg) { try { this.dg.finish(); this.dg.close(); } catch (_) { /* noop */ } }
     try { if (this.twilioWs.readyState === WebSocket.OPEN) this.twilioWs.close(); } catch (_) { /* noop */ }
+    // Close any live-listeners so their browser player stops cleanly (call over).
+    for (const ws of this.listeners) { try { ws.close(); } catch (_) { /* noop */ } }
+    this.listeners.clear();
     if (this.streamSid) sessions.delete(this.streamSid);
+    if (this.callId && sessionsByCallId.get(this.callId) === this) sessionsByCallId.delete(this.callId);
     console.log(`[MediaStream] teardown streamSid=${this.streamSid}`);
   }
 
@@ -393,6 +502,55 @@ class StreamSession {
   wordCount(s) {
     return String(s || '').trim().split(/\s+/).filter(Boolean).length;
   }
+}
+
+/**
+ * Authenticate + authorize a live-listen WebSocket upgrade, then attach the socket
+ * to the matching live StreamSession. Rejects (destroys the socket) if the token is
+ * bad, the call isn't the user's, or there's no live stream session for that call.
+ *
+ * URL: wss://host/api/v2/voice/listen?callId=<calls.id>&token=<jwt>
+ */
+async function handleListenUpgrade(url, req, socket, head, listenWss) {
+  const callId = url.searchParams.get('callId');
+  const token = url.searchParams.get('token');
+  if (!callId || !token) { try { socket.destroy(); } catch (_) { /* noop */ } return; }
+
+  // Verify JWT (same secret as the HTTP requireAuth middleware).
+  let userId;
+  try {
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    userId = decoded?.id || decoded?.user_id || decoded?.sub;
+  } catch (_) {
+    try { socket.destroy(); } catch (_) { /* noop */ }
+    return;
+  }
+  if (!userId) { try { socket.destroy(); } catch (_) { /* noop */ } return; }
+
+  // Confirm this call belongs to this user (ownership check).
+  try {
+    const supabase = require('../config/supabase');
+    const { data: call } = await supabase.from('calls')
+      .select('id, user_id')
+      .eq('id', callId)
+      .eq('user_id', userId)
+      .single();
+    if (!call) { try { socket.destroy(); } catch (_) { /* noop */ } return; }
+  } catch (_) {
+    try { socket.destroy(); } catch (_) { /* noop */ }
+    return;
+  }
+
+  // Find the live streaming session for this call. If none, the call isn't on the
+  // stream engine (or hasn't connected yet) — close cleanly; the browser retries.
+  const session = sessionsByCallId.get(callId);
+  if (!session || session.ended) { try { socket.destroy(); } catch (_) { /* noop */ } return; }
+
+  listenWss.handleUpgrade(req, socket, head, (ws) => {
+    session.addListener(ws);
+    console.log(`[MediaStream] listener attached callId=${callId} user=${userId}`);
+  });
 }
 
 /**
@@ -407,17 +565,34 @@ function attach(httpServer) {
     console.warn('[MediaStream] attach called without an http server — skipping');
     return;
   }
-  const wss = new WebSocket.Server({ noServer: true });
+  const wss = new WebSocket.Server({ noServer: true });        // Twilio media streams
+  const listenWss = new WebSocket.Server({ noServer: true });  // operator live-listen
 
   httpServer.on('upgrade', (req, socket, head) => {
-    let pathname;
+    let url;
     try {
-      pathname = new URL(req.url, 'http://localhost').pathname;
+      url = new URL(req.url, 'http://localhost');
     } catch (_) {
       return; // malformed — let other handlers / default deal with it
     }
-    if (pathname !== MEDIA_STREAM_PATH) return; // not ours — leave it alone
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    const pathname = url.pathname;
+
+    if (pathname === MEDIA_STREAM_PATH) {
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+      return;
+    }
+
+    if (pathname === LISTEN_PATH) {
+      // Live-listen: operator browser subscribing to a call's audio. Authenticate
+      // from the query token and confirm the call belongs to this user BEFORE
+      // attaching, so no one can listen to a call that isn't theirs.
+      handleListenUpgrade(url, req, socket, head, listenWss).catch((err) => {
+        console.warn('[MediaStream] listen upgrade failed:', err.message);
+        try { socket.destroy(); } catch (_) { /* noop */ }
+      });
+      return;
+    }
+    // not ours — leave it alone
   });
 
   wss.on('connection', (ws) => {
@@ -457,8 +632,33 @@ function attach(httpServer) {
     });
   });
 
-  console.log(`[MediaStream] WebSocket server attached at ${MEDIA_STREAM_PATH}`);
+  console.log(`[MediaStream] WebSocket server attached at ${MEDIA_STREAM_PATH} (+ live-listen at ${LISTEN_PATH})`);
   return wss;
 }
 
-module.exports = { attach, StreamSession, MEDIA_STREAM_PATH, sessions };
+/** True if a live streaming session exists for this calls.id (used by the listen route). */
+function hasLiveSession(callId) {
+  const s = sessionsByCallId.get(callId);
+  return !!(s && !s.ended);
+}
+
+/**
+ * Silence the AI on a live stream call so a human operator can take over.
+ * Returns true if a live session was found and muted, false otherwise (so the
+ * caller can fall back to the Vapi path for legacy calls).
+ */
+function muteSession(callId) {
+  const s = sessionsByCallId.get(callId);
+  return s && !s.ended ? s.muteAgent() : false;
+}
+
+/** Hand the live stream call back to the AI. Returns true if a session was unmuted. */
+function unmuteSession(callId) {
+  const s = sessionsByCallId.get(callId);
+  return s && !s.ended ? s.unmuteAgent() : false;
+}
+
+module.exports = {
+  attach, StreamSession, MEDIA_STREAM_PATH, LISTEN_PATH, sessions, sessionsByCallId,
+  hasLiveSession, muteSession, unmuteSession, mulawToPcm16,
+};

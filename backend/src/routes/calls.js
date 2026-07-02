@@ -357,13 +357,36 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/calls/:id/listen — get Vapi listen URL for live monitoring
-// Accepts ?vapi_call_id=xxx to skip DB lookup when caller already has the Vapi ID
+// GET /api/calls/:id/listen — live-monitoring audio URL.
+// Prefers the IN-HOUSE stream engine (Twilio Media Streams → our /listen WS) when a
+// live streaming session exists for this call. Falls back to Vapi's monitor.listenUrl
+// only for legacy Vapi calls. The frontend player is identical either way: it opens
+// the returned wss:// URL and plays PCM16 mono frames.
+// Accepts ?vapi_call_id=xxx to skip DB lookup when caller already has the Vapi ID.
 router.get('/:id/listen', async (req, res, next) => {
   try {
+    // ── In-house stream engine first ─────────────────────────────────────────────
+    // If a live StreamSession exists for this calls.id, hand back our own listen WS.
+    // No Vapi involved. The token is the caller's own Bearer JWT, passed through so
+    // the WS upgrade can re-auth + ownership-check before streaming any audio.
+    const mediaStreamServer = require('../services/mediaStreamServer');
+    if (mediaStreamServer.hasLiveSession(req.params.id)) {
+      const PUBLIC_BASE = process.env.PUBLIC_BASE_URL
+        || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null);
+      if (PUBLIC_BASE) {
+        const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+        const wsBase = PUBLIC_BASE.replace(/^http/i, 'ws'); // https→wss, http→ws
+        const listenUrl = `${wsBase}/api/v2/voice/listen?callId=${encodeURIComponent(req.params.id)}&token=${encodeURIComponent(token)}`;
+        return res.json({ success: true, listen_url: listenUrl, engine: 'stream' });
+      }
+      // PUBLIC_BASE missing — fall through to Vapi (if any) rather than dead-end.
+    }
+
+    // ── Legacy Vapi path ─────────────────────────────────────────────────────────
     // If the frontend already has the vapi_call_id, use it directly
     let vapiCallId = req.query.vapi_call_id || null;
 
+    let callStatus = null;
     if (!vapiCallId) {
       // Fall back to DB lookup
       const { data: call } = await supabase.from('calls')
@@ -373,9 +396,21 @@ router.get('/:id/listen', async (req, res, next) => {
         .single();
       if (!call) return res.status(404).json({ success: false, error: 'Call not found' });
       vapiCallId = call.vapi_call_id;
+      callStatus = call.status;
     }
 
-    if (!vapiCallId) return res.status(400).json({ success: false, error: 'No Vapi call ID — call may not have connected yet' });
+    // A Twilio SID (starts "CA") in vapi_call_id means this is an in-house Twilio
+    // call (stream or turn-based), NOT a Vapi call. There's no Vapi listenUrl for it.
+    // If we reached here the live stream session isn't up yet (still ringing) or the
+    // call has ended. Tell the frontend accordingly instead of querying Vapi with a
+    // Twilio SID (which would 4xx and confuse the retry loop).
+    if (typeof vapiCallId === 'string' && vapiCallId.startsWith('CA')) {
+      const ended = callStatus && ['completed', 'failed', 'ended', 'no-answer', 'busy', 'canceled'].includes(callStatus);
+      if (ended) return res.status(409).json({ success: false, ended: true, error: 'Call has ended — no live audio' });
+      return res.status(404).json({ success: false, error: 'Audio not available yet — call is still connecting' });
+    }
+
+    if (!vapiCallId) return res.status(400).json({ success: false, error: 'No call ID — call may not have connected yet' });
 
     const listenUrl = await vapiService.getListenUrl(vapiCallId);
     if (!listenUrl) {
@@ -456,7 +491,14 @@ router.post('/takeover', async (req, res, next) => {
     const { data: call } = await supabase.from('calls').select('*').eq('id', call_id).eq('user_id', req.user.id).single();
     if (!call) return res.status(404).json({ success: false, error: 'Call not found' });
 
-    await vapiService.muteAssistant(call.vapi_call_id);
+    // Prefer the in-house stream engine: if a live Twilio media-stream session
+    // exists for this call, silence the AI locally (no Vapi call). Only fall back
+    // to Vapi's muteAssistant for legacy vapi_call_id (UUID) calls. This stops the
+    // takeover button from hitting Vapi's API with a Twilio "CA" SID.
+    const mediaStreamServer = require('../services/mediaStreamServer');
+    if (!mediaStreamServer.muteSession(call_id)) {
+      await vapiService.muteAssistant(call.vapi_call_id);
+    }
     await supabase.from('calls').update({ operator_took_over: true }).eq('id', call_id);
 
     // Get coaching suggestions based on latest transcript
@@ -474,7 +516,12 @@ router.post('/return-to-ai', async (req, res, next) => {
     const { call_id } = req.body;
     const { data: call } = await supabase.from('calls').select('*').eq('id', call_id).eq('user_id', req.user.id).single();
     if (!call) return res.status(404).json({ success: false, error: 'Call not found' });
-    await vapiService.unmuteAssistant(call.vapi_call_id);
+    // In-house stream call → unmute locally; legacy Vapi call → Vapi unmute.
+    const mediaStreamServer = require('../services/mediaStreamServer');
+    if (!mediaStreamServer.unmuteSession(call_id)) {
+      await vapiService.unmuteAssistant(call.vapi_call_id);
+    }
+    await supabase.from('calls').update({ operator_took_over: false }).eq('id', call_id);
     res.json({ success: true, message: 'AI back in control' });
   } catch (err) { next(err); }
 });

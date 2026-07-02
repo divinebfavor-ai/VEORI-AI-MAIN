@@ -1391,18 +1391,28 @@ function toE164(phone) {
 // engine is live. Lazy require avoids any circular-import risk at module load.
 //
 // VOICE_ENGINE — hidden ADMIN switch (operators never see this; it is not exposed
-// in any API or UI):
-//   • unset / anything ≠ 'vapi'  → Twilio + ElevenLabs + Claude engine (the cheap
-//        TTS path; operator ElevenLabs voice resolved in the /api/v2/voice TwiML
-//        handler at speak time via elevenLabsService.resolveOperatorVoiceId).
+// in any API or UI). DEFAULT IS NOW 'stream' (in-house Twilio, no Vapi):
+//   • unset / 'stream'           → Twilio Media Streams ↔ Deepgram ↔ Claude ↔
+//        ElevenLabs streaming, with barge-in. Fully in-house, no Vapi wallet.
+//        THIS IS THE DEFAULT. Needs DEEPGRAM_API_KEY on Railway for live STT; if
+//        absent the media-stream server auto-downgrades the call to turn-based
+//        /twiml so it still connects.
+//   • 'elevenlabs'               → turn-based Twilio + ElevenLabs + Claude engine
+//        (no Deepgram; gather-based). The proven fallback path.
 //   • 'vapi'                     → Vapi real-time conversational engine
-//        (initiateCallVapi below). Used because ElevenLabs TTS sounds robotic on
-//        live calls. Needs VAPI_API_KEY + operator numbers carrying a stored
-//        vapi_phone_number_id (verified present for all 5 numbers).
-// Flip in either direction is a Railway env change only — no code edit, no redeploy
+//        (initiateCallVapi below). Bills the Vapi wallet. Needs VAPI_API_KEY +
+//        operator numbers carrying a stored vapi_phone_number_id. Explicit opt-in
+//        only — nothing routes here unless VOICE_ENGINE=vapi is set.
+// Flip in any direction is a Railway env change only — no code edit, no redeploy
 // of new code required.
 async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null, campaign = {} }) {
-  const engine = (process.env.VOICE_ENGINE || 'elevenlabs').toLowerCase();
+  // DEFAULT ENGINE = the in-house streaming path (Twilio Media Streams ↔ Deepgram ↔
+  // Claude ↔ ElevenLabs). With VOICE_ENGINE unset, calls now go through Twilio and
+  // NEVER through Vapi — this is what stops the Vapi wallet/credit error. To roll
+  // back instantly, set VOICE_ENGINE=vapi (Vapi cloud) or VOICE_ENGINE=elevenlabs
+  // (turn-based Twilio+ElevenLabs) on Railway — no redeploy needed. The default
+  // itself is overridable via VOICE_ENGINE_DEFAULT for a belt-and-suspenders flip.
+  const engine = (process.env.VOICE_ENGINE || process.env.VOICE_ENGINE_DEFAULT || 'stream').toLowerCase();
   if (engine === 'stream') {
     // Real-time streaming engine (Twilio Media Streams ↔ Deepgram ↔ Claude ↔
     // ElevenLabs streaming, with barge-in). Fully in-house, no Vapi. Identical
