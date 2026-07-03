@@ -103,7 +103,11 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
   if (useCaseOverride) twimlUrl.searchParams.set('useCase', useCaseOverride);
 
   // Per-call lifecycle callbacks (ringing/answered/completed) → updates calls row.
-  const statusUrl = `${PUBLIC_BASE}/api/v2/voice/status`;
+  // callId rides in the query so /status can key on OUR calls.id from the very
+  // first event — Twilio fires 'initiated'/'ringing' before the dial path has
+  // written vapi_call_id to the row, so sid-keyed updates lose that race
+  // (0 rows matched, status/outcome silently dropped).
+  const statusUrl = `${PUBLIC_BASE}/api/v2/voice/status?callId=${encodeURIComponent(callId || '')}`;
 
   // Async AMD callback (Module 4). callId rides along so the /amd handler can
   // personalise the voicemail drop. Async (not blocking) so a human answer goes

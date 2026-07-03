@@ -154,6 +154,30 @@ async function resolveCallUseCase(callRec) {
   }
 }
 
+// Outcome → lead status/stage maps. Mirror vapi.js mapOutcomeToStatus /
+// mapOutcomeToStage EXACTLY (they're local to that file, not exported — same
+// precedent as resolveCallUseCase below). Without this, the in-house Twilio
+// path never touched the leads table after a call: every dialed lead stayed
+// stuck at status='calling' forever and the Kanban/pipeline never advanced
+// (the Vapi webhook did this un-sticking; in-house calls skipped it).
+function mapOutcomeToStatus(outcome) {
+  const map = {
+    not_home: 'new', not_interested: 'contacted', callback_requested: 'contacted',
+    appointment: 'appointment_set', offer_made: 'offer_made', verbal_yes: 'under_contract',
+  };
+  return map[outcome] || 'contacted';
+}
+function mapOutcomeToStage(outcome) {
+  const map = {
+    no_answer: 'new', not_home: 'new', voicemail: 'new',
+    not_interested: 'contacted', wrong_number: 'contacted',
+    callback_requested: 'interested', appointment: 'interested', interested: 'interested',
+    offer_made: 'offer_made',
+    verbal_yes: 'closed',
+  };
+  return map[outcome] || 'contacted';
+}
+
 // Module 8: run end-of-call PMI scoring + persistence for a finished Twilio call.
 // Mirrors vapi.js handleCallEnded's write shape EXACTLY so Twilio calls light up
 // the same UI/leads/analytics. Reads the durable transcript the brain persisted
@@ -184,7 +208,21 @@ async function scoreTwilioCall(callSid) {
     if (!transcript) {
       // No conversation captured (no-answer / immediate hangup / voicemail).
       // Leave outcome to whatever the status/AMD path set; nothing to analyze.
+      // But NEVER leave the lead stuck on 'calling' — guarded so a status a real
+      // conversation already set is untouched.
       console.log(`[v2voice] scoreTwilioCall: sid=${callSid} no transcript — skipping AI analysis`);
+      if (callRec.lead_id) {
+        await supabase.from('leads')
+          .update({
+            status: 'new',
+            pipeline_stage: 'new',
+            last_call_date: new Date().toISOString(),
+            last_call_outcome: callRec.outcome || 'no_answer',
+          })
+          .eq('id', callRec.lead_id)
+          .eq('status', 'calling')
+          .then(null, e => console.warn('[v2voice] lead un-stick failed:', e.message));
+      }
       return;
     }
 
@@ -208,6 +246,23 @@ async function scoreTwilioCall(callSid) {
       console.error(`[v2voice] scoreTwilioCall write failed sid=${callSid}:`, error.message);
     } else {
       console.log(`[v2voice] scored sid=${callSid} useCase=${useCase} outcome=${outcome} score=${aiAnalysis.motivation_score}`);
+    }
+
+    // Advance the LEAD too — mirrors vapi.js handleCallEnded's lead write so the
+    // pipeline/Kanban moves after an in-house call exactly like it did on Vapi.
+    if (callRec.lead_id) {
+      const leadUpdate = {
+        status: mapOutcomeToStatus(outcome),
+        pipeline_stage: mapOutcomeToStage(outcome),
+        last_call_date: new Date().toISOString(),
+        last_call_outcome: outcome,
+      };
+      if (aiAnalysis.motivation_score) {
+        leadUpdate.motivation_score  = aiAnalysis.motivation_score;
+        leadUpdate.seller_personality = aiAnalysis.seller_personality;
+      }
+      const { error: leadErr } = await supabase.from('leads').update(leadUpdate).eq('id', callRec.lead_id);
+      if (leadErr) console.warn(`[v2voice] lead advance failed lead=${callRec.lead_id}:`, leadErr.message);
     }
   } catch (e) {
     console.warn('[v2voice] scoreTwilioCall error:', e.message);
@@ -442,10 +497,22 @@ router.post('/status', async (req, res) => {
       if (durationStr) update.duration_seconds = parseInt(durationStr, 10) || null;
     }
 
-    const { error } = await supabase
-      .from('calls')
-      .update(update)
-      .eq('vapi_call_id', callSid);
+    // Key on OUR calls.id when the dial put it in the callback URL. The old
+    // sid-only lookup raced the dial path: Twilio fires 'initiated'/'ringing'
+    // (and for busy/no-answer even 'completed') BEFORE vapi_call_id is written
+    // to the row, so the update matched 0 rows and the outcome was silently
+    // dropped. callId exists from the row's INSERT, so this never races.
+    // Backfill vapi_call_id here too — the /recording webhook + scoring look
+    // rows up by sid, and this may run before the dial path's own sid write.
+    const callId = req.query.callId || '';
+    let error = null;
+    if (callId) {
+      update.vapi_call_id = callSid;
+      ({ error } = await supabase.from('calls').update(update).eq('id', callId));
+    } else {
+      // Legacy/foreign dials with no callId in the URL — sid lookup as before.
+      ({ error } = await supabase.from('calls').update(update).eq('vapi_call_id', callSid));
+    }
     if (error) console.warn('[v2voice] status update failed:', error.message);
 
     console.log(`[v2voice] status sid=${callSid} ${callStatus}->${mapped}` +
@@ -456,6 +523,23 @@ router.post('/status', async (req, res) => {
     // completes within this handler invocation (the 200 already went out above).
     if (callStatus === 'completed') {
       await scoreTwilioCall(callSid);
+    } else if (['busy', 'failed', 'no-answer', 'canceled'].includes(callStatus)) {
+      // Terminal without a conversation — un-stick the lead from 'calling' so the
+      // pipeline board advances (guarded: never clobbers a richer status).
+      const { data: rec } = await supabase.from('calls')
+        .select('lead_id').eq('vapi_call_id', callSid).maybeSingle();
+      if (rec?.lead_id) {
+        await supabase.from('leads')
+          .update({
+            status: 'new',
+            pipeline_stage: 'new',
+            last_call_date: new Date().toISOString(),
+            last_call_outcome: callStatus === 'no-answer' ? 'no_answer' : 'failed',
+          })
+          .eq('id', rec.lead_id)
+          .eq('status', 'calling')
+          .then(null, e => console.warn('[v2voice] lead un-stick failed:', e.message));
+      }
     }
   } catch (e) {
     console.warn('[v2voice] status handler error:', e.message);

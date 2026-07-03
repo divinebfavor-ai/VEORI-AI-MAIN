@@ -245,7 +245,12 @@ async function dialerTick(campaignId) {
       session.consecutiveFailures = 0;
       session.lastVapiError = null;
 
-      await supabase.from('calls').update({ vapi_call_id: vapiCall.id, status: 'ringing' }).eq('id', callId);
+      // Write the sid unconditionally, but only bump status if the row is still
+      // 'initiated' — the /status webhook (keyed by callId) may have already
+      // written a FRESHER status ('in-progress', even 'no-answer' on fast
+      // failures) and this late 'ringing' must not regress it.
+      await supabase.from('calls').update({ vapi_call_id: vapiCall.id }).eq('id', callId);
+      await supabase.from('calls').update({ status: 'ringing' }).eq('id', callId).eq('status', 'initiated');
       await phoneRotation.recordCallStart(phoneNum.id);
 
       // Mark lead as being called

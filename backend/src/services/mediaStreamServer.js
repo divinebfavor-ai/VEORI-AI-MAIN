@@ -113,6 +113,7 @@ class StreamSession {
     this.dg = null;          // Deepgram stream handle
 
     this.agentSpeaking = false;   // true while we're playing TTS (marks pending)
+    this.everProducedAudio = false; // any TTS audio has reached Twilio this call
     this.pendingMarks = 0;        // Twilio marks sent but not yet echoed back
     this.ttsAbort = null;         // AbortController for the active streamTts
     this.turnInFlight = false;    // dedupe guard so one utterance = one brain turn
@@ -333,11 +334,22 @@ class StreamSession {
     }
     this.ttsAbort = null;
 
+    if (ok) this.everProducedAudio = true;
+
     if (!ok && !this.ended) {
-      // streamTts produced nothing (no key / failure). Don't leave dead air —
-      // the call continues listening; the next turn will try again.
-      console.warn('[MediaStream] streamTts produced no audio for this line');
       this.agentSpeaking = false;
+      // streamTts produced nothing (no key / expired key / quota / socket error).
+      // These failures are call-wide, not per-line — if this call has NEVER been
+      // audible, "keep listening" means the seller hears permanent dead air (the
+      // silent-call bug). Downgrade to the turn-based /twiml engine instead: its
+      // speakLine falls back to Twilio <Say>, so the call is always audible.
+      // Mid-call blips (audio worked before) keep the old behaviour: stay on the
+      // stream and let the next turn retry.
+      if (!this.everProducedAudio) {
+        console.warn('[MediaStream] no audio ever produced — downgrading to turn-based /twiml so the call is not silent');
+        return this.downgradeToTurnBased();
+      }
+      console.warn('[MediaStream] streamTts produced no audio for this line');
     }
   }
 

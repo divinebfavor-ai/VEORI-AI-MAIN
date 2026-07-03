@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { leads as leadsApi, calls as callsApi, phones as phonesApi } from '../services/api'
+import useRingback from '../hooks/useRingback'
 
 // ─── Phone number formatter ────────────────────────────────────────────────────
 function fmtPhoneDisplay(raw) {
@@ -81,6 +82,7 @@ function KeypadDialer({ phoneList, selectedPhone, setPhone }) {
   const [dialState, setDialState] = useState('idle') // idle | ringing | active | ended
   const [duration, setDuration] = useState(0)
   const timerRef = useRef(null)
+  useRingback(dialState === 'ringing')
 
   const press = (digit) => {
     if (dialState !== 'idle') return
@@ -285,6 +287,7 @@ export default function Dialer() {
   const [phones,        setPhones]      = useState([])
   const [selectedPhone, setPhone]       = useState('')
   const [callState,     setCallState]   = useState('idle') // idle | ringing | active | ended
+  useRingback(callState === 'ringing')
   const [callId,        setCallId]      = useState(null)
   const [transcript,    setTranscript]  = useState([])
   const [score,         setScore]       = useState(null)

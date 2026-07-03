@@ -281,6 +281,14 @@ export default function Pipeline() {
 
   useEffect(() => { load() }, [])
 
+  // Auto-refresh so the board advances after a call ends / a deal moves stage
+  // without a manual reload (same 15s cadence as LeadPipeline). Paused while a
+  // deal modal is open so an in-progress edit isn't clobbered by a refetch.
+  useEffect(() => {
+    const id = setInterval(() => { if (!modalDeal) load() }, 15000)
+    return () => clearInterval(id)
+  }, [modalDeal])
+
   const selectDeal = (deal) => {
     setSelected(deal)
     setIntel('deal', deal)

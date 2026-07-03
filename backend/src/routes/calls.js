@@ -277,8 +277,11 @@ router.post('/initiate', async (req, res, next) => {
       return res.status(502).json({ success: false, error: vapiMsg });
     }
 
-    // Update call with Vapi ID
-    await supabase.from('calls').update({ vapi_call_id: vapiCall.id, status: 'ringing' }).eq('id', callId);
+    // Update call with Vapi ID. Sid write is unconditional; the status bump is
+    // guarded so it can't regress a fresher status the /status webhook (keyed by
+    // callId) may have already written during the dial round-trip.
+    await supabase.from('calls').update({ vapi_call_id: vapiCall.id }).eq('id', callId);
+    await supabase.from('calls').update({ status: 'ringing' }).eq('id', callId).eq('status', 'initiated');
     await phoneRotation.recordCallStart(phoneNum.id);
     await supabase.from('leads').update({ call_count: (lead.call_count || 0) + 1, last_call_date: new Date().toISOString(), status: 'calling' }).eq('id', lead_id);
 
