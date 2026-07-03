@@ -66,7 +66,7 @@ async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact
     const { isOnFederalDnc } = require('./ftcDncService');
     const fed = await isOnFederalDnc(lead.phone);
     if (fed.checked && fed.onList) {
-      await supabase.from('leads').update({ is_on_dnc: true, status: 'dnc' }).eq('id', lead.id).catch(() => {});
+      await supabase.from('leads').update({ is_on_dnc: true, status: 'dnc' }).eq('id', lead.id).then(null, () => {});
       await supabase.from('tcpa_log').insert({
         user_id: operator.id,
         lead_id: lead.id,
@@ -76,7 +76,7 @@ async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact
         dnc_result: 'blocked',
         consent_status: 'blocked',
         local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry — voicemail blocked',
-      }).catch(() => {});
+      }).then(null, () => {});
       console.log(`[RVM] Federal DNC hit — skipping voicemail drop to ${lead.phone}`);
       return { skipped: true, reason: 'federal_dnc' };
     }
@@ -183,7 +183,7 @@ ${vmMessage}` }],
       status: 'initiated',
       call_type: 'voicemail',
       started_at: new Date().toISOString(),
-    }).catch(() => {});
+    }).then(null, () => {});
 
     console.log(`[RVM] Voicemail drop initiated for ${lead.phone} — Vapi ID: ${data.id}`);
     return { success: true, vapi_call_id: data.id };

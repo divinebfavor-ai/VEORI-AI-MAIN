@@ -118,7 +118,7 @@ async function sendSMSDirect({ to, body, userId = null, leadId = null, senderOve
     telnyx_message_id: msgId,
     status:     'sent',
     sent_at:    new Date().toISOString(),
-  }).catch(() => {});
+  }).then(null, () => {});
 
   return msgId;
 }
@@ -201,7 +201,7 @@ async function sendOpeningSMS(lead, userId) {
       action:   'sms_blocked_dnc',
       notes:    'Opening SMS blocked — lead is on DNC list',
       created_at: new Date().toISOString(),
-    }).catch(() => {});
+    }).then(null, () => {});
     console.warn(`[SMS] Blocked — ${phone} is on DNC`);
     return null;
   }
@@ -222,7 +222,7 @@ async function sendOpeningSMS(lead, userId) {
       body:       getOpeningMessage(lead),
       status:     'blocked_no_credits',
       sent_at:    new Date().toISOString(),
-    }).catch(() => {});
+    }).then(null, () => {});
     console.warn(`[SMS] Opening blocked — outreach credits ${reservation.reason} (lead: ${lead.id})`);
     return null;
   }
@@ -243,7 +243,7 @@ async function sendOpeningSMS(lead, userId) {
       telnyx_message_id: msgId,
       status:     'sent',
       sent_at:    new Date().toISOString(),
-    }).catch(() => {});
+    }).then(null, () => {});
 
     console.log(`[SMS] Opening sent to ${phone} (lead: ${lead.id})`);
     return msgId;
@@ -368,7 +368,7 @@ async function sendReply(toPhone, body, userId, leadId) {
         action:   'sms_blocked_dnc',
         notes:    'Reply SMS blocked — phone is on DNC list',
         created_at: new Date().toISOString(),
-      }).catch(() => {});
+      }).then(null, () => {});
       console.warn(`[SMS] Reply blocked — ${toPhone} is on DNC`);
       return null;
     }
@@ -386,7 +386,7 @@ async function sendReply(toPhone, body, userId, leadId) {
         body,
         status:     'blocked_no_credits',
         sent_at:    new Date().toISOString(),
-      }).catch(() => {});
+      }).then(null, () => {});
       console.warn(`[SMS] Reply blocked — outreach credits ${reservation.reason} (lead: ${leadId})`);
       return null;
     }
@@ -403,7 +403,7 @@ async function sendReply(toPhone, body, userId, leadId) {
       telnyx_message_id: msgId,
       status:     'sent',
       sent_at:    new Date().toISOString(),
-    }).catch(() => {});
+    }).then(null, () => {});
 
     return msgId;
   } catch (err) {

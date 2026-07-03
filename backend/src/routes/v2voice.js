@@ -236,7 +236,7 @@ async function loadCallContext(callId) {
       ? supabase.from('users').select('ai_caller_name, company_name, ai_voicemail_script').eq('id', call.user_id).maybeSingle()
       : Promise.resolve({ data: null }),
     call.user_id
-      ? elevenLabs.resolveOperatorVoiceId(call.user_id).catch(() => null)
+      ? elevenLabs.resolveOperatorVoiceId(call.user_id).then(null, () => null)
       : Promise.resolve(null),
   ]);
 

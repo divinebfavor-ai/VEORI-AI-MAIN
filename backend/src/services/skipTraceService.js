@@ -78,7 +78,7 @@ async function skipTraceLead(lead) {
       const bestEmail = emails.find(e => e.is_valid);
       if (bestEmail && !lead.email) updateData.email = bestEmail.address;
 
-      await supabase.from('leads').update(updateData).eq('id', lead.id).catch(console.error);
+      await supabase.from('leads').update(updateData).eq('id', lead.id).then(null, console.error);
     }
 
     return { success: true, phones, emails, raw: data };
@@ -129,7 +129,7 @@ async function bulkSkipTrace(leads) {
       const bestEmail = emails.find(e => e.is_valid);
       if (bestEmail) updateData.email = bestEmail.address;
 
-      await supabase.from('leads').update(updateData).eq('id', leadId).catch(() => {});
+      await supabase.from('leads').update(updateData).eq('id', leadId).then(null, () => {});
       results.push({ lead_id: leadId, phones_found: phones.length, emails_found: emails.length });
     }
 

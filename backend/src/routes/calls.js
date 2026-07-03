@@ -180,7 +180,7 @@ router.post('/initiate', async (req, res, next) => {
           // Tracks the highest threshold already announced this cycle.
           const crossedPct = isOverLimit ? 100 : (usagePercent >= 95 ? 95 : (usagePercent >= 80 ? 80 : 0));
           if (crossedPct > (opUser.last_usage_warning_pct || 0)) {
-            supabase.from('users').update({ last_usage_warning_pct: crossedPct }).eq('id', req.user.id).catch(() => {});
+            supabase.from('users').update({ last_usage_warning_pct: crossedPct }).eq('id', req.user.id).then(null, () => {});
             console.log(`[Usage] Operator ${req.user.id} crossed ${crossedPct}% of dial meter (${used}/${monthlyLimit})`);
           }
         }
@@ -285,9 +285,9 @@ router.post('/initiate', async (req, res, next) => {
     // Increment the right meter. Over-limit dials (overage allowance) are tracked
     // separately so the plan meter stays an honest count of in-plan usage.
     if (isOverLimit) {
-      supabase.from('users').update({ overage_dials_used: (opUser?.overage_dials_used || 0) + 1 }).eq('id', req.user.id).catch(() => {});
+      supabase.from('users').update({ overage_dials_used: (opUser?.overage_dials_used || 0) + 1 }).eq('id', req.user.id).then(null, () => {});
     } else {
-      supabase.from('users').update({ calls_used: (opUser?.calls_used || 0) + 1 }).eq('id', req.user.id).catch(() => {});
+      supabase.from('users').update({ calls_used: (opUser?.calls_used || 0) + 1 }).eq('id', req.user.id).then(null, () => {});
     }
 
     // TCPA audit log — call was initiated within compliant hours, not on DNC

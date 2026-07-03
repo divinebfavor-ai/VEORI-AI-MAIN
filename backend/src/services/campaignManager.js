@@ -139,7 +139,7 @@ async function dialerTick(campaignId) {
             dnc_result: 'blocked',
             consent_status: 'blocked',
             local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry — call blocked',
-          }).catch(() => {});
+          }).then(null, () => {});
           session.consecutiveFailures = 0; // DNC skip is not a Vapi failure
           continue;
         }
@@ -270,7 +270,7 @@ async function dialerTick(campaignId) {
         if (error) {
           supabase.from('users').select('calls_used').eq('id', userId).single()
             .then(({ data }) => supabase.from('users').update({ calls_used: (data?.calls_used || 0) + 1 }).eq('id', userId))
-            .catch(() => {});
+            .then(null, () => {});
         }
       }).catch(() => {});
 
@@ -368,7 +368,7 @@ async function checkMonthlyCap(userId) {
         .update({ status: 'expired' })
         .eq('operator_id', userId)
         .eq('status', 'active')
-        .catch(() => {});
+        .then(null, () => {});
 
       return { reached: false, used: 0, limit };
     }

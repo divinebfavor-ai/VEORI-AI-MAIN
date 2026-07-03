@@ -190,7 +190,7 @@ async function grantTopupCredits({ userId, planKey, blocks, total, fwTxId }) {
     billing_cycle_id:  currentBillingCycleId(),
     flutterwave_tx_id: fwTxId || null,
     status:            'active',
-  }).catch((e) => {
+  }).then(null, (e) => {
     // Duplicate (already logged) is fine; anything else just warns — credits granted.
     if (e?.code !== '23505') console.warn('[FW Topup] purchase log failed:', e.message);
   });

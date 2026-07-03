@@ -147,7 +147,7 @@ async function sendMissedCallSMS(callRec, lead, callerPhone, smsBody, operatorNa
       telnyx_message_id: telnyxMessageId,
       status:            telnyxMessageId ? 'sent' : 'failed',
       sent_at:           now,
-    }).catch(() => {});
+    }).then(null, () => {});
   }
 
   // Log to missed_calls table
@@ -162,7 +162,7 @@ async function sendMissedCallSMS(callRec, lead, callerPhone, smsBody, operatorNa
     sms_sent_at:  telnyxMessageId ? now : null,
     sms_message:  smsBody,
     created_at:   now,
-  }).catch(() => {});
+  }).then(null, () => {});
 }
 
 module.exports = { handleMissedCall };

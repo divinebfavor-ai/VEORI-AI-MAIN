@@ -105,7 +105,7 @@ async function sendPostcard({ lead, operator = {}, templateKey = 'no_answer' }) 
       body:       message,
       sent_at:    new Date().toISOString(),
       status:     'simulated',
-    }).catch(() => {});
+    }).then(null, () => {});
     return { simulated: true, message: 'Set LOB_API_KEY to send real postcards' };
   }
 
@@ -147,7 +147,7 @@ async function sendPostcard({ lead, operator = {}, templateKey = 'no_answer' }) 
       sent_at:    new Date().toISOString(),
       status:     'sent',
       external_id: data.id,
-    }).catch(() => {});
+    }).then(null, () => {});
 
     console.log(`[DirectMail] Postcard sent — Lob ID: ${data.id}`);
     return { success: true, lob_id: data.id, expected_delivery: data.expected_delivery_date };

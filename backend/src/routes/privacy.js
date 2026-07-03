@@ -75,7 +75,7 @@ router.get('/export', async (req, res, next) => {
       status:  'completed',
       metadata: { ...clientMeta(req), counts: payload.counts },
       resolved_at: new Date().toISOString(),
-    }).catch(() => {});
+    }).then(null, () => {});
 
     audit.log({ userId: uid, action: audit.ACTIONS.SETTINGS_CHANGED, req, metadata: { change: 'data_export' } });
 

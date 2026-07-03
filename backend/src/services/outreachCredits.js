@@ -123,7 +123,7 @@ async function reserve(userId, n = 1) {
     await supabase.from('users')
       .update({ outreach_paused: true })
       .eq('id', userId)
-      .catch(() => {});
+      .then(null, () => {});
     return { allowed: false, reason: 'exhausted', balance: { ...bal, totalLeft: bal.totalLeft } };
   }
 
@@ -145,7 +145,7 @@ async function reserve(userId, n = 1) {
   const afterTotalLeft = bal.totalLeft - n;
   if (afterTotalLeft <= 0) update.outreach_paused = true;
 
-  await supabase.from('users').update(update).eq('id', userId).catch((e) => {
+  await supabase.from('users').update(update).eq('id', userId).then(null, (e) => {
     console.error(`[Outreach] decrement write failed for ${userId}:`, e.message);
   });
 
@@ -200,7 +200,7 @@ async function notifyThresholds(userId, percent) {
   for (const t of THRESHOLDS) {
     if (target.pct >= t.pct) flagUpdate[t.flag] = true;
   }
-  await supabase.from('users').update(flagUpdate).eq('id', userId).catch(() => {});
+  await supabase.from('users').update(flagUpdate).eq('id', userId).then(null, () => {});
 
   const allocation = u.monthly_allocation || 0;
   const used       = u.outreach_used || 0;
@@ -230,7 +230,7 @@ async function notifyThresholds(userId, percent) {
     message,
     is_read:     false,
     created_at:  new Date().toISOString(),
-  }).catch(() => {});
+  }).then(null, () => {});
 
   // Email (best-effort, never throws upward).
   if (u.email) {

@@ -314,7 +314,7 @@ async function handleCallEnded(call, event) {
       attempt_number: callRec.attempt_number || 1,
       days_since_last_attempt: callRec.days_since_last_attempt || null,
       consent_status: callRec.consent_status || 'unknown',
-    }).catch(e => console.error('[Vapi] TCPA log error:', e.message));
+    }).then(null, e => console.error('[Vapi] TCPA log error:', e.message));
   }
 
   // Auto-create deal when seller says verbal_yes or sets appointment
@@ -366,7 +366,7 @@ async function handleCallEnded(call, event) {
 
   // Write call intelligence to data moat — fires async, never blocks
   if (callRec.lead_id) {
-    const { data: leadForMoat } = await supabase.from('leads').select('*').eq('id', callRec.lead_id).single().catch(() => ({ data: null }));
+    const { data: leadForMoat } = await supabase.from('leads').select('*').eq('id', callRec.lead_id).single().then(null, () => ({ data: null }));
     if (leadForMoat) {
       recordCallIntelligence({
         call: { ...call, id: callRec.id, duration_seconds: duration },
@@ -444,7 +444,7 @@ async function handleCallEnded(call, event) {
       const { data: operator } = await supabase.from('users').select('ai_caller_name, company_name, business_phone, id').eq('id', callRec.user_id).single();
       if (lead && !lead.direct_mail_sent) {
         sendPostcard({ lead, operator: operator || {}, templateKey: 'no_answer' }).then(() => {
-          supabase.from('leads').update({ direct_mail_sent: true }).eq('id', callRec.lead_id).catch(() => {});
+          supabase.from('leads').update({ direct_mail_sent: true }).eq('id', callRec.lead_id).then(null, () => {});
         }).catch(e => console.error('[AutoMail] Failed:', e.message));
       }
     }).catch(() => {});
@@ -468,7 +468,7 @@ async function handleCallEnded(call, event) {
             leads_answered: (camp.leads_answered || 0) + (duration && duration > 15 ? 1 : 0),
             offers_made:    (camp.offers_made    || 0) + (outcome === 'offer_made' ? 1 : 0),
             updated_at:     now.toISOString(),
-          }).eq('id', callRec.campaign_id).catch(e => console.error('[Vapi] Campaign stats error:', e.message));
+          }).eq('id', callRec.campaign_id).then(null, e => console.error('[Vapi] Campaign stats error:', e.message));
         });
     });
   }
@@ -546,7 +546,7 @@ async function handleCallEnded(call, event) {
         time_confidence:    conf,
         source:             'ai_call',
         created_at:         now2.toISOString(),
-      }).catch(e => console.error('[Appointment] Auto-create failed:', e.message));
+      }).then(null, e => console.error('[Appointment] Auto-create failed:', e.message));
     }
 
     // (b) Schedule the actual voice CALLBACK at the requested time.

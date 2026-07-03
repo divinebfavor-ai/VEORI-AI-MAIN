@@ -18,6 +18,13 @@
 
 const { v4: uuidv4 }            = require('uuid');
 const supabase                   = require('../config/supabase');
+
+// Supabase's query builder is a *thenable*, not a real Promise — it has no
+// .catch() method. Calling .catch() on it throws a TypeError, which aborted
+// every engine run at its FIRST job insert (the engine never pulled a record).
+// Promise.resolve() assimilates the thenable into a real Promise so best-effort
+// awaits are actually best-effort.
+const bestEffort = (builder) => Promise.resolve(builder).catch(() => {});
 const { calculateSourcingScore } = require('./leadEngineScorer');
 const { skipTraceLead }          = require('./skipTraceService');
 const {
@@ -173,9 +180,9 @@ async function processRecord(record, userId) {
 // ─── Run one specific source (used by targeted pull) ─────────────────────────
 async function runSource(sourceKey, state, userId) {
   const jobId = uuidv4();
-  await supabase.from('lead_engine_jobs').insert({
+  await bestEffort(supabase.from('lead_engine_jobs').insert({
     id: jobId, source_key: sourceKey, state, started_at: new Date().toISOString(), status: 'running',
-  }).catch(() => {});
+  }));
 
   // For targeted pulls, always run all free sources (state filter applied in processRecord)
   let rawRecords = [];
@@ -184,9 +191,9 @@ async function runSource(sourceKey, state, userId) {
     // If a specific state was requested, filter to that state
     if (state) rawRecords = rawRecords.filter(r => !r.property_state || r.property_state === state);
   } catch (err) {
-    await supabase.from('lead_engine_jobs').update({
+    await bestEffort(supabase.from('lead_engine_jobs').update({
       status: 'error', completed_at: new Date().toISOString(), error_message: err.message,
-    }).eq('id', jobId).catch(() => {});
+    }).eq('id', jobId));
     return { imported: 0, skipped: 0, errors: 0 };
   }
 
@@ -205,25 +212,25 @@ async function runSource(sourceKey, state, userId) {
   }
 
   // Update coverage map
-  await supabase.from('lead_engine_coverage').upsert({
+  await bestEffort(supabase.from('lead_engine_coverage').upsert({
     state,
     source_key:  sourceKey,
     is_covered:  rawRecords.length > 0,
     last_updated: new Date().toISOString(),
     total_leads:  imported,
-  }, { onConflict: 'state,county,source_key' }).catch(() => {});
+  }, { onConflict: 'state,county,source_key' }));
 
   // Mark job complete
-  await supabase.from('lead_engine_jobs').update({
+  await bestEffort(supabase.from('lead_engine_jobs').update({
     status:         errors > 0 && imported === 0 ? 'error' : 'success',
     completed_at:   new Date().toISOString(),
     records_found:  rawRecords.length,
     records_new:    imported,
     records_skipped: skipped,
-  }).eq('id', jobId).catch(() => {});
+  }).eq('id', jobId));
 
   // Update source stats
-  await supabase.from('lead_engine_sources').upsert({
+  await bestEffort(supabase.from('lead_engine_sources').upsert({
     user_id:         userId,
     source_key:      sourceKey,
     source_label:    SOURCE_LABELS[sourceKey] || sourceKey,
@@ -231,7 +238,7 @@ async function runSource(sourceKey, state, userId) {
     last_run_at:     new Date().toISOString(),
     last_run_status: imported > 0 ? 'success' : 'partial',
     last_run_count:  imported,
-  }, { onConflict: 'user_id,source_key,state' }).catch(() => {});
+  }, { onConflict: 'user_id,source_key,state' }));
 
   console.log(`[LeadEngine] ${sourceKey}/${state} → ${imported} imported, ${skipped} skipped, ${errors} errors`);
   return { imported, skipped, errors };
@@ -248,9 +255,9 @@ async function runLeadEngine(userId) {
   console.log(`[LeadEngine] Starting run for user ${userId}`);
 
   const jobId = uuidv4();
-  await supabase.from('lead_engine_jobs').insert({
+  await bestEffort(supabase.from('lead_engine_jobs').insert({
     id: jobId, source_key: 'all', started_at: new Date().toISOString(), status: 'running',
-  }).catch(() => {});
+  }));
 
   let imported = 0, skipped = 0, errors = 0;
 
@@ -273,12 +280,12 @@ async function runLeadEngine(userId) {
     errors++;
   }
 
-  await supabase.from('lead_engine_jobs').update({
+  await bestEffort(supabase.from('lead_engine_jobs').update({
     status: imported > 0 ? 'success' : 'partial',
     completed_at: new Date().toISOString(),
     records_new: imported,
     records_skipped: skipped,
-  }).eq('id', jobId).catch(() => {});
+  }).eq('id', jobId));
 
   console.log(`[LeadEngine] Done — ${imported} imported, ${skipped} skipped, ${errors} errors`);
   return { total_imported: imported, total_skipped: skipped };

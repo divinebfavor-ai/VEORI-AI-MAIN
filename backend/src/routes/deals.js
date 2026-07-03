@@ -132,7 +132,7 @@ router.post('/', async (req, res, next) => {
     // If lead_id provided, pull seller info from lead for auto-fill
     let sellerInfo = {};
     if (lead_id) {
-      const { data: lead } = await supabase.from('leads').select('first_name,last_name,phone,email,primary_tag,estimated_value,estimated_equity').eq('id', lead_id).single().catch(() => ({ data: null }));
+      const { data: lead } = await supabase.from('leads').select('first_name,last_name,phone,email,primary_tag,estimated_value,estimated_equity').eq('id', lead_id).single().then(null, () => ({ data: null }));
       if (lead) {
         sellerInfo = {
           seller_name:        seller_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || null,
@@ -234,7 +234,7 @@ router.put('/:id', async (req, res, next) => {
         if (data.lead_id) {
           const { data: ld } = await supabase.from('leads')
             .select('motivation_score, property_state, property_type')
-            .eq('id', data.lead_id).single().catch(() => ({ data: null }));
+            .eq('id', data.lead_id).single().then(null, () => ({ data: null }));
           leadRow = ld || null;
         }
         await recordTerminalOutcome(data, updates.status, leadRow);
@@ -722,7 +722,7 @@ router.patch('/:id/stage', async (req, res, next) => {
       message_sent: `Stage changed from ${deal.status} → ${stage}`,
       outcome: 'success',
       operator_id: req.user.id,
-    }).catch(() => {});
+    }).then(null, () => {});
 
     res.json({ success: true, deal: data });
 
@@ -772,7 +772,7 @@ router.patch('/:id/stage', async (req, res, next) => {
             message_sent: `Auto-matched ${matched} buyers, blasted ${enqueued} when deal moved to under_contract`,
             outcome: 'success',
             operator_id: req.user.id,
-          }).catch(() => {});
+          }).then(null, () => {});
         } catch (e) {
           console.error('[Deal] Auto buyer blast failed:', e.message);
         }

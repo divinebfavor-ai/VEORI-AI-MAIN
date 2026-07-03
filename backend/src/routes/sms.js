@@ -45,7 +45,7 @@ async function handleOptOut(from, lead, userId, toNumber) {
     action:   'sms_opt_out',
     notes:    'Lead replied with opt-out keyword — added to DNC, all future SMS blocked',
     created_at: new Date().toISOString(),
-  }).catch(() => {});
+  }).then(null, () => {});
 
   // 4. Send required confirmation reply (CTIA mandates this)
   await sendSMS(from, 'You have been unsubscribed and will receive no further messages from us.')
@@ -71,7 +71,7 @@ async function handleOptIn(from, lead, userId) {
     action:   'sms_opt_in',
     notes:    'Lead replied START — removed from DNC',
     created_at: new Date().toISOString(),
-  }).catch(() => {});
+  }).then(null, () => {});
 
   console.log(`[SMS] Opt-in processed — ${from} removed from DNC`);
 }
@@ -342,7 +342,7 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       telnyx_message_id: inboundMsgId,
       status:      'received',
       sent_at:     new Date().toISOString(),
-    }).catch(() => {});
+    }).then(null, () => {});
 
     // 1b. Buy-box capture — read what the buyer just told us and MERGE it onto their
     // row so the profile lives in the system (the user's directive: "reviewed with the
@@ -419,7 +419,7 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       message_sent: `Buyer ${buyer.name || from} replied YES — auto-assigned to deal`,
       outcome:     'success',
       operator_id: userId,
-    }).catch(() => {});
+    }).then(null, () => {});
 
     // Stage 3b — tag the assigned buyer on the CHART (deal_activity is what the
     // lead/deal timeline reads). This is the "who did this property go to" marker
@@ -471,14 +471,14 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       });
       await supabase.from('deals')
         .update({ contract_status: 'assignment_sent', updated_at: new Date().toISOString() })
-        .eq('id', fit.id).catch(() => {});
+        .eq('id', fit.id).then(null, () => {});
       await supabase.from('ai_command_log').insert({
         deal_id:     fit.id,
         action_type: 'assignment_contract_sent',
         message_sent: `Assignment contract sent to ${buyer.name || from} (${result?.signing_url || 'link created'})`,
         outcome:     'success',
         operator_id: userId,
-      }).catch(() => {});
+      }).then(null, () => {});
 
       // Stage 3b — chart timeline entry for the assignment contract going out to
       // the tagged buyer (every doc sent to a buyer is visible on the deal chart).
@@ -524,7 +524,7 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
         emd_amount:       emdAmount,
         emd_requested_at: new Date().toISOString(),
         updated_at:       new Date().toISOString(),
-      }).eq('id', fit.id).eq('user_id', userId).catch(() => {});
+      }).eq('id', fit.id).eq('user_id', userId).then(null, () => {});
 
       try {
         const { logActivity } = require('../services/dealActivityService');

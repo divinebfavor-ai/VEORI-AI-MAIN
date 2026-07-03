@@ -210,7 +210,7 @@ async function enqueueSMSBatch(campaignId, userId, leads, operatorName, customBo
       lead_id:     lead.id,
       sms_body:    body,
       status:      offHoursDelay > 0 ? 'deferred_quiet_hours' : 'queued',
-    }).catch((e) => console.warn('[SMSFirst] queued-row insert failed:', e.message)));
+    }).then(null, (e) => console.warn('[SMSFirst] queued-row insert failed:', e.message)));
 
     let jobId = null;
     try {
@@ -231,7 +231,7 @@ async function enqueueSMSBatch(campaignId, userId, leads, operatorName, customBo
       await supabase.from('sms_first_leads')
         .update({ enqueue_job_id: String(jobId) })
         .eq('id', rowId)
-        .catch(() => {});
+        .then(null, () => {});
       queued++;
     }
   }
@@ -239,7 +239,7 @@ async function enqueueSMSBatch(campaignId, userId, leads, operatorName, customBo
   await supabase.from('campaigns')
     .update({ sms_first_sent: queued, sms_first_status: 'monitoring' })
     .eq('id', campaignId)
-    .catch(() => {});
+    .then(null, () => {});
 
   console.log(`[SMSFirst] Enqueued ${queued} SMS jobs for campaign ${campaignId}`);
   return queued;
@@ -281,7 +281,7 @@ async function inlineSMSBatch(campaignId, userId, leads, operatorName, customBod
       status:        'sms_sent',
       touch_count:   1,                       // 1st of up-to-3 blast touches (2026-06-30 col)
       last_touch_at: nowIso,
-    }).catch(() => supabase.from('sms_first_leads').insert({
+    }).then(null, () => supabase.from('sms_first_leads').insert({
       // Retry without cadence columns if the migration hasn't run yet.
       id:          uuidv4(),
       campaign_id: campaignId,
@@ -359,7 +359,7 @@ async function monitorReplies(campaignId, userId) {
           .eq('lead_id', row.lead_id)
           .eq('type', 'sms')
           .eq('status', 'pending')
-          .catch(() => {});
+          .then(null, () => {});
 
         // Update campaign reply counter
         await supabase.from('campaigns')
@@ -402,7 +402,7 @@ async function monitorReplies(campaignId, userId) {
           await supabase.from('sms_first_leads')
             .update({ touch_count: touchCount + 1, last_touch_at: touchNowIso, sms_sent_at: touchNowIso })
             .eq('id', row.id)
-            .catch(() => {
+            .then(null, () => {
               // Pre-migration: cadence cols absent — just refresh sms_sent_at so the
               // 48h fallback below still measures from the latest send.
               return supabase.from('sms_first_leads')
@@ -428,7 +428,7 @@ async function monitorReplies(campaignId, userId) {
             status:       'pending',
             notes:        'No reply to SMS First campaign after all blast touches. Auto-scheduled 7-day follow-up.',
             created_at:   new Date().toISOString(),
-          }).catch(() => {});
+          }).then(null, () => {});
 
           console.log(`[SMSFirst] No reply after ${blastCount} touch(es) for ${lead.phone} — follow-up scheduled`);
         }
@@ -500,7 +500,7 @@ async function triggerPendingCalls(campaignId, userId, campaign) {
             dnc_result: 'blocked',
             consent_status: 'blocked',
             local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry — call blocked',
-          }).catch(() => {});
+          }).then(null, () => {});
           continue; // skip this lead's escalation call
         }
       } catch (e) {
@@ -629,7 +629,7 @@ async function start(campaignId, userId, options = {}) {
     sms_blast_count:  blastCount,   // Phase: 2026-06-30 column (additive; tolerated if absent pre-migration)
     status:           'active',
     updated_at:       new Date().toISOString(),
-  }).eq('id', campaignId).catch(() => {
+  }).eq('id', campaignId).then(null, () => {
     // If sms_blast_count column doesn't exist yet (migration not run), retry
     // without it so the campaign still starts — cadence then defaults to 1×.
     return supabase.from('campaigns').update({

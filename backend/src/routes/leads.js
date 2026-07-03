@@ -536,7 +536,7 @@ router.post('/', async (req, res, next) => {
             contact_name: `${full.first_name} ${full.last_name}`,
             message_sent: sms,
             outcome: 'queued',
-          }).catch(() => {});
+          }).then(null, () => {});
         }
       }
     });

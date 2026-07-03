@@ -307,7 +307,7 @@ Return ONLY the JSON array, no other text.`;
       filters,
       leads_imported: imported,
       avg_score:      avgScore,
-    }).select().single().catch(() => {}); // non-blocking
+    }).select().single().then(null, () => {}); // non-blocking
 
     // ── Step 4: Create campaign (draft) linked to these leads ─────────────────
     // NOTE: DFD leads have no phone numbers yet — they need skip-tracing first.

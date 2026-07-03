@@ -277,7 +277,7 @@ async function logAiAction({ dealId, contactId, actionType, messageSent, outcome
     message_sent: messageSent,
     outcome,
     created_at: new Date().toISOString(),
-  }).catch(() => {});
+  }).then(null, () => {});
 }
 
 // ─── Send follow-up email ─────────────────────────────────────────────────────

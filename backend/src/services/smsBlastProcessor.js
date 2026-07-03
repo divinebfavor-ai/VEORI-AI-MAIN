@@ -66,7 +66,7 @@ async function processBlastSMS(data) {
         action:     'sms_blocked_dnc',
         notes:      'Blast SMS blocked — phone is on DNC list',
         created_at: new Date().toISOString(),
-      }).catch(() => {});
+      }).then(null, () => {});
       await markSmsFirstLead(smsFirstLeadId, { status: 'dnc_blocked' });
       console.warn(`[SMSBlast] ${to} on DNC — blocked`);
       return { skipped: 'dnc' };
@@ -109,7 +109,7 @@ async function processBlastSMS(data) {
           action:     'sms_deferred_quiet_hours',
           notes:      `Outside 8 AM–9 PM local (${leadState || 'default/Eastern'}) — deferred ${(delay / 3600000).toFixed(2)}h to next window`,
           created_at: new Date().toISOString(),
-        }).catch(() => {});
+        }).then(null, () => {});
         await markSmsFirstLead(smsFirstLeadId, { status: 'deferred_quiet_hours' });
         console.log(`[SMSBlast] ${to} outside TCPA hours (${leadState || 'Eastern'}) — deferred ${(delay / 3600000).toFixed(2)}h`);
         return { skipped: 'quiet_hours', deferredMs: delay };

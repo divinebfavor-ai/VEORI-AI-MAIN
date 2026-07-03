@@ -113,7 +113,7 @@ async function processInboundSMS(data) {
 
   console.log(`[SMSInbound] Score: ${score} — action: ${nextAction}`);
 
-  await supabase.from('leads').update({ motivation_score: score }).eq('id', leadId).catch(() => {});
+  await supabase.from('leads').update({ motivation_score: score }).eq('id', leadId).then(null, () => {});
 
   if (nextAction === 'call_now' || score >= 60) {
     // Hot lead — heads-up text then escalate to a Vapi call.
@@ -137,7 +137,7 @@ async function processInboundSMS(data) {
       notes:        `Lead replied via SMS but scored low (${score}). Auto-scheduled 7-day follow-up.`,
       status:       'pending',
       created_at:   new Date().toISOString(),
-    }).catch(() => {});
+    }).then(null, () => {});
     console.log(`[SMSInbound] Cold lead — follow-up scheduled for ${followUpDate.toDateString()}`);
   }
 
