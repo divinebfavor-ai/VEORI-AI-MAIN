@@ -33,8 +33,15 @@ const elevenLabs = require('../services/elevenLabsService');
 const voiceBrain = require('../services/voiceBrainService');
 const aiService = require('../services/aiService');
 const vapiService = require('../services/vapiService');
+const { verifyTwilioSignature } = require('../middleware/twilioWebhook');
 
 const router = express.Router();
+
+// Every route in this file is a Twilio webhook (Twilio is the only legitimate
+// caller). Verify Twilio's signature on all of them so no anonymous POST can
+// forge a call outcome, overwrite a recording URL, drive the live conversation,
+// or burn AI-scoring tokens. Fail-open only when TWILIO_AUTH_TOKEN is unset.
+router.use(verifyTwilioSignature);
 
 // Polly fallback voice used whenever ElevenLabs <Play> isn't available (no key,
 // synth failure). Keeps the call audible so a turn is never silent.
