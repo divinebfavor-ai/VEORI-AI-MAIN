@@ -435,6 +435,22 @@ setInterval(() => {
   pollDueCallbacks().catch(err => console.error('[CallbackSweep] tick error:', err.message));
 }, CALLBACK_SWEEP_MS);
 
+// ─── Learning loop: nightly lesson distillation (Redis-INDEPENDENT) ───────────
+// Studies each active operator's VERIFIED call outcomes and refreshes the
+// evidence-backed lessons the live voice brain injects into its prompt — the
+// mechanism that makes every call smarter than the last. First run 10 min after
+// boot (off the boot spike), then every 24h. Disable with LEARNING_LOOP=off.
+if (String(process.env.LEARNING_LOOP || 'on') !== 'off') {
+  const { distillAllActiveOperators } = require('./services/learningLoopService');
+  const LEARNING_SWEEP_MS = Number(process.env.LEARNING_SWEEP_MS) || 24 * 60 * 60 * 1000;
+  setTimeout(() => {
+    distillAllActiveOperators().catch(err => console.warn('[LearningLoop] initial distillation failed:', err.message));
+    setInterval(() => {
+      distillAllActiveOperators().catch(err => console.warn('[LearningLoop] nightly distillation failed:', err.message));
+    }, LEARNING_SWEEP_MS);
+  }, 10 * 60 * 1000);
+}
+
 // ─── New Features (Features: Missed Call Text-Back, SMS Inbox, Appointments) ──
 const missedCallsRouter  = require('./routes/missedCalls');
 const appointmentsRouter = require('./routes/appointments');

@@ -373,7 +373,15 @@ Write a short, personal, non-pushy follow-up email. Return ONLY valid JSON:
  * Operator AI Assistant — knows your business
  */
 async function operatorAssistant(message, history = [], context = {}) {
-  const systemPrompt = `You are an expert wholesale real estate advisor with 15 years of experience. You are assisting a Veori AI operator manage their real estate acquisitions business.
+  // Master Operator doctrine underneath the assistant — guardrails, compliance
+  // engine, valuation discipline, dispo rigor, structures, prediction honesty.
+  // Defensive import so a missing doctrine file can never break the assistant.
+  let doctrine = '';
+  try { doctrine = require('./masterOperatorService').fullDoctrine(); } catch (_) { /* additive */ }
+
+  const systemPrompt = `${doctrine ? `${doctrine}
+
+` : 'You are an expert wholesale real estate advisor with 15 years of experience. '}You are assisting a Veori AI operator manage their real estate acquisitions business${doctrine ? ', applying the full doctrine above' : ''}.
 
 You have access to their current business data:
 HOT LEADS (score 70+): ${JSON.stringify(context.hot_leads?.slice(0, 5) || [])}
@@ -382,7 +390,7 @@ ACTIVE DEALS: ${JSON.stringify(context.active_deals?.slice(0, 5) || [])}
 
 Be direct. Be specific. Give actionable answers using their actual data when relevant.
 You know: MAO calculations, deal analysis, seller psychology, negotiation, wholesale strategy, how to talk to motivated sellers, how to find buyers, how to close deals.
-When someone asks a calculation question, show your math.
+When someone asks a calculation question, show your math with every assumption labeled.
 Keep responses concise but complete. No fluff.`;
 
   const messages = [

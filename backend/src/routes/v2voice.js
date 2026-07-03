@@ -264,6 +264,14 @@ async function scoreTwilioCall(callSid) {
       const { error: leadErr } = await supabase.from('leads').update(leadUpdate).eq('id', callRec.lead_id);
       if (leadErr) console.warn(`[v2voice] lead advance failed lead=${callRec.lead_id}:`, leadErr.message);
     }
+
+    // CAPTURE: feed this verified outcome into the learning loop so the next
+    // call is smarter than this one. Best-effort; never blocks scoring.
+    try {
+      const { learnFromCall } = require('../services/learningLoopService');
+      learnFromCall({ ...callRec, transcript, outcome }, aiAnalysis)
+        .then(null, (e) => console.warn('[v2voice] learnFromCall failed:', e.message));
+    } catch (_) { /* additive */ }
   } catch (e) {
     console.warn('[v2voice] scoreTwilioCall error:', e.message);
   }
@@ -283,21 +291,57 @@ async function loadCallContext(callId) {
     .maybeSingle();
   if (!call) return { call: {}, lead: {}, operator: {}, operatorId: null, leadId: null, voiceId: null };
 
-  const [{ data: lead }, { data: operator }, voiceId] = await Promise.all([
+  // FULL lead + operator rows. The old narrow selects (lead: first_name +
+  // property_address; operator: 3 fields) silently starved the brain: the
+  // prompt's veteran-read, tag-intelligence, strategy, offer-math, tone and
+  // operator custom-instruction layers all read fields that were never loaded,
+  // so every in-house call ran with them empty. One-row selects — cost is nil.
+  const [{ data: lead }, { data: operator }, voiceId, lastCallRes] = await Promise.all([
     call.lead_id
-      ? supabase.from('leads').select('first_name, property_address').eq('id', call.lead_id).maybeSingle()
+      ? supabase.from('leads').select('*').eq('id', call.lead_id).maybeSingle()
       : Promise.resolve({ data: null }),
     call.user_id
-      ? supabase.from('users').select('ai_caller_name, company_name, ai_voicemail_script').eq('id', call.user_id).maybeSingle()
+      ? supabase.from('users').select('*').eq('id', call.user_id).maybeSingle()
       : Promise.resolve({ data: null }),
     call.user_id
       ? elevenLabs.resolveOperatorVoiceId(call.user_id).then(null, () => null)
       : Promise.resolve(null),
+    // Cross-call memory: the most recent completed conversation with this lead
+    // (excluding the current call) so the brain picks up where it left off.
+    call.lead_id
+      ? supabase.from('calls')
+          .select('ai_summary, outcome, objections')
+          .eq('lead_id', call.lead_id)
+          .neq('id', callId)
+          .not('ended_at', 'is', null)
+          .order('ended_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+
+  const leadOut = lead || { first_name: call.lead_name, property_address: call.property_address };
+  const lastCall = lastCallRes?.data || null;
+  if (lastCall) {
+    // Attached (not persisted) fields consumed by buildPriorContactBlock.
+    leadOut.last_call_summary = lastCall.ai_summary || null;
+    leadOut.last_call_objections = Array.isArray(lastCall.objections)
+      ? lastCall.objections.join('; ')
+      : (lastCall.objections || null);
+    if (!leadOut.last_call_outcome && lastCall.outcome) leadOut.last_call_outcome = lastCall.outcome;
+  }
+
+  // Warm this operator's learned-lesson cache so the brain's turn prompt can
+  // inject lessons synchronously. Fire-and-forget — never delays TwiML.
+  if (call.user_id) {
+    try {
+      require('../services/learningLoopService').primeLessonCache(call.user_id);
+    } catch (_) { /* additive — absence never breaks a call */ }
+  }
 
   return {
     call,
-    lead: lead || { first_name: call.lead_name, property_address: call.property_address },
+    lead: leadOut,
     operator: operator || {},
     operatorId: call.user_id || null,
     leadId: call.lead_id || null,

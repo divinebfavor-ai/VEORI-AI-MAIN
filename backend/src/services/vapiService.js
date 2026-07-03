@@ -5,6 +5,11 @@ const { getCallIntelligence, buildAccumulatedIntelligenceBlock, getBuyerIntellig
 let readDeal, buildNegotiationBlock;
 try { ({ readDeal } = require('./dealIntelligence')); } catch (_e) { readDeal = null; }
 try { ({ buildNegotiationBlock } = require('./negotiationPlaybook')); } catch (_e) { buildNegotiationBlock = null; }
+// Master Operator doctrine + learned-lesson injection (additive, same defensive
+// pattern — a missing file can never break the call path).
+let liveCallDoctrine, getLessonBlockSync;
+try { ({ liveCallDoctrine } = require('./masterOperatorService')); } catch (_e) { liveCallDoctrine = null; }
+try { ({ getLessonBlockSync } = require('./learningLoopService')); } catch (_e) { getLessonBlockSync = null; }
 
 const VAPI_API_KEY = process.env.VAPI_API_KEY;
 const VAPI_BASE    = process.env.VAPI_BASE_URL || 'https://api.vapi.ai';
@@ -802,7 +807,41 @@ This is the most specific layer and wins on conflict with the operator/campaign 
 ${buildStrategyLine(lead)}
 ${buildStrategyBlock(lead)}
 ${buildVeteranReadBlock(lead)}
-${buildTagIntelligenceBlock(lead)}`;
+${buildTagIntelligenceBlock(lead)}${buildPriorContactBlock(lead)}${liveCallDoctrine ? liveCallDoctrine() : ''}${getLessonBlockSync ? getLessonBlockSync(operator.id) : ''}`;
+}
+
+// ─── Prior-contact memory (cross-call continuity) ─────────────────────────────
+// A veteran caller NEVER makes a seller repeat themselves. When this lead has
+// been talked to before, hand the brain what happened last time — outcome,
+// motivation read, personality, objections, and the last call's summary — so the
+// conversation picks up where it left off instead of restarting cold. Empty
+// string when this is genuinely first contact (zero change to those calls).
+// last_call_summary / last_call_objections are attached by loadCallContext.
+function buildPriorContactBlock(lead = {}) {
+  const hasHistory = (lead.call_count || 0) > 0
+    || lead.last_call_outcome || lead.last_call_summary;
+  if (!hasHistory) return '';
+
+  const bits = [];
+  if (lead.call_count) bits.push(`You (or a teammate) have called this seller ${lead.call_count} time${lead.call_count > 1 ? 's' : ''} before.`);
+  if (lead.last_call_date) bits.push(`Most recent contact: ${String(lead.last_call_date).slice(0, 10)}.`);
+  if (lead.last_call_outcome) bits.push(`Last outcome: ${lead.last_call_outcome}.`);
+  if (lead.motivation_score != null) bits.push(`Motivation read so far: ${lead.motivation_score}/100.`);
+  if (lead.seller_personality) bits.push(`Personality read: ${lead.seller_personality}.`);
+  if (lead.last_call_objections) bits.push(`Objections raised before: ${lead.last_call_objections}.`);
+  if (lead.last_call_summary) bits.push(`What happened last time: ${String(lead.last_call_summary).slice(0, 400)}`);
+
+  return `
+
+══════════════════════════════════════════════════════
+YOU'VE TALKED TO THIS PERSON BEFORE — PICK UP WHERE YOU LEFT OFF
+══════════════════════════════════════════════════════
+${bits.join('\n')}
+Use this like a real person would: reference what they told you naturally ("last
+time we spoke you mentioned..."), do NOT re-ask questions they already answered,
+and do NOT recite this data back at them like a file. If they said the roof was
+bad, you REMEMBER the roof is bad. Continuity is what separates a real
+relationship from a cold call — never make them repeat themselves.`;
 }
 
 // ─── Wholesale playbook (UNCHANGED behavior — the original house/land flow) ────
