@@ -1,5 +1,5 @@
 /**
- * Features 15 & 16 — Silent Call Detection + Best Time to Call AI
+ * Features 15 & 16 - Silent Call Detection + Best Time to Call AI
  * Routes: GET /api/call-analytics/best-time, GET /api/call-analytics/silent-calls,
  *         POST /api/call-analytics/log, GET /api/call-analytics/summary
  */
@@ -9,7 +9,7 @@ const supabase = require('../config/supabase');
 
 router.use(auth);
 
-// GET /api/call-analytics/best-time — AI recommendation for best calling windows
+// GET /api/call-analytics/best-time - AI recommendation for best calling windows
 router.get('/best-time', async (req, res) => {
   try {
     const userId = req.user.id;
@@ -47,7 +47,7 @@ router.get('/best-time', async (req, res) => {
     const topWindows = sorted.slice(0, 3).map(w => ({
       ...w,
       recommendation: w.answer_rate >= 60
-        ? '🔥 Prime time — high answer rate'
+        ? '🔥 Prime time - high answer rate'
         : w.answer_rate >= 40
         ? '✅ Good window'
         : '⚠️ Below average answer rate',
@@ -84,7 +84,7 @@ router.get('/best-time', async (req, res) => {
   }
 });
 
-// GET /api/call-analytics/silent-calls — calls where silence was detected
+// GET /api/call-analytics/silent-calls - calls where silence was detected
 router.get('/silent-calls', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -119,7 +119,7 @@ router.get('/silent-calls', async (req, res) => {
   }
 });
 
-// POST /api/call-analytics/log — log a call analytics event
+// POST /api/call-analytics/log - log a call analytics event
 router.post('/log', async (req, res) => {
   try {
     const { call_id, lead_id, duration_sec, was_silent, silence_sec, answered, sentiment } = req.body;
@@ -149,7 +149,7 @@ router.post('/log', async (req, res) => {
   }
 });
 
-// GET /api/call-analytics/summary — 30-day overview
+// GET /api/call-analytics/summary - 30-day overview
 router.get('/summary', async (req, res) => {
   try {
     const since = new Date(Date.now() - 30 * 86400000).toISOString();

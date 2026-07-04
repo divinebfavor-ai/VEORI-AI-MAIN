@@ -18,7 +18,7 @@ const SMS_FROM = process.env.TWILIO_PHONE_NUMBER; // for DB logging only; actual
 const MISSED_OUTCOMES = ['no_answer', 'not_home', 'voicemail'];
 
 /**
- * Entry point — called from vapi.js handleCallEnded
+ * Entry point - called from vapi.js handleCallEnded
  * callRec: the calls row from the database
  * lead: the leads row (may be null for unknown callers)
  */
@@ -49,7 +49,7 @@ async function handleMissedCall(callRec, lead) {
     .maybeSingle();
 
   if (dncCheck) {
-    console.log(`[MissedCall] Blocked — ${callerPhone} is on DNC`);
+    console.log(`[MissedCall] Blocked - ${callerPhone} is on DNC`);
     return;
   }
 
@@ -87,7 +87,7 @@ async function sendMissedCallSMS(callRec, lead, callerPhone, smsBody, operatorNa
     .maybeSingle();
 
   if (dncRecheck) {
-    console.log(`[MissedCall] Blocked at send time — ${callerPhone} is on DNC`);
+    console.log(`[MissedCall] Blocked at send time - ${callerPhone} is on DNC`);
     return;
   }
 
@@ -95,7 +95,7 @@ async function sendMissedCallSMS(callRec, lead, callerPhone, smsBody, operatorNa
   let telnyxMessageId = null;
   try {
     telnyxMessageId = await sendSMS(callerPhone, smsBody);
-    console.log(`[MissedCall] Auto-SMS sent to ${callerPhone} — msgId: ${telnyxMessageId}`);
+    console.log(`[MissedCall] Auto-SMS sent to ${callerPhone} - msgId: ${telnyxMessageId}`);
   } catch (err) {
     console.error('[MissedCall] Twilio send error:', err.message);
     // Log failed attempt, do not rethrow

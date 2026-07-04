@@ -32,7 +32,7 @@ router.get('/health', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/select — intelligent number selection
+// POST /api/phones/select - intelligent number selection
 router.post('/select', async (req, res, next) => {
   try {
     const { seller_state, exclude_ids = [] } = req.body;
@@ -56,7 +56,7 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/bulk — import CSV of numbers
+// POST /api/phones/bulk - import CSV of numbers
 router.post('/bulk', async (req, res, next) => {
   try {
     const { numbers } = req.body;

@@ -1,4 +1,4 @@
-// ─── Campaign Manager — Concurrent Dialer Engine ──────────────────────────────
+// ─── Campaign Manager - Concurrent Dialer Engine ──────────────────────────────
 const supabase = require('../config/supabase');
 const vapiService = require('./vapiService');
 const phoneRotation = require('./phoneRotation');
@@ -22,7 +22,7 @@ async function start(campaignId, userId) {
   // first dial, size the LOCAL calling fleet to this operator's callable-lead volume
   // + geography (plan-capped, per-operator paced) and buy only the shortfall via the
   // uncapped Twilio→Vapi path. Awaited so the first calls go out on real geo-matched
-  // numbers. Idempotent (re-start won't re-buy) and never throws — a provisioning
+  // numbers. Idempotent (re-start won't re-buy) and never throws - a provisioning
   // failure must never block the campaign; the dialer runs on whatever numbers exist.
   try {
     const { ensureCallingCapacity } = require('./numberProvisioning');
@@ -72,11 +72,11 @@ async function dialerTick(campaignId) {
   const { campaign, leadQueue, activeCalls, userId, operator } = session;
 
   if (!isWithinCallingHours(campaign)) {
-    console.log(`[Campaign ${campaignId}] Outside calling hours — skipping tick`);
+    console.log(`[Campaign ${campaignId}] Outside calling hours - skipping tick`);
     return;
   }
 
-  // Monthly dial-limit enforcement — pause the campaign when the operator has
+  // Monthly dial-limit enforcement - pause the campaign when the operator has
   // used their plan's monthly dials. Resets on the 1st of each new month.
   const cap = await checkMonthlyCap(userId);
   if (cap.reached) {
@@ -106,7 +106,7 @@ async function dialerTick(campaignId) {
 
     // Check consecutive failure threshold before trying another call
     if (session.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-      console.error(`[Campaign ${campaignId}] ${MAX_CONSECUTIVE_FAILURES} consecutive Vapi failures — pausing to protect leads`);
+      console.error(`[Campaign ${campaignId}] ${MAX_CONSECUTIVE_FAILURES} consecutive Vapi failures - pausing to protect leads`);
       await pauseWithError(campaignId, session.lastVapiError || 'Vapi rejected multiple calls in a row. Check your Vapi account limits and phone number configuration.');
       return;
     }
@@ -138,7 +138,7 @@ async function dialerTick(campaignId) {
             within_calling_hours: false,
             dnc_result: 'blocked',
             consent_status: 'blocked',
-            local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry — call blocked',
+            local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry - call blocked',
           }).then(null, () => {});
           session.consecutiveFailures = 0; // DNC skip is not a Vapi failure
           continue;
@@ -147,13 +147,13 @@ async function dialerTick(campaignId) {
         console.warn('[Campaign][TCPA] Federal DNC check skipped:', e.message);
       }
 
-      // TCPA quiet-hours — per-lead, in the LEAD's local time (DST-safe). The
+      // TCPA quiet-hours - per-lead, in the LEAD's local time (DST-safe). The
       // campaign-level isWithinCallingHours gate above is a coarse "run this tick?"
       // check on the server clock; THIS is the legally-meaningful per-lead floor,
       // so an out-of-region lead is never dialed before 8am / after 9pm its local
       // time even if the campaign window happens to be open on the server.
       if (!isWithinTcpaWindow(lead.property_state)) {
-        console.log(`[Campaign ${campaignId}] ${lead.phone} outside 8am–9pm local (${lead.property_state || 'Eastern'}) — requeueing`);
+        console.log(`[Campaign ${campaignId}] ${lead.phone} outside 8am–9pm local (${lead.property_state || 'Eastern'}) - requeueing`);
         leadQueue.push(lead);           // back of the queue; retried on a later tick
         session.consecutiveFailures = 0; // a quiet-hours skip is not a Vapi failure
         continue;
@@ -168,8 +168,8 @@ async function dialerTick(campaignId) {
         : (leadDigits.length === 10 ? leadDigits.slice(0, 3) : null);
       const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, inUseIds, leadAreaCode);
       if (!phoneNum) {
-        // Distinguish "all numbers momentarily busy/cooling" (transient — wait for
-        // next tick) from "operator owns zero callable numbers" (permanent — the
+        // Distinguish "all numbers momentarily busy/cooling" (transient - wait for
+        // next tick) from "operator owns zero callable numbers" (permanent - the
         // pre-dial buy found/bought nothing, so the campaign would silently never
         // call). Only surface the hard-stop when there are no active calls to wait on.
         if (activeCalls.size === 0) {
@@ -186,12 +186,12 @@ async function dialerTick(campaignId) {
             return;
           }
         }
-        console.log('[Campaign] No healthy numbers available — waiting for next tick');
+        console.log('[Campaign] No healthy numbers available - waiting for next tick');
         leadQueue.unshift(lead); // put lead back, try again next tick
         break;
       }
 
-      // Create call record — campaign_id required for webhook stats to update
+      // Create call record - campaign_id required for webhook stats to update
       const callId = uuidv4();
       await supabase.from('calls').insert([{
         id: callId,
@@ -206,7 +206,7 @@ async function dialerTick(campaignId) {
       // Stagger concurrent calls
       if (i > 0) await new Promise(r => setTimeout(r, 1500));
 
-      // Initiate Vapi call — pass operator so Alex uses right voice/settings.
+      // Initiate Vapi call - pass operator so Alex uses right voice/settings.
       // campaign.use_case (if set) overrides the operator's default use case for
       // this campaign only; otherwise the operator default applies.
       let vapiCall;
@@ -217,9 +217,9 @@ async function dialerTick(campaignId) {
         const baseMsg = errData?.message || errData?.error || vapiErr.message || 'Unknown dial error';
         // Twilio REST errors carry a numeric .code (e.g. 21215 geo-permission,
         // 21606 invalid caller-ID, 21210 unverified from) and a .moreInfo URL.
-        // Surface them — the code is the single most useful field for diagnosis.
+        // Surface them - the code is the single most useful field for diagnosis.
         const twilioCode = vapiErr?.code || errData?.code || null;
-        const msg = twilioCode ? `[Twilio ${twilioCode}] ${baseMsg}` : baseMsg;
+        const msg = twilioCode ? `[Carrier ${twilioCode}] ${baseMsg}` : baseMsg;
 
         console.error(`[Campaign ${campaignId}] DIAL REJECTED for lead ${lead.id} (${lead.phone}):`, msg);
         console.error(`[Campaign ${campaignId}] Twilio code=${twilioCode} status=${vapiErr?.status || vapiErr?.response?.status} moreInfo=${vapiErr?.moreInfo || ''}`);
@@ -228,7 +228,7 @@ async function dialerTick(campaignId) {
         // Mark call as failed
         await supabase.from('calls').update({ status: 'failed', ended_at: new Date().toISOString() }).eq('id', callId);
 
-        // Put lead back — it was never actually called
+        // Put lead back - it was never actually called
         leadQueue.unshift(lead);
 
         session.consecutiveFailures++;
@@ -237,16 +237,16 @@ async function dialerTick(campaignId) {
         // Twilio rejection (e.g. "Account not allowed to call") isn't mistaken for Vapi.
         session.lastVapiError = `Dial error: ${msg}`;
 
-        // Bail out of this tick immediately — don't try more leads
+        // Bail out of this tick immediately - don't try more leads
         break;
       }
 
-      // Vapi accepted the call — reset failure counter
+      // Vapi accepted the call - reset failure counter
       session.consecutiveFailures = 0;
       session.lastVapiError = null;
 
       // Write the sid unconditionally, but only bump status if the row is still
-      // 'initiated' — the /status webhook (keyed by callId) may have already
+      // 'initiated' - the /status webhook (keyed by callId) may have already
       // written a FRESHER status ('in-progress', even 'no-answer' on fast
       // failures) and this late 'ringing' must not regress it.
       await supabase.from('calls').update({ vapi_call_id: vapiCall.id }).eq('id', callId);
@@ -340,7 +340,7 @@ async function checkMonthlyCap(userId) {
       return { reached: false, used: u.calls_used || 0, limit };
     }
 
-    // Month rollover — zero the counter on the first tick of a new month.
+    // Month rollover - zero the counter on the first tick of a new month.
     const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
     const lastMonth = (u.dials_reset_date || '').slice(0, 7);
     if (lastMonth !== thisMonth) {
@@ -368,7 +368,7 @@ async function checkMonthlyCap(userId) {
       }).eq('id', userId);
 
       // Mark any still-active top-up purchase rows for this operator as expired
-      // (audit trail — the live balance is already zeroed above).
+      // (audit trail - the live balance is already zeroed above).
       supabase.from('topup_purchases')
         .update({ status: 'expired' })
         .eq('operator_id', userId)
@@ -383,7 +383,7 @@ async function checkMonthlyCap(userId) {
     // (over-limit dials are tracked separately by the per-call route).
     return { reached: used >= limit && !u.overage_enabled, used, limit };
   } catch (e) {
-    console.warn('[Campaign] checkMonthlyCap failed — allowing dial:', e.message);
+    console.warn('[Campaign] checkMonthlyCap failed - allowing dial:', e.message);
     return { reached: false, used: 0, limit: 0 };
   }
 }
@@ -396,7 +396,7 @@ async function pauseWithError(campaignId, errorMessage) {
     error_message: errorMessage,
     updated_at: new Date().toISOString(),
   }).eq('id', campaignId);
-  console.warn(`[Campaign ${campaignId}] PAUSED — ${errorMessage}`);
+  console.warn(`[Campaign ${campaignId}] PAUSED - ${errorMessage}`);
 }
 
 async function pause(campaignId) {
@@ -491,7 +491,7 @@ async function buildLeadQueue(campaignId, userId, filter = {}) {
     if (filter.min_score)          q = q.gte('motivation_score', filter.min_score);
     if (filter.max_score)          q = q.lte('motivation_score', filter.max_score);
     if (filter.source)             q = q.eq('source', filter.source);
-    // Operator-selected lead tags — only call leads matching the chosen tags.
+    // Operator-selected lead tags - only call leads matching the chosen tags.
     // A lead qualifies if a chosen tag is its primary_tag OR appears in secondary_tags.
     // e.g. filter.tags = ['pre_foreclosure','absentee_owner']. Empty/absent = call all tags.
     if (Array.isArray(filter.tags) && filter.tags.length > 0) {
@@ -531,7 +531,7 @@ async function buildLeadQueue(campaignId, userId, filter = {}) {
  *
  * The dialer session (activeCampaigns Map + setInterval) lives ONLY in process
  * memory. When Railway restarts the box, every session is wiped but the DB row
- * is still status:'active' — a zombie campaign that dials nothing, leaves no
+ * is still status:'active' - a zombie campaign that dials nothing, leaves no
  * Twilio log, no call rows. Nothing was re-arming it, so the operator saw
  * "active" forever with zero calls. This runs once on server boot: it finds
  * every campaign the DB believes is live and re-arms its in-memory dialer.
@@ -539,7 +539,7 @@ async function buildLeadQueue(campaignId, userId, filter = {}) {
  * start() refuses a campaign whose status is already 'active'/'running'
  * (campaignManager.js guard), so we first flip it to 'paused' to clear that
  * guard, then start() flips it back to 'active' and builds a fresh leadQueue
- * (already-called leads are skipped by buildLeadQueue's status filter — no
+ * (already-called leads are skipped by buildLeadQueue's status filter - no
  * double-dials). Fully self-contained, best-effort, never throws.
  */
 async function rehydrateActiveCampaigns() {

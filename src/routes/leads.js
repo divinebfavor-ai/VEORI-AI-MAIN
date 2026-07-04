@@ -7,7 +7,7 @@ const aiService = require('../services/aiService');
 const router = express.Router();
 router.use(requireAuth);
 
-// GET /api/leads — list with all filters
+// GET /api/leads - list with all filters
 router.get('/', async (req, res, next) => {
   try {
     const { campaign_id, status, score_min, score_max, state, source, limit = 50, offset = 0, search, date_from } = req.query;
@@ -33,7 +33,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/leads/:id — full lead with call history
+// GET /api/leads/:id - full lead with call history
 router.get('/:id', async (req, res, next) => {
   try {
     const { data, error } = await supabase.from('leads').select('*, calls(*), deals(*)')
@@ -44,7 +44,7 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads — create single
+// POST /api/leads - create single
 router.post('/', async (req, res, next) => {
   try {
     const { first_name, last_name, phone, email, property_address, property_city, property_state, property_zip, property_type, estimated_value, estimated_equity, source, notes, tags } = req.body;
@@ -65,7 +65,7 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/bulk — CSV import up to 10,000
+// POST /api/leads/bulk - CSV import up to 10,000
 router.post('/bulk', async (req, res, next) => {
   try {
     const { leads } = req.body;
@@ -140,7 +140,7 @@ router.delete('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/leads/:id/research — AI property analysis
+// GET /api/leads/:id/research - AI property analysis
 router.get('/:id/research', async (req, res, next) => {
   try {
     const { data: lead } = await supabase.from('leads').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();

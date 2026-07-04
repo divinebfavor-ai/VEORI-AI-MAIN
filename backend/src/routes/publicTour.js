@@ -1,12 +1,12 @@
 /**
- * Feature 36 — Public Tour Page (no auth required)
- * Routes: GET /api/tour/:token — public tour view by token
- *         POST /api/tour/:token/view — log a view
+ * Feature 36 - Public Tour Page (no auth required)
+ * Routes: GET /api/tour/:token - public tour view by token
+ *         POST /api/tour/:token/view - log a view
  */
 const router  = require('express').Router();
 const supabase = require('../config/supabase');
 
-// GET /api/tour/:token — public tour
+// GET /api/tour/:token - public tour
 router.get('/:token', async (req, res) => {
   try {
     const { data: tour, error } = await supabase
@@ -36,7 +36,7 @@ router.get('/:token', async (req, res) => {
   }
 });
 
-// POST /api/tour/:token/view — log a view (Feature 38)
+// POST /api/tour/:token/view - log a view (Feature 38)
 router.post('/:token/view', async (req, res) => {
   try {
     const { source, duration_sec } = req.body;

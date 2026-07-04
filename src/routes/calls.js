@@ -9,7 +9,7 @@ const campaignManager = require('../services/campaignManager');
 const router = express.Router();
 router.use(requireAuth);
 
-// GET /api/calls — list with filters
+// GET /api/calls - list with filters
 router.get('/', async (req, res, next) => {
   try {
     const { lead_id, status, campaign_id, limit = 50, offset = 0, date_from, date_to } = req.query;
@@ -26,7 +26,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/calls/live — all active calls
+// GET /api/calls/live - all active calls
 router.get('/live', async (req, res, next) => {
   try {
     const { data, error } = await supabase.from('calls').select('*, leads(first_name, last_name, phone, property_address), phone_numbers(number)')
@@ -47,7 +47,7 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/calls/initiate — single call
+// POST /api/calls/initiate - single call
 router.post('/initiate', async (req, res, next) => {
   try {
     const { lead_id, phone_number_id } = req.body;
@@ -111,7 +111,7 @@ router.post('/campaign/stop', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/calls/takeover — operator takes over live call
+// POST /api/calls/takeover - operator takes over live call
 router.post('/takeover', async (req, res, next) => {
   try {
     const { call_id } = req.body;
@@ -126,7 +126,7 @@ router.post('/takeover', async (req, res, next) => {
       ? await require('../services/aiService').getCoachingSuggestions(call.transcript)
       : { suggestions: [], objection_responses: [], offer_recommendation: null };
 
-    res.json({ success: true, message: 'Takeover active — you are live', coaching });
+    res.json({ success: true, message: 'Takeover active - you are live', coaching });
   } catch (err) { next(err); }
 });
 

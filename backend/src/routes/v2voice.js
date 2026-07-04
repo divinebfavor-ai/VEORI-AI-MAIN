@@ -1,23 +1,23 @@
 /**
- * /api/v2/voice — Twilio voice webhooks for the Twilio + ElevenLabs call layer.
+ * /api/v2/voice - Twilio voice webhooks for the Twilio + ElevenLabs call layer.
  *
  * These are the endpoints twilioCallService points the outbound call at:
- *   POST /twiml      — TwiML when the callee answers: opens the live conversation
- *   POST /gather     — one conversational turn (seller speech → agent reply)
- *   POST /amd        — async answering-machine-detection result (→ voicemail)
- *   POST /twiml-voicemail — spoken voicemail drop
- *   POST /status     — per-call lifecycle callbacks (ringing/answered/completed)
- *   POST /recording  — recording-ready callback (re-hosts + stores the URL)
+ *   POST /twiml      - TwiML when the callee answers: opens the live conversation
+ *   POST /gather     - one conversational turn (seller speech → agent reply)
+ *   POST /amd        - async answering-machine-detection result (→ voicemail)
+ *   POST /twiml-voicemail - spoken voicemail drop
+ *   POST /status     - per-call lifecycle callbacks (ringing/answered/completed)
+ *   POST /recording  - recording-ready callback (re-hosts + stores the URL)
  *
  * LIVE CONVERSATION ARCHITECTURE (Module 6): turn-based, NOT a raw-audio stream.
- * Twilio's built-in speech recognition (<Gather input="speech">) handles STT —
+ * Twilio's built-in speech recognition (<Gather input="speech">) handles STT -
  * no extra STT key or cost. Each turn: agent speaks (ElevenLabs <Play>, Twilio
  * <Say> fallback) → <Gather> captures the seller's reply → Twilio POSTs the
  * transcript to /gather → the brain (voiceBrainService) returns the next line →
  * loop. Module 7 swaps the stubbed brain for the real Claude prompt; the brain's
  * public shape (openingLine/nextTurn) stays fixed so this file won't change again.
  * Module 4 added AMD→voicemail branching; Module 5 hardened recording storage.
- * These are NOT auth'd routes — Twilio calls them server-to-server (signature
+ * These are NOT auth'd routes - Twilio calls them server-to-server (signature
  * validation is added in a later module).
  *
  * NO auth middleware here (Twilio is the caller, not a logged-in operator).
@@ -54,7 +54,7 @@ const FALLBACK_SAY_VOICE = 'Polly.Joanna';
 //
 // EMOTION (additive): the brain prefixes each line with a "{emotion}" cue and
 // returns the parsed emotion in nextTurn(). We accept it as an explicit opt AND
-// defensively re-parse any cue still on the text here — so BOTH the deterministic
+// defensively re-parse any cue still on the text here - so BOTH the deterministic
 // opener (no explicit emotion passed) and Claude's replies get delivered with the
 // right per-line voice_settings, and a stray cue is NEVER read aloud. Absent/
 // unknown emotion → base voice (byte-identical to before this change).
@@ -67,7 +67,7 @@ async function speakLine(vr, text, { voiceId, callSid, emotion } = {}) {
   const useEmotion = emotion || parsed.emotion || null;
   if (!spoken) return;
   // PACING (additive): insert the natural pauses/breaths a real person makes so
-  // the line isn't rushed and doesn't run on (ElevenLabs has no speed knob — pace
+  // the line isn't rushed and doesn't run on (ElevenLabs has no speed knob - pace
   // comes from punctuation in the text). Runs AFTER the emotion cue is stripped,
   // so a "{cue}" is never spoken. Gated by VOICE_PACING (default on); off → this
   // returns the text unchanged. The <Say> fallback speaks the paced text too so
@@ -88,7 +88,7 @@ async function speakLine(vr, text, { voiceId, callSid, emotion } = {}) {
 
 // Build the <Gather input="speech"> that captures the seller's next turn and
 // POSTs the transcript (SpeechResult) back to /gather. Uses Twilio's built-in
-// speech recognition — no extra STT key/cost (the cash-constrained launch path).
+// speech recognition - no extra STT key/cost (the cash-constrained launch path).
 // action carries callId so the turn handler can reload context + thread Claude.
 function appendListen(vr, callId) {
   const action = `/api/v2/voice/gather?callId=${encodeURIComponent(callId || '')}`;
@@ -134,7 +134,7 @@ function renderVoicemailScript(lead = {}, operator = {}) {
 // scoring/outcome correctly. Mirrors vapi.js resolveCallUseCase (which is local
 // to that file, not exported): operator default (users.ai_use_case) + optional
 // per-campaign override (campaigns.use_case), arbitrated by vapiService.getUseCase.
-// Best-effort — any miss falls back to 'wholesale' so scoring never breaks.
+// Best-effort - any miss falls back to 'wholesale' so scoring never breaks.
 async function resolveCallUseCase(callRec) {
   try {
     let operator = {};
@@ -149,13 +149,13 @@ async function resolveCallUseCase(callRec) {
     }
     return vapiService.getUseCase(operator, override);
   } catch (e) {
-    console.warn('[v2voice] resolveCallUseCase failed — defaulting to wholesale:', e.message);
+    console.warn('[v2voice] resolveCallUseCase failed - defaulting to wholesale:', e.message);
     return 'wholesale';
   }
 }
 
 // Outcome → lead status/stage maps. Mirror vapi.js mapOutcomeToStatus /
-// mapOutcomeToStage EXACTLY (they're local to that file, not exported — same
+// mapOutcomeToStage EXACTLY (they're local to that file, not exported - same
 // precedent as resolveCallUseCase below). Without this, the in-house Twilio
 // path never touched the leads table after a call: every dialed lead stayed
 // stuck at status='calling' forever and the Kanban/pipeline never advanced
@@ -198,9 +198,9 @@ async function scoreTwilioCall(callSid) {
       return;
     }
 
-    // Already scored — don't re-spend tokens or overwrite a prior analysis.
+    // Already scored - don't re-spend tokens or overwrite a prior analysis.
     if (callRec.motivation_score != null) {
-      console.log(`[v2voice] scoreTwilioCall: sid=${callSid} already scored — skipping`);
+      console.log(`[v2voice] scoreTwilioCall: sid=${callSid} already scored - skipping`);
       return;
     }
 
@@ -208,9 +208,9 @@ async function scoreTwilioCall(callSid) {
     if (!transcript) {
       // No conversation captured (no-answer / immediate hangup / voicemail).
       // Leave outcome to whatever the status/AMD path set; nothing to analyze.
-      // But NEVER leave the lead stuck on 'calling' — guarded so a status a real
+      // But NEVER leave the lead stuck on 'calling' - guarded so a status a real
       // conversation already set is untouched.
-      console.log(`[v2voice] scoreTwilioCall: sid=${callSid} no transcript — skipping AI analysis`);
+      console.log(`[v2voice] scoreTwilioCall: sid=${callSid} no transcript - skipping AI analysis`);
       if (callRec.lead_id) {
         await supabase.from('leads')
           .update({
@@ -238,7 +238,7 @@ async function scoreTwilioCall(callSid) {
       outcome,
       ai_summary: aiAnalysis.ai_summary ?? null,
       // offer_made is a NUMERIC column (dollar amount or null). aiAnalysis.offer_made
-      // is "<number or null>". Never write a boolean — Postgres rejects the UPDATE.
+      // is "<number or null>". Never write a boolean - Postgres rejects the UPDATE.
       offer_made: typeof aiAnalysis.offer_made === 'number' ? aiAnalysis.offer_made : null,
     }).eq('vapi_call_id', callSid);
 
@@ -248,7 +248,7 @@ async function scoreTwilioCall(callSid) {
       console.log(`[v2voice] scored sid=${callSid} useCase=${useCase} outcome=${outcome} score=${aiAnalysis.motivation_score}`);
     }
 
-    // Advance the LEAD too — mirrors vapi.js handleCallEnded's lead write so the
+    // Advance the LEAD too - mirrors vapi.js handleCallEnded's lead write so the
     // pipeline/Kanban moves after an in-house call exactly like it did on Vapi.
     if (callRec.lead_id) {
       const leadUpdate = {
@@ -295,7 +295,7 @@ async function loadCallContext(callId) {
   // property_address; operator: 3 fields) silently starved the brain: the
   // prompt's veteran-read, tag-intelligence, strategy, offer-math, tone and
   // operator custom-instruction layers all read fields that were never loaded,
-  // so every in-house call ran with them empty. One-row selects — cost is nil.
+  // so every in-house call ran with them empty. One-row selects - cost is nil.
   const [{ data: lead }, { data: operator }, voiceId, lastCallRes] = await Promise.all([
     call.lead_id
       ? supabase.from('leads').select('*').eq('id', call.lead_id).maybeSingle()
@@ -332,11 +332,11 @@ async function loadCallContext(callId) {
   }
 
   // Warm this operator's learned-lesson cache so the brain's turn prompt can
-  // inject lessons synchronously. Fire-and-forget — never delays TwiML.
+  // inject lessons synchronously. Fire-and-forget - never delays TwiML.
   if (call.user_id) {
     try {
       require('../services/learningLoopService').primeLessonCache(call.user_id);
-    } catch (_) { /* additive — absence never breaks a call */ }
+    } catch (_) { /* additive - absence never breaks a call */ }
   }
 
   return {
@@ -349,11 +349,11 @@ async function loadCallContext(callId) {
   };
 }
 
-// POST /api/v2/voice/twiml — returned when the seller picks up.
+// POST /api/v2/voice/twiml - returned when the seller picks up.
 // Module 6: opens the live, turn-based conversation. Speaks the agent's opening
 // line (ElevenLabs <Play>, Twilio <Say> fallback) then hands the mic to the
 // seller via <Gather input="speech">. Twilio transcribes their reply and POSTs
-// it to /gather, which threads it to the brain and speaks the response — looping
+// it to /gather, which threads it to the brain and speaks the response - looping
 // the conversation. Module 7 swaps the stubbed brain for the real Claude prompt.
 router.post('/twiml', async (req, res) => {
   const callId = req.query.callId || req.body.CallSid || '';
@@ -368,7 +368,7 @@ router.post('/twiml', async (req, res) => {
     console.log(`[v2voice] twiml opened conversation callId=${callId}`);
   } catch (e) {
     console.warn('[v2voice] twiml open error:', e.message);
-    // Never leave the line dead — at least greet + listen with the fallback voice.
+    // Never leave the line dead - at least greet + listen with the fallback voice.
     vr.say({ voice: FALLBACK_SAY_VOICE }, 'Hi, thanks for taking my call. How are you doing today?');
     appendListen(vr, callId);
   }
@@ -376,7 +376,7 @@ router.post('/twiml', async (req, res) => {
   res.type('text/xml').send(vr.toString());
 });
 
-// POST|GET /api/v2/voice/twiml-stream — answer TwiML for the v2 "stream" engine.
+// POST|GET /api/v2/voice/twiml-stream - answer TwiML for the v2 "stream" engine.
 // ADDITIVE + inert: only twilioCallStreamService points calls here, and that only
 // runs when VOICE_ENGINE=stream. Returns <Connect><Stream> so Twilio opens a
 // bidirectional Media Stream WebSocket to mediaStreamServer (real-time STT ↔
@@ -400,7 +400,7 @@ async function twimlStreamHandler(req, res) {
     console.log(`[v2voice] twiml-stream opened media stream callId=${callId}`);
   } catch (e) {
     console.warn('[v2voice] twiml-stream error, downgrading to turn-based:', e.message);
-    // Never leave the line dead — fall back to the proven turn-based conversation.
+    // Never leave the line dead - fall back to the proven turn-based conversation.
     vr.redirect(`/api/v2/voice/twiml?callId=${encodeURIComponent(callId)}`);
   }
 
@@ -409,7 +409,7 @@ async function twimlStreamHandler(req, res) {
 router.post('/twiml-stream', twimlStreamHandler);
 router.get('/twiml-stream', twimlStreamHandler);
 
-// POST /api/v2/voice/gather — one conversational turn.
+// POST /api/v2/voice/gather - one conversational turn.
 // Twilio POSTs here after each <Gather> with the seller's transcribed speech in
 // SpeechResult. We load context, ask the brain for the next line (Module 7 wires
 // Claude here), speak it, and re-arm the <Gather> to keep the conversation going.
@@ -450,13 +450,13 @@ router.post('/gather', async (req, res) => {
   res.type('text/xml').send(vr.toString());
 });
 
-// POST /api/v2/voice/amd — Twilio async answering-machine-detection result.
+// POST /api/v2/voice/amd - Twilio async answering-machine-detection result.
 // Twilio runs AMD in parallel with the live call (asyncAmd) and POSTs the result
 // here when it resolves. On a machine, we redirect the still-live call to the
 // voicemail TwiML so the operator's script is left; on a human we do nothing and
 // the conversation path (twiml) keeps running. callId rides in the query.
 router.post('/amd', async (req, res) => {
-  // 200 fast — Twilio retries on non-2xx; do the redirect work after responding.
+  // 200 fast - Twilio retries on non-2xx; do the redirect work after responding.
   res.sendStatus(200);
 
   try {
@@ -468,7 +468,7 @@ router.post('/amd', async (req, res) => {
     const isMachine = answeredBy.startsWith('machine');
     console.log(`[v2voice] amd sid=${callSid} answeredBy=${answeredBy} machine=${isMachine}`);
 
-    if (!isMachine) return; // human (or fax/unknown) — leave the live call alone.
+    if (!isMachine) return; // human (or fax/unknown) - leave the live call alone.
 
     // Redirect the in-progress call to the voicemail TwiML (REST update).
     await twilioCallService.redirectCall(
@@ -481,7 +481,7 @@ router.post('/amd', async (req, res) => {
   }
 });
 
-// POST /api/v2/voice/twiml-voicemail — spoken voicemail drop.
+// POST /api/v2/voice/twiml-voicemail - spoken voicemail drop.
 // Reached only when AMD redirected the call here (machine answered). Loads the
 // lead+operator behind callId, renders the operator's voicemail script, and
 // speaks it. ElevenLabs <Play> is the future upgrade (needs hosted audio, lands
@@ -506,7 +506,7 @@ router.post('/twiml-voicemail', async (req, res) => {
   res.type('text/xml').send(vr.toString());
 });
 
-// POST /api/v2/voice/status — Twilio per-call lifecycle callback.
+// POST /api/v2/voice/status - Twilio per-call lifecycle callback.
 // Maps Twilio CallStatus -> our calls.status and stamps timestamps. Looked up by
 // the Twilio Call SID stored in calls.vapi_call_id (provider-agnostic column).
 router.post('/status', async (req, res) => {
@@ -546,7 +546,7 @@ router.post('/status', async (req, res) => {
     // (and for busy/no-answer even 'completed') BEFORE vapi_call_id is written
     // to the row, so the update matched 0 rows and the outcome was silently
     // dropped. callId exists from the row's INSERT, so this never races.
-    // Backfill vapi_call_id here too — the /recording webhook + scoring look
+    // Backfill vapi_call_id here too - the /recording webhook + scoring look
     // rows up by sid, and this may run before the dial path's own sid write.
     const callId = req.query.callId || '';
     let error = null;
@@ -554,7 +554,7 @@ router.post('/status', async (req, res) => {
       update.vapi_call_id = callSid;
       ({ error } = await supabase.from('calls').update(update).eq('id', callId));
     } else {
-      // Legacy/foreign dials with no callId in the URL — sid lookup as before.
+      // Legacy/foreign dials with no callId in the URL - sid lookup as before.
       ({ error } = await supabase.from('calls').update(update).eq('vapi_call_id', callSid));
     }
     if (error) console.warn('[v2voice] status update failed:', error.message);
@@ -568,7 +568,7 @@ router.post('/status', async (req, res) => {
     if (callStatus === 'completed') {
       await scoreTwilioCall(callSid);
     } else if (['busy', 'failed', 'no-answer', 'canceled'].includes(callStatus)) {
-      // Terminal without a conversation — un-stick the lead from 'calling' so the
+      // Terminal without a conversation - un-stick the lead from 'calling' so the
       // pipeline board advances (guarded: never clobbers a richer status).
       const { data: rec } = await supabase.from('calls')
         .select('lead_id').eq('vapi_call_id', callSid).maybeSingle();
@@ -599,7 +599,7 @@ async function rehostRecording({ callSid, recordingSid, recordingUrl }) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   if (!sid || !token) {
-    console.warn('[v2voice] rehost skipped — Twilio creds missing');
+    console.warn('[v2voice] rehost skipped - Twilio creds missing');
     return null;
   }
 
@@ -621,7 +621,7 @@ async function rehostRecording({ callSid, recordingSid, recordingUrl }) {
   return pub?.publicUrl || null;
 }
 
-// POST /api/v2/voice/recording — Twilio recording-ready callback.
+// POST /api/v2/voice/recording - Twilio recording-ready callback.
 // Re-hosts the recording into Supabase Storage (permanent, no Twilio auth needed)
 // and stores that URL on the calls row. If re-hosting fails for any reason we
 // store Twilio's hosted URL instead so the recording link is never lost.

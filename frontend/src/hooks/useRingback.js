@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * useRingback(active) — plays a synthesized US ringback tone while `active` is true.
+ * useRingback(active) - plays a synthesized US ringback tone while `active` is true.
  *
  * The Dialer showed a "Ringing…" state visually but played no sound. Rather than
  * ship an audio asset, we synthesize the standard North-American ringback with the
@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react'
  * Autoplay policy: the AudioContext is created and resumed inside the effect that
  * runs on the state change caused by the user's "Dial" click, so it's within the
  * user-gesture window and browsers allow it. If resume() is still blocked we fail
- * silent (no throw) — the visual ringing state is unaffected.
+ * silent (no throw) - the visual ringing state is unaffected.
  */
 export default function useRingback(active) {
   const ctxRef = useRef(null)
@@ -53,7 +53,7 @@ export default function useRingback(active) {
 
     const RING_ON_MS = 2000
     const RING_OFF_MS = 4000
-    const PEAK = 0.12 // gentle — this plays near the user's ear expectation
+    const PEAK = 0.12 // gentle - this plays near the user's ear expectation
 
     const ringOnce = () => {
       if (stopped) return

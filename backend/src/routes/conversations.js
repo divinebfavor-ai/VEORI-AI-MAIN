@@ -91,7 +91,7 @@ router.post('/send-sms', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/conversations/handle-reply — process inbound reply from contact
+// POST /api/conversations/handle-reply - process inbound reply from contact
 router.post('/handle-reply', async (req, res, next) => {
   try {
     const { deal_id, contact_id, contact_type, message, from_phone } = req.body;
@@ -158,7 +158,7 @@ router.post('/handle-reply', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/conversations/schedule-call — schedule a Vapi call at a specific time
+// POST /api/conversations/schedule-call - schedule a Vapi call at a specific time
 router.post('/schedule-call', async (req, res, next) => {
   try {
     const { deal_id, contact_id, contact_type, run_at, script } = req.body;
@@ -183,7 +183,7 @@ router.post('/schedule-call', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/conversations/:deal_id — get all messages for a deal
+// GET /api/conversations/:deal_id - get all messages for a deal
 router.get('/:deal_id', async (req, res, next) => {
   try {
     const { data, error } = await supabase.from('conversations')

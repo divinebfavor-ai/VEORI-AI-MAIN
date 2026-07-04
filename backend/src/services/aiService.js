@@ -1,9 +1,9 @@
-// ─── AI Service — Claude Haiku 4.5 ────────────────────────────────────────────
+// ─── AI Service - Claude Haiku 4.5 ────────────────────────────────────────────
 const Anthropic = require('@anthropic-ai/sdk');
 
 const MODEL = 'claude-haiku-4-5-20251001';
 
-// Lazy client — only created when first needed, safe if key not set yet
+// Lazy client - only created when first needed, safe if key not set yet
 let _client = null;
 function getAnthropicClient() {
   if (!_client) {
@@ -13,10 +13,10 @@ function getAnthropicClient() {
   return _client;
 }
 
-// ─── Concurrency limiter — simultaneous Anthropic calls ───────────────────────
+// ─── Concurrency limiter - simultaneous Anthropic calls ───────────────────────
 // Tunable via AI_MAX_CONCURRENT (Railway env). Defaults to 3 so behaviour is
 // unchanged when unset; raise to 15–25 once running multiple operators. The
-// limiter is per-process (lost on restart) — acceptable until sessions move to
+// limiter is per-process (lost on restart) - acceptable until sessions move to
 // Redis in the platform-scale sprint.
 let _active = 0;
 const _waitQueue = [];
@@ -37,7 +37,7 @@ function releaseSlot() {
   }
 }
 
-// ─── Core wrapper — retry + concurrency ───────────────────────────────────────
+// ─── Core wrapper - retry + concurrency ───────────────────────────────────────
 async function callAnthropic(params, { retries = 4, label = 'ai' } = {}) {
   const client = getAnthropicClient();
   if (!client) throw new Error('ANTHROPIC_API_KEY not configured');
@@ -52,7 +52,7 @@ async function callAnthropic(params, { retries = 4, label = 'ai' } = {}) {
         const retryable = status === 429 || status === 529 || status === 503;
         if (!retryable || attempt === retries) throw err;
         const delay = Math.min(1500 * Math.pow(2, attempt), 20000);
-        console.warn(`[AI:${label}] ${status} — retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+        console.warn(`[AI:${label}] ${status} - retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
         await sleep(delay);
       }
     }
@@ -61,7 +61,7 @@ async function callAnthropic(params, { retries = 4, label = 'ai' } = {}) {
   }
 }
 
-// ─── Staggered parallel — fire tasks with a gap between each ─────────────────
+// ─── Staggered parallel - fire tasks with a gap between each ─────────────────
 // Use this instead of Promise.all when firing multiple AI calls at once
 async function staggeredParallel(tasks, delayMs = 400) {
   const promises = [];
@@ -72,7 +72,7 @@ async function staggeredParallel(tasks, delayMs = 400) {
   return Promise.all(promises);
 }
 
-// Backward-compat shim — existing code uses `client.messages.create(...)` directly
+// Backward-compat shim - existing code uses `client.messages.create(...)` directly
 // Replace with callAnthropic going forward; this keeps old callers working
 const client = {
   messages: {
@@ -86,7 +86,7 @@ const client = {
 // untouched. Only the interpretation changes per use case:
 //   • motivation_score is ALWAYS a 0-100 integer (reinterpreted as
 //     interest/qualification for non-wholesale use cases).
-//   • outcome is ALWAYS one of the existing enum values — each block maps that
+//   • outcome is ALWAYS one of the existing enum values - each block maps that
 //     use case's real-world outcomes onto the closest enum value.
 // The wholesale block reproduces the original prompt verbatim, so wholesale
 // behavior (the default, and all existing data) never changes.
@@ -95,10 +95,10 @@ const ANALYSIS_BLOCKS = {
     role: 'an expert real estate wholesale analyst',
     subject: 'seller call',
     scoring: `SCORING GUIDE:
-- 80-100: Extremely motivated — financial pressure, urgency, desperate to sell
-- 60-79: Motivated — open to selling, timeline in mind, has reasons
-- 40-59: Interested — open to offers, no urgency
-- 20-39: Mildly interested — skeptical, no urgency
+- 80-100: Extremely motivated - financial pressure, urgency, desperate to sell
+- 60-79: Motivated - open to selling, timeline in mind, has reasons
+- 40-59: Interested - open to offers, no urgency
+- 20-39: Mildly interested - skeptical, no urgency
 - 0-19: Not interested, angry, or not relevant`,
     outcomeHint: '',
     extractDeal: true,
@@ -106,10 +106,10 @@ const ANALYSIS_BLOCKS = {
   agent_listing: {
     role: 'an expert listing-agent call analyst',
     subject: 'homeowner listing call',
-    scoring: `SCORING GUIDE (listing intent — higher = more likely to list soon):
-- 80-100: Ready to list — wants a CMA/appointment now, clear timeline
-- 60-79: Strong intent — considering selling, open to an appointment
-- 40-59: Curious — wants their number, no firm timeline
+    scoring: `SCORING GUIDE (listing intent - higher = more likely to list soon):
+- 80-100: Ready to list - wants a CMA/appointment now, clear timeline
+- 60-79: Strong intent - considering selling, open to an appointment
+- 40-59: Curious - wants their number, no firm timeline
 - 20-39: Just gathering info, not committed
 - 0-19: Not selling / already has an agent / hostile`,
     outcomeHint: `OUTCOME MAPPING (map to the closest existing enum value):
@@ -123,10 +123,10 @@ const ANALYSIS_BLOCKS = {
   buyer_agent: {
     role: 'an expert buyer-agent call analyst',
     subject: 'home-buyer call',
-    scoring: `SCORING GUIDE (buyer readiness — higher = more ready to transact):
-- 80-100: Actively buying — pre-approved or ready, clear criteria + timeline
-- 60-79: Motivated buyer — searching now, open to a consultation
-- 40-59: Early — browsing, no financing or timeline yet
+    scoring: `SCORING GUIDE (buyer readiness - higher = more ready to transact):
+- 80-100: Actively buying - pre-approved or ready, clear criteria + timeline
+- 60-79: Motivated buyer - searching now, open to a consultation
+- 40-59: Early - browsing, no financing or timeline yet
 - 20-39: Just curious
 - 0-19: Not buying / already has an agent / hostile`,
     outcomeHint: `OUTCOME MAPPING (map to the closest existing enum value):
@@ -140,7 +140,7 @@ const ANALYSIS_BLOCKS = {
   landlord_pm: {
     role: 'an expert property-management outreach analyst',
     subject: 'rental-owner call',
-    scoring: `SCORING GUIDE (management fit — higher = more frustrated self-manager / better fit):
+    scoring: `SCORING GUIDE (management fit - higher = more frustrated self-manager / better fit):
 - 80-100: Fed-up self-manager, wants help now
 - 60-79: Self-managing with real pain points, open to a call
 - 40-59: Managing okay but curious about cost/benefit
@@ -157,7 +157,7 @@ const ANALYSIS_BLOCKS = {
   investor_outreach: {
     role: 'an expert acquisitions / buyer-list outreach analyst',
     subject: 'investor (cash buyer) call',
-    scoring: `SCORING GUIDE (buyer-list value — higher = stronger, active buyer):
+    scoring: `SCORING GUIDE (buyer-list value - higher = stronger, active buyer):
 - 80-100: Active, well-funded buyer, clear buy box, wants deals now
 - 60-79: Real buyer, defined criteria, open to receiving deals
 - 40-59: Buys occasionally / vague buy box
@@ -174,7 +174,7 @@ const ANALYSIS_BLOCKS = {
   general: {
     role: 'an expert real-estate call analyst',
     subject: 'real estate call',
-    scoring: `SCORING GUIDE (interest — higher = stronger interest / better fit):
+    scoring: `SCORING GUIDE (interest - higher = stronger interest / better fit):
 - 80-100: Strong interest, wants a next step now
 - 60-79: Interested, open to a follow-up
 - 40-59: Mildly interested, no commitment
@@ -192,7 +192,7 @@ const ANALYSIS_BLOCKS = {
 
 /**
  * Analyze a completed call transcript.
- * `useCase` selects the analyst framing (default 'wholesale' — unchanged for
+ * `useCase` selects the analyst framing (default 'wholesale' - unchanged for
  * every existing caller). Returns the same JSON contract for all use cases.
  */
 async function analyzeCallTranscript(transcript, lead = {}, useCase = 'wholesale') {
@@ -202,7 +202,7 @@ async function analyzeCallTranscript(transcript, lead = {}, useCase = 'wholesale
   const block = ANALYSIS_BLOCKS[ucKey];
   const isWholesale = ucKey === 'wholesale';
 
-  // estimated_arv / repair_estimate are wholesale-only deal math — force null
+  // estimated_arv / repair_estimate are wholesale-only deal math - force null
   // for every other use case so the model doesn't hallucinate them.
   const dealFields = isWholesale
     ? `  "estimated_arv": <number or null>,
@@ -359,7 +359,7 @@ CALL SUMMARY: ${callHistory?.[0]?.ai_summary || 'We spoke about your property.'}
 TONE: ${tone}
 
 Write a short, personal, non-pushy follow-up email. Return ONLY valid JSON:
-{"subject": "<subject line>", "body": "<email body — plain text, no HTML>"}`;
+{"subject": "<subject line>", "body": "<email body - plain text, no HTML>"}`;
 
   try {
     const msg = await client.messages.create({ model: MODEL, max_tokens: 400, messages: [{ role: 'user', content: prompt }] });
@@ -370,10 +370,10 @@ Write a short, personal, non-pushy follow-up email. Return ONLY valid JSON:
 }
 
 /**
- * Operator AI Assistant — knows your business
+ * Operator AI Assistant - knows your business
  */
 async function operatorAssistant(message, history = [], context = {}) {
-  // Master Operator doctrine underneath the assistant — guardrails, compliance
+  // Master Operator doctrine underneath the assistant - guardrails, compliance
   // engine, valuation discipline, dispo rigor, structures, prediction honesty.
   // Defensive import so a missing doctrine file can never break the assistant.
   let doctrine = '';
@@ -403,12 +403,12 @@ Keep responses concise but complete. No fluff.`;
 }
 
 /**
- * Aria — Free public real estate chatbot
+ * Aria - Free public real estate chatbot
  */
 async function ariaChatbot(message, history = []) {
   const systemPrompt = `You are Aria, a friendly and knowledgeable free AI real estate advisor available on the Veori AI website.
 
-You help people learn about real estate investing — specifically wholesale real estate.
+You help people learn about real estate investing - specifically wholesale real estate.
 
 You CAN help with:
 - How wholesale real estate works
@@ -430,7 +430,7 @@ You CANNOT do for free (require Veori AI platform signup):
 When someone asks for something that requires the platform, say:
 "That's a great question! To get specific numbers on real properties and run live comps, you'd need access to Veori AI. It takes about 2 minutes to sign up and your first week is free. Want me to walk you through it?"
 
-PERSONALITY: Warm, knowledgeable, encouraging. You celebrate when someone finds a good deal. You make investing feel accessible. Plain language — no jargon unless the user uses it first.
+PERSONALITY: Warm, knowledgeable, encouraging. You celebrate when someone finds a good deal. You make investing feel accessible. Plain language - no jargon unless the user uses it first.
 
 IMPORTANT: Never make up specific property values, specific comps, or specific market data. You give educational guidance, not data analysis.`;
 

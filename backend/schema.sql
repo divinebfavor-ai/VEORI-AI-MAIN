@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- VEORI AI — Complete Database Schema
+-- VEORI AI - Complete Database Schema
 -- Run this in Supabase SQL Editor
 -- ═══════════════════════════════════════════════════════════════════════════════
 

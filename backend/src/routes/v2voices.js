@@ -1,5 +1,5 @@
 /**
- * /api/v2/voices — ElevenLabs voice library + operator voice selection.
+ * /api/v2/voices - ElevenLabs voice library + operator voice selection.
  *
  * Part of the Twilio + ElevenLabs calling layer. Mounted under the NEW /api/v2
  * prefix so it never collides with existing /api routes or the Vapi voice
@@ -9,7 +9,7 @@
  * Module 2 adds the per-operator selection endpoints (read + save) to this same
  * router. Selection is stored in veori_operator_voice_settings (new table) and
  * falls back to the existing users.ai_voice_id / users.ai_caller_name columns
- * when no v2 row exists yet — so an operator who never opens the new picker
+ * when no v2 row exists yet - so an operator who never opens the new picker
  * still has a sensible voice/name.
  */
 
@@ -20,7 +20,7 @@ const elevenLabs = require('../services/elevenLabsService');
 
 const router = express.Router();
 
-// GET /api/v2/voices — all active voices operators can choose from.
+// GET /api/v2/voices - all active voices operators can choose from.
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const voices = await elevenLabs.getVoiceLibrary();
@@ -28,7 +28,7 @@ router.get('/', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/v2/voices/selection — the current operator's saved voice + caller name.
+// GET /api/v2/voices/selection - the current operator's saved voice + caller name.
 // Reads the v2 table first; if there's no row yet, falls back to the existing
 // users.ai_voice_id / users.ai_caller_name so the picker shows a sensible default.
 router.get('/selection', requireAuth, async (req, res, next) => {
@@ -51,7 +51,7 @@ router.get('/selection', requireAuth, async (req, res, next) => {
       });
     }
 
-    // No v2 selection yet — fall back to the operator's existing column values.
+    // No v2 selection yet - fall back to the operator's existing column values.
     const { data: user, error: userErr } = await supabase
       .from('users')
       .select('ai_voice_id, ai_caller_name')
@@ -68,7 +68,7 @@ router.get('/selection', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/v2/voices/selection — save the operator's chosen voice + caller name.
+// POST /api/v2/voices/selection - save the operator's chosen voice + caller name.
 // Body: { selected_voice_id: string, ai_caller_name?: string }.
 // Validates the voice_id exists in veori_voice_library before saving so an
 // operator can't pin a dead/removed voice. Upserts on operator_id (one row each).
@@ -121,17 +121,17 @@ router.post('/selection', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/v2/voices/sync — one-time / on-demand seed of veori_voice_library
+// POST /api/v2/voices/sync - one-time / on-demand seed of veori_voice_library
 // from the live ElevenLabs catalog. Runs on Railway (which holds the key), so no
 // local key or standalone script is needed. Gated by SYNC_ADMIN_TOKEN (set on
 // Railway) on TOP of requireAuth: the caller must send X-Sync-Token matching the
 // env value. If SYNC_ADMIN_TOKEN is unset the route is disabled (503) rather than
-// left open — fail closed, never expose a catalog write to any logged-in operator.
+// left open - fail closed, never expose a catalog write to any logged-in operator.
 router.post('/sync', requireAuth, async (req, res, next) => {
   try {
     const expected = process.env.SYNC_ADMIN_TOKEN;
     if (!expected) {
-      return res.status(503).json({ success: false, error: 'sync disabled — SYNC_ADMIN_TOKEN not configured' });
+      return res.status(503).json({ success: false, error: 'sync disabled - SYNC_ADMIN_TOKEN not configured' });
     }
     const provided = req.headers['x-sync-token'];
     if (!provided || provided !== expected) {
@@ -148,35 +148,35 @@ router.post('/sync', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/v2/voices/:voiceId/preview — generate (once, then cache) a real
+// POST /api/v2/voices/:voiceId/preview - generate (once, then cache) a real
 // preview clip for a voice using the SAME tuned TTS profile the live call uses,
 // so what an operator hears in the picker IS what a seller hears on the phone.
 //
 // WHY (not ElevenLabs' generic preview_url): the operator's cloned voices had no
 // preview_url, and even when present, ElevenLabs' stock preview is a neutral read
-// on default settings — it does NOT reflect our stability/similarity/style tuning
+// on default settings - it does NOT reflect our stability/similarity/style tuning
 // or model (eleven_multilingual_v2). This synthesizes a short sample with
 // synthesizeToUrl() (Railway holds the key), uploads to Supabase Storage, caches
 // the public URL onto veori_voice_library.voice_preview_url, and returns it. On a
 // second call it returns the cached URL without re-spending TTS credits.
 //
-// Gated by plain requireAuth (any logged-in operator can preview) — it only reads
+// Gated by plain requireAuth (any logged-in operator can preview) - it only reads
 // the catalog + writes a preview URL, never changes names/selection/active state.
 // A LONGER, realistic cold-call sample so an operator can actually judge a voice
-// by ear — a short one-liner doesn't reveal pace, warmth, or how a voice handles a
+// by ear - a short one-liner doesn't reveal pace, warmth, or how a voice handles a
 // question vs. a calm close. This mirrors a real opener → soft pitch → question →
 // no-pressure close, so the preview sounds like what a seller hears on the phone.
 // Still env-overridable: set ELEVENLABS_PREVIEW_TEXT to change it live on Railway
 // with no redeploy. (Previews are cached on voice_preview_url, so regenerate with
 // ?force=1 to pick up a new sample for a voice that already has a cached clip.)
 const PREVIEW_SAMPLE_TEXT = process.env.ELEVENLABS_PREVIEW_TEXT
-  || "Hey, how's it going? My name's Alex — I hope I'm not catching you at a bad time. "
+  || "Hey, how's it going? My name's Alex - I hope I'm not catching you at a bad time. "
    + "I'll be real with you, this is a quick call about your property. I work with a few "
    + "local buyers, and I came across your place and wanted to see if you'd ever consider "
-   + "an offer on it. Nothing pushy at all — I'm just trying to understand your situation. "
+   + "an offer on it. Nothing pushy at all - I'm just trying to understand your situation. "
    + "Out of curiosity, have you given any thought to selling, even down the road? "
    + "Either way, I really appreciate you taking a second with me. If the timing's not "
-   + "right, no worries at all — I'm happy to follow up whenever works for you.";
+   + "right, no worries at all - I'm happy to follow up whenever works for you.";
 
 router.post('/:voiceId/preview', requireAuth, async (req, res, next) => {
   try {
@@ -209,12 +209,12 @@ router.post('/:voiceId/preview', requireAuth, async (req, res, next) => {
       callSid: `preview-${voiceId}`,
     });
     if (!url) {
-      // Missing key or TTS failure — never 500 the picker; report cleanly.
+      // Missing key or TTS failure - never 500 the picker; report cleanly.
       return res.status(502).json({ success: false, error: 'preview generation failed (check ELEVENLABS_API_KEY / voice belongs to that account)' });
     }
 
     // Cache the URL so future previews are instant + free. Never touches
-    // voice_name / is_active — preview media only.
+    // voice_name / is_active - preview media only.
     const { error: updErr } = await supabase
       .from('veori_voice_library')
       .update({ voice_preview_url: url, updated_at: new Date().toISOString() })

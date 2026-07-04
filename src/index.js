@@ -1,4 +1,4 @@
-// ─── Load env FIRST — before any other require ────────────────────────────────
+// ─── Load env FIRST - before any other require ────────────────────────────────
 // Railway injects env vars automatically. dotenv is only for local dev.
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
@@ -69,7 +69,7 @@ app.get('/health', (_req, res) =>
 );
 
 app.get('/', (_req, res) =>
-  res.json({ success: true, message: 'VEORI AI API 🚀 — Built to Achieve.' })
+  res.json({ success: true, message: 'VEORI AI API 🚀 - Built to Achieve.' })
 );
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ app.use('/api/deals',     dealsRouter);
 app.use('/api/buyers',    buyersRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/vapi',      vapiRouter);
-// Aria public chatbot — alias so frontend can call /api/aria/chat
+// Aria public chatbot - alias so frontend can call /api/aria/chat
 app.use('/api/aria',      vapiRouter);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────

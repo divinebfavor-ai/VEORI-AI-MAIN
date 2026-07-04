@@ -1,5 +1,5 @@
 /**
- * Features 34-38 — 3D Virtual Tour Engine
+ * Features 34-38 - 3D Virtual Tour Engine
  * Routes: POST /api/tours, GET /api/tours, GET /api/tours/:id,
  *         POST /api/tours/:id/views, GET /api/tours/:token/public,
  *         GET /api/tours/:id/analytics
@@ -10,7 +10,7 @@ const supabase = require('../config/supabase');
 
 router.use(auth);
 
-// POST /api/tours — create a virtual tour from photos
+// POST /api/tours - create a virtual tour from photos
 router.post('/', async (req, res) => {
   try {
     const { listing_id, lead_id, title, photos = [], tour_type = 'slideshow' } = req.body;
@@ -89,7 +89,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/tours — all user tours
+// GET /api/tours - all user tours
 router.get('/', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -106,7 +106,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/tours/:id — tour detail
+// GET /api/tours/:id - tour detail
 router.get('/:id', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -126,7 +126,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// GET /api/tours/:id/analytics — Feature 38: Tour Analytics
+// GET /api/tours/:id/analytics - Feature 38: Tour Analytics
 router.get('/:id/analytics', async (req, res) => {
   try {
     const { data: views, error } = await supabase

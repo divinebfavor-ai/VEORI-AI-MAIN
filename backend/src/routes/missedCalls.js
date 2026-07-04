@@ -1,9 +1,9 @@
 /**
  * Missed Calls Routes
  *
- * GET  /api/missed-calls          — list missed calls for this operator
- * GET  /api/missed-calls/settings — get missed call text-back settings
- * PUT  /api/missed-calls/settings — update settings
+ * GET  /api/missed-calls          - list missed calls for this operator
+ * GET  /api/missed-calls/settings - get missed call text-back settings
+ * PUT  /api/missed-calls/settings - update settings
  */
 
 const express  = require('express');
@@ -13,7 +13,7 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// GET /api/missed-calls — paginated list of missed calls
+// GET /api/missed-calls - paginated list of missed calls
 router.get('/', async (req, res, next) => {
   try {
     const { limit = 50, offset = 0 } = req.query;
@@ -45,7 +45,7 @@ router.get('/settings', async (req, res, next) => {
       success: true,
       settings: {
         enabled:        data?.missed_call_textback_enabled ?? true,
-        message:        data?.missed_call_message ?? 'Hi, I just missed your call. I am interested in your property and would love to connect. What is the best time to reach you? — [Operator Name]',
+        message:        data?.missed_call_message ?? 'Hi, I just missed your call. I am interested in your property and would love to connect. What is the best time to reach you? - [Operator Name]',
         delay_seconds:  data?.missed_call_delay_seconds ?? 60,
       },
     });

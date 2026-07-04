@@ -1,14 +1,14 @@
 /**
  * Lead Engine Routes
  *
- * GET  /api/lead-engine/status          — current scheduler status + last run summary
- * GET  /api/lead-engine/sources         — all sources with stats
- * GET  /api/lead-engine/jobs            — recent job history
- * GET  /api/lead-engine/dashboard       — full dashboard data
- * GET  /api/lead-engine/coverage        — coverage map data by state
- * POST /api/lead-engine/run             — manually trigger a run
- * POST /api/lead-engine/run/:source     — run a single source
- * PUT  /api/lead-engine/sources/:key    — toggle source on/off
+ * GET  /api/lead-engine/status          - current scheduler status + last run summary
+ * GET  /api/lead-engine/sources         - all sources with stats
+ * GET  /api/lead-engine/jobs            - recent job history
+ * GET  /api/lead-engine/dashboard       - full dashboard data
+ * GET  /api/lead-engine/coverage        - coverage map data by state
+ * POST /api/lead-engine/run             - manually trigger a run
+ * POST /api/lead-engine/run/:source     - run a single source
+ * PUT  /api/lead-engine/sources/:key    - toggle source on/off
  */
 
 const router   = require('express').Router();
@@ -22,7 +22,7 @@ const {
 
 const TARGET_STATES = ['PA', 'IL', 'MI']; // covered by free sources right now
 
-// ─── GET /api/lead-engine/test — sync test to see exactly what's happening ───
+// ─── GET /api/lead-engine/test - sync test to see exactly what's happening ───
 router.get('/test', auth, async (req, res) => {
   const {
     pullPhillyLisPendens,
@@ -93,7 +93,7 @@ router.get('/sources', auth, async (req, res) => {
       .eq('user_id', req.user.id)
       .order('total_pulled', { ascending: false });
 
-    // Build full list — include sources not yet run
+    // Build full list - include sources not yet run
     const allSources = Object.entries(SOURCE_LABELS).map(([key, label]) => {
       const rows = (dbSources || []).filter(s => s.source_key === key);
       const totalPulled    = rows.reduce((s, r) => s + (r.total_pulled || r.last_run_count || 0), 0);
@@ -283,7 +283,7 @@ router.get('/search', auth, async (req, res) => {
 });
 
 // ─── POST /api/lead-engine/pull ──────────────────────────────────────────────
-// Fast targeted pull — specific ZIP, city, or state + source type
+// Fast targeted pull - specific ZIP, city, or state + source type
 // Returns results in ~30-60 seconds instead of waiting for the 24h cycle
 router.post('/pull', auth, async (req, res) => {
   try {
@@ -296,10 +296,10 @@ router.post('/pull', auth, async (req, res) => {
     const targetState = state || 'FL';
     const targetSources = sources || ['tax_delinquent', 'lis_pendens', 'probate', 'bankruptcy'];
 
-    // Respond immediately — stream results via polling (client polls /search)
+    // Respond immediately - stream results via polling (client polls /search)
     res.json({
       success: true,
-      message: `Pulling ${targetSources.length} sources for ${city || zip || targetState}. Check your Lead Engine feed — results appear within 60 seconds.`,
+      message: `Pulling ${targetSources.length} sources for ${city || zip || targetState}. Check your Lead Engine feed - results appear within 60 seconds.`,
       target: { state: targetState, city, zip },
     });
 
@@ -309,7 +309,7 @@ router.post('/pull', auth, async (req, res) => {
       targetSources.map(src => runSource(src, targetState, req.user.id))
     ).then(results => {
       const total = results.reduce((s, r) => s + (r.imported || 0), 0);
-      console.log(`[LeadEngine] Targeted pull complete — ${total} leads imported for ${city || zip || targetState}`);
+      console.log(`[LeadEngine] Targeted pull complete - ${total} leads imported for ${city || zip || targetState}`);
     }).catch(err => {
       console.error('[LeadEngine] Targeted pull error:', err.message);
     });
@@ -323,7 +323,7 @@ router.post('/run', auth, async (req, res) => {
   try {
     const { states, sources } = req.body;
 
-    // Run async — respond immediately, process in background
+    // Run async - respond immediately, process in background
     res.json({ success: true, message: 'Lead Engine started. New leads will appear in your pipeline within minutes.' });
 
     runLeadEngine(req.user.id, {

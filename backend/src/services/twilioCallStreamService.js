@@ -1,5 +1,5 @@
 /**
- * Twilio Call Stream Service — outbound dial engine for the v2 "stream" pipeline.
+ * Twilio Call Stream Service - outbound dial engine for the v2 "stream" pipeline.
  *
  * This is the streaming-mode sibling of twilioCallService.js. It exists so the
  * VOICE_ENGINE=stream branch of vapiService.initiateCall has something to delegate
@@ -32,7 +32,7 @@ const PUBLIC_BASE = process.env.PUBLIC_BASE_URL
     ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
     : null);
 
-/** Lazy Twilio client — only when creds present (same pattern as twilioCallService). */
+/** Lazy Twilio client - only when creds present (same pattern as twilioCallService). */
 function getClient() {
   if (!TWILIO_SID || !TWILIO_TOKEN) return null;
   return twilio(TWILIO_SID, TWILIO_TOKEN);
@@ -57,7 +57,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
     throw new Error('Twilio not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN missing)');
   }
   if (!PUBLIC_BASE) {
-    throw new Error('PUBLIC_BASE_URL / RAILWAY_PUBLIC_DOMAIN not set — Twilio cannot reach the voice webhook');
+    throw new Error('PUBLIC_BASE_URL / RAILWAY_PUBLIC_DOMAIN not set - Twilio cannot reach the voice webhook');
   }
 
   const to = toE164(lead?.phone);
@@ -75,7 +75,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
 
   // Identical lifecycle / AMD / recording callbacks to the turn-based engine.
   // callId rides in the query so /status can key on OUR calls.id from the very
-  // first event — Twilio fires 'initiated'/'ringing' before the dial path has
+  // first event - Twilio fires 'initiated'/'ringing' before the dial path has
   // written vapi_call_id to the row, so sid-keyed updates lose that race
   // (0 rows matched, status/outcome silently dropped).
   const statusUrl = `${PUBLIC_BASE}/api/v2/voice/status?callId=${encodeURIComponent(callId || '')}`;

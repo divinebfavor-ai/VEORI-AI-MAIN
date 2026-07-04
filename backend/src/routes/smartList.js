@@ -1,5 +1,5 @@
 /**
- * Feature 13 — Smart List Prioritization Engine
+ * Feature 13 - Smart List Prioritization Engine
  * Routes: GET /api/smart-list/prioritized, POST /api/smart-list/save, GET /api/smart-list/saved
  */
 const router  = require('express').Router();
@@ -8,7 +8,7 @@ const supabase = require('../config/supabase');
 
 router.use(auth);
 
-// GET /api/smart-list/prioritized — rank all leads by composite score
+// GET /api/smart-list/prioritized - rank all leads by composite score
 router.get('/prioritized', async (req, res) => {
   try {
     const userId = req.user.id;
@@ -65,7 +65,7 @@ router.get('/prioritized', async (req, res) => {
   }
 });
 
-// GET /api/smart-list/saved — list saved smart filters
+// GET /api/smart-list/saved - list saved smart filters
 router.get('/saved', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -82,7 +82,7 @@ router.get('/saved', async (req, res) => {
   }
 });
 
-// POST /api/smart-list/save — save a named filter
+// POST /api/smart-list/save - save a named filter
 router.post('/save', async (req, res) => {
   try {
     const { name, filters, sort_by } = req.body;
@@ -102,7 +102,7 @@ router.post('/save', async (req, res) => {
   }
 });
 
-// DELETE /api/smart-list/:id — remove saved list
+// DELETE /api/smart-list/:id - remove saved list
 router.delete('/:id', async (req, res) => {
   try {
     const { error } = await supabase

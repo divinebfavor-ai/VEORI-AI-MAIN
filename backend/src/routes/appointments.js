@@ -1,13 +1,13 @@
 /**
  * Appointments Routes
  *
- * GET    /api/appointments                    — list appointments
- * POST   /api/appointments                    — create appointment manually
- * PUT    /api/appointments/:id                — update appointment (reschedule / cancel)
- * DELETE /api/appointments/:id                — delete appointment
- * GET    /api/appointments/availability       — get operator availability slots
- * POST   /api/appointments/availability       — save availability slot
- * DELETE /api/appointments/availability/:id   — remove availability slot
+ * GET    /api/appointments                    - list appointments
+ * POST   /api/appointments                    - create appointment manually
+ * PUT    /api/appointments/:id                - update appointment (reschedule / cancel)
+ * DELETE /api/appointments/:id                - delete appointment
+ * GET    /api/appointments/availability       - get operator availability slots
+ * POST   /api/appointments/availability       - save availability slot
+ * DELETE /api/appointments/availability/:id   - remove availability slot
  */
 
 const express  = require('express');
@@ -17,7 +17,7 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// GET /api/appointments — upcoming appointments for this operator
+// GET /api/appointments - upcoming appointments for this operator
 router.get('/', async (req, res, next) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
@@ -39,7 +39,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/appointments — manually create appointment
+// POST /api/appointments - manually create appointment
 router.post('/', async (req, res, next) => {
   try {
     const { lead_id, scheduled_at, notes, motivation_score } = req.body;
@@ -63,7 +63,7 @@ router.post('/', async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Lead not found' });
     }
 
-    // Prevent double booking — check no other appointment exists at the same slot
+    // Prevent double booking - check no other appointment exists at the same slot
     const slotStart = new Date(scheduled_at);
     const slotEnd   = new Date(slotStart.getTime() + 30 * 60 * 1000); // 30-min buffer
 
@@ -110,7 +110,7 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/appointments/:id — update (reschedule / cancel / complete)
+// PUT /api/appointments/:id - update (reschedule / cancel / complete)
 router.put('/:id', async (req, res, next) => {
   try {
     const allowedFields = ['scheduled_at', 'status', 'notes', 'call_notes', 'outcome', 'reminder_sent'];
@@ -176,7 +176,7 @@ router.get('/availability', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/appointments/availability — upsert a day's availability
+// POST /api/appointments/availability - upsert a day's availability
 router.post('/availability', async (req, res, next) => {
   try {
     const { day_of_week, start_time, end_time, buffer_minutes, max_per_day } = req.body;
@@ -191,7 +191,7 @@ router.post('/availability', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'day_of_week must be 0–6' });
     }
 
-    // Upsert — replace existing slot for this day
+    // Upsert - replace existing slot for this day
     const { data: existing } = await supabase
       .from('availability_slots')
       .select('id')

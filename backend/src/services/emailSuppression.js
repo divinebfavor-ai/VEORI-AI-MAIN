@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// emailSuppression — Feature C: per-operator email opt-out / do-not-email list.
+// emailSuppression - Feature C: per-operator email opt-out / do-not-email list.
 //
 // WHY: CAN-SPAM requires a working unsubscribe. Veori already SENDS email (Resend
 // via emailService.js) but had no suppression. This is the single source of truth
@@ -8,7 +8,7 @@
 //
 // SAFETY / ZERO-REGRESSION:
 //   • Pure data helpers. Reads/writes only the NEW email_suppressions /
-//     email_optout_tokens tables — never touches leads, email_log, or sequences.
+//     email_optout_tokens tables - never touches leads, email_log, or sequences.
 //   • Every function fails OPEN-SAFE: if the table is missing or Supabase errors,
 //     isEmailSuppressed returns false (send proceeds) so existing email keeps
 //     working even before the migration is run. Suppression only ever ADDS a gate.

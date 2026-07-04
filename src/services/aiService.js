@@ -1,4 +1,4 @@
-// ─── AI Service — Claude Haiku 4.5 ────────────────────────────────────────────
+// ─── AI Service - Claude Haiku 4.5 ────────────────────────────────────────────
 const Anthropic = require('@anthropic-ai/sdk');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -33,10 +33,10 @@ Respond with ONLY valid JSON (no markdown, no explanation):
 }
 
 SCORING GUIDE:
-- 80-100: Extremely motivated — financial pressure, urgency, desperate to sell
-- 60-79: Motivated — open to selling, timeline in mind, has reasons
-- 40-59: Interested — open to offers, no urgency
-- 20-39: Mildly interested — skeptical, no urgency
+- 80-100: Extremely motivated - financial pressure, urgency, desperate to sell
+- 60-79: Motivated - open to selling, timeline in mind, has reasons
+- 40-59: Interested - open to offers, no urgency
+- 20-39: Mildly interested - skeptical, no urgency
 - 0-19: Not interested, angry, or not relevant`;
 
   try {
@@ -161,7 +161,7 @@ CALL SUMMARY: ${callHistory?.[0]?.ai_summary || 'We spoke about your property.'}
 TONE: ${tone}
 
 Write a short, personal, non-pushy follow-up email. Return ONLY valid JSON:
-{"subject": "<subject line>", "body": "<email body — plain text, no HTML>"}`;
+{"subject": "<subject line>", "body": "<email body - plain text, no HTML>"}`;
 
   try {
     const msg = await client.messages.create({ model: MODEL, max_tokens: 400, messages: [{ role: 'user', content: prompt }] });
@@ -172,7 +172,7 @@ Write a short, personal, non-pushy follow-up email. Return ONLY valid JSON:
 }
 
 /**
- * Operator AI Assistant — knows your business
+ * Operator AI Assistant - knows your business
  */
 async function operatorAssistant(message, history = [], context = {}) {
   const systemPrompt = `You are an expert wholesale real estate advisor with 15 years of experience. You are assisting a Veori AI operator manage their real estate acquisitions business.
@@ -197,12 +197,12 @@ Keep responses concise but complete. No fluff.`;
 }
 
 /**
- * Aria — Free public real estate chatbot
+ * Aria - Free public real estate chatbot
  */
 async function ariaChatbot(message, history = []) {
   const systemPrompt = `You are Aria, a friendly and knowledgeable free AI real estate advisor available on the Veori AI website.
 
-You help people learn about real estate investing — specifically wholesale real estate.
+You help people learn about real estate investing - specifically wholesale real estate.
 
 You CAN help with:
 - How wholesale real estate works
@@ -224,7 +224,7 @@ You CANNOT do for free (require Veori AI platform signup):
 When someone asks for something that requires the platform, say:
 "That's a great question! To get specific numbers on real properties and run live comps, you'd need access to Veori AI. It takes about 2 minutes to sign up and your first week is free. Want me to walk you through it?"
 
-PERSONALITY: Warm, knowledgeable, encouraging. You celebrate when someone finds a good deal. You make investing feel accessible. Plain language — no jargon unless the user uses it first.
+PERSONALITY: Warm, knowledgeable, encouraging. You celebrate when someone finds a good deal. You make investing feel accessible. Plain language - no jargon unless the user uses it first.
 
 IMPORTANT: Never make up specific property values, specific comps, or specific market data. You give educational guidance, not data analysis.`;
 

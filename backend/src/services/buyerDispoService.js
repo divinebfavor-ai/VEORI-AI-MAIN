@@ -1,17 +1,17 @@
 /**
- * Buyer Disposition Service — the BUY side of the auto-disposition loop.
+ * Buyer Disposition Service - the BUY side of the auto-disposition loop.
  *
  * When a deal goes under_contract we want to (a) find the cash buyers whose
  * buy-box fits the deal and (b) blast them the deal so it moves fast. This module
  * owns the matching + the blast; it reuses the Phase-1 SMS queue (enqueueSMS) so a
  * buyer blast scales exactly like a seller blast (rotation, daily caps, DNC, credit
- * metering, durability — all enforced inside smsBlastProcessor).
+ * metering, durability - all enforced inside smsBlastProcessor).
  *
- * IMPORTANT — this is the SINGLE correct buyer matcher. The old inline match in
+ * IMPORTANT - this is the SINGLE correct buyer matcher. The old inline match in
  * deals.js (under_contract hook) queried dead columns `preferred_states` /
  * `max_purchase_price` which don't exist on the live `buyers` table, so it always
  * returned nothing. The live schema is `buy_box_states` (text[]), `buy_box_types`
- * (text[]), `max_price` (numeric), `is_active` (bool) — matchBuyers uses those.
+ * (text[]), `max_price` (numeric), `is_active` (bool) - matchBuyers uses those.
  */
 
 const supabase     = require('../config/supabase');
@@ -31,7 +31,7 @@ const BUYER_MATCH_CAP  = Number(process.env.BUYER_MATCH_CAP) || 2000;
 /**
  * Fetch up to BUYER_MATCH_CAP rows from a buyers query, paged via .range().
  * `build()` must return a FRESH PostgREST query builder on each call (filters
- * applied, no .range()/.limit()). Returns { rows, error } — error is the first
+ * applied, no .range()/.limit()). Returns { rows, error } - error is the first
  * page error (caller decides how to treat it; pool query tolerates missing column).
  */
 async function fetchBuyersPaged(build) {
@@ -55,7 +55,7 @@ function dealAskPrice(deal) {
   if (deal.buyer_price)  return Number(deal.buyer_price);
   if (deal.offer_price)  return Math.round(Number(deal.offer_price) * 1.1);
   if (deal.seller_agreed_price) return Math.round(Number(deal.seller_agreed_price) * 1.1);
-  return null; // unknown — don't price-filter
+  return null; // unknown - don't price-filter
 }
 
 /**
@@ -93,7 +93,7 @@ async function matchBuyers(deal) {
     // pool (share_to_pool = true). Owner stays user_id; these are additive exposure so
     // a fitting deal can reach a shared buyer. When no one has opted in this returns
     // nothing and behavior is identical to before. Tagged from_pool so the caller knows
-    // whose buyer it is. NO fee logic / cross-operator side effects here — visibility
+    // whose buyer it is. NO fee logic / cross-operator side effects here - visibility
     // only. Degrades silently if share_to_pool column isn't migrated yet.
     let poolBuyers = [];
     try {
@@ -166,13 +166,13 @@ function buildBuyerSMS(deal, buyer) {
   const price = ask ? ` for $${Number(ask).toLocaleString()}` : '';
   const first = (buyer.name || '').split(' ')[0];
   const hi = first ? `Hi ${first}, ` : '';
-  return `${hi}I've got a deal under contract: ${addr}${price}${arv}. Fits your buy box — interested? Reply YES and I'll send the assignment contract.`;
+  return `${hi}I've got a deal under contract: ${addr}${price}${arv}. Fits your buy box - interested? Reply YES and I'll send the assignment contract.`;
 }
 
 /**
  * Start (or refresh) a buyer blast for a deal.
  *   1. find matching buyers (or, if none match, fall back to ALL active buyers so the
- *      deal still gets exposure — wholesalers would rather over-blast than miss).
+ *      deal still gets exposure - wholesalers would rather over-blast than miss).
  *   2. create/refresh a buyer_campaigns row for the deal.
  *   3. enqueue one SMS per buyer onto the Phase-1 SMS_BLAST queue (rotation, DNC,
  *      credit metering, daily caps all enforced downstream).
@@ -189,7 +189,7 @@ async function startBuyerBlast(dealId, userId) {
   if (!supabase || !dealId || !userId) return { campaignId: null, matched: 0, enqueued: 0 };
 
   const { data: deal } = await supabase.from('deals').select('*').eq('id', dealId).single();
-  if (!deal) { console.warn(`[BuyerDispo] deal ${dealId} not found — no blast`); return { campaignId: null, matched: 0, enqueued: 0 }; }
+  if (!deal) { console.warn(`[BuyerDispo] deal ${dealId} not found - no blast`); return { campaignId: null, matched: 0, enqueued: 0 }; }
 
   // 1. Match (fall back to all active buyers if no buy-box match).
   let buyers = await matchBuyers(deal);
@@ -237,7 +237,7 @@ async function startBuyerBlast(dealId, userId) {
         userId,
         to:         buyer.phone,
         body,
-        // no smsFirstLeadId — buyers don't get sms_first_leads rows
+        // no smsFirstLeadId - buyers don't get sms_first_leads rows
       });
       if (jobId) enqueued += 1;
     } catch (e) {
@@ -245,7 +245,7 @@ async function startBuyerBlast(dealId, userId) {
     }
   }
 
-  // 4. Bump the sent counter (additive — column added in the Phase-1 migration).
+  // 4. Bump the sent counter (additive - column added in the Phase-1 migration).
   if (campaignId && enqueued) {
     try {
       const { data: row } = await supabase.from('buyer_campaigns').select('sms_sent').eq('id', campaignId).single();

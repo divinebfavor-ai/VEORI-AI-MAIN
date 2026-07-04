@@ -1,26 +1,26 @@
 /**
- * SECTION E — COPILOT / AUTOPILOT operator mode.
+ * SECTION E - COPILOT / AUTOPILOT operator mode.
  *
  * Veori is the operator's AI COO. This service decides, for each AI-recommended
  * action, whether it may run AUTOMATICALLY or must wait for the operator to approve.
- * It does NOT execute anything — it's a pure policy/classifier the COO route uses to
+ * It does NOT execute anything - it's a pure policy/classifier the COO route uses to
  * annotate the action queue. Execution stays in the existing engines.
  *
  * THREE MODES (operator-set on the users row, defaults to the safest):
- *   • 'manual'   — AI only suggests; the operator does everything. (Most cautious.)
- *   • 'copilot'  — DEFAULT. AI drafts/queues every action but each one needs a click
+ *   • 'manual'   - AI only suggests; the operator does everything. (Most cautious.)
+ *   • 'copilot'  - DEFAULT. AI drafts/queues every action but each one needs a click
  *                  to fire. The operator is always in the loop.
- *   • 'autopilot'— AI auto-fires LOW-risk, reversible actions within guardrails;
+ *   • 'autopilot'- AI auto-fires LOW-risk, reversible actions within guardrails;
  *                  anything medium/high-risk still routes to the operator for
  *                  approval. Autopilot NEVER skips the hard guardrails below.
  *
- * HARD GUARDRAILS (apply in EVERY mode, autopilot included — these can never auto):
+ * HARD GUARDRAILS (apply in EVERY mode, autopilot included - these can never auto):
  *   - Anything that sends a legal document or contract.
  *   - Anything that moves money or commits funds.
  *   - Anything touching DNC / consent / compliance.
  *   - Anything irreversible (deleting, closing a deal, marking dead).
  * These always require an explicit human approval. Autopilot is a convenience for the
- * routine, reversible nudges — never for the consequential, irreversible commitments.
+ * routine, reversible nudges - never for the consequential, irreversible commitments.
  *
  * HONESTY: this returns a decision + reason for each action so the UI can show WHY an
  * action is auto vs needs-approval. Nothing here fabricates; it only classifies.
@@ -80,22 +80,22 @@ function decide(action, mode) {
   const risk = classifyRisk(action);
 
   if (m === 'manual') {
-    return { disposition: 'suggest', risk, reason: 'Manual mode — AI suggests, you act.' };
+    return { disposition: 'suggest', risk, reason: 'Manual mode - AI suggests, you act.' };
   }
 
   if (risk === 'guardrailed') {
-    return { disposition: 'approve', risk, reason: 'High-stakes/irreversible — always needs your approval, even on autopilot.' };
+    return { disposition: 'approve', risk, reason: 'High-stakes/irreversible - always needs your approval, even on autopilot.' };
   }
 
   if (m === 'autopilot') {
     if (risk === 'low') {
-      return { disposition: 'auto', risk, reason: 'Autopilot — low-risk, reversible action runs automatically.' };
+      return { disposition: 'auto', risk, reason: 'Autopilot - low-risk, reversible action runs automatically.' };
     }
-    return { disposition: 'approve', risk, reason: 'Autopilot — medium-risk action queued for a quick approval.' };
+    return { disposition: 'approve', risk, reason: 'Autopilot - medium-risk action queued for a quick approval.' };
   }
 
   // copilot (default)
-  return { disposition: 'approve', risk, reason: 'Copilot — queued for your one-click approval.' };
+  return { disposition: 'approve', risk, reason: 'Copilot - queued for your one-click approval.' };
 }
 
 /**
@@ -117,9 +117,9 @@ function annotateActions(actions, mode) {
   const suggest = annotated.filter(a => a.disposition === 'suggest').length;
 
   let summary;
-  if (m === 'manual')      summary = `Manual mode — ${annotated.length} suggestions for you to act on.`;
-  else if (m === 'autopilot') summary = `Autopilot — ${auto} will run automatically, ${approve} need your approval.`;
-  else                     summary = `Copilot — ${approve} actions queued for your approval.`;
+  if (m === 'manual')      summary = `Manual mode - ${annotated.length} suggestions for you to act on.`;
+  else if (m === 'autopilot') summary = `Autopilot - ${auto} will run automatically, ${approve} need your approval.`;
+  else                     summary = `Copilot - ${approve} actions queued for your approval.`;
 
   return { mode: m, actions: annotated, auto_count: auto, approve_count: approve, suggest_count: suggest, summary };
 }

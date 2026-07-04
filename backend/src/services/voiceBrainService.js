@@ -1,5 +1,5 @@
 /**
- * Voice Brain Service — the "what does the agent say next" seam for the live,
+ * Voice Brain Service - the "what does the agent say next" seam for the live,
  * turn-based Twilio + ElevenLabs conversation (v2 calling layer).
  *
  * MODULE 7 (this file, now): the real Claude brain. nextTurn() runs the actual
@@ -12,7 +12,7 @@
  *   openingLine(ctx) -> string
  *   nextTurn({ ...ctx, callId, callSid, speech, confidence }) -> { reply, end, emotion }
  *
- * (emotion is an ADDITIVE field — an optional per-line delivery cue like 'gentle'
+ * (emotion is an ADDITIVE field - an optional per-line delivery cue like 'gentle'
  * or 'excited' that the audio seam maps to dynamic ElevenLabs voice_settings so
  * the line is spoken with feeling instead of one flat setting. Callers that ignore
  * it behave exactly as before.)
@@ -23,7 +23,7 @@
  * STATE: each /gather webhook is a fresh stateless HTTP request, so the running
  * transcript is held in an in-memory Map keyed by callId (single Railway process,
  * a call lasts minutes). If the process restarts mid-call the history resets for
- * that one call — acceptable; Module 8 adds the durable Supabase transcript log.
+ * that one call - acceptable; Module 8 adds the durable Supabase transcript log.
  *
  * END-OF-CALL: Claude is told to append a sentinel token [[END_CALL]] to its
  * final line when the conversation is naturally done. We strip the sentinel
@@ -31,7 +31,7 @@
  * are safety nets so a call always terminates even if Claude never emits it.
  *
  * RESILIENCE: any Claude/SDK failure falls back to a safe spoken line and keeps
- * the call listening rather than dropping — the line is never left dead.
+ * the call listening rather than dropping - the line is never left dead.
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
@@ -45,7 +45,7 @@ function getAnthropic() {
   if (!anthropicClient) {
     anthropicClient = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      timeout: 30000,   // 30s — a live phone turn must resolve fast or fall back
+      timeout: 30000,   // 30s - a live phone turn must resolve fast or fall back
       maxRetries: 1,    // one quick retry only; latency is king on a live call
     });
   }
@@ -55,7 +55,7 @@ function getAnthropic() {
 // Model for the live voice brain. Defaults to the same low-latency model the Vapi
 // path used (claude-haiku-4-5-20251001). Override with VOICE_BRAIN_MODEL on
 // Railway to swap in a smarter/slower model (e.g. claude-sonnet-4-6) with no code
-// change. Latency matters per turn — the seller is waiting on the line.
+// change. Latency matters per turn - the seller is waiting on the line.
 const BRAIN_MODEL = process.env.VOICE_BRAIN_MODEL || 'claude-haiku-4-5-20251001';
 const BRAIN_MAX_TOKENS = parseInt(process.env.VOICE_BRAIN_MAX_TOKENS, 10) || 200;
 const BRAIN_TEMPERATURE = process.env.VOICE_BRAIN_TEMPERATURE
@@ -68,10 +68,10 @@ const BRAIN_TEMPERATURE = process.env.VOICE_BRAIN_TEMPERATURE
 const END_SENTINEL = '[[END_CALL]]';
 
 // Hard safety cap so a call always ends even if Claude never emits the sentinel.
-// Generous — real conversations should end on intent well before this.
+// Generous - real conversations should end on intent well before this.
 const MAX_TURNS = parseInt(process.env.VOICE_BRAIN_MAX_TURNS, 10) || 40;
 
-// Seller goodbye cues — a clear opt-out ends the call immediately and politely,
+// Seller goodbye cues - a clear opt-out ends the call immediately and politely,
 // independent of the model. Lowercased substring match against the transcript.
 const GOODBYE_CUES = [
   'not interested', 'stop calling', 'take me off', 'remove me',
@@ -82,7 +82,7 @@ const GOODBYE_CUES = [
 // The model is told (withEndDirective) to wrap up a call that's going nowhere,
 // but a deterministic backstop guarantees we never keep burning a call that's
 // clearly dead even if the model keeps nursing it. We count consecutive
-// "dead-end" turns — silence, one-word/flat non-answers, and soft brush-offs —
+// "dead-end" turns - silence, one-word/flat non-answers, and soft brush-offs -
 // and once they pile up past a threshold we close warmly ourselves, no model
 // call. ANY substantive seller turn resets the count to zero, so this only ever
 // fires on genuinely repeated dead air / brush-offs, never on a live conversation.
@@ -110,9 +110,9 @@ const FLAT_NONANSWERS = [
 const DEAD_END_LIMIT = parseInt(process.env.VOICE_BRAIN_DEAD_END_LIMIT, 10) || 3;
 
 // Classify one seller turn's contribution to the dead-end count.
-//   2 -> strong dead-end (explicit brush-off) — pushes us to close fast
+//   2 -> strong dead-end (explicit brush-off) - pushes us to close fast
 //   1 -> weak dead-end (silence or a lone flat non-answer)
-//   0 -> substantive engagement — RESETS the streak
+//   0 -> substantive engagement - RESETS the streak
 // heardLower is the already-lowercased, trimmed seller speech ('' on silence).
 function deadEndWeight(heardLower) {
   if (!heardLower) return 1; // silence / no response
@@ -121,12 +121,12 @@ function deadEndWeight(heardLower) {
   const bare = heardLower.replace(/[.!?,\s]+$/g, '').trim();
   if (FLAT_NONANSWERS.includes(bare)) return 1;
   // A very short utterance with no real content (<= 2 words, no digits) is weakly
-  // dead — but only if it isn't a question (a "?" means they're engaging).
+  // dead - but only if it isn't a question (a "?" means they're engaging).
   const words = bare.split(/\s+/).filter(Boolean);
   if (words.length > 0 && words.length <= 2 && !/\d/.test(bare) && !heardLower.includes('?')) {
     return 1;
   }
-  return 0; // real engagement — resets the streak
+  return 0; // real engagement - resets the streak
 }
 
 // Per-call conversation state: callId -> { messages: [{role, content}], turns }.
@@ -150,7 +150,7 @@ function formatTranscript(messages = []) {
 // Persist the running transcript to calls.transcript after each turn (best-effort).
 // Keyed by callId (= calls.id, which the brain holds). This is what lets the
 // /status call-end hook score even after the in-memory session is deleted
-// (sentinel/goodbye/max-turns) or the process restarts mid-call. Never throws —
+// (sentinel/goodbye/max-turns) or the process restarts mid-call. Never throws -
 // a persistence miss must never break a live turn.
 async function persistTranscript(callId, messages) {
   if (!callId) return;
@@ -172,30 +172,30 @@ function withEndDirective(systemPrompt) {
   return `${systemPrompt}
 
 ══════════════════════════════════════════════════════
-ENDING THE CALL (system mechanic — never speak this aloud)
+ENDING THE CALL (system mechanic - never speak this aloud)
 ══════════════════════════════════════════════════════
-When the conversation has reached a natural end — the seller has clearly opted
-out, you've agreed on next steps, or there is genuinely nothing left to say —
+When the conversation has reached a natural end - the seller has clearly opted
+out, you've agreed on next steps, or there is genuinely nothing left to say -
 finish your final spoken sentence normally, then append the exact token ${END_SENTINEL}
 to the very end of your reply. Do NOT say the token out loud or reference it. It
 is a silent signal to hang up. If the conversation should continue, do NOT include
 it. Only ever place it at the end of your last line.
 
-READ THE ROOM — DON'T KEEP A DEAD CALL ALIVE.
+READ THE ROOM - DON'T KEEP A DEAD CALL ALIVE.
 A great caller knows when it's over and lets the person go gracefully. Do NOT
-drag out a call that clearly isn't going anywhere — that wastes their time and
+drag out a call that clearly isn't going anywhere - that wastes their time and
 yours. Wrap up (one warm closing line, then ${END_SENTINEL}) when you see any of these:
 - They're done talking: "I gotta go", "I'm busy", "this isn't a good time",
-  "call me later", "I'm at work" — offer to follow up, then let them go.
+  "call me later", "I'm at work" - offer to follow up, then let them go.
 - Repeated brush-offs: short, flat, non-committal answers two or three turns in a
   row, or they keep saying "no"/"not really"/"I don't know" with no opening. You
-  already made your point; don't circle it again — close warmly.
+  already made your point; don't circle it again - close warmly.
 - Hard no on selling: they've made clear they will not sell and nothing you've
   offered moved them. Respect it, leave the door open for the future, hang up.
 - Dead air / no real engagement: they went silent or keep giving one-word
   non-answers and there's nothing to build on.
-When you wrap for any of these, keep it genuinely warm and no-pressure — never
-sound annoyed or like you're giving up on them. Example: "Totally understand —
+When you wrap for any of these, keep it genuinely warm and no-pressure - never
+sound annoyed or like you're giving up on them. Example: "Totally understand -
 I'll get out of your hair. If anything changes, I'm around. Take care.${END_SENTINEL}"
 The goal is a smart ear: fight for a real conversation, but the moment it's clearly
 not one, end it cleanly instead of burning the call.`;
@@ -204,7 +204,7 @@ not one, end it cleanly instead of burning the call.`;
 /**
  * The agent's opening line when the seller picks up. Seeds the per-call
  * transcript so Claude has continuity from turn one. Deterministic (no model
- * call) so the very first thing the seller hears is instant — no dead air while
+ * call) so the very first thing the seller hears is instant - no dead air while
  * a completion runs. Claude takes over from the seller's first reply onward.
  * @param {object} ctx  loadCallContext() result
  * @returns {string}
@@ -214,7 +214,7 @@ function openingLine(ctx = {}) {
   const company = ctx.operator?.company_name || 'a local real estate group';
   const firstName = ctx.lead?.first_name || 'there';
   const line = `Hi ${firstName}, this is ${aiName} with ${company}. ` +
-    `I know I'm catching you out of the blue — do you have a quick minute?`;
+    `I know I'm catching you out of the blue - do you have a quick minute?`;
 
   // Seed the session so the opener is in Claude's context as the first assistant
   // turn. callId may be absent here (twiml builds it); seed lazily in nextTurn if
@@ -240,7 +240,7 @@ function openingLine(ctx = {}) {
  * @param {object} [args.operator]
  * @param {object} [args.lead]
  * @returns {Promise<{ reply: string, end: boolean, emotion: string|null }>}
- *          emotion is the parsed per-line delivery cue (or null) — additive.
+ *          emotion is the parsed per-line delivery cue (or null) - additive.
  */
 async function nextTurn(args = {}) {
   const { callId, speech = '', operator = {}, lead = {} } = args;
@@ -257,9 +257,9 @@ async function nextTurn(args = {}) {
   if (typeof session.deadEnds !== 'number') session.deadEnds = 0; // sessions seeded by openingLine
   session.turns += 1;
 
-  // Seller explicitly opted out — close immediately and politely, no model call.
+  // Seller explicitly opted out - close immediately and politely, no model call.
   if (heardLower && GOODBYE_CUES.some((c) => heardLower.includes(c))) {
-    const closer = 'No problem at all — I appreciate your time. Have a great day.';
+    const closer = 'No problem at all - I appreciate your time. Have a great day.';
     session.messages.push({ role: 'user', content: heard });
     session.messages.push({ role: 'assistant', content: closer });
     await persistTranscript(callId, session.messages); // flush before discarding
@@ -275,7 +275,7 @@ async function nextTurn(args = {}) {
     session.messages.push({ role: 'user', content: '(no response / silence)' });
   }
 
-  // Smart-ear backstop — update the dead-end streak from THIS turn, and if the
+  // Smart-ear backstop - update the dead-end streak from THIS turn, and if the
   // call has clearly flat-lined (repeated brush-offs / silence / one-word
   // non-answers), close it warmly ourselves instead of burning more of the call.
   // Any substantive turn resets the streak, so this only trips on a genuinely
@@ -284,14 +284,14 @@ async function nextTurn(args = {}) {
   const weight = deadEndWeight(heardLower);
   session.deadEnds = weight === 0 ? 0 : session.deadEnds + weight;
   if (session.turns >= 2 && session.deadEnds >= DEAD_END_LIMIT) {
-    const closer = "I can tell I caught you at a busy time — I'll let you go. If anything changes down the road, I'm around. Take care.";
+    const closer = "I can tell I caught you at a busy time - I'll let you go. If anything changes down the road, I'm around. Take care.";
     session.messages.push({ role: 'assistant', content: closer });
     await persistTranscript(callId, session.messages); // flush before discarding
     sessions.delete(callId);
     return { reply: closer, end: true, emotion: 'warm' };
   }
 
-  // Hard safety cap — always terminate eventually.
+  // Hard safety cap - always terminate eventually.
   if (session.turns >= MAX_TURNS) {
     const closer = "I appreciate you taking the time with me today. I'll follow up shortly. Take care.";
     session.messages.push({ role: 'assistant', content: closer });
@@ -326,15 +326,15 @@ async function nextTurn(args = {}) {
     if (end) reply = reply.split(END_SENTINEL).join('').trim();
 
     // Parse + strip the leading emotion cue ("{gentle} ...") the prompt asks
-    // Claude to prefix each line with. The cue must come off HERE — before the
-    // line is stored/fed back to Claude and before it's spoken — so the tag never
+    // Claude to prefix each line with. The cue must come off HERE - before the
+    // line is stored/fed back to Claude and before it's spoken - so the tag never
     // pollutes the scored transcript nor the next-turn context, and never gets
     // read aloud. Unknown/absent tag → emotion null → base voice (identical to
     // today). The audio seam (speakLine) turns emotion into dynamic voice_settings.
     const { emotion, text: spoken } = elevenLabs.parseEmotionCue(reply);
     reply = spoken;
 
-    // Empty completion guard — never speak nothing.
+    // Empty completion guard - never speak nothing.
     if (!reply) {
       reply = 'Sorry, could you say that again?';
     }
@@ -350,9 +350,9 @@ async function nextTurn(args = {}) {
     return { reply, end, emotion };
   } catch (err) {
     console.warn('[voiceBrain] Claude turn failed, using fallback line:', err.message);
-    // Don't drop the call — speak a safe line and keep the conversation going.
+    // Don't drop the call - speak a safe line and keep the conversation going.
     return {
-      reply: "Sorry, I didn't quite catch that — could you say that again?",
+      reply: "Sorry, I didn't quite catch that - could you say that again?",
       end: false,
       emotion: 'warm',
     };

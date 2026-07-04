@@ -50,7 +50,7 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/buyers/bulk — CSV / list import. Flexible header mapping, phone-dedup,
+// POST /api/buyers/bulk - CSV / list import. Flexible header mapping, phone-dedup,
 // chunked insert. Mirrors leads.js /bulk so a single CSV upload can seed a buyers
 // list (the buy side of the auto-disposition loop).
 router.post('/bulk', async (req, res, next) => {
@@ -99,7 +99,7 @@ router.post('/bulk', async (req, res, next) => {
     const unique = mapped.filter(r => {
       if (r.phone) { if (seenPhone.has(r.phone)) return false; seenPhone.add(r.phone); return true; }
       if (r.name)  { const key = r.name.toLowerCase(); if (seenName.has(key)) return false; seenName.add(key); return true; }
-      return false; // no phone AND no name — drop
+      return false; // no phone AND no name - drop
     });
 
     if (!unique.length) return res.status(400).json({ success: false, error: 'No valid buyers (need a name or phone)' });
@@ -117,7 +117,7 @@ router.post('/bulk', async (req, res, next) => {
 
     // Upsert against the (user_id, phone) unique index (2026-06-19_buyer_dedup.sql)
     // with ignoreDuplicates so a cross-batch race that slips past the JS pre-check
-    // no longer 500s on a 23505 — the duplicate row is simply skipped at the DB. The
+    // no longer 500s on a 23505 - the duplicate row is simply skipped at the DB. The
     // in-memory + existing-phone passes above keep the common case cheap; this is the
     // hard backstop. Rows with a blank phone are ignored by the partial index, so the
     // conflict target is a no-op for them and they insert normally.
@@ -161,10 +161,10 @@ router.delete('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/buyers/:id/score — Feature 14: reliability score 0-100 + A/B/C/D tier.
+// GET /api/buyers/:id/score - Feature 14: reliability score 0-100 + A/B/C/D tier.
 // Counts this operator's closed deals with the buyer (best-effort) and scores
 // proof-of-funds, NCA, buy box, and reachability. Read-only, never throws on a
-// missing column — degrades to whatever fields exist on the row.
+// missing column - degrades to whatever fields exist on the row.
 router.get('/:id/score', async (req, res, next) => {
   try {
     const { data: buyer, error } = await supabase.from('buyers')
@@ -181,7 +181,7 @@ router.get('/:id/score', async (req, res, next) => {
         .eq('buyer_id', req.params.id)
         .in('status', ['closed', 'closed_won', 'funded']);
       closedDeals = count || 0;
-    } catch (_) { /* column may not exist yet — score without it */ }
+    } catch (_) { /* column may not exist yet - score without it */ }
 
     const { calculateBuyerScore } = require('../services/buyerScoreService');
     const result = calculateBuyerScore(buyer, { closedDeals });
@@ -189,10 +189,10 @@ router.get('/:id/score', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/buyers/deal-view/:leadId — Feature 13/10: buyer-SAFE view of a lead.
+// GET /api/buyers/deal-view/:leadId - Feature 13/10: buyer-SAFE view of a lead.
 // Runs the lead through contactMasking so a buyer sees the deal (market, financials,
 // blurred address) but never the seller's raw phone, email, or exact street address.
-// Still operator-auth-gated — this is what the operator forwards, not a public link.
+// Still operator-auth-gated - this is what the operator forwards, not a public link.
 router.get('/deal-view/:leadId', async (req, res, next) => {
   try {
     const { data: lead, error } = await supabase.from('leads')

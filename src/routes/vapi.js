@@ -6,7 +6,7 @@ const { requireAuth, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// POST /api/vapi/webhook — Vapi sends all call events here
+// POST /api/vapi/webhook - Vapi sends all call events here
 router.post('/webhook', async (req, res) => {
   try {
     const event = req.body;
@@ -153,7 +153,7 @@ function mapOutcomeToStatus(outcome) {
   return map[outcome] || 'contacted';
 }
 
-// POST /api/vapi/assistant — Operator AI Assistant (authenticated)
+// POST /api/vapi/assistant - Operator AI Assistant (authenticated)
 router.post('/assistant', requireAuth, async (req, res, next) => {
   try {
     const { message, conversation_history = [] } = req.body;
@@ -187,7 +187,7 @@ router.post('/assistant', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/vapi/aria  OR  /api/aria/chat — Free public Aria chatbot
+// POST /api/vapi/aria  OR  /api/aria/chat - Free public Aria chatbot
 async function ariaHandler(req, res, next) {
   try {
     const { message, history, conversation_history } = req.body;

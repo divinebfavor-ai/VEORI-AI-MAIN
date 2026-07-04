@@ -2,7 +2,7 @@
 -- OPERATOR SMS OPT-IN PROOF IMAGES  (required for toll-free SMS verification)
 -- Additive only. Does NOT change any existing column, default, or constraint.
 --
--- WHY: Twilio's Tollfree/Verifications API now REQUIRES `OptInImageUrls` — one or
+-- WHY: Twilio's Tollfree/Verifications API now REQUIRES `OptInImageUrls` - one or
 -- more publicly-accessible image URLs proving how recipients consented to receive
 -- texts (screenshot of the web form / checkbox / written consent). Submitting a
 -- toll-free verification WITHOUT it fails with:

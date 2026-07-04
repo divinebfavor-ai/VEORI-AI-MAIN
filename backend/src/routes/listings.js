@@ -1,5 +1,5 @@
 /**
- * Features 22-24, 27 — Property Listings, Buyer Qualification, Assignment Contracts
+ * Features 22-24, 27 - Property Listings, Buyer Qualification, Assignment Contracts
  * Routes: CRUD /api/listings, POST /api/listings/:id/blast, POST /api/listings/:id/inquire,
  *         POST /api/listings/:id/qualify-buyers, POST /api/listings/:id/assignment
  */
@@ -11,7 +11,7 @@ router.use(auth);
 
 // ─── LISTINGS CRUD ────────────────────────────────────────────────────────────
 
-// GET /api/listings — all user listings
+// GET /api/listings - all user listings
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/listings/:id — single listing
+// GET /api/listings/:id - single listing
 router.get('/:id', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -51,7 +51,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/listings — create listing
+// POST /api/listings - create listing
 router.post('/', async (req, res) => {
   try {
     const {
@@ -98,7 +98,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/listings/:id — update listing
+// PUT /api/listings/:id - update listing
 router.put('/:id', async (req, res) => {
   try {
     const allowed = [
@@ -125,7 +125,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// ─── PHOTO ENHANCEMENT — Real-ESRGAN via Replicate ───────────────────────────
+// ─── PHOTO ENHANCEMENT - Real-ESRGAN via Replicate ───────────────────────────
 // POST /api/listings/:id/enhance-photos
 // Upscales every photo in the listing using Real-ESRGAN (4x, face enhance on)
 // Saves enhanced URLs back to listing.photos[] and returns them
@@ -245,7 +245,7 @@ router.delete('/:id', async (req, res) => {
 
 // ─── FEATURE 23: BLAST ────────────────────────────────────────────────────────
 
-// POST /api/listings/:id/blast — multi-platform blast
+// POST /api/listings/:id/blast - multi-platform blast
 router.post('/:id/blast', async (req, res) => {
   try {
     const { platforms = [] } = req.body;
@@ -299,7 +299,7 @@ router.post('/:id/blast', async (req, res) => {
 
 // ─── FEATURE 24: BUYER QUALIFICATION ─────────────────────────────────────────
 
-// POST /api/listings/:id/inquire — buyer submits inquiry (public-facing, no auth)
+// POST /api/listings/:id/inquire - buyer submits inquiry (public-facing, no auth)
 router.post('/:id/inquire', async (req, res) => {
   try {
     const { buyer_name, buyer_email, buyer_phone, message, buyer_id } = req.body;
@@ -336,7 +336,7 @@ router.post('/:id/inquire', async (req, res) => {
   }
 });
 
-// POST /api/listings/:id/qualify-buyers — AI qualify all pending inquiries
+// POST /api/listings/:id/qualify-buyers - AI qualify all pending inquiries
 router.post('/:id/qualify-buyers', async (req, res) => {
   try {
     const { data: inquiries, error } = await supabase
@@ -388,7 +388,7 @@ router.post('/:id/qualify-buyers', async (req, res) => {
 
 // ─── FEATURE 27: ASSIGNMENT CONTRACTS ────────────────────────────────────────
 
-// POST /api/listings/:id/assignment — create assignment contract
+// POST /api/listings/:id/assignment - create assignment contract
 router.post('/:id/assignment', async (req, res) => {
   try {
     const { buyer_id, buyer_name, purchase_price, assignment_fee } = req.body;
@@ -462,7 +462,7 @@ router.post('/:id/assignment', async (req, res) => {
   }
 });
 
-// GET /api/listings/:id/assignments — list contracts for a listing
+// GET /api/listings/:id/assignments - list contracts for a listing
 router.get('/:id/assignments', async (req, res) => {
   try {
     const { data, error } = await supabase

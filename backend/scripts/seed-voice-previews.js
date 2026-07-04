@@ -81,11 +81,11 @@ async function withRetry(label, fn, attempts = 6) {
   const byName = new Map(voices.map(v => [String(v.name).toLowerCase(), v]));
 
   // Some Vapi voices (e.g. Gustavo, Rohan) exist but have no hosted preview clip.
-  // Those are skipped and left as previewUrl:null — the frontend already hides the
+  // Those are skipped and left as previewUrl:null - the frontend already hides the
   // preview button when previewUrl is falsy.
   const missing = WANTED.filter(n => !byName.get(n.toLowerCase())?.previewUrl);
   if (missing.length) {
-    console.log(`⚠️  No preview clip available for: ${missing.join(', ')} — they will stay previewUrl:null.`);
+    console.log(`⚠️  No preview clip available for: ${missing.join(', ')} - they will stay previewUrl:null.`);
   }
   const seedable = WANTED.filter(n => byName.get(n.toLowerCase())?.previewUrl);
 

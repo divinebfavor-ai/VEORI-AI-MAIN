@@ -1,9 +1,9 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- seller_profiles.last_rejection_at — rejection cooldown memory (E).
+-- seller_profiles.last_rejection_at - rejection cooldown memory (E).
 --
 -- WHY: a hard "no" / "not interested" / "do not call" / hung-up is a SIGNAL, not a
 -- dead end. Without remembering WHEN it happened, the AI re-pitches the exact same
--- offer the day after the seller said no — which burns the lead. This column stamps
+-- offer the day after the seller said no - which burns the lead. This column stamps
 -- the moment of the last rejection so the brain (dataMotService.buildAccumulatedIntelligenceBlock)
 -- can adapt the re-approach:
 --   <14 days  -> do NOT re-pitch; acknowledge the no, lead with something NEW, soft.

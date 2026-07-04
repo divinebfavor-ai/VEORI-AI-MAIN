@@ -1,14 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// emailSendGuard — Tier 3a: per-operator daily send caps + warmup ramp.
+// emailSendGuard - Tier 3a: per-operator daily send caps + warmup ramp.
 //
 // WHY: New sending domains that suddenly blast hundreds of cold emails on day one
-// get throttled or blocked by Gmail/Outlook — "warming up" (ramping volume over
+// get throttled or blocked by Gmail/Outlook - "warming up" (ramping volume over
 // ~2 weeks) is the single biggest factor in landing in the inbox early on. And
 // even a warmed domain needs a daily ceiling so one runaway campaign can't nuke
 // reputation. This gate enforces BOTH, per operator, reading the existing
 // email_log so no new counters/tables are required.
 //
-// SCOPE — COLD/MARKETING ONLY. Transactional mail (2FA, welcome, contract,
+// SCOPE - COLD/MARKETING ONLY. Transactional mail (2FA, welcome, contract,
 // title) must NEVER be throttled. isThrottleable(emailType) whitelists only the
 // cold-drip + blast types; everything else bypasses the gate entirely.
 //
@@ -37,7 +37,7 @@ const WARMUP_START = num(process.env.EMAIL_WARMUP_START, 20); // day-0 cap
 const WARMUP_STEP  = num(process.env.EMAIL_WARMUP_STEP, 20);  // +per day
 const DAILY_CAP    = num(process.env.EMAIL_DAILY_CAP, 300);   // ceiling (0 = disabled)
 
-// Email types subject to warmup/caps. Cold outreach only — must match the types
+// Email types subject to warmup/caps. Cold outreach only - must match the types
 // the drip (coldDrip1/2/3, possibly suffixed ":B") and the buyer blast use.
 function isThrottleable(emailType) {
   if (!emailType) return false;
@@ -72,7 +72,7 @@ async function firstColdSendAt(userId) {
 }
 
 // Count cold sends already made TODAY (UTC day) for this operator. Only 'sent'
-// rows count toward the cap — throttled/suppressed/failed do not.
+// rows count toward the cap - throttled/suppressed/failed do not.
 async function sentTodayCount(userId) {
   if (!supabase || !userId) return 0;
   try {

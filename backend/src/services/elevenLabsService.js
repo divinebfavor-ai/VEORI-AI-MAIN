@@ -1,5 +1,5 @@
 /**
- * ElevenLabs Service — voice catalog for the Twilio + ElevenLabs calling layer.
+ * ElevenLabs Service - voice catalog for the Twilio + ElevenLabs calling layer.
  *
  * Module 1 of the Vapi -> Twilio + ElevenLabs reroute. This file ONLY handles the
  * voice library (fetch from ElevenLabs, normalise, read/write veori_voice_library).
@@ -16,7 +16,7 @@ const supabase = require('../config/supabase');
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_API_URL = process.env.ELEVENLABS_API_URL || 'https://api.elevenlabs.io/v1';
 
-/** Lazily built axios client — only when a key is present (mirrors smsService Twilio pattern). */
+/** Lazily built axios client - only when a key is present (mirrors smsService Twilio pattern). */
 function getClient() {
   if (!ELEVENLABS_API_KEY) return null;
   return axios.create({
@@ -52,7 +52,7 @@ function normaliseVoice(v) {
 async function fetchVoicesFromApi() {
   const client = getClient();
   if (!client) {
-    console.warn('[ElevenLabs] ELEVENLABS_API_KEY not set — returning empty voice list');
+    console.warn('[ElevenLabs] ELEVENLABS_API_KEY not set - returning empty voice list');
     return [];
   }
   const { data } = await client.get('/voices');
@@ -81,7 +81,7 @@ async function getVoiceLibrary() {
     return fetchVoicesFromApi();
   }
   if (!data || data.length === 0) {
-    // Library not seeded yet — pull live so the UI still shows voices.
+    // Library not seeded yet - pull live so the UI still shows voices.
     return fetchVoicesFromApi();
   }
   return data;
@@ -95,7 +95,7 @@ async function getVoiceLibrary() {
  * NEVER touches voice_name (operators keep their custom names like Matt/Vexa) and
  * NEVER touches is_active (retired stock voices stay retired; it will not
  * resurrect them). Voices in the ElevenLabs account that aren't in the library
- * are ignored — so a full sync can't flood the picker with stock voices again.
+ * are ignored - so a full sync can't flood the picker with stock voices again.
  *
  * WHY: the library is seeded with real voice_ids but NULL preview_url. The ▶
  * Preview button needs a real clip. This reads the live ElevenLabs catalog (which
@@ -121,7 +121,7 @@ async function syncVoiceLibrary() {
     return { synced: 0, voices, note: 'No catalog voice matched an existing library row' };
   }
 
-  // Per-voice UPDATE of preview media ONLY — never voice_name, never is_active.
+  // Per-voice UPDATE of preview media ONLY - never voice_name, never is_active.
   let synced = 0;
   for (const v of targets) {
     const patch = { updated_at: new Date().toISOString() };
@@ -144,7 +144,7 @@ async function syncVoiceLibrary() {
  * Resolve the ElevenLabs voice_id to use for a given operator.
  * Priority: veori_operator_voice_settings.selected_voice_id
  *        -> ELEVENLABS_VOICE_ID env
- *        -> DEFAULT_VOICE_ID (warm 'Brian', never null — avoids the robotic
+ *        -> DEFAULT_VOICE_ID (warm 'Brian', never null - avoids the robotic
  *           Polly fallback when no voice is configured).
  * Read-only helper used by the call engine in later modules.
  */
@@ -163,7 +163,7 @@ async function resolveOperatorVoiceId(operatorId) {
 
 // Default ElevenLabs model + voice settings for phone-call TTS.
 // eleven_multilingual_v2 is markedly more human/expressive than the flat
-// eleven_turbo_v2_5 — it removes the robotic, monotone timbre while keeping
+// eleven_turbo_v2_5 - it removes the robotic, monotone timbre while keeping
 // telephony latency acceptable. Override with ELEVENLABS_TTS_MODEL on Railway.
 // voice_settings: lower stability (more natural prosody/variation), higher
 // similarity_boost (stays true to the chosen voice), a touch of style (warmth /
@@ -172,26 +172,26 @@ async function resolveOperatorVoiceId(operatorId) {
 const TTS_MODEL_ID = process.env.ELEVENLABS_TTS_MODEL || 'eleven_multilingual_v2';
 const TTS_VOICE_SETTINGS = {
   // Natural human-conversation profile (tuned so a seller can't tell it's AI).
-  // These are the ElevenLabs-recommended conversational bands, not extremes —
+  // These are the ElevenLabs-recommended conversational bands, not extremes -
   // extremes are what actually GIVE AWAY a synthetic voice on a phone line:
-  //   stability 0.40  — 0.38-0.45 is the conversational sweet spot. Slightly
+  //   stability 0.40  - 0.38-0.45 is the conversational sweet spot. Slightly
   //                     lower than a flat read gives more natural prosody variance
   //                     (rise/fall between words) so it doesn't sound metronomic.
   //                     Too low (<0.35) starts to wobble/warble ("AI glitching");
   //                     too high (>0.6) goes flat/monotone. 0.40 = human cadence.
-  //   similarity 0.85 — 0.82-0.88 is where a clone stops sounding like an
+  //   similarity 0.85 - 0.82-0.88 is where a clone stops sounding like an
   //                     impression and sounds like the actual person. Kept.
-  //   style 0.22      — a touch of warmth over a neutral read so it sounds
-  //                     engaged, not scripted — but LOW enough that the DEFAULT
+  //   style 0.22      - a touch of warmth over a neutral read so it sounds
+  //                     engaged, not scripted - but LOW enough that the DEFAULT
   //                     read doesn't sit bright/high (the "high in pitch when it's
   //                     not supposed to be" complaint). 0.15-0.30 is the natural
   //                     band; >0.30 tips performative. 0.22 = warm, grounded, calm.
   //                     Per-line emotion (EMOTION_PROFILES) lifts style back up ONLY
   //                     where the moment calls for it (excited/playful), so energy
   //                     MOVES line-to-line instead of every line landing bright.
-  //   speaker_boost   — lifts presence/clarity on a compressed phone line.
+  //   speaker_boost   - lifts presence/clarity on a compressed phone line.
   // Every value stays env-overridable so live delivery can be nudged on Railway
-  // WITHOUT a code redeploy — set ELEVENLABS_TTS_* and it wins. If a test call
+  // WITHOUT a code redeploy - set ELEVENLABS_TTS_* and it wins. If a test call
   // still reads high, raise ELEVENLABS_TTS_STABILITY or drop ELEVENLABS_TTS_STYLE
   // live (no redeploy) until it's right, then optionally bake the winner in here.
   stability:        process.env.ELEVENLABS_TTS_STABILITY ? parseFloat(process.env.ELEVENLABS_TTS_STABILITY) : 0.40,
@@ -205,7 +205,7 @@ const TTS_VOICE_SETTINGS = {
 // like "{gentle}" / "{excited}" (see vapiService buildAlexPrompt "VOICE DELIVERY
 // CUE"). We strip the tag from the words (never spoken) and use it to nudge the
 // ElevenLabs voice_settings FOR THAT ONE LINE, so an empathy line is actually
-// delivered soft/slow and a good-news line is delivered with a lift — instead of
+// delivered soft/slow and a good-news line is delivered with a lift - instead of
 // every line coming out on one flat, identical setting (the thing that reads as
 // robotic even on a great clone).
 //
@@ -218,34 +218,34 @@ const TTS_VOICE_SETTINGS = {
 //   voice stays the SAME person and stays present on the phone line.
 //
 // Each profile is a SMALL, human delta from the tuned base (stability 0.40 /
-// style 0.28) — deliberately within the natural bands (stability 0.30-0.55,
+// style 0.28) - deliberately within the natural bands (stability 0.30-0.55,
 // style 0.20-0.45) so no emotion tips into warble or ham. Unknown/absent tag →
 // base profile (identical to today's behavior). All values clamp on apply.
 // WIDER-BUT-BOUNDED spread (v2): the previous deltas were so tight that every
-// line landed on nearly the same energy — which reads flat/robotic even on a good
+// line landed on nearly the same energy - which reads flat/robotic even on a good
 // voice. These pull the calm emotions LOWER/steadier and push the lively ones
 // HIGHER, so pitch/energy audibly MOVES between lines, while every value stays
 // inside the natural bands (stability ~0.30-0.58, style ~0.16-0.50) so nothing
 // warbles or turns theatrical. Base style dropped to 0.22, so a plain line sits
-// grounded and only the expressive emotions climb — the fix for "too high / flat".
+// grounded and only the expressive emotions climb - the fix for "too high / flat".
 const EMOTION_PROFILES = {
-  // friendly default — a hair of warmth over base, not bright.
+  // friendly default - a hair of warmth over base, not bright.
   warm:       { stability: 0.42, style: 0.30 },
-  // soft, slow, tender — steadier + plainer so it lands gently.
+  // soft, slow, tender - steadier + plainer so it lands gently.
   gentle:     { stability: 0.56, style: 0.18 },
-  // caring/understanding — steady, quietly warm.
+  // caring/understanding - steady, quietly warm.
   empathetic: { stability: 0.54, style: 0.22 },
-  // calm and reassuring — the steadiest, plainest profile: safe/trustworthy.
+  // calm and reassuring - the steadiest, plainest profile: safe/trustworthy.
   reassuring: { stability: 0.58, style: 0.18 },
-  // genuine positive lift — clearly lower stability + higher style = real energy.
+  // genuine positive lift - clearly lower stability + higher style = real energy.
   excited:    { stability: 0.30, style: 0.48 },
-  // sure and grounded (making the offer) — steady but present.
+  // sure and grounded (making the offer) - steady but present.
   confident:  { stability: 0.46, style: 0.34 },
-  // light and interested (asking) — a little lift, gentle swing.
+  // light and interested (asking) - a little lift, gentle swing.
   curious:    { stability: 0.40, style: 0.36 },
-  // light/humor once rapport is real — the most expressive, still bounded.
+  // light/humor once rapport is real - the most expressive, still bounded.
   playful:    { stability: 0.32, style: 0.50 },
-  // measured and direct — plainest + very steady.
+  // measured and direct - plainest + very steady.
   serious:    { stability: 0.54, style: 0.16 },
 };
 
@@ -256,7 +256,7 @@ const clamp01 = (n) => Math.max(0, Math.min(1, n));
 // But individual clones have their own natural character: one reads bright/high,
 // another reads like an audiobook narrator (too even/measured). This map lets a
 // SPECIFIC voice_id carry its own stability/style correction that layers on top
-// of whatever the emotion picked — so the fix follows that voice on every line,
+// of whatever the emotion picked - so the fix follows that voice on every line,
 // in every emotion, without changing any other voice.
 //
 // HOW IT LAYERS (see applyVoiceTuning): emotion is computed first (the swing),
@@ -266,11 +266,11 @@ const clamp01 = (n) => Math.max(0, Math.min(1, n));
 //
 // ADDITIVE + SAFE: a voice_id NOT in this map is byte-identical to before. Every
 // number is env-overridable so you can dial a voice live on Railway with NO
-// redeploy — set the matching ELEVENLABS_TUNE_* var and it wins. Set a var to a
+// redeploy - set the matching ELEVENLABS_TUNE_* var and it wins. Set a var to a
 // number to override; leave unset to use the baked default below.
 //
 //   stability ↑ → steadier, less pitch movement (calmer, less "high/loud").
-//   stability ↓ → more conversational prosody (rise/fall) — kills the flat
+//   stability ↓ → more conversational prosody (rise/fall) - kills the flat
 //                 audiobook-narrator read.
 //   style ↓     → plainer, less bright/performative.
 //   style ↑     → a touch more engaged/expressive (salesperson energy).
@@ -279,14 +279,14 @@ const envNum = (name, fallback) => {
   return Number.isFinite(v) ? v : fallback;
 };
 const VOICE_TUNING = {
-  // Vexa (female, uwJhTSUhU9LVyeRjWtiC) — reads too HIGH and too LOUD. Push
+  // Vexa (female, uwJhTSUhU9LVyeRjWtiC) - reads too HIGH and too LOUD. Push
   // stability UP so her pitch stops jumping bright, and style DOWN so she sits
   // warm/grounded instead of performative. Net: calmer, lower-energy, human.
   uwJhTSUhU9LVyeRjWtiC: {
     stability: envNum('ELEVENLABS_TUNE_VEXA_STABILITY', 0.62),
     style:     envNum('ELEVENLABS_TUNE_VEXA_STYLE',     0.14),
   },
-  // Steven (male, 6YQMyaUWlj0VX652cY1C) — reads like an AUDIOBOOK NARRATOR
+  // Steven (male, 6YQMyaUWlj0VX652cY1C) - reads like an AUDIOBOOK NARRATOR
   // (too even/measured). Drop stability so he gets natural conversational
   // rise/fall, and lift style a touch so he sounds like an engaged cold-caller,
   // not a voiceover. Stays inside the natural band so he doesn't warble.
@@ -324,10 +324,10 @@ function parseEmotionCue(line) {
 }
 
 // ── Human pacing / breath (fixes "too fast" + "no pauses") ───────────────────
-// ElevenLabs has NO speed/rate knob — cadence is controlled by the TEXT. This
+// ElevenLabs has NO speed/rate knob - cadence is controlled by the TEXT. This
 // pure helper inserts the small, natural pauses a real person makes, using ONLY
 // punctuation ElevenLabs already treats as timing (it does NOT read commas /
-// periods / ellipses aloud — they lengthen the gap between words). The result:
+// periods / ellipses aloud - they lengthen the gap between words). The result:
 // each sentence gets a full stop (a breath) instead of a run-on rush, the ask
 // isn't rushed, and a couple of human hesitations ("so...", "honestly...") land
 // where a person would actually pause. Deliberately LIGHT + CAPPED so it never
@@ -343,14 +343,14 @@ function parseEmotionCue(line) {
 //     to today. Hesitation count capped by VOICE_PACING_MAX_HESITATIONS (2).
 //
 // NOTE: call this on the words AFTER parseEmotionCue has stripped any "{emotion}"
-// tag — it operates on spoken text only and does not know about cues.
+// tag - it operates on spoken text only and does not know about cues.
 const PACING_ON = (process.env.VOICE_PACING || 'on').toLowerCase() !== 'off';
 const PACING_MAX_HESITATIONS = Number.isFinite(parseInt(process.env.VOICE_PACING_MAX_HESITATIONS, 10))
   ? Math.max(0, parseInt(process.env.VOICE_PACING_MAX_HESITATIONS, 10))
   : 2;
 // Leading discourse markers that a human naturally trails a beat after. Matched
 // only at the very start of the line (case-insensitive), and only when followed
-// by a comma or space + more words — so we don't touch "Sold." or "Well!".
+// by a comma or space + more words - so we don't touch "Sold." or "Well!".
 const HESITATION_LEADS = ['so', 'well', 'look', 'honestly', 'okay', 'alright', 'right', 'now', 'yeah'];
 
 function humanizePacing(text, opts = {}) {
@@ -378,26 +378,26 @@ function humanizePacing(text, opts = {}) {
     }
 
     // 3) Give the opening greeting a beat: "Hi John, ..." / "Hey there ..." →
-    //    "Hi John — ...". Uses an em dash (a clear breath) after a greeting +
+    //    "Hi John - ...". Uses an em dash (a clear breath) after a greeting +
     //    name/word, only once, only near the start, only if not already dashed.
     s = s.replace(
-      /^(hi|hey|hello)\s+([A-Za-z][\w'-]*)(,?\s+)(?!—)/i,
-      (_all, greet, who) => `${greet} ${who} — `,
+      /^(hi|hey|hello)\s+([A-Za-z][\w'-]*)(,?\s+)(?!-)/i,
+      (_all, greet, who) => `${greet} ${who} - `,
     );
 
     // 4) Ensure sentence-final punctuation so the last clause gets a full stop
     //    (a breath) rather than trailing off flat. Don't add if it already ends
     //    in . ! ? … or a dash.
-    if (!/[.!?…—]$/.test(s)) s = `${s}.`;
+    if (!/[.!?…-]$/.test(s)) s = `${s}.`;
 
     // 5) Collapse any accidental doubled punctuation from the steps above so we
-    //    never emit ".." / " ,." / "—." etc. The intentional "..." pause is an
+    //    never emit ".." / " ,." / "-." etc. The intentional "..." pause is an
     //    ATOM here: we placeholder it first so the collapse rules can't shred it
     //    into a single "." (a period repeated looks like doubled punctuation).
     const ELL = '\u0000';                     // safe sentinel (never in TTS text)
     s = s
       .replace(/\.{3,}/g, ELL)               // protect every ellipsis (3+ dots)
-      .replace(/\s*—\s*/g, ' — ')            // even spacing around em dash
+      .replace(/\s*-\s*/g, ' - ')            // even spacing around em dash
       .replace(/([.!?])\1+/g, '$1')          // ".." → "." (ellipsis already safe)
       .replace(new RegExp(`\\s*,\\s*${ELL}`, 'g'), ELL) // " ,…" → "…"
       .replace(/\s*,\s*\./g, '.')            // " ,." → "."
@@ -408,7 +408,7 @@ function humanizePacing(text, opts = {}) {
 
     return s;
   } catch (_e) {
-    // Never let pacing break a live turn — fall back to the trimmed input.
+    // Never let pacing break a live turn - fall back to the trimmed input.
     return String(text == null ? '' : text).trim();
   }
 }
@@ -427,14 +427,14 @@ function voiceSettingsForEmotion(emotion) {
 }
 // Warm, natural default voice when no operator selection and no ELEVENLABS_VOICE_ID
 // env is set. 'Brian' (nPczCjzI2devNBz1zQrb) is ElevenLabs' conversational,
-// human-sounding male — deliberately NOT the deep, robotic stock 'Adam'
+// human-sounding male - deliberately NOT the deep, robotic stock 'Adam'
 // (pNInz6obpgDQGcFmaJgB). Operators can still pick any voice from the library.
 //
 // "ROOM / PRESENCE" NOTE: the pacing + emotion tuning above make the DELIVERY
-// human, but studio TTS is dry by design — it can't manufacture the sense of a
+// human, but studio TTS is dry by design - it can't manufacture the sense of a
 // real person on a mic in a room. The real fix for that texture is a licensed/
 // consented voice CLONE (a clone recorded on a real mic carries its own room
-// tone). When the clone is ready it is a pure DROP-IN — no code change:
+// tone). When the clone is ready it is a pure DROP-IN - no code change:
 //   • set ELEVENLABS_DEFAULT_VOICE_ID=<clone voice_id> on Railway (global default), OR
 //   • pick it per-operator in the voice library (resolveOperatorVoiceId wins).
 // Every knob here (pacing, emotion profiles, base settings) still applies to the
@@ -464,7 +464,7 @@ async function synthesizeSpeech(text, voiceId, voiceSettings) {
   const client = getClient();
   const vId = voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
   if (!client || !vId || !text) {
-    if (!client) console.warn('[ElevenLabs] synthesizeSpeech skipped — no API key');
+    if (!client) console.warn('[ElevenLabs] synthesizeSpeech skipped - no API key');
     return null;
   }
   try {
@@ -527,7 +527,7 @@ async function synthesizeToUrl(text, { voiceId, callSid, emotion, voiceSettings 
 // power the turn-based (elevenlabs) engine. This is inert unless VOICE_ENGINE=stream.
 //
 // We open ElevenLabs' input-streaming WebSocket and request output_format=ulaw_8000
-// so the audio Twilio Media Streams needs is produced natively — no transcoding,
+// so the audio Twilio Media Streams needs is produced natively - no transcoding,
 // only re-chunking into Twilio's 160-byte / 20ms frames (done by the caller).
 //
 // ElevenLabs WS reference:
@@ -554,7 +554,7 @@ const STREAM_OUTPUT_FORMAT = process.env.ELEVENLABS_STREAM_FORMAT || 'ulaw_8000'
  * @param {string}   text
  * @param {object}   opts
  * @param {string}   opts.voiceId          ElevenLabs voice_id (required)
- * @param {function} opts.onChunk          (base64Ulaw) => void — per audio frame
+ * @param {function} opts.onChunk          (base64Ulaw) => void - per audio frame
  * @param {AbortSignal} [opts.signal]      abort to stop mid-utterance (barge-in)
  * @returns {Promise<boolean>}             true if audio streamed, false on failure/abort
  */
@@ -562,7 +562,7 @@ function streamTts(text, { voiceId, onChunk, signal } = {}) {
   return new Promise((resolve) => {
     const vId = voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
     if (!ELEVENLABS_API_KEY || !vId || !text) {
-      if (!ELEVENLABS_API_KEY) console.warn('[ElevenLabs] streamTts skipped — no API key');
+      if (!ELEVENLABS_API_KEY) console.warn('[ElevenLabs] streamTts skipped - no API key');
       return resolve(false);
     }
     if (signal?.aborted) return resolve(false);
@@ -607,7 +607,7 @@ function streamTts(text, { voiceId, onChunk, signal } = {}) {
         }));
         // The actual line to speak.
         ws.send(JSON.stringify({ text: `${text} `, try_trigger_generation: true }));
-        // EOS — flush and finish.
+        // EOS - flush and finish.
         ws.send(JSON.stringify({ text: '' }));
       } catch (err) {
         console.warn('[ElevenLabs] streamTts send failed:', err.message);

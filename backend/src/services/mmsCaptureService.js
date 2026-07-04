@@ -1,13 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// mmsCaptureService — Stage 3a: capture seller PHOTOS texted in via MMS.
+// mmsCaptureService - Stage 3a: capture seller PHOTOS texted in via MMS.
 //
 // WHY: sellers very often text pictures of the property ("here's the roof, here's
 // the kitchen"). The SMS webhook historically read only From/Body/To/MessageSid,
-// so those images were silently dropped — they never landed on the lead's chart.
+// so those images were silently dropped - they never landed on the lead's chart.
 // Twilio posts MMS media as NumMedia + MediaUrl{N} + MediaContentType{N} form
 // fields. This service pulls each image down, stores it in the SAME bucket and
 // SAME `lead_photos` table the seller-upload-link flow uses (so the gallery is one
-// unified place), tags it source='sms_mms', and — when the lead has a deal — drops
+// unified place), tags it source='sms_mms', and - when the lead has a deal - drops
 // a `media_received` row on deal_activity so the photo shows in the timeline.
 //
 // Additive + best-effort: any failure is swallowed and logged; it must NEVER block
@@ -61,7 +61,7 @@ async function captureInboundMMS({ body, lead }) {
       const mediaUrl = body[`MediaUrl${i}`];
       const contentType = body[`MediaContentType${i}`] || 'image/jpeg';
       if (!mediaUrl) continue;
-      // Only images — sellers occasionally send vCards/audio; we only want photos.
+      // Only images - sellers occasionally send vCards/audio; we only want photos.
       if (!String(contentType).toLowerCase().startsWith('image/')) continue;
 
       try {

@@ -1,6 +1,6 @@
 -- ─── Features 13–38 Migration ────────────────────────────────────────────────
 -- Run this against Supabase SQL Editor.
--- ALL tables are new — zero existing tables modified.
+-- ALL tables are new - zero existing tables modified.
 
 -- 13: Smart List Prioritization
 CREATE TABLE IF NOT EXISTS smart_lists (

@@ -3,7 +3,7 @@
  *
  * Pulls vacant and rural land parcels with absentee ownership from:
  *  1. USDA Farm Service Agency public parcel data
- *  2. BLM (Bureau of Land Management) GIS API — public land adjacency
+ *  2. BLM (Bureau of Land Management) GIS API - public land adjacency
  *  3. USDA Geospatial Data Gateway
  *
  * All sources are fully public, no API key required.
@@ -15,7 +15,7 @@ const USDA_GDG_BASE = 'https://gdg.sc.egov.usda.gov/GDGOrder.b2a/CoordService';
 const BLM_GIS_BASE  = 'https://gis.blm.gov/arcgis/rest/services/lands/BLM_Natl_SMA_LimitedScale/MapServer';
 const ARCGIS_BASE   = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services';
 
-// USDA Cropland Data Layer — identifies agricultural/rural parcels by state
+// USDA Cropland Data Layer - identifies agricultural/rural parcels by state
 async function pullUSDALand(state) {
   console.log(`[GovLand USDA] Pulling ${state}`);
   try {
@@ -49,7 +49,7 @@ async function pullUSDALand(state) {
         is_absentee:      isAbsentee,
         owner_state:      a.MAIL_STATE || state,
         estimated_value:  parseFloat(a.ACRES || 0) * 3000, // rough estimate per acre
-        notes:            `${a.ACRES || 0} acres — ${a.LAND_USE || 'rural land'}`,
+        notes:            `${a.ACRES || 0} acres - ${a.LAND_USE || 'rural land'}`,
       };
     });
   } catch (err) {
@@ -58,7 +58,7 @@ async function pullUSDALand(state) {
   }
 }
 
-// BLM National Surface Management Agency — public lands adjacent to private
+// BLM National Surface Management Agency - public lands adjacent to private
 async function pullBLMLand(state) {
   console.log(`[GovLand BLM] Pulling ${state}`);
   try {
@@ -73,7 +73,7 @@ async function pullBLMLand(state) {
     });
 
     const features = data?.features || [];
-    // BLM data gives us public land parcels — we flag adjacent private absentee-owned land
+    // BLM data gives us public land parcels - we flag adjacent private absentee-owned land
     return features.map(f => {
       const a = f.attributes || {};
       return {
@@ -83,7 +83,7 @@ async function pullBLMLand(state) {
         property_type:  'rural_land',
         is_vacant:      true,
         is_absentee:    true,
-        notes:          `BLM adjacent parcel — ${Math.round(a.AREAGEO || 0)} sq ft`,
+        notes:          `BLM adjacent parcel - ${Math.round(a.AREAGEO || 0)} sq ft`,
       };
     });
   } catch (err) {

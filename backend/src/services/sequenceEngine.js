@@ -4,8 +4,8 @@ const { sendSMSDirect, escalateToCall } = require('./smsService');
 const { isWithinTcpaWindow, msUntilNextWindow } = require('./tcpaWindow');
 const { mintOptOutToken } = require('./emailSuppression');
 const { dropVoicemail } = require('./voicemailService');
-const { spin } = require('./emailSpintax');           // Tier 2a — per-recipient variation
-const { chooseSubject } = require('./emailSubjectAB'); // Tier 2b — A/B subject rotation
+const { spin } = require('./emailSpintax');           // Tier 2a - per-recipient variation
+const { chooseSubject } = require('./emailSubjectAB'); // Tier 2b - A/B subject rotation
 
 // Public API base for one-click unsubscribe links (Railway injects this in prod).
 const PUBLIC_API_BASE =
@@ -42,16 +42,16 @@ const SEQUENCE_DEFINITIONS = {
     { day: 7,   action: 'email',  template: 'thankYou' },
     { day: 30,  action: 'sms',    message: 'Hi {firstName}, hope the move went smoothly! If you or anyone you know ever needs a quick cash offer, please think of us.' },
     { day: 90,  action: 'email',  template: 'marketUpdate' },
-    { day: 180, action: 'sms',    message: 'Hi {firstName}, this is {aiName}. Hope all is well! We are always buying in your area — if you know anyone looking for a quick cash sale, we would love the referral.' },
+    { day: 180, action: 'sms',    message: 'Hi {firstName}, this is {aiName}. Hope all is well! We are always buying in your area - if you know anyone looking for a quick cash sale, we would love the referral.' },
   ],
-  // Feature C — pure-email cold drip (3 touches). optOut:true → each send carries
+  // Feature C - pure-email cold drip (3 touches). optOut:true → each send carries
   // a one-click unsubscribe link + CAN-SPAM footer. Email-only; no SMS/call steps.
   email_drip: [
     { day: 0,  action: 'email', template: 'coldDrip1', optOut: true },
     { day: 4,  action: 'email', template: 'coldDrip2', optOut: true },
     { day: 9,  action: 'email', template: 'coldDrip3', optOut: true },
   ],
-  // Feature B — ringless voicemail nurture (3 touches). Each step delegates to
+  // Feature B - ringless voicemail nurture (3 touches). Each step delegates to
   // voicemailService.dropVoicemail (federal + internal DNC + phone-rotation gated)
   // and the rvm dispatch defers off-hours to stay inside the TCPA window.
   voicemail_touch: [
@@ -141,13 +141,13 @@ async function executeSequenceStep(seq) {
         expiryDate: new Date(Date.now() + 14 * 86400000).toLocaleDateString(),
       });
 
-      // Tier 2a/2b — stable per-recipient seed so a lead's subject + body copy is
+      // Tier 2a/2b - stable per-recipient seed so a lead's subject + body copy is
       // identical across retries/re-logs (no wording drift) yet differs lead-to-
       // lead (anti-fingerprinting). lead id preferred; email is the fallback.
       const seed = lead?.id || lead?.email || seq.lead_id || '';
 
       // 2b: pick an A/B subject variant. Falls back to the template's own subject
-      // (variant 'A') for any template without a registered bank — zero change.
+      // (variant 'A') for any template without a registered bank - zero change.
       const { subject: abSubject, variant } = chooseSubject(
         step.template, vars, seed, rendered.subject
       );
@@ -159,12 +159,12 @@ async function executeSequenceStep(seq) {
 
       // Record which subject variant was used by suffixing emailType, so the
       // Tier 1 engagement columns (opened_at/open_count) already attribute opens
-      // per variant in email_log — no extra column required.
+      // per variant in email_log - no extra column required.
       const emailType = variant && variant !== 'A'
         ? `${step.template}:${variant}`
         : step.template;
 
-      // Feature C — for opt-out drips, mint a one-click unsubscribe link.
+      // Feature C - for opt-out drips, mint a one-click unsubscribe link.
       let unsubscribeUrl;
       if (step.optOut && PUBLIC_API_BASE) {
         const token = await mintOptOutToken({
@@ -190,12 +190,12 @@ async function executeSequenceStep(seq) {
       ? step.message.replace(/{(\w+)}/g, (_, k) => vars[k] || k)
       : '';
     if (message && lead?.phone) {
-      // DNC gate — hard stop. If the lead is on DNC, skip the SMS step entirely
+      // DNC gate - hard stop. If the lead is on DNC, skip the SMS step entirely
       // (advance the sequence; do not retry). Mirrors smsBlastProcessor/sendReply.
       const { data: dncHit } = await supabase
         .from('dnc_records').select('id').eq('phone', lead.phone).maybeSingle();
       if (dncHit) {
-        console.warn(`[SEQUENCE SMS] ${lead.phone} on DNC — skipping step`);
+        console.warn(`[SEQUENCE SMS] ${lead.phone} on DNC - skipping step`);
       } else if (!isWithinTcpaWindow(lead.property_state)) {
         // TCPA quiet-hours: NEVER send off-hours. Defer this step to the next 8 AM
         // local and return WITHOUT advancing, so it retries cleanly. Fail-safe.
@@ -234,7 +234,7 @@ async function executeSequenceStep(seq) {
           updated_at: new Date().toISOString(),
         }).eq('id', seq.id);
         console.log(`[SEQUENCE RVM] deferred lead ${seq.lead_id} to ${deferUntil} (TCPA)`);
-        return; // do NOT advance — retry cleanly in-window
+        return; // do NOT advance - retry cleanly in-window
       }
       const templateKey = step.template || 'first_contact';
       await dropVoicemail({ lead, operator: user || {}, templateKey })

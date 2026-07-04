@@ -96,9 +96,9 @@ function calculateRepairEstimate(items) {
   return { low, high, midpoint, breakdown };
 }
 
-// ─── E — Dynamic assignment-fee sizing ───────────────────────────────────────
+// ─── E - Dynamic assignment-fee sizing ───────────────────────────────────────
 //
-// The legacy fee is a flat MAO × 0.15 — it ignores the actual deal. On a deal with
+// The legacy fee is a flat MAO × 0.15 - it ignores the actual deal. On a deal with
 // a huge spread that under-charges badly; on a razor-thin deal it can overshoot and
 // scare the buyer off. A 50-year wholesaler reads the SPREAD (the buyer's gross
 // profit = ARV − purchase − repairs) and sizes the fee from what's actually there,
@@ -120,7 +120,7 @@ function calculateRepairEstimate(items) {
 function calculateDynamicFee(arv, purchase, repairs) {
   const spread = Math.round(arv - purchase - repairs);
   if (spread <= 8000) {
-    // No real room — take a token fee only if there's anything, else leave it.
+    // No real room - take a token fee only if there's anything, else leave it.
     const fee = spread > 0 ? Math.min(spread, 5000) : 0;
     return {
       spread, fee,
@@ -140,8 +140,8 @@ function calculateDynamicFee(arv, purchase, repairs) {
   else                      cutPct = 0.40;
 
   let fee = Math.round(spread * cutPct);
-  fee = Math.max(fee, 5000);     // floor — if there's room, it's worth at least $5k
-  fee = Math.min(fee, 100000);   // ceiling — single-assignment sanity cap
+  fee = Math.max(fee, 5000);     // floor - if there's room, it's worth at least $5k
+  fee = Math.min(fee, 100000);   // ceiling - single-assignment sanity cap
 
   const buyerProfit = spread - fee;
   return {
@@ -177,9 +177,9 @@ function calculateScenarios(arv, repairMidpoint) {
     s.buyer_profit_at_mao = Math.round(s.arv - s.mao - s.repairs);
     s.buyer_roi_at_mao = s.mao > 0 ? Math.round((s.buyer_profit_at_mao / (s.mao + s.repairs)) * 100) : 0;
 
-    // E — dynamic fee: size the assignment from the REAL spread at first_offer (our
+    // E - dynamic fee: size the assignment from the REAL spread at first_offer (our
     // target buy) rather than a flat 15% of MAO. This is the number the negotiator
-    // should actually reach for. Additive — legacy fields above are untouched.
+    // should actually reach for. Additive - legacy fields above are untouched.
     s.dynamic_fee = calculateDynamicFee(s.arv, s.first_offer, s.repairs);
   }
 

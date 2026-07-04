@@ -42,7 +42,7 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY IF NOT EXISTS "service_role_only" ON audit_logs
   USING (false);   -- no direct client reads; backend uses service role
 
--- ─── 5. RLS: otp_codes — no direct client access ─────────────────────────────
+-- ─── 5. RLS: otp_codes - no direct client access ─────────────────────────────
 ALTER TABLE otp_codes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY IF NOT EXISTS "service_role_only" ON otp_codes
   USING (false);

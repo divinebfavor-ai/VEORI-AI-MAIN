@@ -1,5 +1,5 @@
 /**
- * Feature 17 — Live Caller ID Reputation Score
+ * Feature 17 - Live Caller ID Reputation Score
  * Routes: GET /api/caller-reputation, GET /api/caller-reputation/:phone,
  *         POST /api/caller-reputation/refresh, POST /api/caller-reputation/bulk-refresh
  */
@@ -9,7 +9,7 @@ const supabase = require('../config/supabase');
 
 router.use(auth);
 
-// GET /api/caller-reputation — all tracked numbers for user
+// GET /api/caller-reputation - all tracked numbers for user
 router.get('/', async (req, res) => {
   try {
     // Pull user's phone numbers from phones table
@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
       if (rep) {
         results.push({ ...p, reputation: rep });
       } else {
-        // No data yet — seed with defaults
+        // No data yet - seed with defaults
         const { data: newRep } = await supabase
           .from('caller_id_reputation')
           .insert({
@@ -58,7 +58,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/caller-reputation/:phone — single number score
+// GET /api/caller-reputation/:phone - single number score
 router.get('/:phone', async (req, res) => {
   try {
     const phone = decodeURIComponent(req.params.phone);
@@ -116,7 +116,7 @@ router.get('/:phone', async (req, res) => {
   }
 });
 
-// POST /api/caller-reputation/refresh — refresh all user's numbers
+// POST /api/caller-reputation/refresh - refresh all user's numbers
 router.post('/refresh', async (req, res) => {
   try {
     const { data: phones } = await supabase

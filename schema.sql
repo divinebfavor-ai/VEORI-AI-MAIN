@@ -1,4 +1,4 @@
--- VEORI AI — Complete Database Schema
+-- VEORI AI - Complete Database Schema
 
 -- Users (operators)
 CREATE TABLE IF NOT EXISTS users (

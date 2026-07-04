@@ -1,5 +1,5 @@
 /**
- * Comps Service — Rentcast API
+ * Comps Service - Rentcast API
  * Gives Alex real ARV, comparable sales, and repair-adjusted offers
  * during live calls. Called as a Vapi tool.
  */
@@ -18,7 +18,7 @@ const headers = () => ({
 // Rentcast bills per request and a single live call can trigger the lookup tool
 // several times (seller restates address, AI re-checks before countering). An
 // address-keyed TTL cache collapses those into one API hit and makes retries
-// free. Process-local (no Redis dependency) — fine because a call lives on one
+// free. Process-local (no Redis dependency) - fine because a call lives on one
 // worker; a cold start simply re-fetches. TTL is long enough to cover a full
 // call + immediate follow-up, short enough that values don't go stale.
 const COMPS_TTL_MS = Number(process.env.COMPS_CACHE_TTL_MS) || 6 * 60 * 60 * 1000; // 6h
@@ -29,7 +29,7 @@ function _cacheKey(address) {
 }
 
 // ─── Comps-based ARV ─────────────────────────────────────────────────────────
-// WHY: Rentcast's avm `value.price` is the AS-IS market value — what the home is
+// WHY: Rentcast's avm `value.price` is the AS-IS market value - what the home is
 // worth in its CURRENT condition. For a distressed/wholesale lead that is NOT the
 // ARV (After-Repair Value), which is what comparable RENOVATED homes sell for.
 // Using as-is value as ARV understates ARV → understates MAO → offers come in too
@@ -121,7 +121,7 @@ async function lookupPropertyValue(address) {
     address,
     arv,
     arv_source: arvSource,   // 'comps' (renovated-comp ARV) | 'avm_as_is' (fallback)
-    as_is_value: asIsValue,  // Rentcast AVM, current condition — kept for reference
+    as_is_value: asIsValue,  // Rentcast AVM, current condition - kept for reference
     arv_range: { low: arvLow, high: arvHigh },
     mao: {
       light_repairs:  maoLight,
@@ -148,15 +148,15 @@ function buildSpokenSummary({ arv, arvLow, arvHigh, maoLight, maoMedium, maoHeav
     summary += ` For example, a similar home ${c.distance_miles ? c.distance_miles + ' miles away' : 'nearby'} sold for ${fmt(c.sale_price)}${c.sold_date ? ' in ' + c.sold_date : ''}.`;
   }
 
-  // E — never leak the ceiling. MAO is the MAXIMUM we'd pay; speaking it anchors
+  // E - never leak the ceiling. MAO is the MAXIMUM we'd pay; speaking it anchors
   // the seller to the top and kills all negotiating room. A real wholesaler opens
   // BELOW their ceiling and lets the seller pull them up. So we speak a conservative
-  // OPENING range (~82% of MAO for light, MAO-heavy as the low end) — leaving the
+  // OPENING range (~82% of MAO for light, MAO-heavy as the low end) - leaving the
   // spread between this and the true MAO as live negotiating room. The true MAO is
   // still returned in `mao` + formatForAlex() for the AI's private context only.
   const openLight = Math.round(maoLight * 0.82);
   const openHeavy = Math.round(maoHeavy * 0.82);
-  summary += ` Depending on the condition of your property, I'd likely be somewhere between ${fmt(openHeavy)} and ${fmt(openLight)} — but I'd want to know more about what it needs before I lock in a number.`;
+  summary += ` Depending on the condition of your property, I'd likely be somewhere between ${fmt(openHeavy)} and ${fmt(openLight)} - but I'd want to know more about what it needs before I lock in a number.`;
 
   if (rentEst) {
     summary += ` For a buyer looking to rent, estimated monthly rent in that area is around $${Math.round(rentEst).toLocaleString()}.`;

@@ -132,23 +132,23 @@ function detectSecondaryTags(lead) {
 
 // ─── Strategy detection ───────────────────────────────────────────────────────
 // Which acquisition strategy fits this lead best. ADDITIVE + independent of the
-// tag pipeline — it reads the same signals but answers a different question: not
+// tag pipeline - it reads the same signals but answers a different question: not
 // "why is this seller motivated" (tag) but "how should we buy this house"
 // (strategy). Pure, never throws, returns { strategy, confidence }.
 //
-//   subject_to     — there's an existing loan with payments to take over. Strong
+//   subject_to     - there's an existing loan with payments to take over. Strong
 //                    when equity is thin (so a cash discount can't clear the loan)
-//                    and/or the seller is behind (arrears) — take over payments.
-//   seller_finance — owner can carry the note: free & clear / very high equity,
+//                    and/or the seller is behind (arrears) - take over payments.
+//   seller_finance - owner can carry the note: free & clear / very high equity,
 //                    landlord/tired-owner signals, not in distress.
-//   lease_option   — rental / landlord with modest equity, not distressed — control
+//   lease_option   - rental / landlord with modest equity, not distressed - control
 //                    now, buy later.
-//   cash           — DEFAULT. Distressed / vacant / needs-repair / strong equity
+//   cash           - DEFAULT. Distressed / vacant / needs-repair / strong equity
 //                    discount. This is the existing wholesale path and the fallback
 //                    for everything the other branches don't claim.
 function detectStrategy(lead) {
   if (!lead || typeof lead !== 'object') {
-    return { strategy: 'cash', confidence: 40, ranked: [{ strategy: 'cash', confidence: 40, reason: 'No lead data — default to cash.' }] };
+    return { strategy: 'cash', confidence: 40, ranked: [{ strategy: 'cash', confidence: 40, reason: 'No lead data - default to cash.' }] };
   }
 
   const equity   = Number(lead.estimated_equity_percent || 0);
@@ -271,7 +271,7 @@ async function tagLead(leadId) {
     const { tag: primaryTag, confidence } = detectPrimaryTag(lead);
     const secondaryTags = detectSecondaryTags(lead);
     const tagReason = buildTagReason(lead, primaryTag, secondaryTags);
-    // Strategy reads the freshly-computed tags too — pass them on the lead so the
+    // Strategy reads the freshly-computed tags too - pass them on the lead so the
     // detector sees the same verdict we're about to write.
     const { strategy, confidence: strategyConfidence, ranked: strategyRanked } = detectStrategy({
       ...lead, primary_tag: primaryTag, secondary_tags: secondaryTags,
@@ -324,14 +324,14 @@ function getOpeningSMS(lead) {
 
   const templates = {
     pre_foreclosure: `Hi ${first}, I came across your property at ${addr}. We help homeowners find a clean, fast exit when things get complicated. Would you be open to a quick conversation? No pressure at all.`,
-    tax_delinquent:  `Hi ${first}, I saw you own a property at ${addr}. We make selling simple — no fees, no hassle, cash offer. Would you be interested in hearing what we can offer?`,
-    absentee_owner:  `Hi ${first}, I'm reaching out about your property at ${addr}. We buy from owners looking to simplify — cash, fast close, no repairs needed. Is that something you'd consider?`,
-    inherited:       `Hi ${first}, I hope everything is going well with you. I wanted to reach out about the property at ${addr}. We work with families to make inherited properties easy to handle. No rush — just wanted to connect.`,
-    probate:         `Hi ${first}, I wanted to reach out about the property at ${addr}. We specialize in making inherited and estate properties simple to sell — cash, any condition. Happy to answer any questions at your pace.`,
-    free_and_clear:  `Hi ${first}, I'm a local investor interested in ${addr}. If you're ever open to a cash offer — clean, fast close — I'd love to make you one. What would make it worth it for you?`,
-    fsbo:            `Hi ${first}, I saw you have ${addr} listed for sale. We can often close faster and with less hassle than a traditional sale — no agent fees. Would you be open to hearing a cash offer?`,
-    vacant:          `Hi ${first}, I noticed your property at ${addr} has been vacant. A vacant property can be a real burden. We buy as-is — any condition, fast close. Would you like an offer?`,
-    cash_buyer:      `Hi ${first}, I have a deal that matches your buy box. Let me know when you have 2 minutes — I'll send over the numbers.`,
+    tax_delinquent:  `Hi ${first}, I saw you own a property at ${addr}. We make selling simple - no fees, no hassle, cash offer. Would you be interested in hearing what we can offer?`,
+    absentee_owner:  `Hi ${first}, I'm reaching out about your property at ${addr}. We buy from owners looking to simplify - cash, fast close, no repairs needed. Is that something you'd consider?`,
+    inherited:       `Hi ${first}, I hope everything is going well with you. I wanted to reach out about the property at ${addr}. We work with families to make inherited properties easy to handle. No rush - just wanted to connect.`,
+    probate:         `Hi ${first}, I wanted to reach out about the property at ${addr}. We specialize in making inherited and estate properties simple to sell - cash, any condition. Happy to answer any questions at your pace.`,
+    free_and_clear:  `Hi ${first}, I'm a local investor interested in ${addr}. If you're ever open to a cash offer - clean, fast close - I'd love to make you one. What would make it worth it for you?`,
+    fsbo:            `Hi ${first}, I saw you have ${addr} listed for sale. We can often close faster and with less hassle than a traditional sale - no agent fees. Would you be open to hearing a cash offer?`,
+    vacant:          `Hi ${first}, I noticed your property at ${addr} has been vacant. A vacant property can be a real burden. We buy as-is - any condition, fast close. Would you like an offer?`,
+    cash_buyer:      `Hi ${first}, I have a deal that matches your buy box. Let me know when you have 2 minutes - I'll send over the numbers.`,
   };
 
   return templates[tag] || templates.absentee_owner;

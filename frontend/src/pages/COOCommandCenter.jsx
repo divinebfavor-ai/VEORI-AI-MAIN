@@ -1,14 +1,14 @@
 /**
- * /coo — AI COO Command Center
+ * /coo - AI COO Command Center
  *
  * Renders the fused 4-answer briefing from GET /api/coo/briefing:
- *   1. What is happening?      (pipeline snapshot — real counts)
+ *   1. What is happening?      (pipeline snapshot - real counts)
  *   2. Why is it happening?    (ranked bottlenecks + evidence)
  *   3. What is likely next?    (pipeline expected value, about-to-close, at-risk)
  *   4. What should I do now?   (EV-sorted action queue + escalations)
  *
- * NEW FILE. Read-only view — never writes. Mirrors the DailyBriefing page's
- * dark theme + fetch/auth pattern. Null-safe: every field degrades to "—" when
+ * NEW FILE. Read-only view - never writes. Mirrors the DailyBriefing page's
+ * dark theme + fetch/auth pattern. Null-safe: every field degrades to "-" when
  * the engine returns null (missing pricing → no fake numbers).
  */
 import React, { useState, useEffect } from 'react'
@@ -20,14 +20,14 @@ function authHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-const money = (v) => (v == null ? '—' : '$' + Number(v).toLocaleString())
-const pct   = (v) => (v == null ? '—' : `${v}%`)
+const money = (v) => (v == null ? '-' : '$' + Number(v).toLocaleString())
+const pct   = (v) => (v == null ? '-' : `${v}%`)
 
 const SEV_COLOR = { high: 'var(--red)', medium: 'var(--gold)', low: 'var(--t3)' }
 
-// Section E — the three operator autonomy modes (must match operatorMode.js).
+// Section E - the three operator autonomy modes (must match operatorMode.js).
 const MODE_OPTIONS = [
-  { id: 'manual',    label: 'Manual',    icon: '✋', color: 'var(--t2)',  hint: 'You drive. The AI only suggests — nothing fires on its own.' },
+  { id: 'manual',    label: 'Manual',    icon: '✋', color: 'var(--t2)',  hint: 'You drive. The AI only suggests - nothing fires on its own.' },
   { id: 'copilot',   label: 'Copilot',   icon: '🤝', color: 'var(--gold)', hint: 'AI queues every action for your one-click approval. (Default)' },
   { id: 'autopilot', label: 'Autopilot', icon: '⚡', color: 'var(--green)', hint: 'Low-risk, reversible actions auto-fire. Contracts, money & DNC always wait for you.' },
 ]
@@ -64,7 +64,7 @@ export default function COOCommandCenter() {
   }
   useEffect(() => { load() }, [])
 
-  // Section E — switch copilot/autopilot mode. Persists via the preferences
+  // Section E - switch copilot/autopilot mode. Persists via the preferences
   // endpoint, then reloads so the action queue re-annotates under the new mode.
   function setMode(mode) {
     setSavingMode(true)
@@ -102,7 +102,7 @@ export default function COOCommandCenter() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Section E — copilot/autopilot mode switch. Governs whether the AI's
+          {/* Section E - copilot/autopilot mode switch. Governs whether the AI's
               recommended actions auto-fire (autopilot, low-risk + reversible only)
               or wait for your approval. Defaults to Copilot. */}
           {now?.operator_mode && (
@@ -148,7 +148,7 @@ export default function COOCommandCenter() {
             <p style={{ fontSize: 15, color: 'var(--t1)', lineHeight: 1.7, margin: 0 }}>{data.headline}</p>
           </div>
 
-          {/* Q1 — What is happening */}
+          {/* Q1 - What is happening */}
           {h && (
             <div style={s.card}>
               <div style={s.eyebrow()}>1 · What's Happening</div>
@@ -164,7 +164,7 @@ export default function COOCommandCenter() {
                   { label: 'Opportunities', value: data.opportunities_count, color: 'var(--green)' },
                 ].map(item => (
                   <div key={item.label} style={s.stat}>
-                    <div style={{ fontSize: 26, fontWeight: 900, color: item.color, marginBottom: 4 }}>{item.value ?? '—'}</div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: item.color, marginBottom: 4 }}>{item.value ?? '-'}</div>
                     <div style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600 }}>{item.label}</div>
                   </div>
                 ))}
@@ -172,7 +172,7 @@ export default function COOCommandCenter() {
             </div>
           )}
 
-          {/* Q3 — What's next (forecast) */}
+          {/* Q3 - What's next (forecast) */}
           {next && (
             <div style={s.card}>
               <div style={s.eyebrow()}>3 · What's Likely Next</div>
@@ -223,7 +223,7 @@ export default function COOCommandCenter() {
             </div>
           )}
 
-          {/* Q2 — Why (bottlenecks) */}
+          {/* Q2 - Why (bottlenecks) */}
           {why && (
             <div style={s.card}>
               <div style={s.eyebrow()}>2 · Why It's Happening</div>
@@ -247,7 +247,7 @@ export default function COOCommandCenter() {
             </div>
           )}
 
-          {/* Q4 — What to do now (action queue) */}
+          {/* Q4 - What to do now (action queue) */}
           {now && (
             <div style={s.card}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -274,7 +274,7 @@ export default function COOCommandCenter() {
               {now.actions?.length ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {now.actions.map((a, i) => {
-                    // Section E — the parallel annotated action carries the disposition
+                    // Section E - the parallel annotated action carries the disposition
                     // under the current mode (auto / approve / suggest). Null-safe.
                     const ann = now.operator_mode?.actions?.[i]
                     const disp = ann && DISPOSITION_BADGE[ann.disposition]
@@ -306,7 +306,7 @@ export default function COOCommandCenter() {
             </div>
           )}
 
-          {/* What I've Learned — Rule 3 (outcome learning) made visible */}
+          {/* What I've Learned - Rule 3 (outcome learning) made visible */}
           {data.learning && (
             <div style={{ ...s.card, border: '1px solid rgba(201,168,76,0.20)' }}>
               <div style={s.eyebrow('var(--gold)')}>What I've Learned</div>
@@ -317,16 +317,16 @@ export default function COOCommandCenter() {
                       { label: 'Deals Closed', value: data.learning.won, color: 'var(--green)' },
                       { label: 'Deals Dead',   value: data.learning.lost, color: 'var(--red)' },
                       { label: 'Win Rate',     value: pct(data.learning.win_rate), color: 'var(--gold)' },
-                      { label: 'Avg Days to Close', value: data.learning.avg_days_to_close ?? '—', color: 'var(--t1)' },
+                      { label: 'Avg Days to Close', value: data.learning.avg_days_to_close ?? '-', color: 'var(--t1)' },
                       {
                         label: 'Strongest Market',
-                        value: data.learning.best_state ? data.learning.best_state.state : '—',
+                        value: data.learning.best_state ? data.learning.best_state.state : '-',
                         sub: data.learning.best_state ? `${pct(data.learning.best_state.win_rate)} win` : null,
                         color: 'var(--green)',
                       },
                     ].map(item => (
                       <div key={item.label} style={s.stat}>
-                        <div style={{ fontSize: 24, fontWeight: 900, color: item.color, marginBottom: 4 }}>{item.value ?? '—'}</div>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: item.color, marginBottom: 4 }}>{item.value ?? '-'}</div>
                         <div style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600 }}>{item.label}</div>
                         {item.sub && <div style={{ fontSize: 10, color: 'var(--t3)', marginTop: 2 }}>{item.sub}</div>}
                       </div>

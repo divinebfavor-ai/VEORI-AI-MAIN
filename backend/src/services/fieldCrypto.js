@@ -1,7 +1,7 @@
 /**
- * S4 — Field-level PII encryption (AES-256-GCM).
+ * S4 - Field-level PII encryption (AES-256-GCM).
  *
- * WHY: A handful of fields are genuinely sensitive at rest — full bank routing /
+ * WHY: A handful of fields are genuinely sensitive at rest - full bank routing /
  * account numbers being the sharpest. Today the bank-account route NEVER stores the
  * full number (it persists only `***last4`), which is safe-by-omission. This service
  * lets us optionally store the FULL value encrypted (so an operator can later view /
@@ -10,13 +10,13 @@
  * DESIGN (honest + zero-regression):
  *   • Keyed by env `PII_ENCRYPTION_KEY` (64 hex chars = 32 bytes, or any string that
  *     we SHA-256 down to 32 bytes). If the key is ABSENT, encryption is disabled and
- *     `encrypt()` returns null — callers fall back to their existing masked-stub
+ *     `encrypt()` returns null - callers fall back to their existing masked-stub
  *     behavior, so nothing breaks before the operator sets a key.
  *   • AES-256-GCM with a random 12-byte IV per value; output is a self-describing
  *     compact string  v1:<ivB64>:<tagB64>:<ctB64>  so we can rotate formats later.
- *   • Authenticated (GCM tag) — tampered ciphertext fails closed on decrypt.
+ *   • Authenticated (GCM tag) - tampered ciphertext fails closed on decrypt.
  *
- * This NEVER logs plaintext. It is additive — no existing field is migrated; new
+ * This NEVER logs plaintext. It is additive - no existing field is migrated; new
  * writes can opt in.
  */
 const crypto = require('crypto');
@@ -56,7 +56,7 @@ function encrypt(plaintext) {
 }
 
 // Decrypt a "v1:iv:tag:ct" string back to plaintext. Returns null on any problem
-// (no key, wrong format, bad tag) — fails closed, never throws to the caller.
+// (no key, wrong format, bad tag) - fails closed, never throws to the caller.
 function decrypt(blob) {
   try {
     const key = getKey();

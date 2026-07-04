@@ -1,7 +1,7 @@
 /**
  * /api/deal-prediction
- * Deal Prediction Engine — weekly top-10 leads most likely to close
- * NEW FILE — does not modify any existing routes
+ * Deal Prediction Engine - weekly top-10 leads most likely to close
+ * NEW FILE - does not modify any existing routes
  */
 const express  = require('express');
 const supabase = require('../config/supabase');
@@ -32,13 +32,13 @@ function scoreLead(lead, callCount, daysSinceContact) {
   const stages = { offer_made: 20, interested: 14, contacted: 8, new: 2 };
   score += stages[lead.status] || 0;
 
-  // Recency (0-20) — contacted recently scores higher
+  // Recency (0-20) - contacted recently scores higher
   if (daysSinceContact <= 1) score += 20;
   else if (daysSinceContact <= 3) score += 15;
   else if (daysSinceContact <= 7) score += 10;
   else if (daysSinceContact <= 14) score += 5;
 
-  // Engagement (0-20) — more calls = more engaged
+  // Engagement (0-20) - more calls = more engaged
   score += Math.min(callCount * 4, 20);
 
   return Math.min(100, Math.max(0, score));
@@ -109,15 +109,15 @@ async function generateWeeklyPredictions(userId) {
 function buildReasoning(lead, callCount, daysSinceContact) {
   const parts = [];
   if ((lead.motivation_score || 0) >= 70) parts.push(`High motivation score (${lead.motivation_score}/100)`);
-  if (lead.status === 'offer_made') parts.push('Offer already made — follow-up could close');
-  if (lead.status === 'interested') parts.push('Expressed interest — ready for offer');
-  if (callCount >= 3) parts.push(`${callCount} touch points — high engagement`);
-  if (daysSinceContact <= 3) parts.push('Recently contacted — stay on their radar');
+  if (lead.status === 'offer_made') parts.push('Offer already made - follow-up could close');
+  if (lead.status === 'interested') parts.push('Expressed interest - ready for offer');
+  if (callCount >= 3) parts.push(`${callCount} touch points - high engagement`);
+  if (daysSinceContact <= 3) parts.push('Recently contacted - stay on their radar');
   if (!parts.length) parts.push('Strong overall profile');
   return parts.join('. ');
 }
 
-// GET /api/deal-prediction/this-week — get this week's focus list
+// GET /api/deal-prediction/this-week - get this week's focus list
 router.get('/this-week', async (req, res, next) => {
   try {
     const weekStart = getMondayOfWeek();
@@ -137,7 +137,7 @@ router.get('/this-week', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/deal-prediction/history — past weekly predictions
+// GET /api/deal-prediction/history - past weekly predictions
 router.get('/history', async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -156,7 +156,7 @@ router.get('/history', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/deal-prediction/generate — manually trigger prediction generation
+// POST /api/deal-prediction/generate - manually trigger prediction generation
 router.post('/generate', async (req, res, next) => {
   try {
     const result = await generateWeeklyPredictions(req.user.id);
@@ -167,7 +167,7 @@ router.post('/generate', async (req, res, next) => {
   }
 });
 
-// PUT /api/deal-prediction/:id/close — mark a predicted lead as closed (won/missed)
+// PUT /api/deal-prediction/:id/close - mark a predicted lead as closed (won/missed)
 router.put('/:id/close', async (req, res, next) => {
   try {
     const { status } = req.body; // 'closed' or 'missed'
@@ -202,7 +202,7 @@ function scheduleMondayRun() {
     runWeeklyPredictionsForAllUsers();
     setInterval(runWeeklyPredictionsForAllUsers, 7 * 24 * 60 * 60 * 1000);
   }, ms);
-  console.log(`[WeeklyPredictions] Scheduled — next run in ${Math.round(ms / 3600000)}h`);
+  console.log(`[WeeklyPredictions] Scheduled - next run in ${Math.round(ms / 3600000)}h`);
 }
 
 // Start scheduler when this module loads

@@ -1,16 +1,16 @@
 /**
- * Custom SMS Template Routes — operator-authored, guard-railed wholesale-RE copy.
+ * Custom SMS Template Routes - operator-authored, guard-railed wholesale-RE copy.
  *
- *   GET    /api/sms-templates            — list this operator's saved templates
- *   POST   /api/sms-templates            — save a new template (moderated before store)
- *   PUT    /api/sms-templates/:id        — edit a template (re-moderated before store)
- *   DELETE /api/sms-templates/:id        — soft-delete (is_active = false)
- *   POST   /api/sms-templates/generate   — AI drafts a compliant template (no save)
- *   POST   /api/sms-templates/moderate   — check arbitrary text against the guardrail
+ *   GET    /api/sms-templates            - list this operator's saved templates
+ *   POST   /api/sms-templates            - save a new template (moderated before store)
+ *   PUT    /api/sms-templates/:id        - edit a template (re-moderated before store)
+ *   DELETE /api/sms-templates/:id        - soft-delete (is_active = false)
+ *   POST   /api/sms-templates/generate   - AI drafts a compliant template (no save)
+ *   POST   /api/sms-templates/moderate   - check arbitrary text against the guardrail
  *
  * The guardrail (customSmsService.moderateTemplate) runs on every save/edit/generate
  * so only wholesale-real-estate copy can ever be stored. Every query is scoped to
- * req.user.id — an operator only ever sees/edits their OWN templates. Sending is NOT
+ * req.user.id - an operator only ever sees/edits their OWN templates. Sending is NOT
  * done here; saved templates are consumed by the blast (smsFirstWorkflow) at send time,
  * where DNC / outreach-credit / TCPA gates still apply unchanged.
  */
@@ -20,7 +20,7 @@ const { requireAuth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 const customSms = require('../services/customSmsService');
 
-// GET /api/sms-templates — list active templates for this operator.
+// GET /api/sms-templates - list active templates for this operator.
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -34,7 +34,7 @@ router.get('/', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/sms-templates — save a new template (guardrail enforced).
+// POST /api/sms-templates - save a new template (guardrail enforced).
 router.post('/', requireAuth, async (req, res, next) => {
   try {
     const { name, body, lead_type, ai_generated } = req.body || {};
@@ -66,7 +66,7 @@ router.post('/', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/sms-templates/:id — edit a template (re-moderated on body change).
+// PUT /api/sms-templates/:id - edit a template (re-moderated on body change).
 router.put('/:id', requireAuth, async (req, res, next) => {
   try {
     const { name, body, lead_type, is_active } = req.body || {};
@@ -98,7 +98,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/sms-templates/:id — soft-delete (keep row for any campaign that referenced it).
+// DELETE /api/sms-templates/:id - soft-delete (keep row for any campaign that referenced it).
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { error } = await supabase
@@ -111,7 +111,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/sms-templates/generate — AI drafts a compliant template. Does NOT save.
+// POST /api/sms-templates/generate - AI drafts a compliant template. Does NOT save.
 // Body: { lead_type, angle }. Returns the draft + the guardrail verdict so the UI can
 // show the operator a clean, editable suggestion before they choose to save it.
 router.post('/generate', requireAuth, async (req, res, next) => {
@@ -136,7 +136,7 @@ router.post('/generate', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/sms-templates/moderate — run arbitrary text through the guardrail.
+// POST /api/sms-templates/moderate - run arbitrary text through the guardrail.
 // Lets the UI live-validate what an operator is typing before they hit save.
 router.post('/moderate', requireAuth, async (req, res, next) => {
   try {

@@ -1,4 +1,4 @@
-// ─── Campaign Manager — Concurrent Dialer Engine ──────────────────────────────
+// ─── Campaign Manager - Concurrent Dialer Engine ──────────────────────────────
 const supabase = require('../config/supabase');
 const vapiService = require('./vapiService');
 const phoneRotation = require('./phoneRotation');
@@ -8,7 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const activeCampaigns = new Map();
 
 /**
- * Start a campaign — launches concurrent Vapi sessions
+ * Start a campaign - launches concurrent Vapi sessions
  */
 async function start(campaignId, userId) {
   const { data: campaign, error } = await supabase.from('campaigns').select('*').eq('id', campaignId).eq('user_id', userId).single();
@@ -77,7 +77,7 @@ async function dialerTick(campaignId) {
       // Select phone number (exclude numbers already in use)
       const inUseIds = Array.from(activeCalls.values()).map(c => c.phoneNumberId).filter(Boolean);
       const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, inUseIds);
-      if (!phoneNum) { console.log('[Campaign] No healthy numbers — waiting...'); break; }
+      if (!phoneNum) { console.log('[Campaign] No healthy numbers - waiting...'); break; }
 
       // Create call record
       const callId = uuidv4();

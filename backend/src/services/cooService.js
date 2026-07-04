@@ -1,7 +1,7 @@
 /**
- * COO SERVICE — the AI Chief Operating Officer layer.
+ * COO SERVICE - the AI Chief Operating Officer layer.
  *
- * The operator's mission: one AI that answers FOUR questions at all times —
+ * The operator's mission: one AI that answers FOUR questions at all times -
  *   1. What is happening?      (state of the pipeline right now)
  *   2. Why is it happening?    (the drivers / bottlenecks behind that state)
  *   3. What is likely next?     (forecast: portfolio EV, deals about to move/die)
@@ -29,19 +29,19 @@ const predictionEngine = require('./predictionEngine');
 
 const ACTIVE_EXCLUDE = ['closed', 'dead', 'dnc', 'under_contract'];
 
-/** Safe number coerce — returns 0 for null/NaN so sums never explode. */
+/** Safe number coerce - returns 0 for null/NaN so sums never explode. */
 function n(v) {
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
 }
 
-/** Format a dollar figure or '—' when null/unknown (never a fake number). */
+/** Format a dollar figure or '-' when null/unknown (never a fake number). */
 function money(v) {
   return v == null ? null : Math.round(Number(v));
 }
 
 /**
- * ANSWER 1 — What is happening?
+ * ANSWER 1 - What is happening?
  * A factual snapshot of the pipeline from real row counts. No inference here.
  */
 function whatIsHappening({ leads, deals, callsToday, followUpsDue }) {
@@ -68,11 +68,11 @@ function whatIsHappening({ leads, deals, callsToday, followUpsDue }) {
 }
 
 /**
- * LEARNING SUMMARY (Rule 3, made visible) — aggregate the deal_outcome_learning
+ * LEARNING SUMMARY (Rule 3, made visible) - aggregate the deal_outcome_learning
  * history the engine already learns from, so the operator can SEE what the AI has
  * picked up. This is read-only over real recorded outcomes.
  *
- * NEVER FABRICATES: with no history it returns { learned:false } and null metrics —
+ * NEVER FABRICATES: with no history it returns { learned:false } and null metrics -
  * no invented win-rates. Only counts rows whose outcome is unambiguously won/lost.
  * Returns the best-performing state (highest close rate, min 3 samples) when known.
  */
@@ -93,7 +93,7 @@ function summarizeLearning(outcomes) {
       win_rate: null,
       avg_days_to_close: null,
       best_state: null,
-      summary: 'No closed/dead deals recorded yet — the AI starts learning as deals reach an outcome.',
+      summary: 'No closed/dead deals recorded yet - the AI starts learning as deals reach an outcome.',
     };
   }
 
@@ -141,7 +141,7 @@ function summarizeLearning(outcomes) {
 }
 
 /**
- * ANSWER 4 (computed early — drives the others) — run the REAL predictor across
+ * ANSWER 4 (computed early - drives the others) - run the REAL predictor across
  * active leads and rank by expected value. This is the profit × close-probability
  * prioritization the rules demand. Each item carries the prediction's own
  * confidence + evidence, so nothing is fabricated.
@@ -166,7 +166,7 @@ function rankOpportunities({ leads, dealsByLead, outcomes }) {
       phone:          lead.phone || null,
       state:          lead.property_state || null,
       strategy:       pred.strategy?.primary || 'cash',
-      expected_value: pred.expected_value,            // null when pricing missing — honest
+      expected_value: pred.expected_value,            // null when pricing missing - honest
       close_odds:     pred.predictions?.closes?.value ?? null,
       fallout_risk:   pred.predictions?.fallout_risk?.value ?? null,
       confidence:     pred.overall_confidence,
@@ -177,7 +177,7 @@ function rankOpportunities({ leads, dealsByLead, outcomes }) {
     });
   }
 
-  // Rule 5 — sort by expected value first (nulls last), then close odds, then
+  // Rule 5 - sort by expected value first (nulls last), then close odds, then
   // confidence. The operator's time goes to the most profitable, likeliest deals.
   scored.sort((a, b) => {
     const ev = (b.expected_value ?? -1) - (a.expected_value ?? -1);
@@ -191,10 +191,10 @@ function rankOpportunities({ leads, dealsByLead, outcomes }) {
 }
 
 /**
- * ANSWER 3 — What is likely to happen next?
+ * ANSWER 3 - What is likely to happen next?
  * Portfolio forecast built ONLY from the per-lead predictions we just computed.
  * Pipeline EV = Σ expected_value across opportunities that have one. We never
- * invent EV for leads whose pricing is unknown — those are counted separately as
+ * invent EV for leads whose pricing is unknown - those are counted separately as
  * "needs pricing" so the forecast stays honest.
  */
 function whatHappensNext(opportunities) {
@@ -223,13 +223,13 @@ function whatHappensNext(opportunities) {
     summary: withEv.length
       ? `Pipeline expected value ≈ $${money(pipelineEv).toLocaleString()} across ${withEv.length} priced deal(s). `
         + `${aboutToClose.length} likely to close, ${atRisk.length} at fallout risk.`
-      : `No priced deals yet — set buyer price + seller cost on your top leads to unlock a revenue forecast. `
+      : `No priced deals yet - set buyer price + seller cost on your top leads to unlock a revenue forecast. `
         + `${needsPricing} lead(s) waiting on pricing.`,
   };
 }
 
 /**
- * ANSWER 2 — Why is it happening?
+ * ANSWER 2 - Why is it happening?
  * Bottleneck scan. Looks at where the pipeline is leaking, derived from the same
  * rows. Each bottleneck is a plain observation + the count behind it (evidence),
  * never a guess. Returns the top drivers sorted by severity.
@@ -247,7 +247,7 @@ function whyIsItHappening({ leads, deals, callsRecent, followUpsDue, opportuniti
     bottlenecks.push({
       key: 'stale_hot_leads', severity: staleHot.length >= 5 ? 'high' : 'medium',
       title: `${staleHot.length} hot lead(s) going cold`,
-      detail: `Motivation ≥70 but no call in 3+ days. Warm motivation decays — these are your fastest dollars leaking.`,
+      detail: `Motivation ≥70 but no call in 3+ days. Warm motivation decays - these are your fastest dollars leaking.`,
       count: staleHot.length, evidence: `${staleHot.length} leads, motivation≥70, last_call >3d ago`,
     });
   }
@@ -291,7 +291,7 @@ function whyIsItHappening({ leads, deals, callsRecent, followUpsDue, opportuniti
     bottlenecks.push({
       key: 'missing_pricing', severity: 'low',
       title: `${noPricing} lead(s) missing pricing`,
-      detail: `Without buyer price + seller cost, the engine can't forecast fee, EV, or closing — your revenue view is partial.`,
+      detail: `Without buyer price + seller cost, the engine can't forecast fee, EV, or closing - your revenue view is partial.`,
       count: noPricing, evidence: `${noPricing} active leads with no derivable spread`,
     });
   }
@@ -303,7 +303,7 @@ function whyIsItHappening({ leads, deals, callsRecent, followUpsDue, opportuniti
     bottlenecks,
     summary: bottlenecks.length
       ? `Top drivers: ${bottlenecks.slice(0, 3).map(b => b.title).join('; ')}.`
-      : 'No major bottlenecks detected — pipeline is flowing.',
+      : 'No major bottlenecks detected - pipeline is flowing.',
   };
 }
 
@@ -319,7 +319,7 @@ function isStale(dateStr, days) {
  * Compose the full COO briefing from already-fetched rows. Pure, null-safe.
  *
  * @param {object} rows
- *   leads[]         active+inactive leads for the user (each may carry deals via join? no — see dealsByLead)
+ *   leads[]         active+inactive leads for the user (each may carry deals via join? no - see dealsByLead)
  *   deals[]         deals for the user
  *   dealsByLead     Map<lead_id, newest deal>
  *   callsToday[]    calls created today
@@ -343,7 +343,7 @@ function buildBriefing(rows) {
   const next      = whatHappensNext(opportunities);
   const why       = whyIsItHappening({ leads, deals, callsRecent, followUpsDue, opportunities });
 
-  // ANSWER 4 — the action queue: top opportunities by EV, plus any escalations
+  // ANSWER 4 - the action queue: top opportunities by EV, plus any escalations
   // surfaced first (Rule 4). Capped so the operator sees a focused list.
   const escalations = opportunities.filter(o => o.escalate).slice(0, 3);
   const topActions  = opportunities.slice(0, 7).map(o => ({
@@ -367,14 +367,14 @@ function buildBriefing(rows) {
       escalations,
       actions: topActions,
       summary: topActions.length
-        ? `Work these ${topActions.length} in order — highest expected value first.`
+        ? `Work these ${topActions.length} in order - highest expected value first.`
         : 'No active opportunities to action. Focus on new outreach.',
     },
     // A compact headline the dashboard can show at the top.
     headline: happening.summary,
     opportunities_count: opportunities.length,
     // What the AI has LEARNED so far (Rule 3, made visible). Best-effort: null/false
-    // when there's no recorded outcome history yet — never a fabricated win-rate.
+    // when there's no recorded outcome history yet - never a fabricated win-rate.
     learning: summarizeLearning(outcomes),
     rules_applied: [
       'rule1_no_fabrication', 'rule2_confidence_evidence', 'rule3_outcome_learning',

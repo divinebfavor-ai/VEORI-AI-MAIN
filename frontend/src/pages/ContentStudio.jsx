@@ -33,7 +33,7 @@ export default function ContentStudio() {
   const [sending, setSending]           = useState(false)
   const [blastResult, setBlastResult]   = useState(null)
   const [calendar, setCalendar]         = useState([])
-  // Tier 4 — cold-email analytics (opens/clicks/replies + winning subject variant)
+  // Tier 4 - cold-email analytics (opens/clicks/replies + winning subject variant)
   const [emailStats, setEmailStats]     = useState(null)
   const [statsDays, setStatsDays]       = useState(30)
   const [statsLoading, setStatsLoading] = useState(false)
@@ -55,7 +55,7 @@ export default function ContentStudio() {
 
   useEffect(() => { load() }, [])
 
-  // Tier 4 — fetch email analytics. Lazy: only loads when the Email Stats tab is
+  // Tier 4 - fetch email analytics. Lazy: only loads when the Email Stats tab is
   // opened (or its range changes), so the page's initial load stays untouched.
   function loadEmailStats(days) {
     setStatsLoading(true)

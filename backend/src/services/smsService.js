@@ -1,5 +1,5 @@
 /**
- * SMS Service — Twilio
+ * SMS Service - Twilio
  * Sends tag-matched opening texts to leads on import.
  * Scores replies via GPT-4o and auto-escalates hot leads (60+) to Vapi voice call.
  *
@@ -26,14 +26,14 @@ const twilioClient = (TWILIO_SID && TWILIO_TOKEN) ? twilio(TWILIO_SID, TWILIO_TO
  */
 async function sendSMS(to, text, userId = null) {
   if (!twilioClient) {
-    console.warn('[SMS] Twilio not configured (TWILIO_ACCOUNT_SID/AUTH_TOKEN missing) — skipping');
+    console.warn('[SMS] Twilio not configured (TWILIO_ACCOUNT_SID/AUTH_TOKEN missing) - skipping');
     return null;
   }
 
   // GHL-style per-operator sender routing:
-  //   1. operator's OWN A2P 10DLC Messaging Service (registered local sender, needs EIN) — best
-  //   2. else operator's toll-free number (toll-free verified, no EIN needed) — default
-  //   3. else global Messaging Service SID, else single from-number — fallback (unchanged behavior)
+  //   1. operator's OWN A2P 10DLC Messaging Service (registered local sender, needs EIN) - best
+  //   2. else operator's toll-free number (toll-free verified, no EIN needed) - default
+  //   3. else global Messaging Service SID, else single from-number - fallback (unchanged behavior)
   let sender = null;
 
   if (userId) {
@@ -48,7 +48,7 @@ async function sendSMS(to, text, userId = null) {
     } else {
       // Only pick a toll-free as the SMS sender if it is carrier SMS-VERIFIED.
       // US carriers silently filter/block SMS from un-verified toll-free numbers,
-      // so an unverified toll-free must NOT be chosen here — we fall through to the
+      // so an unverified toll-free must NOT be chosen here - we fall through to the
       // deliverable env fallback below instead of sending into a black hole.
       const { data: tf } = await supabase
         .from('phone_numbers')
@@ -75,11 +75,11 @@ async function sendSMS(to, text, userId = null) {
 /**
  * Worker send point for the heavy SMS-blast queue.
  *
- * Unlike sendSMS(), this does NOT re-run the 3-tier sender lookup — the queue
+ * Unlike sendSMS(), this does NOT re-run the 3-tier sender lookup - the queue
  * worker has already chosen a rotation sender (smsRotation.selectSmsNumber) and
  * passes it in via `senderOverride`, saving 1-2 Supabase queries per send at
  * blast scale. It performs the raw Twilio send and logs to sms_messages, exactly
- * like the metered paths. It does NOT gate on DNC or outreach credits — the
+ * like the metered paths. It does NOT gate on DNC or outreach credits - the
  * processor (smsBlastProcessor) owns those checks before calling this.
  *
  * @param {object} a
@@ -92,7 +92,7 @@ async function sendSMS(to, text, userId = null) {
  */
 async function sendSMSDirect({ to, body, userId = null, leadId = null, senderOverride = null }) {
   if (!twilioClient) {
-    console.warn('[SMS] Twilio not configured — sendSMSDirect skipped');
+    console.warn('[SMS] Twilio not configured - sendSMSDirect skipped');
     return null;
   }
   if (!to || !body) return null;
@@ -153,60 +153,60 @@ function getOpeningMessage(lead) {
   return template(name, address);
 }
 
-// ─── D — Per-tag SMS talk-track ───────────────────────────────────────────────
+// ─── D - Per-tag SMS talk-track ───────────────────────────────────────────────
 //
 // The VOICE brain already adapts per lead type via vapiService.buildTagIntelligenceBlock
 // (tone/goal/never/angle per tag). But once an SMS conversation goes live,
-// continueConversation() was generic "friendly Alex" — the per-type personality was
+// continueConversation() was generic "friendly Alex" - the per-type personality was
 // only used for the OPENING template, then dropped. This restores it: a compact
 // talk-track injected into the live SMS reply brain so a pre-foreclosure seller and
-// an inherited-property seller are texted in distinctly different voices — same as
+// an inherited-property seller are texted in distinctly different voices - same as
 // the call would. Additive: unknown/missing tag → '' → identical behavior to before.
 const SMS_TAG_PLAYBOOK = {
-  pre_foreclosure: 'This seller may be facing foreclosure — lead with empathy and SPEED. Frame it as relief ("I can close before the auction date"). Never sound like a debt collector. Be gentle; they\'re stressed.',
-  tax_delinquent:  'Owes back taxes — the angle is making the burden disappear. "I can take it off your hands and you walk away clean." Don\'t lecture about the taxes; offer the exit.',
-  inherited:       'Inherited the property — likely emotional and out-of-state. No pressure, lots of patience. "No rush, whenever you\'re ready." Emphasize as-is, no cleanout, no repairs, no showings.',
-  probate:         'Property in probate — be respectful and process-aware. They may not have authority to sell yet. Ask gently where they are in probate; offer to wait and make it easy when ready.',
-  vacant:          'Vacant property — it\'s a liability draining them (taxes, insurance, upkeep). The angle is "stop paying to hold an empty house." Move toward a fast, clean offer.',
-  absentee_owner:  'Out-of-area owner — likely a tired landlord. Lead with convenience: "I handle everything remotely, you never have to fly out." Emphasize simplicity and speed.',
-  fsbo:            'Trying to sell themselves — respect that, don\'t bash agents. Position as a backup cash option with certainty. "If you want a clean cash close with no showings, I\'m here."',
-  free_and_clear:  'Owns it outright — no mortgage pressure, so motivation is lifestyle/convenience, not money panic. Don\'t lowball hard; sell ease, speed, and certainty of close.',
-  cash_buyer:      'This is an investor/buyer, not a distressed seller — talk numbers, spread, and ROI. Be direct and concise; they value efficiency over rapport.',
+  pre_foreclosure: 'This seller may be facing foreclosure - lead with empathy and SPEED. Frame it as relief ("I can close before the auction date"). Never sound like a debt collector. Be gentle; they\'re stressed.',
+  tax_delinquent:  'Owes back taxes - the angle is making the burden disappear. "I can take it off your hands and you walk away clean." Don\'t lecture about the taxes; offer the exit.',
+  inherited:       'Inherited the property - likely emotional and out-of-state. No pressure, lots of patience. "No rush, whenever you\'re ready." Emphasize as-is, no cleanout, no repairs, no showings.',
+  probate:         'Property in probate - be respectful and process-aware. They may not have authority to sell yet. Ask gently where they are in probate; offer to wait and make it easy when ready.',
+  vacant:          'Vacant property - it\'s a liability draining them (taxes, insurance, upkeep). The angle is "stop paying to hold an empty house." Move toward a fast, clean offer.',
+  absentee_owner:  'Out-of-area owner - likely a tired landlord. Lead with convenience: "I handle everything remotely, you never have to fly out." Emphasize simplicity and speed.',
+  fsbo:            'Trying to sell themselves - respect that, don\'t bash agents. Position as a backup cash option with certainty. "If you want a clean cash close with no showings, I\'m here."',
+  free_and_clear:  'Owns it outright - no mortgage pressure, so motivation is lifestyle/convenience, not money panic. Don\'t lowball hard; sell ease, speed, and certainty of close.',
+  cash_buyer:      'This is an investor/buyer, not a distressed seller - talk numbers, spread, and ROI. Be direct and concise; they value efficiency over rapport.',
 };
 
 function buildTagPlaybookForSMS(lead) {
   const tag = (lead?.primary_tag || '').toLowerCase().replace(/[^a-z_]/g, '_');
   const track = SMS_TAG_PLAYBOOK[tag];
   if (!track) return '';
-  return `\nLEAD TYPE: ${tag.replace(/_/g, ' ')} — ${track}`;
+  return `\nLEAD TYPE: ${tag.replace(/_/g, ' ')} - ${track}`;
 }
 
 // ─── Send opening SMS to a lead ───────────────────────────────────────────────
 
 async function sendOpeningSMS(lead, userId) {
   if (!twilioClient) {
-    console.warn('[SMS] Twilio not configured — skipping');
+    console.warn('[SMS] Twilio not configured - skipping');
     return null;
   }
 
   const phone = lead.phone;
   if (!phone) return null;
 
-  // DNC gate — never send to opted-out numbers
+  // DNC gate - never send to opted-out numbers
   if (lead.is_on_dnc) {
     await supabase.from('tcpa_log').insert({
       user_id:  userId,
       lead_id:  lead.id,
       phone,
       action:   'sms_blocked_dnc',
-      notes:    'Opening SMS blocked — lead is on DNC list',
+      notes:    'Opening SMS blocked - lead is on DNC list',
       created_at: new Date().toISOString(),
     }).then(null, () => {});
-    console.warn(`[SMS] Blocked — ${phone} is on DNC`);
+    console.warn(`[SMS] Blocked - ${phone} is on DNC`);
     return null;
   }
 
-  // Outreach credit gate — opening SMS is metered lead outreach.
+  // Outreach credit gate - opening SMS is metered lead outreach.
   // 1 SMS = 1 credit; monthly allocation first, then top-up. Blocked when both
   // are exhausted. Compliance/transactional SMS go through sendSMS() directly
   // and are NEVER gated here.
@@ -223,7 +223,7 @@ async function sendOpeningSMS(lead, userId) {
       status:     'blocked_no_credits',
       sent_at:    new Date().toISOString(),
     }).then(null, () => {});
-    console.warn(`[SMS] Opening blocked — outreach credits ${reservation.reason} (lead: ${lead.id})`);
+    console.warn(`[SMS] Opening blocked - outreach credits ${reservation.reason} (lead: ${lead.id})`);
     return null;
   }
 
@@ -255,9 +255,9 @@ async function sendOpeningSMS(lead, userId) {
 
 // ─── Score an inbound SMS reply via GPT-4o ───────────────────────────────────
 
-// sellerContext (optional) is the seller_profiles row from dataMotService —
+// sellerContext (optional) is the seller_profiles row from dataMotService -
 // when present, the score is judged WITH the seller's call history behind it
-// (A — unified memory). Omitted/null → identical behavior to before.
+// (A - unified memory). Omitted/null → identical behavior to before.
 async function scoreReply(conversationHistory, newMessage, sellerContext = null, dealBlock = '') {
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_KEY) return 50;
@@ -268,7 +268,7 @@ async function scoreReply(conversationHistory, newMessage, sellerContext = null,
       const { buildSMSContextBlock } = require('./dataMotService');
       contextBlock = buildSMSContextBlock(sellerContext);
     } catch (_) { contextBlock = ''; }
-    // Deal-state awareness: an in-flight deal means this isn't a cold reply —
+    // Deal-state awareness: an in-flight deal means this isn't a cold reply -
     // score it knowing the seller already engaged/agreed. '' when no deal.
     if (dealBlock) contextBlock += dealBlock;
 
@@ -321,7 +321,7 @@ async function continueConversation(lead, sellerMessage, conversationHistory, se
     // Alex advances it instead of re-asking settled questions. '' when no deal.
     if (dealBlock) contextBlock += dealBlock;
 
-    // D — per-tag talk-track: text this seller in the SAME voice the call would use
+    // D - per-tag talk-track: text this seller in the SAME voice the call would use
     // for their lead type (empty string for unknown/missing tag → unchanged behavior).
     const tagPlaybook = buildTagPlaybookForSMS(lead);
 
@@ -353,7 +353,7 @@ async function continueConversation(lead, sellerMessage, conversationHistory, se
 
 async function sendReply(toPhone, body, userId, leadId) {
   try {
-    // DNC gate — check before every outbound SMS
+    // DNC gate - check before every outbound SMS
     const { data: dncCheck } = await supabase
       .from('dnc_records')
       .select('id')
@@ -366,14 +366,14 @@ async function sendReply(toPhone, body, userId, leadId) {
         lead_id:  leadId,
         phone:    toPhone,
         action:   'sms_blocked_dnc',
-        notes:    'Reply SMS blocked — phone is on DNC list',
+        notes:    'Reply SMS blocked - phone is on DNC list',
         created_at: new Date().toISOString(),
       }).then(null, () => {});
-      console.warn(`[SMS] Reply blocked — ${toPhone} is on DNC`);
+      console.warn(`[SMS] Reply blocked - ${toPhone} is on DNC`);
       return null;
     }
 
-    // Outreach credit gate — AI outreach replies are metered lead outreach.
+    // Outreach credit gate - AI outreach replies are metered lead outreach.
     const outreachCredits = require('./outreachCredits');
     const reservation = await outreachCredits.reserve(userId, 1);
     if (!reservation.allowed) {
@@ -387,7 +387,7 @@ async function sendReply(toPhone, body, userId, leadId) {
         status:     'blocked_no_credits',
         sent_at:    new Date().toISOString(),
       }).then(null, () => {});
-      console.warn(`[SMS] Reply blocked — outreach credits ${reservation.reason} (lead: ${leadId})`);
+      console.warn(`[SMS] Reply blocked - outreach credits ${reservation.reason} (lead: ${leadId})`);
       return null;
     }
 
@@ -467,7 +467,7 @@ async function escalateToCall(lead, userId) {
     // Apply cooldown + increment daily/weekly counters so this number rotates correctly.
     await phoneRotation.recordCallStart(phoneNumber.id);
 
-    console.log(`[SMS] Escalated to call — lead ${lead.id} scored hot (number ${phoneNumber.phone_number || phoneNumber.id})`);
+    console.log(`[SMS] Escalated to call - lead ${lead.id} scored hot (number ${phoneNumber.phone_number || phoneNumber.id})`);
   } catch (err) {
     console.error('[SMS] Escalation failed:', err.message);
   }
@@ -475,14 +475,14 @@ async function escalateToCall(lead, userId) {
 
 // ─── Buy-box capture from a buyer's reply ────────────────────────────────────
 // The user's directive: a buyer's profile (their "crash/card barrier") must live
-// INSIDE the system — reviewed, not just logged. When a buyer texts back, this
+// INSIDE the system - reviewed, not just logged. When a buyer texts back, this
 // reads their reply and returns the buy-box facts they actually stated so the
 // caller can MERGE them onto the buyers row.
 //
 // AI-first (locked decision): GPT-4o-mini, same model/timeout/json pattern as
-// scoreReply — cheap, bounded, one call. Regex fallback runs when there's no
+// scoreReply - cheap, bounded, one call. Regex fallback runs when there's no
 // OPENAI_KEY or the call fails, so capture still works with zero AI. Neither path
-// TEXTS the buyer — this is a silent reader; the reply/assignment flow is separate.
+// TEXTS the buyer - this is a silent reader; the reply/assignment flow is separate.
 //
 // Returns ONLY fields the buyer expressed (others null/empty) so the merge never
 // clobbers a known value with a guess.
@@ -559,7 +559,7 @@ Reply with ONLY a JSON object. Use null / empty arrays for anything the buyer di
       proof_of_funds:  bool(r.proof_of_funds),
     };
   } catch (e) {
-    console.warn('[SMS] extractBuyBox AI failed — regex fallback:', e.message);
+    console.warn('[SMS] extractBuyBox AI failed - regex fallback:', e.message);
     return regexBuyBox(body);
   }
 }

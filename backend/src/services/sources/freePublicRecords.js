@@ -1,14 +1,14 @@
 /**
- * Free Public Records — Verified Working Sources
+ * Free Public Records - Verified Working Sources
  *
  * Every endpoint in this file has been tested and confirmed to return data.
  * No fabricated URLs. No guesses.
  *
  * Working sources:
- *   1. Philadelphia PA — Lis Pendens (Carto) ✅ tested
- *   2. Philadelphia PA — Code Violations (Carto) ✅ tested
- *   3. Philadelphia PA — Absentee/Out-of-state owners (Carto) ✅ tested
- *   4. Philadelphia PA — Sheriff Sales / Pre-Foreclosure (Carto) ✅ tested
+ *   1. Philadelphia PA - Lis Pendens (Carto) ✅ tested
+ *   2. Philadelphia PA - Code Violations (Carto) ✅ tested
+ *   3. Philadelphia PA - Absentee/Out-of-state owners (Carto) ✅ tested
+ *   4. Philadelphia PA - Sheriff Sales / Pre-Foreclosure (Carto) ✅ tested
  *
  * Sources that need a free Socrata app token (SOCRATA_APP_TOKEN env var):
  *   - Cook County IL, NYC, Detroit, LA, Chicago
@@ -53,7 +53,7 @@ async function pullPhillyLisPendens() {
         county:          'Philadelphia',
         filing_date:     r.recording_date || null,
         is_lis_pendens:  true,
-        notes:           'Lis Pendens — Philadelphia County Recorder',
+        notes:           'Lis Pendens - Philadelphia County Recorder',
       };
     }).filter(r => r.property_address);
   } catch (err) {
@@ -123,7 +123,7 @@ async function pullPhillyAbsentee() {
         estimated_value: parseFloat(r.market_value || 0),
         owner_state:     mailState,
         is_absentee:     true,
-        notes:           `Absentee owner — mailing: ${r.mailing_city_state || 'out of state'}`,
+        notes:           `Absentee owner - mailing: ${r.mailing_city_state || 'out of state'}`,
       };
     }).filter(r => r.property_address);
   } catch (err) {
@@ -156,7 +156,7 @@ async function pullPhillySheriffSales() {
       filing_date:     r.recording_date || null,
       estimated_value: parseFloat(r.total_consideration || 0),
       is_lis_pendens:  true,
-      notes:           'Sheriff Sale — Philadelphia foreclosure',
+      notes:           'Sheriff Sale - Philadelphia foreclosure',
     })).filter(r => r.property_address);
   } catch (err) {
     console.error('[FreeRecords] Philly Sheriff:', err.message);
@@ -174,7 +174,7 @@ async function socrataGet(url, params = {}) {
   return Array.isArray(data) ? data : [];
 }
 
-// Cook County IL — Tax Delinquent (needs free Socrata token)
+// Cook County IL - Tax Delinquent (needs free Socrata token)
 async function pullCookCountyTaxDelinquent() {
   if (!SOCRATA_TOKEN) return [];
   try {
@@ -200,7 +200,7 @@ async function pullCookCountyTaxDelinquent() {
   }
 }
 
-// Detroit MI — Tax Delinquent (needs free Socrata token)
+// Detroit MI - Tax Delinquent (needs free Socrata token)
 async function pullDetroitTaxDelinquent() {
   if (!SOCRATA_TOKEN) return [];
   try {

@@ -31,7 +31,7 @@ function errorHandler(err, req, res, next) {
   // Always log full error on server
   console.error(`[Error] ${req.method} ${req.path} ${status}:`, isProd ? message : err.stack);
 
-  // In production: only send safe, human-readable messages — never stack traces
+  // In production: only send safe, human-readable messages - never stack traces
   const clientMessage = isProd
     ? (isSafeError(message) ? message : 'Something went wrong. Please try again.')
     : message;

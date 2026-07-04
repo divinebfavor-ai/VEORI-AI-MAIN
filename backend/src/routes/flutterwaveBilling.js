@@ -1,13 +1,13 @@
 /**
- * Flutterwave Billing — Primary Payment Processor
+ * Flutterwave Billing - Primary Payment Processor
  *
  * Routes:
- *   GET  /api/fw-billing/plans                  — list plans
- *   POST /api/fw-billing/create-payment-link     — create checkout link
- *   GET  /api/fw-billing/verify/:txRef           — verify payment after redirect
- *   GET  /api/fw-billing/subscription            — get current subscription
- *   POST /api/fw-billing/cancel                  — cancel subscription
- *   POST /api/fw-billing/webhook                 — Flutterwave webhook (no auth)
+ *   GET  /api/fw-billing/plans                  - list plans
+ *   POST /api/fw-billing/create-payment-link     - create checkout link
+ *   GET  /api/fw-billing/verify/:txRef           - verify payment after redirect
+ *   GET  /api/fw-billing/subscription            - get current subscription
+ *   POST /api/fw-billing/cancel                  - cancel subscription
+ *   POST /api/fw-billing/webhook                 - Flutterwave webhook (no auth)
  */
 
 const express = require('express');
@@ -27,12 +27,12 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'https://veori.net';
 //
 // PRICING MODEL (board-approved):
 //   * The operator-facing metric is `outreach` (motivated sellers contacted/month).
-//   * Internally the platform meters voice DIALS — `dials` is the real quota that
+//   * Internally the platform meters voice DIALS - `dials` is the real quota that
 //     drives `monthly_dial_limit` and the number-pool size. The SMS-first outreach
 //     pipeline is not built yet, so `outreach` is the label and `dials` is the
 //     enforced cap. Keep both fields in sync when the pipeline ships.
 //   * `amount`        = monthly USD price.
-//   * `amount_annual` = upfront yearly USD (= 10 months — 2 months free).
+//   * `amount_annual` = upfront yearly USD (= 10 months - 2 months free).
 //   * NO Founding Member tier (removed permanently). `growth`/`pro` retired; their
 //     dial tiers carry forward under the new `solo`/`operator` names.
 const PLANS = {
@@ -99,12 +99,12 @@ const PLANS = {
   },
   custom: {
     name:        'Custom / High-Volume',
-    amount:      null,           // no fixed price — negotiated via email
+    amount:      null,           // no fixed price - negotiated via email
     currency:    'USD',
     interval:    'monthly',
     outreach:    null,
     dials:       null,           // set manually after the deal is agreed
-    description: 'High-volume custom pricing — contact us to tailor a plan',
+    description: 'High-volume custom pricing - contact us to tailor a plan',
     custom:      true,
     contact_email: 'divineqflash@gmail.com',
   },
@@ -191,7 +191,7 @@ async function grantTopupCredits({ userId, planKey, blocks, total, fwTxId }) {
     flutterwave_tx_id: fwTxId || null,
     status:            'active',
   }).then(null, (e) => {
-    // Duplicate (already logged) is fine; anything else just warns — credits granted.
+    // Duplicate (already logged) is fine; anything else just warns - credits granted.
     if (e?.code !== '23505') console.warn('[FW Topup] purchase log failed:', e.message);
   });
 
@@ -204,7 +204,7 @@ const OWNER_EMAIL = 'divineqflash@gmail.com';
 
 /**
  * Notify the platform owner when a new subscription is purchased.
- * Fire-and-forget — errors are logged but never thrown.
+ * Fire-and-forget - errors are logged but never thrown.
  */
 async function notifyOwnerOfSale({ buyerEmail, buyerName, planKey, planName, amount, currency }) {
   try {
@@ -215,7 +215,7 @@ async function notifyOwnerOfSale({ buyerEmail, buyerName, planKey, planName, amo
       .maybeSingle();
 
     if (!owner?.id) {
-      console.warn('[FW] Owner account not found — skipping sale notification');
+      console.warn('[FW] Owner account not found - skipping sale notification');
       return;
     }
 
@@ -292,10 +292,10 @@ async function updateUserSubscription(userId, { plan, status, fwCustomerId, fwSu
   if (plan && PLANS[plan]) {
     updates.monthly_dial_limit = PLANS[plan].dials;
 
-    // Outreach meter — provision the monthly allocation for this plan and start
+    // Outreach meter - provision the monthly allocation for this plan and start
     // a fresh cycle on activation (zero usage, unpause, clear notify flags,
     // stamp the rollover marker). Top-up balance is intentionally NOT cleared
-    // here — top-ups expire only at the natural monthly reset, not on a plan
+    // here - top-ups expire only at the natural monthly reset, not on a plan
     // change. PLANS[plan].outreach is null for the custom tier → skip.
     if (PLANS[plan].outreach != null) {
       const firstOfMonth = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1))
@@ -327,10 +327,10 @@ router.get('/plans', (req, res) => {
     description:   p.description,
     popular:       p.popular  || false,
     custom:        p.custom   || false,
-    // Custom plans have no checkout — the frontend shows a "Contact us" button
+    // Custom plans have no checkout - the frontend shows a "Contact us" button
     // that opens the user's email client to negotiate high-volume pricing.
     contact_mailto: p.custom
-      ? `mailto:${p.contact_email}?subject=${encodeURIComponent('Veori — Custom / High-Volume Plan')}`
+      ? `mailto:${p.contact_email}?subject=${encodeURIComponent('Veori - Custom / High-Volume Plan')}`
       : null,
   }));
   res.json({ success: true, plans: plansOut });
@@ -346,7 +346,7 @@ router.post('/create-payment-link', auth, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid plan selected' });
     }
 
-    // Custom / high-volume plans have no fixed price — no checkout link.
+    // Custom / high-volume plans have no fixed price - no checkout link.
     // Direct the operator to email us so we can tailor a deal.
     if (plan.custom) {
       return res.status(400).json({
@@ -354,7 +354,7 @@ router.post('/create-payment-link', auth, async (req, res) => {
         custom:  true,
         error:   'Custom plans are arranged by email. Please contact us for high-volume pricing.',
         contact_email:  plan.contact_email,
-        contact_mailto: `mailto:${plan.contact_email}?subject=${encodeURIComponent('Veori — Custom / High-Volume Plan')}`,
+        contact_mailto: `mailto:${plan.contact_email}?subject=${encodeURIComponent('Veori - Custom / High-Volume Plan')}`,
       });
     }
 
@@ -471,7 +471,7 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Unknown plan in transaction' });
     }
 
-    // Custom plans are never sold through checkout — they have no fixed price.
+    // Custom plans are never sold through checkout - they have no fixed price.
     if (plan.custom || plan.amount == null) {
       return res.status(400).json({ success: false, error: 'Custom plans are arranged by email, not checkout' });
     }
@@ -481,7 +481,7 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       return res.status(402).json({ success: false, error: 'Payment amount mismatch' });
     }
 
-    // Verify currency matches — a weak-currency payment of "3999" units is not $3,999.
+    // Verify currency matches - a weak-currency payment of "3999" units is not $3,999.
     if ((txData.currency || '').toUpperCase() !== (plan.currency || 'USD').toUpperCase()) {
       return res.status(402).json({ success: false, error: 'Payment currency mismatch' });
     }
@@ -508,7 +508,7 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       }]);
 
     if (claimErr && claimErr.code !== '23505') {
-      // Real DB error — don't half-activate. Surface so the buyer can retry.
+      // Real DB error - don't half-activate. Surface so the buyer can retry.
       console.error('[FW Verify] Idempotency insert failed:', claimErr.message);
       return res.status(500).json({ success: false, error: 'Verification failed. Contact support.' });
     }
@@ -516,8 +516,8 @@ router.get('/verify/:txRef', auth, async (req, res) => {
     const alreadyProcessed = claimErr?.code === '23505';
     if (alreadyProcessed) {
       // The webhook (or an earlier /verify) already provisioned this transaction.
-      // The account is active — return success without re-provisioning.
-      console.log(`[FW Verify] Already processed — tx ${fwTxId} (user ${req.user.id}), skipping re-provision`);
+      // The account is active - return success without re-provisioning.
+      console.log(`[FW Verify] Already processed - tx ${fwTxId} (user ${req.user.id}), skipping re-provision`);
       return res.json({
         success:   true,
         plan:      planKey,
@@ -538,7 +538,7 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       expiresAt,
     });
 
-    // Auto-provision phone number pool (fire and forget — doesn't block the response)
+    // Auto-provision phone number pool (fire and forget - doesn't block the response)
     const { handlePlanUpgrade } = require('../services/numberProvisioning');
     handlePlanUpgrade(req.user.id, planKey).then(result => {
       console.log(`[FW Verify] Number provisioning for ${planKey}:`, result);
@@ -546,7 +546,7 @@ router.get('/verify/:txRef', auth, async (req, res) => {
       console.error('[FW Verify] Number provisioning failed:', err.message);
     });
 
-    // Notify owner of new sale (fire and forget — verify is the buyer's own session)
+    // Notify owner of new sale (fire and forget - verify is the buyer's own session)
     notifyOwnerOfSale({
       buyerEmail: txData.customer?.email || '',
       buyerName:  txData.customer?.name  || '',
@@ -637,7 +637,7 @@ router.post('/create-topup-link', auth, async (req, res) => {
     const pricing = topupPricing(planKey, blocks);
     const txRef   = `veori_topup_${planKey}_${user.id}_${Date.now()}`;
 
-    // One-time payment — deliberately NO payment_plan (top-ups don't recur).
+    // One-time payment - deliberately NO payment_plan (top-ups don't recur).
     const resp = await fwRequest('POST', '/payments', {
       tx_ref:       txRef,
       amount:       pricing.total,
@@ -649,7 +649,7 @@ router.post('/create-topup-link', auth, async (req, res) => {
         phonenumber: user.phone || '',
       },
       customizations: {
-        title:       'Veori AI — Outreach Top-Up',
+        title:       'Veori AI - Outreach Top-Up',
         description: `${pricing.credits.toLocaleString()} outreach credits (${blocks} block${blocks > 1 ? 's' : ''})`,
         logo:        `${FRONTEND_URL}/logo.png`,
       },
@@ -701,7 +701,7 @@ router.get('/verify-topup/:txRef', auth, async (req, res) => {
     if (!txData)                       return res.status(404).json({ success: false, error: 'Transaction not found' });
     if (txData.status !== 'successful') return res.status(402).json({ success: false, error: `Payment ${txData.status}`, status: txData.status });
 
-    // Ownership guard — same as subscription verify.
+    // Ownership guard - same as subscription verify.
     const txUserId = txData.meta?.user_id;
     if (txUserId && txUserId !== req.user.id) {
       console.error(`[FW Topup Verify] User ${req.user.id} tried to claim tx of ${txUserId}`);
@@ -794,7 +794,7 @@ router.get('/subscription', auth, async (req, res) => {
     const dialsUsed = user.calls_used || 0;
     const usagePct  = dialLimit ? Math.round((dialsUsed / dialLimit) * 100) : 0;
 
-    // Outreach meter (SMS lead-outreach) — separate from the dial meter.
+    // Outreach meter (SMS lead-outreach) - separate from the dial meter.
     const allocation    = user.monthly_allocation || 0;
     const outreachUsed  = user.outreach_used || 0;
     const topupLeft     = user.topup_credits_available || 0;
@@ -860,22 +860,22 @@ router.post('/cancel', auth, async (req, res) => {
 });
 
 // ─── POST /api/fw-billing/webhook ────────────────────────────────────────────
-// No auth — Flutterwave sends this directly
+// No auth - Flutterwave sends this directly
 router.post('/webhook', express.json(), async (req, res) => {
   try {
-    // Verify webhook signature — ALWAYS required
+    // Verify webhook signature - ALWAYS required
     // If FLUTTERWAVE_WEBHOOK_HASH is not set, reject every request.
     // An empty/missing hash config means the endpoint is unconfigured, not open.
     const hash     = req.headers['verif-hash'];
     const expected = FW_HASH();
 
     if (!expected) {
-      console.error('[FW Webhook] FLUTTERWAVE_WEBHOOK_HASH not configured — rejecting all webhook requests');
+      console.error('[FW Webhook] FLUTTERWAVE_WEBHOOK_HASH not configured - rejecting all webhook requests');
       return res.status(503).json({ error: 'Webhook not configured' });
     }
 
     if (hash !== expected) {
-      console.warn('[FW Webhook] Invalid hash — possible spoofed request');
+      console.warn('[FW Webhook] Invalid hash - possible spoofed request');
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -898,7 +898,7 @@ router.post('/webhook', express.json(), async (req, res) => {
       const pricing = planKey ? topupPricing(planKey, blocks) : null;
 
       if (!userId || !pricing) {
-        console.warn('[FW Webhook] Top-up rejected — missing user/plan (tx', data.tx_ref, ')');
+        console.warn('[FW Webhook] Top-up rejected - missing user/plan (tx', data.tx_ref, ')');
         return res.json({ status: 'ok' });
       }
 
@@ -913,7 +913,7 @@ router.post('/webhook', express.json(), async (req, res) => {
         return res.json({ status: 'ok' });
       }
 
-      // Idempotency — same processed_transactions surface as everything else.
+      // Idempotency - same processed_transactions surface as everything else.
       const fwTxId = (data.id ?? data.tx_ref ?? '').toString();
       const { error: claimErr } = await supabase
         .from('processed_transactions')
@@ -930,7 +930,7 @@ router.post('/webhook', express.json(), async (req, res) => {
 
       if (claimErr) {
         if (claimErr.code === '23505') {
-          console.log(`[FW Webhook] Top-up duplicate ignored — tx ${fwTxId} (user ${userId})`);
+          console.log(`[FW Webhook] Top-up duplicate ignored - tx ${fwTxId} (user ${userId})`);
           return res.json({ status: 'ok' });
         }
         console.error('[FW Webhook] Top-up idempotency insert failed:', claimErr.message);
@@ -965,18 +965,18 @@ router.post('/webhook', express.json(), async (req, res) => {
         // (A) Amount must cover the plan price. Custom plans have no fixed price
         // and are never sold through checkout, so reject them here outright.
         if (plan.custom || plan.amount == null) {
-          console.warn(`[FW Webhook] Rejected — '${planKey}' is not a checkout plan (user ${userId})`);
+          console.warn(`[FW Webhook] Rejected - '${planKey}' is not a checkout plan (user ${userId})`);
           return res.json({ status: 'ok' });
         }
         if (!Number.isFinite(paidAmount) || paidAmount < plan.amount) {
-          console.warn(`[FW Webhook] Rejected — underpaid: paid ${paidAmount} ${paidCurrency}, plan '${planKey}' needs ${plan.amount} ${plan.currency} (user ${userId}, tx ${data.tx_ref})`);
+          console.warn(`[FW Webhook] Rejected - underpaid: paid ${paidAmount} ${paidCurrency}, plan '${planKey}' needs ${plan.amount} ${plan.currency} (user ${userId}, tx ${data.tx_ref})`);
           return res.json({ status: 'ok' });
         }
 
         // (B) Currency must match the plan currency (USD). A weak-currency payment
-        // of "3999" units is not $3,999 — block the mismatch.
+        // of "3999" units is not $3,999 - block the mismatch.
         if (paidCurrency !== (plan.currency || 'USD').toUpperCase()) {
-          console.warn(`[FW Webhook] Rejected — currency mismatch: paid ${paidCurrency}, plan '${planKey}' is ${plan.currency} (user ${userId}, tx ${data.tx_ref})`);
+          console.warn(`[FW Webhook] Rejected - currency mismatch: paid ${paidCurrency}, plan '${planKey}' is ${plan.currency} (user ${userId}, tx ${data.tx_ref})`);
           return res.json({ status: 'ok' });
         }
 
@@ -985,7 +985,7 @@ router.post('/webhook', express.json(), async (req, res) => {
         // re-run activation, re-provision pool numbers, and re-fire referral
         // commission. data.id is FW's stable, globally-unique transaction id.
         // Insert-first (not select-then-insert) so two simultaneous retries can't
-        // both pass a check and proceed — the UNIQUE (provider, transaction_id)
+        // both pass a check and proceed - the UNIQUE (provider, transaction_id)
         // constraint lets exactly one win; the loser gets 23505 and bails.
         const fwTxId = (data.id ?? data.tx_ref ?? '').toString();
         const { error: claimErr } = await supabase
@@ -1003,7 +1003,7 @@ router.post('/webhook', express.json(), async (req, res) => {
 
         if (claimErr) {
           if (claimErr.code === '23505') {
-            console.log(`[FW Webhook] Duplicate ignored — tx ${fwTxId} already processed (user ${userId})`);
+            console.log(`[FW Webhook] Duplicate ignored - tx ${fwTxId} already processed (user ${userId})`);
             return res.json({ status: 'ok' });
           }
           // Any other DB error: don't half-activate. 500 so FW retries later.
@@ -1048,7 +1048,7 @@ router.post('/webhook', express.json(), async (req, res) => {
 
         const commissionType = (!existingRef || !existingRef.month1_paid) ? 'month1' : 'recurring';
 
-        // Trigger referral commission (fire and forget — internal only)
+        // Trigger referral commission (fire and forget - internal only)
         const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
         fetch(`${backendUrl}/api/referrals/trigger`, {
           method:  'POST',

@@ -1,7 +1,7 @@
 /**
  * /api/heatmap
- * Market Heat Map — lead density and motivation by zip code
- * NEW FILE — does not modify any existing routes
+ * Market Heat Map - lead density and motivation by zip code
+ * NEW FILE - does not modify any existing routes
  */
 const express  = require('express');
 const supabase = require('../config/supabase');
@@ -10,7 +10,7 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// GET /api/heatmap — zip-code aggregated lead data
+// GET /api/heatmap - zip-code aggregated lead data
 router.get('/', async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -74,7 +74,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/heatmap/top-zips — top 10 zip codes by hot lead density
+// GET /api/heatmap/top-zips - top 10 zip codes by hot lead density
 router.get('/top-zips', async (req, res, next) => {
   try {
     const { data, error } = await supabase

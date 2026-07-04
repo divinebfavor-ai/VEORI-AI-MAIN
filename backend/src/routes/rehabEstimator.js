@@ -1,5 +1,5 @@
 /**
- * Feature 18 — Rehab Cost Estimator
+ * Feature 18 - Rehab Cost Estimator
  * Routes: GET /api/rehab/items, POST /api/rehab/estimate, GET /api/rehab/history/:leadId,
  *         POST /api/rehab/estimate/:leadId/save
  */
@@ -10,7 +10,7 @@ const { REPAIR_ITEMS, calculateRepairEstimate, calculateScenarios, estimateFromD
 
 router.use(auth);
 
-// GET /api/rehab/items — return repair item catalog
+// GET /api/rehab/items - return repair item catalog
 router.get('/items', async (_req, res) => {
   try {
     const items = Object.entries(REPAIR_ITEMS).map(([key, val]) => ({
@@ -25,7 +25,7 @@ router.get('/items', async (_req, res) => {
   }
 });
 
-// POST /api/rehab/estimate — calculate estimate from selected items
+// POST /api/rehab/estimate - calculate estimate from selected items
 router.post('/estimate', async (req, res) => {
   try {
     const { items, arv, asking_price, description } = req.body;
@@ -78,7 +78,7 @@ router.post('/estimate', async (req, res) => {
   }
 });
 
-// POST /api/rehab/estimate/:leadId/save — save to profit_calculations table
+// POST /api/rehab/estimate/:leadId/save - save to profit_calculations table
 router.post('/estimate/:leadId/save', async (req, res) => {
   try {
     const { leadId } = req.params;
@@ -117,7 +117,7 @@ router.post('/estimate/:leadId/save', async (req, res) => {
   }
 });
 
-// GET /api/rehab/history/:leadId — saved calcs for a lead
+// GET /api/rehab/history/:leadId - saved calcs for a lead
 router.get('/history/:leadId', async (req, res) => {
   try {
     const { data, error } = await supabase

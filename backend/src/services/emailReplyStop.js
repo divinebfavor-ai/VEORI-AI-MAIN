@@ -1,17 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// emailReplyStop — Tier 2c: stop a lead's cold-email drip the moment they reply.
+// emailReplyStop - Tier 2c: stop a lead's cold-email drip the moment they reply.
 //
 // WHY: The loudest 2026 cold-email complaint is "the tool kept hammering a guy
 // who already replied." It's the fastest way to a spam complaint (and looks
 // amateur to an experienced seller). The instant a lead emails back, their
-// automated drip must stop — a human is now in the loop. Reply > the sequence.
+// automated drip must stop - a human is now in the loop. Reply > the sequence.
 //
 // HOW: Resend has no "replied" event (replies hit the real mailbox, not the API),
 // so reply signal comes IN via an inbound-parse forward to POST /api/email/inbound.
 // This service does the actual stop: find the lead by the inbound from-address for
 // that operator, flip their ACTIVE email sequences to 'cancelled'. Same status the
 // engine already uses (enrollLeadInSequence cancels prior actives), so the cron
-// processReadySequences (status='active' only) simply stops picking them up — no
+// processReadySequences (status='active' only) simply stops picking them up - no
 // new state machine, no change to the send path.
 //
 // SAFETY / ZERO-REGRESSION:

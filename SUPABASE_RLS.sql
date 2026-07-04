@@ -1,5 +1,5 @@
 -- ============================================================
--- VEORI AI — Row Level Security (RLS) Policies
+-- VEORI AI - Row Level Security (RLS) Policies
 -- Run this once in Supabase SQL Editor
 -- This is defense-in-depth: even if backend has a bug,
 -- operators cannot see each other's data at the DB level.
@@ -97,11 +97,11 @@ CREATE POLICY "deal_activity: owner only" ON deal_activity
 CREATE POLICY "title_companies: owner only" ON title_companies
   FOR ALL USING (auth.uid()::text = user_id::text);
 
--- ── password_reset_tokens — no direct client access ────────
+-- ── password_reset_tokens - no direct client access ────────
 CREATE POLICY "prt: no direct access" ON password_reset_tokens
   FOR ALL USING (false);  -- service_role only
 
--- ── users — operators can only read/update their own row ───
+-- ── users - operators can only read/update their own row ───
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users: own row only" ON users
   FOR ALL USING (auth.uid()::text = id::text);

@@ -23,4 +23,4 @@ CREATE INDEX IF NOT EXISTS idx_lpv_country_code    ON landing_page_visits(countr
 CREATE INDEX IF NOT EXISTS idx_lpv_referrer_source ON landing_page_visits(referrer_source);
 CREATE INDEX IF NOT EXISTS idx_lpv_session_id      ON landing_page_visits(session_id);
 
--- No RLS needed — backend uses service role key for writes, admin reads
+-- No RLS needed - backend uses service role key for writes, admin reads

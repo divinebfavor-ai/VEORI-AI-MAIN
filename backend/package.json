@@ -1,7 +1,7 @@
 {
   "name": "veori-ai-backend",
   "version": "1.0.0",
-  "description": "VEORI AI — Autonomous Real Estate Acquisitions Platform Backend",
+  "description": "VEORI AI - Autonomous Real Estate Acquisitions Platform Backend",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

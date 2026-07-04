@@ -1,7 +1,7 @@
 // ─── Buyer Score System (Feature 14) ────────────────────────────────────────
 // Scores a cash buyer 0-100 on how reliable they are to actually close, so the
 // dispo engine pitches the best deals to the strongest buyers first. Pure,
-// deterministic, no DB/network — caller passes the buyer row (and optional
+// deterministic, no DB/network - caller passes the buyer row (and optional
 // closed-deal history). Mirrors the seller_trust_scores pattern but for the buy
 // side.
 //

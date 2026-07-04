@@ -1,15 +1,15 @@
 /**
- * Pool Service — Shared Toll-Free Number Pool
+ * Pool Service - Shared Toll-Free Number Pool
  *
  * Veori holds a stock of pre-verified toll-free numbers (rows in phone_numbers
  * with user_id = NULL). When an operator pushes leads and the health math says
- * they need more calling capacity, a ready number is assigned instantly — a
+ * they need more calling capacity, a ready number is assigned instantly - a
  * single DB UPDATE setting user_id. No external API call, so assignment works
  * even when Twilio/Vapi keys are unavailable.
  *
  * Two responsibilities:
- *   1. loadPoolNumbers()  — admin fills the pool with verified toll-free numbers
- *   2. assignFromPool()   — instant, key-less assignment of pool numbers to an operator
+ *   1. loadPoolNumbers()  - admin fills the pool with verified toll-free numbers
+ *   2. assignFromPool()   - instant, key-less assignment of pool numbers to an operator
  *
  * Pool rows are stored in the existing phone_numbers table:
  *   user_id          NULL          → in pool, unassigned
@@ -42,7 +42,7 @@ async function importToVapi(number, label) {
   const twilioSid   = process.env.TWILIO_ACCOUNT_SID;
   const twilioToken = process.env.TWILIO_AUTH_TOKEN;
 
-  // No keys yet (e.g. Twilio downtime) — caller will store as 'pending'.
+  // No keys yet (e.g. Twilio downtime) - caller will store as 'pending'.
   if (!vapiKey || !twilioSid || !twilioToken) return null;
 
   const webhookUrl = process.env.VAPI_WEBHOOK_URL
@@ -89,7 +89,7 @@ async function loadPoolNumbers(numbers) {
       continue;
     }
 
-    // Already in DB (pool or assigned) — don't duplicate.
+    // Already in DB (pool or assigned) - don't duplicate.
     const { data: existing } = await supabase
       .from('phone_numbers')
       .select('id')
@@ -111,7 +111,7 @@ async function loadPoolNumbers(numbers) {
     } catch (err) {
       const msg = err.response?.data?.message || err.response?.data?.error || err.message;
       result.errors.push({ number, error: msg });
-      // Fall through — still store as pending so the number isn't lost.
+      // Fall through - still store as pending so the number isn't lost.
     }
 
     const { error: insertErr } = await supabase.from('phone_numbers').insert([{
@@ -141,7 +141,7 @@ async function loadPoolNumbers(numbers) {
     if (verified === 'pending') result.pending += 1;
   }
 
-  console.log(`[Pool] Load complete — ${result.loaded} loaded (${result.pending} pending), ${result.skipped} skipped, ${result.invalid.length} invalid`);
+  console.log(`[Pool] Load complete - ${result.loaded} loaded (${result.pending} pending), ${result.skipped} skipped, ${result.invalid.length} invalid`);
   return result;
 }
 
@@ -208,7 +208,7 @@ async function assignFromPool(userId, count) {
   }
 
   const pool_remaining = await poolAvailableCount();
-  console.log(`[Pool] Assigned ${assignedNumbers.length}/${requested} to ${userId} — ${pool_remaining} left in pool`);
+  console.log(`[Pool] Assigned ${assignedNumbers.length}/${requested} to ${userId} - ${pool_remaining} left in pool`);
 
   return {
     assigned:       assignedNumbers.length,

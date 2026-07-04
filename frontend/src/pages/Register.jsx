@@ -180,7 +180,7 @@ export default function Register() {
               )}
             </div>
             {refCode.length >= 6 && (
-              <p style={{ fontSize: 11, color: '#00C37A', margin: '5px 0 0' }}>Code accepted — your referrer earns their bonus once you subscribe to a plan.</p>
+              <p style={{ fontSize: 11, color: '#00C37A', margin: '5px 0 0' }}>Code accepted - your referrer earns their bonus once you subscribe to a plan.</p>
             )}
           </div>
 

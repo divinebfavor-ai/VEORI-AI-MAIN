@@ -69,7 +69,7 @@ export default function Buyers() {
 
   useEffect(() => { load() }, [])
 
-  // CSV import — mirrors the Leads page importer. Flexible headers in; the backend
+  // CSV import - mirrors the Leads page importer. Flexible headers in; the backend
   // /api/buyers/bulk does the real field mapping, phone dedup + chunked insert.
   const handleFile = (e) => {
     const file = e.target.files?.[0]
@@ -123,7 +123,7 @@ export default function Buyers() {
     })
   }
 
-  // Opt-in toggle — exposes this buyer to the cross-operator shared pool.
+  // Opt-in toggle - exposes this buyer to the cross-operator shared pool.
   // Optimistic: flip locally, call API, roll back on failure. Default is private.
   const toggleShare = async (b) => {
     const next = !b.share_to_pool
@@ -225,7 +225,7 @@ export default function Buyers() {
                     {b.deals_closed || 0} closed
                   </td>
                   <td className="px-6 py-4">
-                    <button onClick={() => toggleShare(b)} title={b.share_to_pool ? 'Shared to cross-operator pool — click to make private' : 'Private — click to share to the pool'} className="cursor-pointer">
+                    <button onClick={() => toggleShare(b)} title={b.share_to_pool ? 'Shared to cross-operator pool - click to make private' : 'Private - click to share to the pool'} className="cursor-pointer">
                       <Badge variant={b.share_to_pool ? 'gold' : 'gray'}>{b.share_to_pool ? 'Shared' : 'Private'}</Badge>
                     </button>
                   </td>

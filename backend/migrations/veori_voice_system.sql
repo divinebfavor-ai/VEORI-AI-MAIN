@@ -1,12 +1,12 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- VEORI Voice System (v2) — Twilio + ElevenLabs calling layer
+-- VEORI Voice System (v2) - Twilio + ElevenLabs calling layer
 -- ════════════════════════════════════════════════════════════════════════════
 -- Part of the Vapi -> Twilio + ElevenLabs reroute. These tables are NEW and
 -- additive only. They DO NOT modify or touch any existing table (users, leads,
 -- calls, sms_messages, etc.). Run this whole file once in the Supabase SQL editor.
 --
 -- FK targets confirmed against schema.sql:
---   users.id  (UUID)  — the operator/user table
+--   users.id  (UUID)  - the operator/user table
 --   leads.id  (UUID)
 -- ════════════════════════════════════════════════════════════════════════════
 

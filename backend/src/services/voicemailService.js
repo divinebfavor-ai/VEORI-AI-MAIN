@@ -3,7 +3,7 @@
  *
  * Uses Vapi to send a pre-recorded voicemail without ringing the phone.
  * In production this integrates with:
- * - Slybroadcast (slybroadcast.com) — dedicated RVM service
+ * - Slybroadcast (slybroadcast.com) - dedicated RVM service
  * - DropCowboy (dropcowboy.com)
  * - Straight To Voicemail via Vapi
  *
@@ -30,33 +30,33 @@ const vapiHttp = axios.create({
 
 const VOICEMAIL_TEMPLATES = {
   first_contact: (aiName, firstName, companyName) =>
-    `Hi ${firstName || 'there'}, this is ${aiName} calling from ${companyName}. I'm a local real estate investor and I was reaching out about your property. I'd love to make you a fair all-cash offer — no repairs needed, no agent fees. Give me a call back at your convenience. Looking forward to speaking with you. Have a great day.`,
+    `Hi ${firstName || 'there'}, this is ${aiName} calling from ${companyName}. I'm a local real estate investor and I was reaching out about your property. I'd love to make you a fair all-cash offer - no repairs needed, no agent fees. Give me a call back at your convenience. Looking forward to speaking with you. Have a great day.`,
 
   follow_up: (aiName, firstName, companyName) =>
-    `Hi ${firstName || 'there'}, this is ${aiName} from ${companyName} again. I left a message recently about your property — I still have a strong cash offer ready and can close quickly on your timeline. No pressure at all, just wanted to follow up. Feel free to call me back when it's convenient.`,
+    `Hi ${firstName || 'there'}, this is ${aiName} from ${companyName} again. I left a message recently about your property - I still have a strong cash offer ready and can close quickly on your timeline. No pressure at all, just wanted to follow up. Feel free to call me back when it's convenient.`,
 
   last_attempt: (aiName, firstName) =>
-    `Hi ${firstName || 'there'}, this is ${aiName}. This will be my last message — I have a cash offer ready for your property and can close in as little as two weeks. If you're ever interested in a no-hassle, as-is cash sale, please do reach out. I wish you all the best.`,
+    `Hi ${firstName || 'there'}, this is ${aiName}. This will be my last message - I have a cash offer ready for your property and can close in as little as two weeks. If you're ever interested in a no-hassle, as-is cash sale, please do reach out. I wish you all the best.`,
 };
 
 /**
  * Drop a ringless voicemail to a lead
- * @param {object} lead — lead record from DB
- * @param {object} operator — user/operator profile
- * @param {string} templateKey — 'first_contact' | 'follow_up' | 'last_attempt'
+ * @param {object} lead - lead record from DB
+ * @param {object} operator - user/operator profile
+ * @param {string} templateKey - 'first_contact' | 'follow_up' | 'last_attempt'
  */
 async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact', callId = null }) {
   // Vapi is decommissioned on the call path (no funded Vapi wallet). Ringless
   // voicemail is the one feature still built on Vapi's /call/phone. Until it is
   // re-platformed onto Twilio, it stays OFF unless someone deliberately opts back
-  // in with VAPI_ENABLED=true — so a stale VAPI_API_KEY on Railway can never spend
+  // in with VAPI_ENABLED=true - so a stale VAPI_API_KEY on Railway can never spend
   // the wallet by accident. Without the flag we simulate (no network call).
   if (String(process.env.VAPI_ENABLED || '').toLowerCase() !== 'true') {
-    console.log(`[RVM] Vapi decommissioned (VAPI_ENABLED!=true) — simulating voicemail drop to ${lead.phone}`);
+    console.log(`[RVM] Vapi decommissioned (VAPI_ENABLED!=true) - simulating voicemail drop to ${lead.phone}`);
     return { simulated: true, reason: 'vapi_disabled' };
   }
   if (!VAPI_API_KEY) {
-    console.log(`[RVM] VAPI_API_KEY not set — simulating voicemail drop to ${lead.phone}`);
+    console.log(`[RVM] VAPI_API_KEY not set - simulating voicemail drop to ${lead.phone}`);
     return { simulated: true };
   }
 
@@ -75,16 +75,16 @@ async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact
         within_calling_hours: false,
         dnc_result: 'blocked',
         consent_status: 'blocked',
-        local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry — voicemail blocked',
+        local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry - voicemail blocked',
       }).then(null, () => {});
-      console.log(`[RVM] Federal DNC hit — skipping voicemail drop to ${lead.phone}`);
+      console.log(`[RVM] Federal DNC hit - skipping voicemail drop to ${lead.phone}`);
       return { skipped: true, reason: 'federal_dnc' };
     }
   } catch (e) {
     console.warn('[RVM][TCPA] Federal DNC check skipped:', e.message);
   }
 
-  // Internal DNC list (authoritative `dnc_records` table) — hard stop. The route
+  // Internal DNC list (authoritative `dnc_records` table) - hard stop. The route
   // already checks lead.is_on_dnc, but a number can land on dnc_records without
   // the lead flag being set (mirrors the SMS path in smsService/sequenceEngine).
   // Fail-safe: any DB error here does NOT block the drop (the FTC + lead.is_on_dnc
@@ -93,19 +93,19 @@ async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact
     const { data: dncHit } = await supabase
       .from('dnc_records').select('id').eq('phone', lead.phone).maybeSingle();
     if (dncHit) {
-      console.log(`[RVM] Internal DNC hit — skipping voicemail drop to ${lead.phone}`);
+      console.log(`[RVM] Internal DNC hit - skipping voicemail drop to ${lead.phone}`);
       return { skipped: true, reason: 'dnc' };
     }
   } catch (e) {
     console.warn('[RVM] Internal DNC check skipped:', e.message);
   }
 
-  // TCPA quiet-hours — NEVER drop a voicemail outside 8 AM–9 PM in the lead's
+  // TCPA quiet-hours - NEVER drop a voicemail outside 8 AM–9 PM in the lead's
   // local time. Mirrors the sequence-engine SMS gate. Fail-safe: we only send
   // when we can CONFIRM we're inside the window; a drop is skipped (not deferred)
-  // here since this is a manual/one-shot action — the caller can retry in-window.
+  // here since this is a manual/one-shot action - the caller can retry in-window.
   if (!isWithinTcpaWindow(lead.property_state)) {
-    console.log(`[RVM] Outside TCPA window for state ${lead.property_state || '?'} — skipping drop to ${lead.phone}`);
+    console.log(`[RVM] Outside TCPA window for state ${lead.property_state || '?'} - skipping drop to ${lead.phone}`);
     return { skipped: true, reason: 'tcpa_quiet_hours' };
   }
 
@@ -149,7 +149,7 @@ ${vmMessage}` }],
         machineDetectionTimeout: 30,
       },
       silenceTimeoutSeconds: 5,
-      maxDurationSeconds: 60, // Short — voicemail only
+      maxDurationSeconds: 60, // Short - voicemail only
       metadata: { callId, leadId: lead.id, type: 'voicemail_drop', template: templateKey },
     },
   };
@@ -167,8 +167,8 @@ ${vmMessage}` }],
   } else if (process.env.VAPI_PHONE_NUMBER_ID) {
     payload.phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
   } else {
-    // No number available — simulate
-    console.log(`[RVM] No phone number available — simulating voicemail drop to ${lead.phone}`);
+    // No number available - simulate
+    console.log(`[RVM] No phone number available - simulating voicemail drop to ${lead.phone}`);
     return { simulated: true, reason: 'no_phone_number' };
   }
 
@@ -185,7 +185,7 @@ ${vmMessage}` }],
       started_at: new Date().toISOString(),
     }).then(null, () => {});
 
-    console.log(`[RVM] Voicemail drop initiated for ${lead.phone} — Vapi ID: ${data.id}`);
+    console.log(`[RVM] Voicemail drop initiated for ${lead.phone} - Vapi ID: ${data.id}`);
     return { success: true, vapi_call_id: data.id };
   } catch (err) {
     console.error('[RVM] Voicemail drop failed:', err.response?.data || err.message);

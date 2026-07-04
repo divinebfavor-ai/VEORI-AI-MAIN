@@ -9,15 +9,15 @@
   <!-- Background -->
   <rect width="32" height="32" rx="8" fill="#050A14"/>
 
-  <!-- Ring 1 — Gold, -60deg -->
+  <!-- Ring 1 - Gold, -60deg -->
   <ellipse cx="16" cy="16" rx="13" ry="4" fill="none" stroke="#C9A84C" stroke-width="1.5"
     transform="rotate(-60, 16, 16)" filter="url(#g1)" opacity="0.95"/>
 
-  <!-- Ring 2 — Green, 60deg -->
+  <!-- Ring 2 - Green, 60deg -->
   <ellipse cx="16" cy="16" rx="13" ry="4" fill="none" stroke="#00C37A" stroke-width="1.5"
     transform="rotate(60, 16, 16)" filter="url(#g1)" opacity="0.95"/>
 
-  <!-- Ring 3 — Gold, 0deg -->
+  <!-- Ring 3 - Gold, 0deg -->
   <ellipse cx="16" cy="16" rx="13" ry="4" fill="none" stroke="#C9A84C" stroke-width="1.5"
     transform="rotate(0, 16, 16)" filter="url(#g1)" opacity="0.95"/>
 

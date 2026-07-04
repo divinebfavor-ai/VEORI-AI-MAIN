@@ -1,21 +1,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// emailFromRotation — Tier 3b: deterministic multi-address / multi-domain
+// emailFromRotation - Tier 3b: deterministic multi-address / multi-domain
 // from-rotation for cold email.
 //
 // WHY: Sending an entire cold campaign from ONE address concentrates all the
-// volume + any spam signal on a single mailbox/domain — the fastest way to torch
+// volume + any spam signal on a single mailbox/domain - the fastest way to torch
 // a sending reputation. Mature cold-email tools spread volume across several
 // verified addresses (often on sibling domains) so no single inbox is overloaded
 // and a flagged address doesn't sink the whole campaign. This picks one address
 // from an optional pool, deterministically per recipient.
 //
-// CONFIG (all optional — unset = today's exact behavior):
+// CONFIG (all optional - unset = today's exact behavior):
 //   EMAIL_FROM_POOL  comma-separated verified addresses, e.g.
 //                    "alex@veori.net,alex@veori-offers.net,team@veori.net"
 //   EMAIL_FROM       the single fallback (already used by emailService today).
 //
 // DETERMINISTIC per recipient (hash of seed) so a given lead always sees the same
-// sender across their whole drip — a sender that changes mid-thread looks like
+// sender across their whole drip - a sender that changes mid-thread looks like
 // spoofing and tanks trust. Different leads spread across the pool.
 //
 // SAFETY / ZERO-REGRESSION:
@@ -23,7 +23,7 @@
 //   • If EMAIL_FROM_POOL is unset/empty → returns the SAME defaultFrom emailService
 //     already computes, so nothing changes until an operator opts in via env.
 //   • Only addresses on VERIFIED domains should be put in the pool (Resend rejects
-//     unverified senders) — this helper does not verify; it only selects.
+//     unverified senders) - this helper does not verify; it only selects.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { hash32 } = require('./emailSpintax');

@@ -5,7 +5,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { smsTemplates } from '../services/api'
 
-// Lead-type tags mirror leadTaggingService — [value, friendly label]. A template
+// Lead-type tags mirror leadTaggingService - [value, friendly label]. A template
 // can be tagged for one lead type, or left general (usable for any lead).
 const LEAD_TYPES = [
   ['',                'General (any lead)'],
@@ -22,7 +22,7 @@ const LEAD_TYPES = [
 
 const typeLabel = (v) => (LEAD_TYPES.find(([val]) => val === (v || ''))?.[1]) || v
 
-// Available {tokens} an operator can drop into the body — must match
+// Available {tokens} an operator can drop into the body - must match
 // customSmsService.TOKENS server-side so what they preview is what sends.
 const TOKENS = ['first_name', 'street', 'city', 'county', 'state', 'address', 'operator']
 
@@ -43,7 +43,7 @@ function TemplateModal({ initial, onClose, onSaved }) {
     setForm(f => ({ ...f, body: `${f.body}${f.body && !f.body.endsWith(' ') ? ' ' : ''}{${tok}}` }))
 
   // AI generation: server drafts a compliant wholesale-RE SMS and self-moderates
-  // it. We only fill the body for the operator to review — nothing is saved/sent.
+  // it. We only fill the body for the operator to review - nothing is saved/sent.
   const generate = async () => {
     setGen(true)
     try {
@@ -52,7 +52,7 @@ function TemplateModal({ initial, onClose, onSaved }) {
       if (!d.body) { toast.error(d.reason || 'AI returned no draft. Try again.'); return }
       if (d.allowed === false) { toast.error(d.reason || 'Draft was not compliant. Try a different angle.'); return }
       setForm(f => ({ ...f, body: d.body }))
-      toast.success('Draft generated — review & save')
+      toast.success('Draft generated - review & save')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'AI generation failed')
     } finally { setGen(false) }
@@ -108,7 +108,7 @@ function TemplateModal({ initial, onClose, onSaved }) {
           </div>
           <p className="text-[11px] text-text-muted mb-3">Let Veori draft a compliant outreach text for this lead type. You review before saving.</p>
           <div className="flex gap-2">
-            <input value={angle} onChange={e => setAngle(e.target.value)} placeholder="Optional angle — e.g. emphasize speed, cash, as-is"
+            <input value={angle} onChange={e => setAngle(e.target.value)} placeholder="Optional angle - e.g. emphasize speed, cash, as-is"
               className="flex-1 h-[40px] bg-surface border border-border-subtle rounded-[6px] px-3 text-[13px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary"
             />
             <Button size="md" loading={generating} onClick={generate}><Sparkles size={13} /> Generate</Button>
@@ -130,7 +130,7 @@ function TemplateModal({ initial, onClose, onSaved }) {
             ))}
           </div>
           <p className="text-[11px] text-text-muted mt-1">
-            {form.body.length} chars{form.body.length > 320 ? ' — long messages may split into multiple SMS' : ''}
+            {form.body.length} chars{form.body.length > 320 ? ' - long messages may split into multiple SMS' : ''}
           </p>
         </div>
 

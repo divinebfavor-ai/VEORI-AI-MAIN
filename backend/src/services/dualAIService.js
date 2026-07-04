@@ -1,5 +1,5 @@
 /**
- * Dual AI Service — routes tasks to the right model:
+ * Dual AI Service - routes tasks to the right model:
  * - GPT-4o:           lead qualification, conversation extraction, live call coaching
  * - Claude Sonnet 4.6: deal analysis, analytics insights, deal brief, contract language, market trends
  */
@@ -14,7 +14,7 @@ function getAnthropic() {
   if (!anthropicClient) {
     anthropicClient = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      timeout: 55000,   // 55s — just under Railway's 60s request timeout
+      timeout: 55000,   // 55s - just under Railway's 60s request timeout
       maxRetries: 2,
     });
   }
@@ -39,10 +39,10 @@ async function qualifyLead({ name, phone, propertyAddress, conversationHistory, 
       content: `You are an expert real estate wholesale acquisitions AI. Analyze this seller conversation and score their motivation 0-100.
 
 Scoring criteria:
-- 80-100: Highly motivated — urgent timeline, financial pressure, distressed property
-- 60-79: Motivated — ready to sell, open to offers
-- 40-59: Somewhat motivated — considering selling
-- 0-39: Low motivation — not serious or testing the market
+- 80-100: Highly motivated - urgent timeline, financial pressure, distressed property
+- 60-79: Motivated - ready to sell, open to offers
+- 40-59: Somewhat motivated - considering selling
+- 0-39: Low motivation - not serious or testing the market
 
 Return ONLY valid JSON:
 {
@@ -57,7 +57,7 @@ Return ONLY valid JSON:
     },
     {
       role: 'user',
-      content: `Seller: ${name}\nPhone: ${phone}\nProperty: ${propertyAddress}\nMotivation type: ${motivationType}\n\nConversation:\n${conversationHistory || 'No conversation yet — initial qualification.'}`,
+      content: `Seller: ${name}\nPhone: ${phone}\nProperty: ${propertyAddress}\nMotivation type: ${motivationType}\n\nConversation:\n${conversationHistory || 'No conversation yet - initial qualification.'}`,
     },
   ];
 

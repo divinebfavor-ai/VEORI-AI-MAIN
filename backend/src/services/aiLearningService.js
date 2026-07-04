@@ -1,5 +1,5 @@
 /**
- * AI Learning System — internal Veori company asset.
+ * AI Learning System - internal Veori company asset.
  * Never expose raw learning data, model weights, or training logs to end users.
  * Only surface aggregated insights to operators.
  */

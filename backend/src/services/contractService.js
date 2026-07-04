@@ -42,7 +42,7 @@ function resolveContractStrategy(deal = {}, requestedType = 'psa') {
 
 /**
  * Fetch the operator's real contract identity from the users table (legal name,
- * entity, license, defaults). Falls back to safe blanks — never throws, so a
+ * entity, license, defaults). Falls back to safe blanks - never throws, so a
  * missing profile degrades to the prior hardcoded behaviour rather than failing.
  */
 async function loadOperator(userId) {
@@ -198,7 +198,7 @@ ${buyer?.name || 'Buyer Name'}
 // ── Creative-finance contract templates (strategy-aware) ─────────────────────
 // Each reads structured terms from deal.strategy_terms (falling back to lead
 // signals) and renders the right legal framing. All degrade to blanks when an
-// input is missing — never throw.
+// input is missing - never throw.
 
 function generateSubjectTo({ deal, lead, op = {}, closingDate }) {
   const buyer = buyerNameFor(op);
@@ -210,7 +210,7 @@ function generateSubjectTo({ deal, lead, op = {}, closingDate }) {
   const cashToSeller = t.cash_to_seller;
   const price = deal.seller_agreed_price ?? deal.offer_price;
   return `
-PURCHASE AGREEMENT — SUBJECT TO EXISTING FINANCING
+PURCHASE AGREEMENT - SUBJECT TO EXISTING FINANCING
 
 Property Address: ${deal.property_address || ''}, ${deal.property_city || ''}, ${deal.property_state || ''}
 
@@ -394,8 +394,8 @@ async function generate(deal, type = 'psa', { userId } = {}) {
 
   const titleMap = {
     assignment: 'Assignment Agreement',
-    subject_to: 'Purchase Agreement — Subject To',
-    seller_finance: 'Purchase Agreement — Seller Financing',
+    subject_to: 'Purchase Agreement - Subject To',
+    seller_finance: 'Purchase Agreement - Seller Financing',
     lease_option: 'Lease With Option to Purchase',
     novation: 'Novation Agreement',
     cash: 'Purchase & Sale Agreement',
@@ -407,7 +407,7 @@ async function generate(deal, type = 'psa', { userId } = {}) {
 
 /**
  * Render a contract to a downloadable PDF buffer using PDFKit (already a project
- * dependency — see routes/dealPackage.js). Monospaced body so the signature
+ * dependency - see routes/dealPackage.js). Monospaced body so the signature
  * underscores and columns line up like the on-screen text.
  */
 function renderPdf({ content, doc_title = 'Contract' }) {

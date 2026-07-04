@@ -1,5 +1,5 @@
 /**
- * /api/coo — the AI Chief Operating Officer command center.
+ * /api/coo - the AI Chief Operating Officer command center.
  *
  * GET /api/coo/briefing → one fused view that answers the operator's four
  * standing questions:
@@ -8,10 +8,10 @@
  *
  * This route is the I/O layer: it pulls the operator's leads, deals, calls, and
  * follow-ups (all scoped to req.user.id), pairs each lead with its newest deal,
- * pulls best-effort outcome history, then hands plain arrays to cooService —
+ * pulls best-effort outcome history, then hands plain arrays to cooService -
  * which runs the REAL predictionEngine across the pipeline and shapes the answer.
  *
- * NEW FILE — mounts beside /api/briefing. Does not modify any existing route.
+ * NEW FILE - mounts beside /api/briefing. Does not modify any existing route.
  * Every query is best-effort: a missing table or a single bad row degrades that
  * section to empty, never 500s the whole briefing.
  */
@@ -34,7 +34,7 @@ function daysAgoIso(days) {
   return d.toISOString();
 }
 
-/** Best-effort select — returns [] on any error (table missing, RLS, etc.). */
+/** Best-effort select - returns [] on any error (table missing, RLS, etc.). */
 async function safeSelect(build) {
   try {
     const { data, error } = await build();
@@ -45,7 +45,7 @@ async function safeSelect(build) {
   }
 }
 
-// GET /api/coo/briefing — the full 4-answer COO briefing for the current operator.
+// GET /api/coo/briefing - the full 4-answer COO briefing for the current operator.
 router.get('/briefing', async (req, res, next) => {
   try {
     const uid = req.user.id;
@@ -101,20 +101,20 @@ router.get('/briefing', async (req, res, next) => {
       callsToday, callsRecent, followUpsDue, outcomes,
     });
 
-    // SECTION E — copilot/autopilot. Read the operator's mode (defaults to the
+    // SECTION E - copilot/autopilot. Read the operator's mode (defaults to the
     // safest 'copilot' if the column isn't set/migrated) and annotate the action
     // queue with per-action dispositions (auto vs needs-approval). Additive: the
     // existing what_to_do_now.actions shape is preserved; we attach an operator_mode
-    // block alongside it. Best-effort — never blocks the briefing.
+    // block alongside it. Best-effort - never blocks the briefing.
     let opMode = operatorMode.DEFAULT_MODE;
     try {
       const { data: u } = await supabase.from('users').select('operator_mode').eq('id', uid).single();
       opMode = operatorMode.normalizeMode(u?.operator_mode);
-    } catch { /* column not migrated — safe default */ }
+    } catch { /* column not migrated - safe default */ }
     try {
       const queue = briefing?.what_to_do_now?.actions || [];
       briefing.what_to_do_now.operator_mode = operatorMode.annotateActions(queue, opMode);
-    } catch { /* shaping guard — leave queue untouched */ }
+    } catch { /* shaping guard - leave queue untouched */ }
 
     // Best-effort audit log (Rule 6). Never blocks the response.
     try {
@@ -126,7 +126,7 @@ router.get('/briefing', async (req, res, next) => {
         what_happens_next:  briefing.what_happens_next,
         what_to_do_now:     briefing.what_to_do_now,
       });
-    } catch { /* table not migrated — non-blocking */ }
+    } catch { /* table not migrated - non-blocking */ }
 
     res.json({ success: true, data: briefing });
   } catch (err) {

@@ -74,7 +74,7 @@ export default function Inbox() {
       const res = await api.get('/api/sms/inbox')
       setConversations(res.data?.data || [])
     } catch {
-      // silent — don't spam toasts on background poll
+      // silent - don't spam toasts on background poll
     } finally {
       setLoading(false)
     }

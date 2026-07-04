@@ -275,7 +275,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
         const why = d.reason === 'dnc' || d.reason === 'federal_dnc'
           ? 'Number is on the DNC list'
           : d.reason === 'tcpa_quiet_hours'
-            ? 'Outside calling hours (8 AM–9 PM local) — try again in-window'
+            ? 'Outside calling hours (8 AM–9 PM local) - try again in-window'
             : 'Voicemail not sent'
         toast.error(why)
       } else {
@@ -1163,7 +1163,7 @@ export default function Leads() {
 // Surfaces duplicate groups (same phone, or same name+address when phone-less) and
 // lets the operator collapse each group down to ONE canonical lead. Read-only until
 // the operator clicks Merge; merging re-homes all child rows server-side then deletes
-// the copies. Additive — touches no existing modal or row.
+// the copies. Additive - touches no existing modal or row.
 function DuplicatesModal({ onClose, onMerged }) {
   const [loading, setLoading] = useState(true)
   const [groups, setGroups]   = useState([])
@@ -1231,7 +1231,7 @@ function DuplicatesModal({ onClose, onMerged }) {
             </h2>
             <p style={{ fontSize: 12, color: 'var(--t4)', marginTop: 3 }}>
               {loading ? 'Scanning…'
-                : summary.group_count === 0 ? 'No duplicates found — your list is clean.'
+                : summary.group_count === 0 ? 'No duplicates found - your list is clean.'
                 : `${summary.group_count} group${summary.group_count === 1 ? '' : 's'} · ${summary.duplicate_leads} extra row${summary.duplicate_leads === 1 ? '' : 's'} to merge away`}
             </p>
           </div>
@@ -1246,7 +1246,7 @@ function DuplicatesModal({ onClose, onMerged }) {
 
           {!loading && groups.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--t4)', fontSize: 13, padding: '40px 0' }}>
-              {done ? 'All duplicates merged.' : 'Nothing to merge — no duplicate leads detected.'}
+              {done ? 'All duplicates merged.' : 'Nothing to merge - no duplicate leads detected.'}
             </div>
           )}
 
@@ -1269,7 +1269,7 @@ function DuplicatesModal({ onClose, onMerged }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 7, background: 'rgba(0,195,122,0.08)', marginBottom: 4 }}>
                     <Badge color="green">Keep</Badge>
                     <span style={{ fontSize: 13, color: 'var(--t1)', fontWeight: 600 }}>{leadLabel(canonical)}</span>
-                    <span style={{ fontSize: 11, color: 'var(--t4)', marginLeft: 'auto' }}>{canonical.phone || '—'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--t4)', marginLeft: 'auto' }}>{canonical.phone || '-'}</span>
                   </div>
                 )}
 
@@ -1278,7 +1278,7 @@ function DuplicatesModal({ onClose, onMerged }) {
                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 7, opacity: 0.6 }}>
                     <Badge color="red">Merge</Badge>
                     <span style={{ fontSize: 13, color: 'var(--t2)' }}>{leadLabel(c)}</span>
-                    <span style={{ fontSize: 11, color: 'var(--t4)', marginLeft: 'auto' }}>{c.phone || '—'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--t4)', marginLeft: 'auto' }}>{c.phone || '-'}</span>
                   </div>
                 ))}
               </div>
@@ -1312,7 +1312,7 @@ function AddLeadModal({ onClose, onSaved }) {
     try {
       const { data } = await leads.createLead(form)
       if (data?.deduped) {
-        toast.success('This lead already exists — opening it')
+        toast.success('This lead already exists - opening it')
       } else {
         toast.success('Lead added')
       }

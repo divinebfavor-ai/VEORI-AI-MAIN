@@ -7,7 +7,7 @@
  *   3. Any lead that replies gets called by Alex within 5 minutes
  *   4. Leads with no reply after 48 hours enter the existing follow-up sequence
  *
- * This file only CALLS existing functions — it does not reimplement them.
+ * This file only CALLS existing functions - it does not reimplement them.
  * sendReply()        → smsService.js  (Telnyx send + DNC gate + logging)
  * initiateCall()     → vapiService.js (Vapi call initiation)
  * buildLeadQueue()   → inline (same logic as campaignManager.js)
@@ -48,10 +48,10 @@ function isWithinSMSHours(state) {
 }
 
 // ─── SMS templates by lead type ───────────────────────────────────────────────
-// `customTemplate` (optional) — an operator-authored template body with {tokens}.
+// `customTemplate` (optional) - an operator-authored template body with {tokens}.
 // When provided, it REPLACES the built-in per-tag copy: we render its placeholders
 // for this lead and return that. When omitted/empty (every existing caller), behavior
-// is byte-for-byte the original built-in template selection below — zero regression.
+// is byte-for-byte the original built-in template selection below - zero regression.
 function buildSMSBody(lead, operatorName, customTemplate = null) {
   if (customTemplate && String(customTemplate).trim()) {
     try {
@@ -74,7 +74,7 @@ function buildSMSBody(lead, operatorName, customTemplate = null) {
     'default'
   ).toLowerCase().replace(/[^a-z_]/g, '_');
 
-  // WHAMMY 1 — the opener text is a pure CURIOSITY QUESTION, not a pitch.
+  // WHAMMY 1 - the opener text is a pure CURIOSITY QUESTION, not a pitch.
   // No "buy"/"cash"/"as-is" trigger words (those read as wholesaler spam, get
   // ignored, and poison toll-free deliverability). A short yes/no question the
   // owner can answer in one tap maximizes reply rate; once they reply, the
@@ -82,25 +82,25 @@ function buildSMSBody(lead, operatorName, customTemplate = null) {
   // / escalateToCall) delivers WHAMMY 2 (the actual value/pitch). So the templates
   // below carry ZERO pitch on purpose.
   //
-  // COPY STRUCTURE — "tight base + warm A/B":
+  // COPY STRUCTURE - "tight base + warm A/B":
   //   The top-level {TIGHT | WARM} group makes spin() flip a coin per lead between
   //   a TERSE opener (lowest friction, fastest tap-to-reply) and a WARMER, slightly
   //   more human one. Because the branch is seeded by lead.id, the split is a live,
-  //   even A/B test across the whole blast — half your list gets each, and the reply
+  //   even A/B test across the whole blast - half your list gets each, and the reply
   //   rates tell you which voice your market answers. Inner {a|b} groups still vary
   //   wording within each arm so a 10k send is never byte-identical (carriers bulk-
   //   filter fingerprinted blasts).
   //
   // WRONG-NUMBER TAIL ({Wrong number|My bad} if not): the single biggest reply-rate
   // lever on a cold list. People who AREN'T the owner now have a reason to write back
-  // ("wrong #") — and a correction is still a reply that warms the thread / cleans the
+  // ("wrong #") - and a correction is still a reply that warms the thread / cleans the
   // list. It also reads as polite and human, not like a blast.
   const tail = `{Wrong number|My bad|No worries} if not.`;
   // NOTE on the signature: each arm names the sender EXACTLY ONCE. The TIGHT arm is
   // unsigned mid-sentence and carries the trailing "- ${sender}". The WARM arm says
-  // "${sender} here" / "this is ${sender}" inline and ends at the tail — no double-sign.
+  // "${sender} here" / "this is ${sender}" inline and ends at the tail - no double-sign.
   const templates = {
-    tax_delinquent: `{${first}? You still own ${street}? ${tail} - ${sender}|{Hey|Hi} ${first}, ${sender} here. Quick one — is ${street} still yours? ${tail}}`,
+    tax_delinquent: `{${first}? You still own ${street}? ${tail} - ${sender}|{Hey|Hi} ${first}, ${sender} here. Quick one - is ${street} still yours? ${tail}}`,
     absentee_owner: `{${first}? Still own the place in ${city}? ${tail} - ${sender}|{Hey|Hi} ${first}, this is ${sender}. Do you still own the property in ${city}? ${tail}}`,
     absentee:       `{${first}? Still own the place in ${city}? ${tail} - ${sender}|{Hey|Hi} ${first}, this is ${sender}. Do you still own the property in ${city}? ${tail}}`,
     probate:        `{${first}? Right person to ask about ${street}? ${tail} - ${sender}|{Hi|Hey} ${first}, ${sender} here. Are you the one to ask about the property on ${street}? ${tail}}`,
@@ -115,7 +115,7 @@ function buildSMSBody(lead, operatorName, customTemplate = null) {
   const chosen = templates[type] || templates.default;
 
   // Resolve spintax per-lead. Seed by lead.id so retries/resends pick the SAME
-  // branch (idempotent); fall back to phone/name if id is missing — still
+  // branch (idempotent); fall back to phone/name if id is missing - still
   // deterministic. spin() returns any string with no {a|b} group unchanged.
   try {
     const { spin } = require('./emailSpintax');
@@ -252,9 +252,9 @@ async function inlineSMSBatch(campaignId, userId, leads, operatorName, customBod
   for (const lead of leads) {
     if (!lead.phone) continue;
 
-    // Timezone compliance — skip if outside 8am–9pm local time
+    // Timezone compliance - skip if outside 8am–9pm local time
     if (!isWithinSMSHours(lead.property_state)) {
-      console.log(`[SMSFirst] Skipping ${lead.phone} — outside SMS hours for ${lead.property_state}`);
+      console.log(`[SMSFirst] Skipping ${lead.phone} - outside SMS hours for ${lead.property_state}`);
       continue;
     }
 
@@ -264,7 +264,7 @@ async function inlineSMSBatch(campaignId, userId, leads, operatorName, customBod
     const msgId = await sendReply(lead.phone, body, userId, lead.id);
 
     if (msgId === null) {
-      // Either DNC blocked or send failed — skip without logging to sms_first_leads
+      // Either DNC blocked or send failed - skip without logging to sms_first_leads
       console.log(`[SMSFirst] Send skipped for ${lead.phone} (DNC or send error)`);
       continue;
     }
@@ -294,7 +294,7 @@ async function inlineSMSBatch(campaignId, userId, leads, operatorName, customBod
 
     sent++;
 
-    // Stagger sends — 200ms between each to avoid rate limits
+    // Stagger sends - 200ms between each to avoid rate limits
     await new Promise(r => setTimeout(r, 200));
   }
 
@@ -355,7 +355,7 @@ async function monitorReplies(campaignId, userId) {
         // lead who replied is never re-touched as a "no reply" (a prior tick may have
         // queued the 48h/7-day row before this reply landed). Idempotent no-op when clean.
         await supabase.from('follow_ups')
-          .update({ status: 'cancelled', notes: 'Auto-cancelled — lead replied via SMS.' })
+          .update({ status: 'cancelled', notes: 'Auto-cancelled - lead replied via SMS.' })
           .eq('lead_id', row.lead_id)
           .eq('type', 'sms')
           .eq('status', 'pending')
@@ -366,14 +366,14 @@ async function monitorReplies(campaignId, userId) {
           .update({ sms_first_replies: (session.replyCount = (session.replyCount || 0) + 1) })
           .eq('id', campaignId);
 
-        console.log(`[SMSFirst] Reply detected from ${lead.phone} — queueing call`);
+        console.log(`[SMSFirst] Reply detected from ${lead.phone} - queueing call`);
 
         // Queue for call (within 5 minutes)
         session.callQueue = session.callQueue || [];
         session.callQueue.push({ row, lead });
 
       } else {
-        // ── No reply yet — multi-touch blast cadence ──────────────────────────
+        // ── No reply yet - multi-touch blast cadence ──────────────────────────
         // Operator chose 1× / 2× / 3× touches for non-responders. Touch 1 was the
         // initial blast; touches 2-3 are re-sends spaced BLAST_INTERVAL_MS apart.
         // We only re-blast a lead who STILL hasn't replied (this branch == no reply
@@ -391,19 +391,19 @@ async function monitorReplies(campaignId, userId) {
           // applies the DNC gate + logs to sms_messages exactly like the first send.
           const body  = buildSMSBody(lead, session.operatorName, session.customBody);
 
-          // Respect TCPA quiet-hours — if it's off-hours in the lead's state, skip
+          // Respect TCPA quiet-hours - if it's off-hours in the lead's state, skip
           // this tick and try again on the next 2-min poll (no touch consumed).
           if (!isWithinSMSHours(lead.property_state)) continue;
 
           const msgId = await sendReply(lead.phone, body, userId, lead.id);
-          if (msgId === null) continue;  // DNC/send error — don't consume a touch
+          if (msgId === null) continue;  // DNC/send error - don't consume a touch
 
           const touchNowIso = new Date().toISOString();
           await supabase.from('sms_first_leads')
             .update({ touch_count: touchCount + 1, last_touch_at: touchNowIso, sms_sent_at: touchNowIso })
             .eq('id', row.id)
             .then(null, () => {
-              // Pre-migration: cadence cols absent — just refresh sms_sent_at so the
+              // Pre-migration: cadence cols absent - just refresh sms_sent_at so the
               // 48h fallback below still measures from the latest send.
               return supabase.from('sms_first_leads')
                 .update({ sms_sent_at: touchNowIso })
@@ -413,7 +413,7 @@ async function monitorReplies(campaignId, userId) {
           console.log(`[SMSFirst] Re-blast touch ${touchCount + 1}/${blastCount} sent to ${lead.phone}`);
 
         } else if (elapsed >= hours48) {
-          // Final touch reached (or 1× cadence) and 48h passed with no reply —
+          // Final touch reached (or 1× cadence) and 48h passed with no reply -
           // enter the original follow-up sequence, unchanged.
           await supabase.from('sms_first_leads')
             .update({ status: 'no_reply' })
@@ -430,12 +430,12 @@ async function monitorReplies(campaignId, userId) {
             created_at:   new Date().toISOString(),
           }).then(null, () => {});
 
-          console.log(`[SMSFirst] No reply after ${blastCount} touch(es) for ${lead.phone} — follow-up scheduled`);
+          console.log(`[SMSFirst] No reply after ${blastCount} touch(es) for ${lead.phone} - follow-up scheduled`);
         }
       }
     }
 
-    // Check if all leads are in a terminal state — auto-stop monitoring
+    // Check if all leads are in a terminal state - auto-stop monitoring
     const { data: stillPending } = await supabase
       .from('sms_first_leads')
       .select('id', { count: 'exact', head: true })
@@ -465,7 +465,7 @@ async function triggerPendingCalls(campaignId, userId, campaign) {
     if (row.call_triggered) continue;
 
     // TCPA quiet-hours: a call must be inside 8am–9pm in the LEAD's local time.
-    // (DST-safe, full 50-state map via tcpaWindow — the old `new Date().getHours()`
+    // (DST-safe, full 50-state map via tcpaWindow - the old `new Date().getHours()`
     // used the SERVER's timezone, which is wrong for out-of-region leads.)
     if (!isWithinTcpaWindow(lead.property_state)) {
       session.callQueue.push({ row, lead });
@@ -478,7 +478,7 @@ async function triggerPendingCalls(campaignId, userId, campaign) {
     const [startH] = (campaign.calling_hours_start || '09:00').split(':').map(Number);
     const [endH]   = (campaign.calling_hours_end   || '20:00').split(':').map(Number);
     if (localHour < startH || localHour >= endH) {
-      // Outside the operator's window — put back and check next tick
+      // Outside the operator's window - put back and check next tick
       session.callQueue.push({ row, lead });
       break;
     }
@@ -499,7 +499,7 @@ async function triggerPendingCalls(campaignId, userId, campaign) {
             within_calling_hours: true,
             dnc_result: 'blocked',
             consent_status: 'blocked',
-            local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry — call blocked',
+            local_time: 'blocked_federal_dnc: Number is on the FTC National DNC Registry - call blocked',
           }).then(null, () => {});
           continue; // skip this lead's escalation call
         }
@@ -598,8 +598,8 @@ async function start(campaignId, userId, options = {}) {
   );
 
   // Optional operator-authored custom SMS copy for THIS blast. Resolution order:
-  //   1. options.customBody — raw text passed straight in by the caller, or
-  //   2. options.templateId / campaign.custom_sms_template_id — a saved, already-
+  //   1. options.customBody - raw text passed straight in by the caller, or
+  //   2. options.templateId / campaign.custom_sms_template_id - a saved, already-
   //      moderated sms_templates row owned by this operator.
   // Null = no custom template → every send path falls back to the built-in per-tag
   // copy (byte-for-byte today's behavior). The body is rendered per-lead at send
@@ -618,7 +618,7 @@ async function start(campaignId, userId, options = {}) {
       if (tpl && tpl.is_active !== false && tpl.moderation_status !== 'rejected') {
         customBody = tpl.body || null;
       } else {
-        console.warn(`[SMSFirst] template ${templateId} not usable (missing/inactive/rejected) — using built-in copy`);
+        console.warn(`[SMSFirst] template ${templateId} not usable (missing/inactive/rejected) - using built-in copy`);
       }
     }
   }
@@ -631,7 +631,7 @@ async function start(campaignId, userId, options = {}) {
     updated_at:       new Date().toISOString(),
   }).eq('id', campaignId).then(null, () => {
     // If sms_blast_count column doesn't exist yet (migration not run), retry
-    // without it so the campaign still starts — cadence then defaults to 1×.
+    // without it so the campaign still starts - cadence then defaults to 1×.
     return supabase.from('campaigns').update({
       sms_first_mode:   true,
       sms_first_status: 'sending',
@@ -652,7 +652,7 @@ async function start(campaignId, userId, options = {}) {
     userId,
     campaign,
     operatorName,
-    blastCount,                 // 1× / 2× / 3× — total touches a non-responder gets
+    blastCount,                 // 1× / 2× / 3× - total touches a non-responder gets
     customBody,                 // operator custom SMS copy for this blast (null = built-in)
     replyCount:       0,
     callCount:        0,
@@ -663,7 +663,7 @@ async function start(campaignId, userId, options = {}) {
   };
   activeSessions.set(campaignId, session);
 
-  // Send SMS batch (async — don't block the API response)
+  // Send SMS batch (async - don't block the API response)
   sendSMSBatch(campaignId, userId, leads, operatorName, customBody).catch(err =>
     console.error('[SMSFirst] SMS batch error:', err.message)
   );
@@ -674,7 +674,7 @@ async function start(campaignId, userId, options = {}) {
   // Trigger pending calls every 60 seconds
   session.callInterval = setInterval(() => triggerPendingCalls(campaignId, userId, campaign), 60 * 1000);
 
-  console.log(`[SMSFirst] Started for campaign ${campaignId} — ${leads.length} leads`);
+  console.log(`[SMSFirst] Started for campaign ${campaignId} - ${leads.length} leads`);
   return { status: 'started', total_leads: leads.length, operator_name: operatorName };
 }
 

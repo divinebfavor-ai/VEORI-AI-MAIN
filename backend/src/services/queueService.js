@@ -61,7 +61,7 @@ const RUN_CRON = process.env.RUN_CRON !== 'false';
 
 // SMS blast tuning. Per-number carrier safety is enforced INSIDE the processor
 // (smsRotation daily caps + LRU). This limiter is a global throughput ceiling for
-// the whole worker — keep it conservative on unregistered long-codes; raise
+// the whole worker - keep it conservative on unregistered long-codes; raise
 // SMS_GLOBAL_RATE_MAX as you register A2P numbers and rotation grows the pool.
 const SMS_WORKER_CONCURRENCY = Number(process.env.SMS_WORKER_CONCURRENCY) || 50;
 const SMS_GLOBAL_RATE_MAX    = Number(process.env.SMS_GLOBAL_RATE_MAX)    || 10; // sends/sec
@@ -207,7 +207,7 @@ async function cancelJob(queueName, jobId) {
 // ─── Initialize workers ───────────────────────────────────────────────────────
 function initWorkers() {
   if (!REDIS_AVAILABLE) {
-    console.warn('[Queue] REDIS_URL not set — BullMQ disabled. Add Redis on Railway to enable job queues.');
+    console.warn('[Queue] REDIS_URL not set - BullMQ disabled. Add Redis on Railway to enable job queues.');
     return;
   }
   const conn = getRedisConnection();
@@ -309,7 +309,7 @@ function initWorkers() {
 
   // ── Toll-free SMS verification poller ─────────────────────────────────────
   // Refreshes every toll-free number stuck in 'pending' against Twilio, flipping
-  // it to 'verified' once carrier review approves — so Veori-bought numbers become
+  // it to 'verified' once carrier review approves - so Veori-bought numbers become
   // SMS-deliverable with zero operator action.
   new Worker(QUEUE_NAMES.TOLLFREE_VERIFY_POLL, async (job) => {
     const { pollPendingVerifications } = require('./numberProvisioning');
@@ -317,7 +317,7 @@ function initWorkers() {
     if (r.changed) console.log(`[Queue] tollfree-verify-poll: ${r.changed}/${r.checked} number(s) advanced`);
   }, { connection: conn, concurrency: 1 });
 
-  // ── Repeatable (cron) jobs — register on the cron instance only ───────────
+  // ── Repeatable (cron) jobs - register on the cron instance only ───────────
   if (RUN_CRON) {
     const marketQueue = getQueue(QUEUE_NAMES.MARKET_INTELLIGENCE);
     marketQueue.add('nightly-market-scan', {}, {
@@ -350,18 +350,18 @@ function initWorkers() {
     const seqScanQueue = getQueue(QUEUE_NAMES.SEQUENCE_SCAN);
     seqScanQueue.add('sequence-scan', {}, {
       jobId: 'sequence-scan',
-      repeat: { pattern: '*/15 * * * *' }, // every 15 min — nurture due-step scan
+      repeat: { pattern: '*/15 * * * *' }, // every 15 min - nurture due-step scan
       removeOnComplete: 5,
     }).catch(() => {});
 
     const tfVerifyQueue = getQueue(QUEUE_NAMES.TOLLFREE_VERIFY_POLL);
     tfVerifyQueue.add('tollfree-verify-poll', {}, {
       jobId: 'tollfree-verify-poll',
-      repeat: { pattern: '*/30 * * * *' }, // every 30 min — carrier approval takes days
+      repeat: { pattern: '*/30 * * * *' }, // every 30 min - carrier approval takes days
       removeOnComplete: 5,
     }).catch(() => {});
   } else {
-    console.log('[Queue] RUN_CRON=false — skipping repeatable job registration on this instance');
+    console.log('[Queue] RUN_CRON=false - skipping repeatable job registration on this instance');
   }
 
   console.log('[Queue] BullMQ workers initialized');

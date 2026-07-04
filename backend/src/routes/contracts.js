@@ -230,7 +230,7 @@ router.post('/start-signing-session', requireAuth, async (req, res, next) => {
         contractType: contract.contract_type,
         pdfUrl: contract.pdf_url || null,
         signers,
-        title: `Veori AI — ${contract.contract_type} Agreement`,
+        title: `Veori AI - ${contract.contract_type} Agreement`,
       });
       signatureRequestId = dsRequest?.signature_request_id;
     } catch (dsErr) {

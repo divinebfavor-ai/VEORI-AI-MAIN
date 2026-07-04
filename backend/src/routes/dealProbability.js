@@ -1,7 +1,7 @@
 /**
  * /api/deal-probability
  * Multi-factor deal probability score (0-100) per lead
- * NEW FILE — does not modify any existing routes
+ * NEW FILE - does not modify any existing routes
  */
 const express  = require('express');
 const supabase = require('../config/supabase');
@@ -22,7 +22,7 @@ function calculateDealProbability(lead, callCount, latestSentiment) {
   let score = 0;
   const factors = {};
 
-  // 1. Motivation score (0-40 pts) — most important signal
+  // 1. Motivation score (0-40 pts) - most important signal
   const motivation = Number(lead.motivation_score) || 0;
   const motivationPts = Math.round((motivation / 100) * 40);
   score += motivationPts;
@@ -36,7 +36,7 @@ function calculateDealProbability(lead, callCount, latestSentiment) {
   score += equityPts;
   factors.equity_percentage = { value: equityPct, points: equityPts, max: 20 };
 
-  // 3. Contact attempts (0-15 pts) — diminishing returns after 3
+  // 3. Contact attempts (0-15 pts) - diminishing returns after 3
   const attempts = Math.min(callCount, 10);
   const attemptPts = attempts >= 3 ? 15 : attempts === 2 ? 10 : attempts === 1 ? 5 : 0;
   score += attemptPts;
@@ -61,7 +61,7 @@ function calculateDealProbability(lead, callCount, latestSentiment) {
   return { score, color, factors };
 }
 
-// GET /api/deal-probability/:leadId — get current score for a lead
+// GET /api/deal-probability/:leadId - get current score for a lead
 router.get('/:leadId', async (req, res, next) => {
   try {
     // Try cached score first
@@ -89,7 +89,7 @@ router.get('/:leadId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/deal-probability/:leadId/calculate — recalculate and store score
+// POST /api/deal-probability/:leadId/calculate - recalculate and store score
 router.post('/:leadId/calculate', async (req, res, next) => {
   try {
     const { data: lead } = await supabase.from('leads').select('*').eq('id', req.params.leadId).single();
@@ -122,7 +122,7 @@ router.post('/:leadId/calculate', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/deal-probability/user/top — top leads by probability score
+// GET /api/deal-probability/user/top - top leads by probability score
 router.get('/user/top', async (req, res, next) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 20, 100);
@@ -142,7 +142,7 @@ router.get('/user/top', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/deal-probability/user/recalculate-all — background recalc for all user leads
+// POST /api/deal-probability/user/recalculate-all - background recalc for all user leads
 router.post('/user/recalculate-all', async (req, res, next) => {
   try {
     const { data: leads } = await supabase.from('leads').select('*').eq('user_id', req.user.id).limit(500);

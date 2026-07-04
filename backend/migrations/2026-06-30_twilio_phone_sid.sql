@@ -9,14 +9,14 @@
 -- TollfreePhoneNumberSid. Today we only store the Vapi number id
 -- (vapi_phone_number_id) and never persisted the Twilio PN SID at buy time,
 -- so there was no way to programmatically submit a toll-free for SMS
--- verification — the operator had to do it by hand in the Twilio console.
+-- verification - the operator had to do it by hand in the Twilio console.
 --
 -- This column lets buyTollFreeTwilioNumber() record the PN SID at purchase,
 -- and the new POST /api/phones/:id/sms-verification/submit route read it back
 -- to file the verification request from inside Veori.
 --
 -- NOTE: existing Vapi-OWNED numbers (provider:'vapi') have no Twilio PN SID
--- and can NOT be toll-free SMS verified — they aren't owned by Twilio. Only
+-- and can NOT be toll-free SMS verified - they aren't owned by Twilio. Only
 -- numbers bought through Veori's Twilio buy path going forward will have it.
 --
 -- RUN THIS MANUALLY in the Supabase SQL editor. Review before running.

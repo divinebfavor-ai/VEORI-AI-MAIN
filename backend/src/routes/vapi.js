@@ -13,7 +13,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
-// POST /api/vapi/webhook — Vapi sends all call events here
+// POST /api/vapi/webhook - Vapi sends all call events here
 router.post('/webhook', async (req, res) => {
   try {
     // Verify VAPI webhook secret if configured
@@ -21,7 +21,7 @@ router.post('/webhook', async (req, res) => {
     if (VAPI_WEBHOOK_SECRET) {
       const signature = req.headers['x-vapi-signature'] || req.headers['x-webhook-secret'];
       if (!signature || signature !== VAPI_WEBHOOK_SECRET) {
-        console.warn('[Vapi Webhook] Rejected — invalid signature');
+        console.warn('[Vapi Webhook] Rejected - invalid signature');
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
     }
@@ -33,7 +33,7 @@ router.post('/webhook', async (req, res) => {
     console.log(`[Vapi Webhook] Event: ${type}`, call?.id);
 
     switch (type) {
-      // Inbound call — Vapi asks what assistant to use
+      // Inbound call - Vapi asks what assistant to use
       case 'assistant-request':
         return res.json(await handleAssistantRequest(event));
 
@@ -67,7 +67,7 @@ router.post('/webhook', async (req, res) => {
   }
 });
 
-// POST /api/vapi/webhook/tool-call — Alex calls this to look up comps live
+// POST /api/vapi/webhook/tool-call - Alex calls this to look up comps live
 router.post('/webhook/tool-call', async (req, res) => {
   try {
     const { toolCallList, call } = req.body;
@@ -139,7 +139,7 @@ async function handleTranscript(event) {
 // frame its scoring/outcome correctly. Reads the operator default
 // (users.ai_use_case) and the optional per-campaign override (campaigns.use_case),
 // then lets vapiService.getUseCase pick the winner. Best-effort: any failure
-// (missing row, null column, DB error) falls back to 'wholesale' — the default —
+// (missing row, null column, DB error) falls back to 'wholesale' - the default -
 // so analysis never breaks on a lookup.
 async function resolveCallUseCase(callRec) {
   try {
@@ -155,7 +155,7 @@ async function resolveCallUseCase(callRec) {
     }
     return vapiService.getUseCase(operator, override);
   } catch (e) {
-    console.warn('[Vapi] resolveCallUseCase failed — defaulting to wholesale:', e.message);
+    console.warn('[Vapi] resolveCallUseCase failed - defaulting to wholesale:', e.message);
     return 'wholesale';
   }
 }
@@ -163,7 +163,7 @@ async function resolveCallUseCase(callRec) {
 async function handleCallEnded(call, event) {
   if (!call?.id) return;
 
-  console.log(`[Vapi] handleCallEnded fired — vapiCallId=${call.id} endedReason=${event.endedReason}`);
+  console.log(`[Vapi] handleCallEnded fired - vapiCallId=${call.id} endedReason=${event.endedReason}`);
 
   let { data: callRec } = await supabase.from('calls').select('*, leads(*)').eq('vapi_call_id', call.id).single();
 
@@ -183,15 +183,15 @@ async function handleCallEnded(call, event) {
         .limit(20);
       callRec = (candidates || []).find(c => c.leads && digits(c.leads.phone) === dialed) || null;
       if (callRec) {
-        console.log(`[Vapi] Recovered call ${callRec.id} via phone fallback — backfilling vapi_call_id=${call.id}`);
+        console.log(`[Vapi] Recovered call ${callRec.id} via phone fallback - backfilling vapi_call_id=${call.id}`);
         await supabase.from('calls').update({ vapi_call_id: call.id }).eq('id', callRec.id);
       }
     }
   }
 
   if (!callRec) {
-    console.warn(`[Vapi] No call record found for vapiCallId=${call.id} — dead-lettering for reconcile`);
-    // Don't silently drop the outcome — persist everything we received so an
+    console.warn(`[Vapi] No call record found for vapiCallId=${call.id} - dead-lettering for reconcile`);
+    // Don't silently drop the outcome - persist everything we received so an
     // operator (or a later reconcile job) can match it back to a lead and replay.
     const digits = (s) => String(s || '').replace(/\D/g, '').slice(-10);
     const dialed = digits(call.customer?.number || event.call?.customer?.number);
@@ -250,10 +250,10 @@ async function handleCallEnded(call, event) {
     try {
       const useCase = await resolveCallUseCase(callRec);
       aiAnalysis = await aiService.analyzeCallTranscript(finalTranscript, callRec.leads, useCase);
-      console.log(`[Vapi] AI analysis done — useCase=${useCase} outcome=${aiAnalysis.outcome} score=${aiAnalysis.motivation_score}`);
+      console.log(`[Vapi] AI analysis done - useCase=${useCase} outcome=${aiAnalysis.outcome} score=${aiAnalysis.motivation_score}`);
     } catch (e) { console.error('[Vapi] AI analysis error:', e.message); }
   } else {
-    console.warn(`[Vapi] No transcript available for call ${call.id} — skipping AI analysis`);
+    console.warn(`[Vapi] No transcript available for call ${call.id} - skipping AI analysis`);
   }
 
   const outcome = aiAnalysis.outcome || inferredOutcome || callRec.outcome || 'no_answer';
@@ -272,7 +272,7 @@ async function handleCallEnded(call, event) {
     outcome,
     ai_summary: aiAnalysis.ai_summary ?? (inferredOutcome === 'voicemail' ? 'Call went to voicemail.' : inferredOutcome === 'no_answer' ? 'No answer.' : null),
     // offer_made is a numeric column (the dollar offer amount, or null). aiAnalysis.offer_made is
-    // "<number or null>" per aiService. Never write a boolean here — Postgres rejects the whole UPDATE.
+    // "<number or null>" per aiService. Never write a boolean here - Postgres rejects the whole UPDATE.
     offer_made: typeof aiAnalysis.offer_made === 'number' ? aiAnalysis.offer_made : null,
   }).eq('vapi_call_id', call.id);
 
@@ -282,7 +282,7 @@ async function handleCallEnded(call, event) {
     console.log(`[Vapi] Outcome saved for call ${call.id} → ${outcome}`);
   }
 
-  // Always update lead status when call ends — never leave a lead stuck on "calling"
+  // Always update lead status when call ends - never leave a lead stuck on "calling"
   if (callRec.lead_id) {
     const leadUpdate = {
       status: mapOutcomeToStatus(outcome),
@@ -342,7 +342,7 @@ async function handleCallEnded(call, event) {
           seller_primary_tag: lead.primary_tag,
           created_at:       new Date().toISOString(),
         });
-        console.log(`[Vapi] Auto-created deal for lead ${callRec.lead_id} — outcome: ${outcome}`);
+        console.log(`[Vapi] Auto-created deal for lead ${callRec.lead_id} - outcome: ${outcome}`);
       }
     } catch (e) {
       console.error('[Vapi] Auto-deal creation failed:', e.message);
@@ -364,7 +364,7 @@ async function handleCallEnded(call, event) {
       .catch(e => console.error('[Vapi] Sequence enroll failed:', e.message));
   }
 
-  // Write call intelligence to data moat — fires async, never blocks
+  // Write call intelligence to data moat - fires async, never blocks
   if (callRec.lead_id) {
     const { data: leadForMoat } = await supabase.from('leads').select('*').eq('id', callRec.lead_id).single().then(null, () => ({ data: null }));
     if (leadForMoat) {
@@ -378,8 +378,8 @@ async function handleCallEnded(call, event) {
   }
 
   // Auto photo request: if motivated (score 60+ or strong outcome), text seller a photo upload link
-  // Only request photos when seller has fully engaged — verbal yes, appointment set, or offer discussed.
-  // Not on "interested" or "callback" — that is too early in the conversation.
+  // Only request photos when seller has fully engaged - verbal yes, appointment set, or offer discussed.
+  // Not on "interested" or "callback" - that is too early in the conversation.
   const motivatedOutcomes = ['verbal_yes', 'appointment', 'offer_made'];
   const isMotivated = motivatedOutcomes.includes(outcome) || (aiAnalysis.motivation_score >= 75);
   if (isMotivated && callRec.lead_id && callRec.user_id) {
@@ -413,7 +413,7 @@ async function handleCallEnded(call, event) {
         const uploadUrl = `${FRONTEND}/upload/${tokenStr}`;
         const name      = lead.first_name || 'there';
         const address   = [lead.property_address, lead.property_city, lead.property_state].filter(Boolean).join(', ');
-        const message   = `Hi ${name}, thanks for speaking with us about ${address || 'your property'}. Please tap the link to send us photos — takes 2 min:\n\n${uploadUrl}\n\nLink expires in 7 days.`;
+        const message   = `Hi ${name}, thanks for speaking with us about ${address || 'your property'}. Please tap the link to send us photos - takes 2 min:\n\n${uploadUrl}\n\nLink expires in 7 days.`;
 
         const SMS_ENABLED = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN;
 
@@ -478,7 +478,7 @@ async function handleCallEnded(call, event) {
     await updatePhoneHealth(callRec.phone_number_id, duration, outcome);
   }
 
-  // ── Missed call text-back — fires after all other logic, never blocks ────────
+  // ── Missed call text-back - fires after all other logic, never blocks ────────
   const MISSED_CALL_OUTCOMES = ['no_answer', 'not_home', 'voicemail'];
   if (MISSED_CALL_OUTCOMES.includes(outcome) && callRec.user_id) {
     const { handleMissedCall } = require('../services/missedCallService');
@@ -490,7 +490,7 @@ async function handleCallEnded(call, event) {
 
   // ── Honor the time the seller actually asked for ────────────────────────────
   // When outcome is 'appointment' or 'callback_requested', read the requested
-  // time straight off the transcript (GPT-4o parseCallTime — same parser the SMS
+  // time straight off the transcript (GPT-4o parseCallTime - same parser the SMS
   // path uses). Previously appointments were hardcoded to tomorrow-10am and
   // callbacks were never scheduled at all. This makes "call me at 5" fire at 5.
   const TIME_SENSITIVE = ['appointment', 'callback_requested'];
@@ -529,7 +529,7 @@ async function handleCallEnded(call, event) {
     const rawSaid = parsed?.requested_time || null;
     const conf    = typeof parsed?.confidence === 'number' ? parsed.confidence : null;
 
-    // (a) Appointment record — book it at the REAL requested time.
+    // (a) Appointment record - book it at the REAL requested time.
     if (outcome === 'appointment') {
       supabase.from('appointments').insert({
         user_id:            callRec.user_id,
@@ -563,8 +563,8 @@ async function handleCallEnded(call, event) {
         follow_up_type:     'call',
         next_follow_up_at:  whenIso,
         reason:             outcome === 'appointment'
-                              ? 'Seller booked an appointment — AI callback at requested time.'
-                              : 'Seller asked for a callback — AI callback at requested time.',
+                              ? 'Seller booked an appointment - AI callback at requested time.'
+                              : 'Seller asked for a callback - AI callback at requested time.',
         status:             'scheduled',
         requested_time_raw: rawSaid,
         time_confidence:    conf,
@@ -584,7 +584,7 @@ async function handleCallEnded(call, event) {
           await supabase.from('follow_ups').update({ bullmq_job_id: String(jobId) }).eq('id', followUpId);
           console.log(`[Callback] Scheduled AI callback for lead ${callRec.lead_id} at ${whenIso} (job ${jobId})`);
         } else {
-          console.warn(`[Callback] scheduleVapiCall returned no job (Redis off, or time in past) for ${whenIso} — follow_up row remains for the sequence cron to pick up.`);
+          console.warn(`[Callback] scheduleVapiCall returned no job (Redis off, or time in past) for ${whenIso} - follow_up row remains for the sequence cron to pick up.`);
         }
       }
     } catch (e) {
@@ -679,7 +679,7 @@ async function handleAssistantRequest(event) {
     // Look up existing lead by phone number.
     // Select the fields the data-moat intel engine reads (user_id, property_state,
     // primary_tag) so the inbound assistant can load full memory and greet a known
-    // caller by name — the same context outbound calls already get.
+    // caller by name - the same context outbound calls already get.
     if (callerPhone && operator.id) {
       const { data: lead } = await supabase.from('leads')
         .select('id, user_id, first_name, last_name, phone, property_address, property_state, primary_tag, motivation_score')
@@ -698,15 +698,15 @@ async function handleAssistantRequest(event) {
         started_at: new Date().toISOString(),
       }).select().single();
 
-      console.log(`[Vapi Inbound] row created — ${callerPhone} → ${existingLead?.first_name || 'Unknown'} (call ${call?.id})`);
+      console.log(`[Vapi Inbound] row created - ${callerPhone} → ${existingLead?.first_name || 'Unknown'} (call ${call?.id})`);
     } else {
-      console.warn(`[Vapi Inbound] no operator resolved for vapiNumberId=${vapiNumberId} — inbound row NOT written (call ${call?.id})`);
+      console.warn(`[Vapi Inbound] no operator resolved for vapiNumberId=${vapiNumberId} - inbound row NOT written (call ${call?.id})`);
     }
   } catch (e) {
     console.error('[Vapi assistant-request error]', e.message);
   }
 
-  // Return assistant config for this inbound call — wrapped so Vapi gets a valid response even if we error
+  // Return assistant config for this inbound call - wrapped so Vapi gets a valid response even if we error
   try {
     const assistantConfig = await vapiService.buildInboundAssistantConfig({ callerPhone, operator, lead: existingLead });
     return { assistant: assistantConfig };
@@ -726,7 +726,7 @@ async function handleAssistantRequest(event) {
   }
 }
 
-// POST /api/vapi/assistant — Operator AI Assistant (authenticated)
+// POST /api/vapi/assistant - Operator AI Assistant (authenticated)
 router.post('/assistant', requireAuth, async (req, res, next) => {
   try {
     const { message, conversation_history = [] } = req.body;
@@ -760,7 +760,7 @@ router.post('/assistant', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/vapi/aria — Free public Aria chatbot
+// POST /api/vapi/aria - Free public Aria chatbot
 router.post('/aria', optionalAuth, async (req, res, next) => {
   try {
     const { message, conversation_history = [], session_id } = req.body;
@@ -771,7 +771,7 @@ router.post('/aria', optionalAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/vapi/sync-calls — pull recent calls from Vapi API and backfill DB
+// POST /api/vapi/sync-calls - pull recent calls from Vapi API and backfill DB
 // Fixes any calls where the webhook was missed (network issues, wrong URL, etc.)
 router.post('/sync-calls', requireAuth, async (req, res, next) => {
   try {
@@ -799,7 +799,7 @@ router.post('/sync-calls', requireAuth, async (req, res, next) => {
         .eq('user_id', req.user.id)
         .single();
 
-      if (!existing) { skipped++; continue; } // Not ours — skip
+      if (!existing) { skipped++; continue; } // Not ours - skip
 
       // Only update calls that are still showing as active or have no transcript
       if (existing.status === 'ended' && existing.transcript) { skipped++; continue; }

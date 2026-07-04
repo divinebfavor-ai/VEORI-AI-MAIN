@@ -5,7 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// Helper: check if error is "table not found" — return empty instead of 500
+// Helper: check if error is "table not found" - return empty instead of 500
 function isTableMissing(err) {
   return err?.code === 'PGRST205' || err?.message?.includes('Could not find the table');
 }
@@ -66,7 +66,7 @@ router.put('/:id/read', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/notifications — create a notification (internal use)
+// POST /api/notifications - create a notification (internal use)
 router.post('/', async (req, res, next) => {
   try {
     const { type, title, message, deal_id, link } = req.body;
@@ -82,7 +82,7 @@ router.post('/', async (req, res, next) => {
       is_read: false,
     }).select().single();
     if (error) {
-      if (isTableMissing(error)) return res.status(503).json({ success: false, error: 'Notifications table not yet created — run DB migration' });
+      if (isTableMissing(error)) return res.status(503).json({ success: false, error: 'Notifications table not yet created - run DB migration' });
       throw error;
     }
 

@@ -11,7 +11,7 @@ const { captureInboundMMS } = require('../services/mmsCaptureService');
 
 const router = express.Router();
 
-// CTIA standard opt-out keywords — exact match, case-insensitive
+// CTIA standard opt-out keywords - exact match, case-insensitive
 const OPT_OUT_KEYWORDS  = ['STOP', 'UNSUBSCRIBE', 'CANCEL', 'QUIT', 'END'];
 const OPT_IN_KEYWORDS   = ['START', 'UNSTOP', 'YES'];
 
@@ -24,7 +24,7 @@ function isOptIn(text) {
 
 // ─── Handle opt-out: add to DNC, log, send confirmation ──────────────────────
 async function handleOptOut(from, lead, userId, toNumber) {
-  // 1. Add to dnc_records (upsert — safe if already exists)
+  // 1. Add to dnc_records (upsert - safe if already exists)
   await supabase.from('dnc_records').upsert(
     { phone: from, added_by: userId || null, reason: 'SMS opt-out (STOP keyword)' },
     { onConflict: 'phone' }
@@ -43,7 +43,7 @@ async function handleOptOut(from, lead, userId, toNumber) {
     lead_id:  lead?.id || null,
     phone:    from,
     action:   'sms_opt_out',
-    notes:    'Lead replied with opt-out keyword — added to DNC, all future SMS blocked',
+    notes:    'Lead replied with opt-out keyword - added to DNC, all future SMS blocked',
     created_at: new Date().toISOString(),
   }).then(null, () => {});
 
@@ -51,7 +51,7 @@ async function handleOptOut(from, lead, userId, toNumber) {
   await sendSMS(from, 'You have been unsubscribed and will receive no further messages from us.')
     .catch(e => console.error('[SMS] Opt-out confirmation send failed:', e.message));
 
-  console.log(`[SMS] Opt-out processed — ${from} added to DNC`);
+  console.log(`[SMS] Opt-out processed - ${from} added to DNC`);
 }
 
 // ─── Handle opt-in: remove from DNC ─────────────────────────────────────────
@@ -69,14 +69,14 @@ async function handleOptIn(from, lead, userId) {
     lead_id:  lead?.id || null,
     phone:    from,
     action:   'sms_opt_in',
-    notes:    'Lead replied START — removed from DNC',
+    notes:    'Lead replied START - removed from DNC',
     created_at: new Date().toISOString(),
   }).then(null, () => {});
 
-  console.log(`[SMS] Opt-in processed — ${from} removed from DNC`);
+  console.log(`[SMS] Opt-in processed - ${from} removed from DNC`);
 }
 
-// POST /api/sms/webhook — Twilio sends inbound SMS here (form-encoded)
+// POST /api/sms/webhook - Twilio sends inbound SMS here (form-encoded)
 router.post('/webhook', async (req, res) => {
   // Verify the request really came from Twilio.
   // Fails OPEN until TWILIO_AUTH_TOKEN is set, so live SMS isn't broken before config.
@@ -86,7 +86,7 @@ router.post('/webhook', async (req, res) => {
     const url = `https://${req.get('host')}${req.originalUrl}`;
     const valid = twilio.validateRequest(authToken, sig, url, req.body || {});
     if (!valid) {
-      console.warn('[SMS] Rejected webhook — invalid Twilio signature');
+      console.warn('[SMS] Rejected webhook - invalid Twilio signature');
       return res.sendStatus(403);
     }
   }
@@ -102,7 +102,7 @@ router.post('/webhook', async (req, res) => {
     const inboundMsgId = req.body?.MessageSid;
     const hasMedia = (parseInt(req.body?.NumMedia, 10) || 0) > 0;
 
-    // A photo-only MMS has media but no body text — we still want to capture the
+    // A photo-only MMS has media but no body text - we still want to capture the
     // photos, so only bail early when there is BOTH no body AND no media.
     if (!from || (!body && !hasMedia)) return;
 
@@ -127,17 +127,17 @@ router.post('/webhook', async (req, res) => {
         console.warn('[SMS] MMS capture failed (non-fatal):', e.message));
     }
 
-    // A photo-only MMS (no body text) has nothing to opt-out/score — stop here
+    // A photo-only MMS (no body text) has nothing to opt-out/score - stop here
     // now that the photos are saved.
     if (!body) return;
 
-    // ── STOP / OPT-OUT — handle FIRST before anything else ───────────────────
+    // ── STOP / OPT-OUT - handle FIRST before anything else ───────────────────
     if (isOptOut(body)) {
       await handleOptOut(from, lead, userId, toNumber);
-      return; // Stop all processing — no AI, no scoring, no follow-up
+      return; // Stop all processing - no AI, no scoring, no follow-up
     }
 
-    // ── OPT-IN (START) — re-subscribe ────────────────────────────────────────
+    // ── OPT-IN (START) - re-subscribe ────────────────────────────────────────
     if (isOptIn(body)) {
       await handleOptIn(from, lead, userId);
       return;
@@ -188,7 +188,7 @@ router.post('/webhook', async (req, res) => {
     try {
       enqueued = await queueService.enqueueInboundSMS({ leadId: lead.id, userId, from, body, inboundMsgId });
     } catch (e) {
-      console.warn('[SMS] inbound enqueue failed — scoring inline:', e.message);
+      console.warn('[SMS] inbound enqueue failed - scoring inline:', e.message);
     }
     if (!enqueued) {
       await scoreAndActInline(lead, userId, from, body, inboundMsgId);
@@ -214,7 +214,7 @@ async function scoreAndActInline(lead, userId, from, body, inboundMsgId) {
         .eq('status', 'received')
         .select('id');
       if (!claimed || claimed.length === 0) {
-        console.log(`[SMS] ${inboundMsgId} already scored — skipping inline (redelivery)`);
+        console.log(`[SMS] ${inboundMsgId} already scored - skipping inline (redelivery)`);
         return;
       }
     }
@@ -228,14 +228,14 @@ async function scoreAndActInline(lead, userId, from, body, inboundMsgId) {
 
     const formattedHistory = (history || []).map(m => ({ role: m.direction, body: m.body }));
 
-    // A — unified memory: same seller profile the voice brain uses (non-blocking).
+    // A - unified memory: same seller profile the voice brain uses (non-blocking).
     const sellerContext = await getSellerContextForSMS(lead.id);
 
     const scoring = await scoreReply(formattedHistory, body, sellerContext);
     const score = typeof scoring === 'number' ? scoring : scoring.score;
     const nextAction = scoring.next_action || (score >= 60 ? 'call_now' : score >= 40 ? 'continue_sms' : 'follow_up_7_days');
 
-    console.log(`[SMS] Score: ${score} — action: ${nextAction}`);
+    console.log(`[SMS] Score: ${score} - action: ${nextAction}`);
 
     await supabase.from('leads').update({ motivation_score: score }).eq('id', lead.id);
 
@@ -261,7 +261,7 @@ async function scoreAndActInline(lead, userId, from, body, inboundMsgId) {
         created_at:  new Date().toISOString(),
       });
 
-      console.log(`[SMS] Cold lead — follow-up scheduled for ${followUpDate.toDateString()}`);
+      console.log(`[SMS] Cold lead - follow-up scheduled for ${followUpDate.toDateString()}`);
     }
   } catch (err) {
     console.error('[SMS] inline scoreAndAct error:', err.message);
@@ -277,7 +277,7 @@ const BUYER_YES = /\b(yes|yep|yeah|interested|i'?m in|send it|send the contract|
 const BUYER_NO  = /\b(no|not interested|pass|nope|remove me|too high|nah)\b/i;
 
 // Merge AI/regex-extracted buy-box facts onto the buyers row. RULE: only FILL or
-// APPEND — never overwrite a known value with a null/empty guess. Arrays union
+// APPEND - never overwrite a known value with a null/empty guess. Arrays union
 // (dedup); scalars fill only when currently empty. Always stamps recency so the
 // matcher can prioritize fresh buyers. Schema cols come from
 // 2026-06-19_buyer_buybox_enrich.sql; degrades silently until that migration runs.
@@ -344,9 +344,9 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       sent_at:     new Date().toISOString(),
     }).then(null, () => {});
 
-    // 1b. Buy-box capture — read what the buyer just told us and MERGE it onto their
+    // 1b. Buy-box capture - read what the buyer just told us and MERGE it onto their
     // row so the profile lives in the system (the user's directive: "reviewed with the
-    // system, not just reading"). Runs on EVERY reply — a "no, too high at 250k" still
+    // system, not just reading"). Runs on EVERY reply - a "no, too high at 250k" still
     // teaches the ceiling. Best-effort + non-fatal: a capture failure must never block
     // the YES→assign→contract→EMD flow below.
     try {
@@ -356,10 +356,10 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
     }
 
     const interested = BUYER_YES.test(body) && !BUYER_NO.test(body);
-    console.log(`[SMS] Buyer reply from ${buyer.name || from} — interested=${interested}`);
+    console.log(`[SMS] Buyer reply from ${buyer.name || from} - interested=${interested}`);
 
     if (!interested) {
-      // C — buyer brain: an explicit "no"/"too high"/"pass" teaches the buyer
+      // C - buyer brain: an explicit "no"/"too high"/"pass" teaches the buyer
       // brain what this buyer rejects. The reply text is the pass reason. We don't
       // know which deal it referenced (no deal_id on a buyer SMS), so this records
       // a buyer-level pass (deal_id null) the next pitch can pre-empt. Best-effort.
@@ -399,7 +399,7 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       return;
     }
 
-    // 3. Assign the buyer (guard against a race — only if still unassigned).
+    // 3. Assign the buyer (guard against a race - only if still unassigned).
     const { data: claimed } = await supabase
       .from('deals')
       .update({ buyer_id: buyer.id, updated_at: new Date().toISOString() })
@@ -409,19 +409,19 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       .select('id')
       .maybeSingle();
     if (!claimed) {
-      console.log(`[SMS] Deal ${fit.id} already assigned — skipping buyer ${buyer.id}`);
+      console.log(`[SMS] Deal ${fit.id} already assigned - skipping buyer ${buyer.id}`);
       return;
     }
 
     await supabase.from('ai_command_log').insert({
       deal_id:     fit.id,
       action_type: 'buyer_assigned_auto',
-      message_sent: `Buyer ${buyer.name || from} replied YES — auto-assigned to deal`,
+      message_sent: `Buyer ${buyer.name || from} replied YES - auto-assigned to deal`,
       outcome:     'success',
       operator_id: userId,
     }).then(null, () => {});
 
-    // Stage 3b — tag the assigned buyer on the CHART (deal_activity is what the
+    // Stage 3b - tag the assigned buyer on the CHART (deal_activity is what the
     // lead/deal timeline reads). This is the "who did this property go to" marker
     // so the operator can always see, at a glance, the buyer the deal was assigned
     // to. Best-effort, non-fatal.
@@ -445,7 +445,7 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       console.warn('[SMS] buyer-assigned activity log failed (non-fatal):', e.message);
     }
 
-    // C — buyer brain: record this as a WON outcome so the next pitch to this
+    // C - buyer brain: record this as a WON outcome so the next pitch to this
     // buyer knows they bought, at what price, and what type. Best-effort.
     try {
       const { recordBuyerDealOutcome } = require('../services/dataMotService');
@@ -480,7 +480,7 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
         operator_id: userId,
       }).then(null, () => {});
 
-      // Stage 3b — chart timeline entry for the assignment contract going out to
+      // Stage 3b - chart timeline entry for the assignment contract going out to
       // the tagged buyer (every doc sent to a buyer is visible on the deal chart).
       try {
         const { logActivity } = require('../services/dealActivityService');
@@ -503,7 +503,7 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       }
       // Send the buyer the signing link via SMS.
       if (result?.signing_url) {
-        await sendReply(from, `Great — here's the assignment contract to sign: ${result.signing_url}`, userId, null)
+        await sendReply(from, `Great - here's the assignment contract to sign: ${result.signing_url}`, userId, null)
           .catch(() => {});
       }
       console.log(`[SMS] Assignment contract auto-sent for deal ${fit.id} → buyer ${buyer.id}`);
@@ -511,7 +511,7 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       console.error('[SMS] Assignment contract auto-send failed:', e.message);
     }
 
-    // 5. EMD auto-request — the buyer just committed (YES → assigned → contract).
+    // 5. EMD auto-request - the buyer just committed (YES → assigned → contract).
     //    Mark the deal's EMD as REQUESTED and ask for the deposit. Receipt is
     //    confirmed manually later via POST /api/deals/:id/emd/confirm. Best-effort,
     //    non-fatal: a failure here must never undo the assignment/contract above.
@@ -554,7 +554,7 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
   }
 }
 
-// POST /api/sms/send — manual send (authenticated)
+// POST /api/sms/send - manual send (authenticated)
 router.post('/send', requireAuth, async (req, res, next) => {
   try {
     const { lead_id, message } = req.body;
@@ -568,7 +568,7 @@ router.post('/send', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/sms/conversation/:leadId — load SMS history for a lead
+// GET /api/sms/conversation/:leadId - load SMS history for a lead
 router.get('/conversation/:leadId', requireAuth, async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -582,7 +582,7 @@ router.get('/conversation/:leadId', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/sms/inbox — all SMS conversations grouped by lead, newest first
+// GET /api/sms/inbox - all SMS conversations grouped by lead, newest first
 router.get('/inbox', requireAuth, async (req, res, next) => {
   try {
     // Fetch the most recent message per lead for this user (last 300 messages)
@@ -646,7 +646,7 @@ router.get('/inbox', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/sms/read/:leadId — mark all inbound messages for a lead as read
+// POST /api/sms/read/:leadId - mark all inbound messages for a lead as read
 router.post('/read/:leadId', requireAuth, async (req, res, next) => {
   try {
     const { error } = await supabase

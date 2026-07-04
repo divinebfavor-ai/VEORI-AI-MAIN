@@ -1,5 +1,5 @@
 -- ─── Paddle Billing Columns ────────────────────────────────────────────────────
--- Run this in Supabase SQL Editor (safe — only ADDs columns if missing)
+-- Run this in Supabase SQL Editor (safe - only ADDs columns if missing)
 -- Adds paddle_customer_id and paddle_subscription_id to the users table
 
 ALTER TABLE public.users

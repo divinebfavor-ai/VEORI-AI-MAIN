@@ -1,5 +1,5 @@
 /**
- * Listing Publish Pipeline — One trigger, full automation
+ * Listing Publish Pipeline - One trigger, full automation
  *
  * POST /api/pipeline/publish/:listingId
  *
@@ -13,7 +13,7 @@
  *  7. Updates listing status → active
  *  8. Returns full pipeline summary
  *
- * GET /api/pipeline/status/:listingId — check pipeline progress
+ * GET /api/pipeline/status/:listingId - check pipeline progress
  */
 const router  = require('express').Router();
 const { requireAuth: auth } = require('../middleware/auth');
@@ -42,7 +42,7 @@ async function generateVoiceover(text) {
     });
     if (!res.ok) return null;
     const buffer = await res.arrayBuffer();
-    // Return as base64 data URI — Shotstack can use hosted audio URLs
+    // Return as base64 data URI - Shotstack can use hosted audio URLs
     // In production, upload to Supabase Storage and return public URL
     // For now return null so video renders without voiceover but still works
     return null; // TODO: upload buffer to storage and return URL
@@ -124,7 +124,7 @@ async function generateShotstackVideo(listing, voiceoverUrl) {
       },
       output: {
         format:     'mp4',
-        resolution: 'hd',  // 1280x720 — YouTube standard
+        resolution: 'hd',  // 1280x720 - YouTube standard
         aspectRatio: '16:9',
         fps:        25,
       },
@@ -183,7 +183,7 @@ Highlights: ${(listing.highlights || []).join(', ')}
     const captions = {};
     const platforms = Object.keys(platformSpecs);
 
-    // Staggered — fire one every 400ms instead of all at once
+    // Staggered - fire one every 400ms instead of all at once
     await staggeredParallel(platforms.map((platform) => async () => {
       try {
         const msg = await callAnthropic({
@@ -252,7 +252,7 @@ async function sendBuyerEmailBlast(userId, listing) {
 
     if (!buyers || buyers.length === 0) return { sent: 0, skipped: 'no active buyers with email' };
 
-    const subject = `🏠 New Deal: ${listing.address} — $${Number(listing.asking_price || 0).toLocaleString()} Asking`;
+    const subject = `🏠 New Deal: ${listing.address} - $${Number(listing.asking_price || 0).toLocaleString()} Asking`;
     const html = `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#fff;">
         <div style="background:#060E1A;padding:24px;text-align:center;">
@@ -356,7 +356,7 @@ router.post('/publish/:listingId', async (req, res) => {
     steps: {},
   };
 
-  // ── Step 1: Generate voiceover (optional — skipped if no ElevenLabs key) ──
+  // ── Step 1: Generate voiceover (optional - skipped if no ElevenLabs key) ──
   const voiceoverScript = listing.description
     ? `${listing.address}. ${listing.description}. Asking ${Number(listing.asking_price || 0).toLocaleString()} dollars. ARV ${Number(listing.arv || 0).toLocaleString()} dollars. Contact us today.`
     : null;

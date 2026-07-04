@@ -1,5 +1,5 @@
 /**
- * Media Stream Server — the real-time streaming voice engine (VOICE_ENGINE=stream).
+ * Media Stream Server - the real-time streaming voice engine (VOICE_ENGINE=stream).
  *
  * This is the heart of the in-house, fully-off-Vapi calling pipeline. It attaches
  * a WebSocket server to the existing HTTP server and, for each Twilio Media Stream
@@ -19,7 +19,7 @@
  * BARGE-IN: while the agent is speaking, if Deepgram reports the seller starting
  * to talk (≥2 words on an interim), we (1) send Twilio {event:'clear'} to flush
  * queued agent audio, (2) abort the in-flight ElevenLabs stream, and (3) abort the
- * in-flight Claude turn — then keep listening. This is what makes it feel human.
+ * in-flight Claude turn - then keep listening. This is what makes it feel human.
  *
  * ADDITIVE + INERT: nothing imports this unless index.js calls attach(server), and
  * even then it only ever handles the NEW path /api/v2/voice/media-stream. Twilio
@@ -66,7 +66,7 @@ const sessions = new Map();
 
 // Secondary index: our calls.id → live StreamSession. Lets the live-listen WS find
 // the right call's audio without knowing the Twilio streamSid. Set in handleStart,
-// cleared in teardown. Additive — nothing else reads it.
+// cleared in teardown. Additive - nothing else reads it.
 const sessionsByCallId = new Map();
 
 // WS path the operator's browser connects to for live-listen (one-way audio out).
@@ -178,7 +178,7 @@ class StreamSession {
       console.warn('[MediaStream] loadCallContext failed:', err.message);
     }
     if (!this.ctx || !this.ctx.call) {
-      console.warn(`[MediaStream] no context for callId=${this.callId} — closing stream`);
+      console.warn(`[MediaStream] no context for callId=${this.callId} - closing stream`);
       return this.teardown();
     }
     // Thread callId into ctx so the brain's session map keys line up.
@@ -205,7 +205,7 @@ class StreamSession {
     if (this.dg?.unavailable) {
       // No Deepgram key → we can't run streaming STT. Rather than sit on a dead
       // call, redirect to the turn-based TwiML so the call still works.
-      console.warn('[MediaStream] Deepgram unavailable — downgrading to turn-based /twiml');
+      console.warn('[MediaStream] Deepgram unavailable - downgrading to turn-based /twiml');
       this.downgradeToTurnBased();
     }
   }
@@ -245,7 +245,7 @@ class StreamSession {
 
     if (isFinal) {
       this.finalBuffer = `${this.finalBuffer} ${text}`.trim();
-      // speech_final is Deepgram's "end of utterance" — fire the turn now.
+      // speech_final is Deepgram's "end of utterance" - fire the turn now.
       if (speechFinal) this.fireTurn();
     }
     this.armSilenceTimer();
@@ -286,7 +286,7 @@ class StreamSession {
       if (end) return this.endCall();
     } catch (err) {
       console.warn('[MediaStream] nextTurn failed:', err.message);
-      if (!this.ended) await this.speak("Sorry, I didn't quite catch that — could you say that again?");
+      if (!this.ended) await this.speak("Sorry, I didn't quite catch that - could you say that again?");
     } finally {
       this.turnInFlight = false;
       if (!this.ended) this.armSilenceTimer();
@@ -339,14 +339,14 @@ class StreamSession {
     if (!ok && !this.ended) {
       this.agentSpeaking = false;
       // streamTts produced nothing (no key / expired key / quota / socket error).
-      // These failures are call-wide, not per-line — if this call has NEVER been
+      // These failures are call-wide, not per-line - if this call has NEVER been
       // audible, "keep listening" means the seller hears permanent dead air (the
       // silent-call bug). Downgrade to the turn-based /twiml engine instead: its
       // speakLine falls back to Twilio <Say>, so the call is always audible.
       // Mid-call blips (audio worked before) keep the old behaviour: stay on the
       // stream and let the next turn retry.
       if (!this.everProducedAudio) {
-        console.warn('[MediaStream] no audio ever produced — downgrading to turn-based /twiml so the call is not silent');
+        console.warn('[MediaStream] no audio ever produced - downgrading to turn-based /twiml so the call is not silent');
         return this.downgradeToTurnBased();
       }
       console.warn('[MediaStream] streamTts produced no audio for this line');
@@ -379,7 +379,7 @@ class StreamSession {
     if (this.turnAbort) this.turnAbort.abort();
     this.agentSpeaking = false;
     this.pendingMarks = 0;
-    console.log(`[MediaStream] operator takeover — AI muted callId=${this.callId}`);
+    console.log(`[MediaStream] operator takeover - AI muted callId=${this.callId}`);
     return true;
   }
 
@@ -389,7 +389,7 @@ class StreamSession {
     this.muted = false;
     this.finalBuffer = '';
     this.armSilenceTimer();
-    console.log(`[MediaStream] operator returned control — AI unmuted callId=${this.callId}`);
+    console.log(`[MediaStream] operator returned control - AI unmuted callId=${this.callId}`);
     return true;
   }
 
@@ -426,7 +426,7 @@ class StreamSession {
     this.clearSilenceTimer();
     if (this.ended || this.muted) return; // muted = operator has the line; AI stays quiet
     this.silenceTimer = setTimeout(() => {
-      // Seller went quiet — let the brain reprompt (empty speech), same as today.
+      // Seller went quiet - let the brain reprompt (empty speech), same as today.
       if (!this.ended && !this.turnInFlight && !this.agentSpeaking) {
         this.finalBuffer = '';
         this.fireTurnWithSilence();
@@ -450,7 +450,7 @@ class StreamSession {
         ...this.ctx,
         callId: this.callId,
         callSid: this.callSid,
-        speech: '', // silence — brain reprompts
+        speech: '', // silence - brain reprompts
         operator: this.ctx.operator,
         lead: this.ctx.lead,
       });
@@ -555,7 +555,7 @@ async function handleListenUpgrade(url, req, socket, head, listenWss) {
   }
 
   // Find the live streaming session for this call. If none, the call isn't on the
-  // stream engine (or hasn't connected yet) — close cleanly; the browser retries.
+  // stream engine (or hasn't connected yet) - close cleanly; the browser retries.
   const session = sessionsByCallId.get(callId);
   if (!session || session.ended) { try { socket.destroy(); } catch (_) { /* noop */ } return; }
 
@@ -574,7 +574,7 @@ async function handleListenUpgrade(url, req, socket, head, listenWss) {
  */
 function attach(httpServer) {
   if (!httpServer) {
-    console.warn('[MediaStream] attach called without an http server — skipping');
+    console.warn('[MediaStream] attach called without an http server - skipping');
     return;
   }
   const wss = new WebSocket.Server({ noServer: true });        // Twilio media streams
@@ -585,7 +585,7 @@ function attach(httpServer) {
     try {
       url = new URL(req.url, 'http://localhost');
     } catch (_) {
-      return; // malformed — let other handlers / default deal with it
+      return; // malformed - let other handlers / default deal with it
     }
     const pathname = url.pathname;
 
@@ -604,7 +604,7 @@ function attach(httpServer) {
       });
       return;
     }
-    // not ours — leave it alone
+    // not ours - leave it alone
   });
 
   wss.on('connection', (ws) => {
@@ -619,7 +619,7 @@ function attach(httpServer) {
       }
       switch (data.event) {
         case 'connected':
-          break; // protocol handshake — nothing to do
+          break; // protocol handshake - nothing to do
         case 'start':
           session.handleStart(data);
           break;

@@ -132,7 +132,7 @@ function useListenMode() {
       cadence()
       const timer = setInterval(cadence, 6000)
       ringRefs.current[callId] = { ctx, timer }
-    } catch { /* AudioContext unavailable — silent fallback */ }
+    } catch { /* AudioContext unavailable - silent fallback */ }
   }
 
   const connectListen = useCallback(async (callId, dbCallId) => {
@@ -147,12 +147,12 @@ function useListenMode() {
       const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
       // Vapi's monitor.listenUrl is a WebSocket (wss://) that streams raw 16-bit
-      // little-endian PCM (mono). It is NOT a WebRTC/SDP endpoint — the old code
+      // little-endian PCM (mono). It is NOT a WebRTC/SDP endpoint - the old code
       // POSTed an SDP offer to it, which always failed ("something went wrong").
       // Correct path: fetch the wss URL, open a browser WebSocket, decode the PCM
       // frames, and play them through the Web Audio API.
 
-      // The listen URL only exists AFTER the seller picks up — while the call is
+      // The listen URL only exists AFTER the seller picks up - while the call is
       // still ringing the backend returns 404. Retry every 1.5s (up to ~90s).
       startRingback(callId)   // dial tone while the seller's phone is ringing
       const DEADLINE = Date.now() + 90_000
@@ -169,7 +169,7 @@ function useListenMode() {
           const d = await res.json().catch(() => ({}))
           if (d.listen_url) { wsUrl = d.listen_url; break }
         } else if (res.status === 409) {
-          // Call ENDED while we were waiting for pickup. Stop the dial tone NOW —
+          // Call ENDED while we were waiting for pickup. Stop the dial tone NOW -
           // otherwise it keeps "ringing" after the call is already over.
           stopRingback(callId)
           setPending(p => { const n = { ...p }; delete n[callId]; return n })
@@ -187,7 +187,7 @@ function useListenMode() {
       if (!wsUrl) {
         stopRingback(callId)
         setPending(p => { const n = { ...p }; delete n[callId]; return n })
-        toast.error('Call never connected — no audio to listen to')
+        toast.error('Call never connected - no audio to listen to')
         return
       }
 
@@ -223,7 +223,7 @@ function useListenMode() {
 
       ws.onopen = () => {
         if (cancelRefs.current[callId]) { ws.close(); return }
-        stopRingback(callId)   // connected — silence the dial tone
+        stopRingback(callId)   // connected - silence the dial tone
         audioRefs.current[callId] = { ws, audioCtx, gainNode }
         setPending(p => { const n = { ...p }; delete n[callId]; return n })
         setListening(l => ({ ...l, [callId]: true }))
@@ -289,7 +289,7 @@ function useListenMode() {
 // ─── Inbound call alert ────────────────────────────────────────────────────────
 // Diffs successive live-call snapshots (from the existing 1.5s poll). When a NEW
 // call with direction==='inbound' first appears, fire a toast + short tone so the
-// operator knows a seller dialed in — without opening the Vapi dashboard. Tracks
+// operator knows a seller dialed in - without opening the Vapi dashboard. Tracks
 // seen ids in a ref so each inbound call alerts exactly once.
 function useInboundAlert(liveCalls) {
   const seen = useRef(new Set())
@@ -298,7 +298,7 @@ function useInboundAlert(liveCalls) {
   useEffect(() => {
     if (!Array.isArray(liveCalls)) return
 
-    // First snapshot only records what's already on screen — no alert on mount.
+    // First snapshot only records what's already on screen - no alert on mount.
     if (!primed.current) {
       liveCalls.forEach(c => c?.id && seen.current.add(c.id))
       primed.current = true
@@ -326,7 +326,7 @@ function useInboundAlert(liveCalls) {
   }, [liveCalls])
 }
 
-// Short two-note ring using the Web Audio API — no asset file needed. Best-effort:
+// Short two-note ring using the Web Audio API - no asset file needed. Best-effort:
 // browsers may block audio until the user has interacted with the page.
 function playInboundTone() {
   try {
@@ -348,7 +348,7 @@ function playInboundTone() {
       osc.stop(t0 + 0.22)
     })
     setTimeout(() => ctx.close().catch(() => {}), 800)
-  } catch { /* audio blocked — toast still shows */ }
+  } catch { /* audio blocked - toast still shows */ }
 }
 
 // ─── Live Call Card ───────────────────────────────────────────────────────────
@@ -649,7 +649,7 @@ function CallDetailPanel({ call }) {
   const navigate = useNavigate()
   const liveTranscript = useLiveTranscript(call)
 
-  // Transcript auto-scroll — but only when the operator is already at the bottom.
+  // Transcript auto-scroll - but only when the operator is already at the bottom.
   // The old inline `ref={el => el.scrollTop = el.scrollHeight}` ran on EVERY render
   // (every 2s poll), yanking the view back down so you could never scroll up to
   // read from the start. Now: stick to the latest line only if you haven't
@@ -941,7 +941,7 @@ export default function LiveMonitor() {
 
   const handleEnd = async (call) => {
     // Tear down live-listen FIRST. Otherwise the browser WebSocket + AudioContext
-    // keep running after the hangup and the buffered PCM keeps replaying — the
+    // keep running after the hangup and the buffered PCM keeps replaying - the
     // operator hears an echo/"botting" loop and the row appears to keep counting
     // until the next poll. Stopping the stream here makes End feel instant.
     disconnectListen(call.id)

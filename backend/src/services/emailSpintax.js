@@ -1,14 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// emailSpintax — Tier 2a: deterministic per-recipient message variation.
+// emailSpintax - Tier 2a: deterministic per-recipient message variation.
 //
-// WHY: The #1 reason cold drips land in spam at scale is FINGERPRINTING — every
+// WHY: The #1 reason cold drips land in spam at scale is FINGERPRINTING - every
 // recipient gets a byte-identical body, so Gmail/Outlook hash it once and bulk-
 // filter the rest. Spintax ({a|b|c}) lets one template render a different surface
 // string per recipient while keeping the meaning identical. Top cold-email tools
 // (Instantly, Smartlead) all do this; Veori had none.
 //
 // DETERMINISTIC, NOT RANDOM: the chosen branch is a hash of (seed + the option's
-// position), so the SAME recipient always gets the SAME copy on a retry/resend —
+// position), so the SAME recipient always gets the SAME copy on a retry/resend -
 // no "the follow-up reads differently than the first send" bug, and idempotent
 // re-runs of a sequence step never flip wording. Pass the lead id/email as seed.
 //

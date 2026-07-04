@@ -1,5 +1,5 @@
 /**
- * Feature 21 — Deal Profit Calculator
+ * Feature 21 - Deal Profit Calculator
  * Routes: POST /api/profit-calc/calculate, GET /api/profit-calc/history,
  *         GET /api/profit-calc/:leadId, DELETE /api/profit-calc/:id
  */
@@ -113,7 +113,7 @@ router.post('/calculate', async (req, res) => {
   }
 });
 
-// GET /api/profit-calc/history — all saved calculations
+// GET /api/profit-calc/history - all saved calculations
 router.get('/history', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -131,7 +131,7 @@ router.get('/history', async (req, res) => {
   }
 });
 
-// GET /api/profit-calc/:leadId — saved calc for a specific lead
+// GET /api/profit-calc/:leadId - saved calc for a specific lead
 router.get('/:leadId', async (req, res) => {
   try {
     const { data, error } = await supabase

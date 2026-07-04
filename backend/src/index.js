@@ -1,15 +1,15 @@
-// ─── Load env FIRST — before any other require ────────────────────────────────
+// ─── Load env FIRST - before any other require ────────────────────────────────
 // Railway injects env vars automatically. dotenv is only for local dev.
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 
-// ─── Global crash guards — keep the process alive on unhandled errors ─────────
+// ─── Global crash guards - keep the process alive on unhandled errors ─────────
 process.on('uncaughtException', (err) => {
-  console.error('[FATAL] uncaughtException — keeping process alive:', err.message, err.stack);
+  console.error('[FATAL] uncaughtException - keeping process alive:', err.message, err.stack);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('[FATAL] unhandledRejection — keeping process alive:', reason);
+  console.error('[FATAL] unhandledRejection - keeping process alive:', reason);
 });
 
 const http    = require('http');
@@ -49,7 +49,7 @@ const smsTemplatesRouter     = require('./routes/smsTemplates');
 const wealthRouter           = require('./routes/wealth');
 const billingRouter          = require('./routes/billing');
 const feedbackRouter         = require('./routes/feedback');
-// ─── Twilio + ElevenLabs calling layer (v2) — NEW, parallel to Vapi ──────────
+// ─── Twilio + ElevenLabs calling layer (v2) - NEW, parallel to Vapi ──────────
 const v2VoicesRouter         = require('./routes/v2voices');
 const v2VoiceRouter          = require('./routes/v2voice'); // Twilio voice webhooks (twiml/status/recording)
 
@@ -77,7 +77,7 @@ app.use(helmet({
   dnsPrefetchControl:      { allow: false },
 }));
 
-// ─── HPP — HTTP Parameter Pollution protection ─────────────────────────────
+// ─── HPP - HTTP Parameter Pollution protection ─────────────────────────────
 const hpp = require('hpp');
 app.use(hpp());
 
@@ -85,14 +85,14 @@ app.use(hpp());
 const mongoSanitize = require('express-mongo-sanitize');
 app.use(mongoSanitize({ replaceWith: '_' }));
 
-// Stripe webhook needs raw body — mount BEFORE express.json()
+// Stripe webhook needs raw body - mount BEFORE express.json()
 app.use('/api/billing/webhook', require('./routes/billing'));
 app.use('/api/stripe/webhook',  require('./routes/billing'));
 
 app.use(express.json({ limit: '1mb' }));          // tightened from 2mb
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// ─── CORS — strict production whitelist ───────────────────────────────────
+// ─── CORS - strict production whitelist ───────────────────────────────────
 const PROD_ORIGINS = [
   'https://veori.net',
   'https://www.veori.net',
@@ -121,7 +121,7 @@ app.use(cors({
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
-// General API limit — 600 req per 15 min per IP (unauthenticated)
+// General API limit - 600 req per 15 min per IP (unauthenticated)
 // Authenticated users get a separate higher limit applied per-route
 app.use('/api/', rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -132,7 +132,7 @@ app.use('/api/', rateLimit({
   message: { success: false, error: 'Too many requests. Please wait a moment and try again.' },
 }));
 
-// Authenticated users — 2000 req per 15 min (much higher — they are paying users)
+// Authenticated users - 2000 req per 15 min (much higher - they are paying users)
 app.use('/api/', rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 2000,
@@ -140,14 +140,14 @@ app.use('/api/', rateLimit({
   legacyHeaders: false,
   skip: (req) => !req.headers.authorization, // only applies to authenticated requests
   keyGenerator: (req) => {
-    // Rate limit per user token, not per IP — so office networks don't share a limit
+    // Rate limit per user token, not per IP - so office networks don't share a limit
     const token = (req.headers.authorization || '').replace('Bearer ', '').slice(0, 32);
     return token || req.ip;
   },
   message: { success: false, error: 'You\'re moving fast! Give it a second and try again.' },
 }));
 
-// Strict auth limit — 10 attempts per 15 min per IP (brute force protection)
+// Strict auth limit - 10 attempts per 15 min per IP (brute force protection)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, max: 10,
   standardHeaders: true, legacyHeaders: false,
@@ -169,7 +169,7 @@ app.get('/health', (_req, res) =>
     // voiceEngine = the engine a dial will ACTUALLY use, after the absolute Vapi
     // kill-switch is applied. Mirrors the dispatcher logic in vapiService.initiateCall
     // exactly: 'vapi' is rewritten to 'stream' unless the break-glass override is set.
-    // So even with a stale VOICE_ENGINE=vapi on Railway, this reports 'stream' —
+    // So even with a stale VOICE_ENGINE=vapi on Railway, this reports 'stream' -
     // letting the operator confirm from the live /health URL that no dial can reach
     // Vapi. If this ever shows 'vapi', the break-glass flag is (deliberately) set.
     voiceEngine: (() => {
@@ -192,7 +192,7 @@ app.get('/health', (_req, res) =>
 );
 
 app.get('/', (_req, res) =>
-  res.json({ success: true, message: 'VEORI AI API 🚀 — Built to Achieve.' })
+  res.json({ success: true, message: 'VEORI AI API 🚀 - Built to Achieve.' })
 );
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
@@ -232,9 +232,9 @@ app.use('/api/v2/voice',        v2VoiceRouter);  // Twilio voice webhooks: twiml
 app.use('/api/wealth',          wealthRouter);
 app.use('/api/billing',         billingRouter);
 app.use('/api/feedback',        feedbackRouter);
-app.use('/api/stripe',          billingRouter); // alias — /api/stripe/webhook, /api/stripe/create-checkout-session
+app.use('/api/stripe',          billingRouter); // alias - /api/stripe/webhook, /api/stripe/create-checkout-session
 
-// ─── Intelligence Feature Routes (NEW — do not modify above) ──────────────────
+// ─── Intelligence Feature Routes (NEW - do not modify above) ──────────────────
 const leadMemoryRouter     = require('./routes/conversationMemory');
 const sentimentRouter      = require('./routes/sentimentTimeline');
 const dealProbRouter       = require('./routes/dealProbability');
@@ -276,7 +276,7 @@ const dealPackageRouter  = require('./routes/dealPackage');
 const fundingRouter      = require('./routes/funding');
 app.use('/api/listings',       listingsRouter);
 app.use('/api/deal-package',   dealPackageRouter);
-app.use('/api/funding',        fundingRouter); // F17 — transactional funding marketplace
+app.use('/api/funding',        fundingRouter); // F17 - transactional funding marketplace
 
 // ─── Content + Social Routes (Features 28-33) ────────────────────────────────
 const socialConnectionsRouter = require('./routes/socialConnections');
@@ -305,11 +305,11 @@ app.use('/api/referrals', referralsRouter);
 const privacyRouter = require('./routes/privacy');
 app.use('/api/privacy', privacyRouter);
 
-// ─── Seller Photo Upload (public — no auth) ───────────────────────────────────
+// ─── Seller Photo Upload (public - no auth) ───────────────────────────────────
 const photoUploadRouter = require('./routes/photoUpload');
 app.use('/api/photo-upload', photoUploadRouter);
 
-// ─── Email Opt-Out / Unsubscribe (public — no auth, Feature C) ────────────────
+// ─── Email Opt-Out / Unsubscribe (public - no auth, Feature C) ────────────────
 const emailOptOutRouter = require('./routes/emailOptOut');
 app.use('/api/email', emailOptOutRouter);
 
@@ -329,7 +329,7 @@ app.use('/api/lead-engine', leadEngineRouter);
 const { startLeadEngineScheduler } = require('./services/leadEngine');
 try {
   startLeadEngineScheduler();
-  console.log('[LeadEngine] Scheduler active — pulling leads every 24h');
+  console.log('[LeadEngine] Scheduler active - pulling leads every 24h');
 } catch (e) {
   console.warn('[LeadEngine] Scheduler failed to start:', e.message);
 }
@@ -345,7 +345,7 @@ try {
   setInterval(processReadySequences, 60 * 60 * 1000);
 }
 
-// ─── Auto VAPI sync — runs every 5 min to backfill missed recordings/transcripts
+// ─── Auto VAPI sync - runs every 5 min to backfill missed recordings/transcripts
 async function autoSyncVapiCalls() {
   try {
     const axios    = require('axios');
@@ -437,7 +437,7 @@ setInterval(() => {
 
 // ─── Learning loop: nightly lesson distillation (Redis-INDEPENDENT) ───────────
 // Studies each active operator's VERIFIED call outcomes and refreshes the
-// evidence-backed lessons the live voice brain injects into its prompt — the
+// evidence-backed lessons the live voice brain injects into its prompt - the
 // mechanism that makes every call smarter than the last. First run 10 min after
 // boot (off the boot spike), then every 24h. Disable with LEARNING_LOOP=off.
 if (String(process.env.LEARNING_LOOP || 'on') !== 'off') {
@@ -492,10 +492,10 @@ server.listen(PORT, '0.0.0.0', () => {
     // Default is 'stream' (in-house Twilio+Deepgram+ElevenLabs). A stale
     // VOICE_ENGINE=vapi is neutralised to 'stream' unless the break-glass override
     // VAPI_CALL_OVERRIDE=i-know-vapi-is-decommissioned is set, so the banner shows
-    // the real, resolved path — no more misleading 'elevenlabs' or silent Vapi.
+    // the real, resolved path - no more misleading 'elevenlabs' or silent Vapi.
     let eng = (process.env.VOICE_ENGINE || process.env.VOICE_ENGINE_DEFAULT || 'stream').toLowerCase();
     const breakGlass = String(process.env.VAPI_CALL_OVERRIDE || '') === 'i-know-vapi-is-decommissioned';
-    if (eng === 'vapi' && !breakGlass) eng = 'stream (vapi env ignored — decommissioned)';
+    if (eng === 'vapi' && !breakGlass) eng = 'stream (vapi env ignored - decommissioned)';
     const dg = process.env.DEEPGRAM_API_KEY ? ' (Deepgram ✅)' : ' (⚠️  DEEPGRAM_API_KEY missing)';
     return eng.startsWith('stream') ? eng + dg : eng;
   })()}

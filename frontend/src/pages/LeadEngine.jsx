@@ -68,7 +68,7 @@ function SourceRow({ source, onToggle, onRun }) {
         headers: authHeader(),
         body: JSON.stringify({ state: 'FL' }),
       })
-      toast.success(`${source.label} running — check pipeline in ~2 min`)
+      toast.success(`${source.label} running - check pipeline in ~2 min`)
       onRun?.()
     } catch { toast.error('Failed to start') }
     finally { setRunning(false) }
@@ -241,7 +241,7 @@ export default function LeadEngine() {
       })
       const d = await r.json()
       if (d.success) {
-        toast.success('Pulling leads now — results appear in ~60 seconds', { duration: 6000 })
+        toast.success('Pulling leads now - results appear in ~60 seconds', { duration: 6000 })
         setShowPull(false)
         // Poll for new results after 30s and 60s
         setTimeout(() => { load(); runSearch() }, 30000)
@@ -263,7 +263,7 @@ export default function LeadEngine() {
     setRunning(true)
     try {
       await fetch(`${API}/api/lead-engine/run`, { method: 'POST', headers: authHeader() })
-      toast.success('Lead Engine running — new leads incoming in ~5 minutes', { duration: 5000 })
+      toast.success('Lead Engine running - new leads incoming in ~5 minutes', { duration: 5000 })
       setTimeout(load, 10000)
     } catch { toast.error('Failed to start engine') }
     finally { setRunning(false) }
@@ -296,7 +296,7 @@ export default function LeadEngine() {
             )}
           </div>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: 0 }}>
-            Autonomous public records sourcing — all 50 states · runs every 24h
+            Autonomous public records sourcing - all 50 states · runs every 24h
           </p>
         </div>
         <button onClick={handleRunAll} disabled={running} style={{
@@ -491,7 +491,7 @@ export default function LeadEngine() {
           {/* Top leads */}
           <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Activity size={14} /> New Leads — Last 24h
+              <Activity size={14} /> New Leads - Last 24h
               <span style={{ marginLeft: 'auto', fontSize: 12, color: '#00C37A', fontWeight: 700 }}>
                 {status?.leads_today || 0} total
               </span>
@@ -591,7 +591,7 @@ export default function LeadEngine() {
           </div>
           <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
             <span>🟢 Active coverage</span>
-            <span>⬛ Not yet run — click Run Now to start</span>
+            <span>⬛ Not yet run - click Run Now to start</span>
           </div>
         </div>
       )}

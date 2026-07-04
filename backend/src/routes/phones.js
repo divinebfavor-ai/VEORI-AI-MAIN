@@ -7,7 +7,7 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// POST /api/phones/provision — buy a number from Vapi, store in Veori
+// POST /api/phones/provision - buy a number from Vapi, store in Veori
 router.post('/provision', async (req, res, next) => {
   try {
     const { area_code, friendly_name } = req.body;
@@ -16,7 +16,7 @@ router.post('/provision', async (req, res, next) => {
     const vapiKey = process.env.VAPI_API_KEY;
     if (!vapiKey) return res.status(500).json({ success: false, error: 'Vapi API key not configured' });
 
-    // Build inbound webhook URL — Railway sets RAILWAY_PUBLIC_DOMAIN automatically
+    // Build inbound webhook URL - Railway sets RAILWAY_PUBLIC_DOMAIN automatically
     const webhookUrl = process.env.VAPI_WEBHOOK_URL
       || (process.env.RAILWAY_PUBLIC_DOMAIN
         ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/vapi/webhook`
@@ -78,7 +78,7 @@ router.post('/provision', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/buy-local — operator OVERRIDE: buy a specific area-code local
+// POST /api/phones/buy-local - operator OVERRIDE: buy a specific area-code local
 // number on demand (real Twilio number imported into Vapi, uncapped path).
 // Body: { area_code: "305", friendly_name?: string }.
 // Used when the operator doesn't want the automatic lead-geo matching and wants
@@ -91,7 +91,7 @@ router.post('/buy-local', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'area_code must be a 3-digit US area code (e.g. 305)' });
     }
     if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
-      return res.status(503).json({ success: false, error: 'Twilio not configured — cannot buy a local number yet' });
+      return res.status(503).json({ success: false, error: 'Calling network not configured - cannot buy a local number yet' });
     }
 
     const { buyLocalTwilioNumber } = require('../services/numberProvisioning');
@@ -113,12 +113,12 @@ router.post('/buy-local', async (req, res, next) => {
   }
 });
 
-// POST /api/phones/buy-tollfree — operator OVERRIDE: buy a toll-free number on
+// POST /api/phones/buy-tollfree - operator OVERRIDE: buy a toll-free number on
 // demand (Twilio toll-free imported into Vapi). Body: { friendly_name?: string }.
 router.post('/buy-tollfree', async (req, res, next) => {
   try {
     if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
-      return res.status(503).json({ success: false, error: 'Twilio not configured — cannot buy a toll-free number yet' });
+      return res.status(503).json({ success: false, error: 'Calling network not configured - cannot buy a toll-free number yet' });
     }
     const { buyTollFreeTwilioNumber } = require('../services/numberProvisioning');
     const label = req.body.friendly_name || 'Veori Toll-Free';
@@ -145,13 +145,13 @@ function isUSTollFree(e164) {
   return TOLLFREE_PREFIXES.includes(digits.slice(1, 4));
 }
 
-// POST /api/phones/import-twilio — import an operator-owned toll-free Twilio number into Vapi
+// POST /api/phones/import-twilio - import an operator-owned toll-free Twilio number into Vapi
 router.post('/import-twilio', async (req, res, next) => {
   try {
     const { number, friendly_name } = req.body;
     if (!number) return res.status(400).json({ success: false, error: 'number is required (E.164, e.g. +18005551234)' });
 
-    // Toll-free ONLY — bypasses A2P 10DLC registration
+    // Toll-free ONLY - bypasses A2P 10DLC registration
     if (!isUSTollFree(number)) {
       return res.status(400).json({ success: false, error: 'Only US toll-free numbers (800/833/844/855/866/877/888) can be imported' });
     }
@@ -160,7 +160,7 @@ router.post('/import-twilio', async (req, res, next) => {
     const twilioSid   = process.env.TWILIO_ACCOUNT_SID;
     const twilioToken = process.env.TWILIO_AUTH_TOKEN;
     if (!vapiKey) return res.status(500).json({ success: false, error: 'Vapi API key not configured' });
-    if (!twilioSid || !twilioToken) return res.status(500).json({ success: false, error: 'Twilio credentials not configured' });
+    if (!twilioSid || !twilioToken) return res.status(500).json({ success: false, error: 'Calling network credentials not configured' });
 
     // Prevent double-import of the same number for this operator
     const { data: dupe } = await supabase
@@ -233,7 +233,7 @@ router.post('/import-twilio', async (req, res, next) => {
 // Statuses: 'unverified' (default) → 'pending' (submitted to Twilio) → 'verified'.
 const SMS_VERIFY_STATES = ['unverified', 'pending', 'verified'];
 
-// GET /api/phones/:id/sms-verification — current SMS verification state for a number.
+// GET /api/phones/:id/sms-verification - current SMS verification state for a number.
 // If a Twilio verification SID is on file, refresh the live status from Twilio's
 // Messaging Compliance REST endpoint (best-effort) and persist any change.
 router.get('/:id/sms-verification', async (req, res, next) => {
@@ -277,7 +277,7 @@ router.get('/:id/sms-verification', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/:id/sms-verification — set SMS verification state for a toll-free number.
+// POST /api/phones/:id/sms-verification - set SMS verification state for a toll-free number.
 // Body: { status: 'unverified'|'pending'|'verified', verification_sid?: 'HHxxxx' }.
 // Used to (a) record a Twilio verification request SID + flip to 'pending', or
 // (b) mark a number 'verified' once Twilio approves. Toll-free numbers only.
@@ -318,7 +318,7 @@ router.post('/:id/sms-verification', async (req, res, next) => {
 const TF_OPT_IN_TYPES = ['VERBAL', 'WEB_FORM', 'PAPER_FORM', 'VIA_TEXT', 'MOBILE_QR_CODE', 'IMPORT'];
 const TF_BUSINESS_TYPES = ['PRIVATE_PROFIT', 'PUBLIC_PROFIT', 'SOLE_PROPRIETOR', 'NON_PROFIT', 'GOVERNMENT'];
 
-// POST /api/phones/:id/sms-verification/submit — file a TOLL-FREE SMS verification
+// POST /api/phones/:id/sms-verification/submit - file a TOLL-FREE SMS verification
 // request with Twilio FROM INSIDE VEORI (so the operator skips the Twilio console).
 // Creates a Twilio Tollfree/Verifications request for this number, stores the
 // returned verification SID, and flips the number to 'pending'. Toll-free only,
@@ -340,7 +340,7 @@ const TF_BUSINESS_TYPES = ['PRIVATE_PROFIT', 'PUBLIC_PROFIT', 'SOLE_PROPRIETOR',
 router.post('/:id/sms-verification/submit', async (req, res, next) => {
   try {
     if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
-      return res.status(503).json({ success: false, error: 'Twilio not configured — cannot submit toll-free verification yet' });
+      return res.status(503).json({ success: false, error: 'Calling network not configured - cannot submit toll-free verification yet' });
     }
 
     const { data: phone, error: fetchErr } = await supabase
@@ -354,7 +354,7 @@ router.post('/:id/sms-verification/submit', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'SMS verification applies to toll-free numbers only' });
     }
     if (!phone.twilio_phone_number_sid) {
-      return res.status(409).json({ success: false, error: 'This toll-free number has no Twilio SID on file. Only toll-free numbers purchased through Veori (provider:twilio) can be submitted for SMS verification from here.' });
+      return res.status(409).json({ success: false, error: 'This toll-free number was not purchased through Veori, so it cannot be submitted for SMS verification from here.' });
     }
     if (phone.sms_verification_status === 'verified') {
       return res.status(409).json({ success: false, error: 'This number is already SMS-verified' });
@@ -446,7 +446,7 @@ router.post('/:id/sms-verification/submit', async (req, res, next) => {
 
 // ── Shared toll-free pool (admin only) ───────────────────────────────────────
 // Gate: requires the ADMIN_API_KEY secret in the X-Admin-Key header (on top of
-// requireAuth). Operators can't fill the shared pool — only the platform owner.
+// requireAuth). Operators can't fill the shared pool - only the platform owner.
 function requireAdmin(req, res, next) {
   const adminKey = process.env.ADMIN_API_KEY;
   if (!adminKey) return res.status(500).json({ success: false, error: 'Admin key not configured' });
@@ -456,7 +456,7 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// POST /api/phones/pool/load — load verified toll-free numbers into the shared pool
+// POST /api/phones/pool/load - load verified toll-free numbers into the shared pool
 // body: { numbers: ["+18005551234", ...] }
 router.post('/pool/load', requireAdmin, async (req, res, next) => {
   try {
@@ -470,7 +470,7 @@ router.post('/pool/load', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/phones/pool/status — pool counts (admin only)
+// GET /api/phones/pool/status - pool counts (admin only)
 router.get('/pool/status', requireAdmin, async (req, res, next) => {
   try {
     const counts = {};
@@ -505,7 +505,7 @@ router.get('/pool/status', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/phones/plan-status — beta: unlimited numbers
+// GET /api/phones/plan-status - beta: unlimited numbers
 router.get('/plan-status', async (req, res, next) => {
   try {
     const { count } = await supabase.from('phone_numbers').select('*', { count: 'exact', head: true }).eq('user_id', req.user.id);
@@ -513,7 +513,7 @@ router.get('/plan-status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/sync-vapi — import all numbers from Vapi account into Veori
+// POST /api/phones/sync-vapi - import all numbers from Vapi account into Veori
 router.post('/sync-vapi', async (req, res, next) => {
   try {
     const vapiKey = process.env.VAPI_API_KEY;
@@ -565,7 +565,7 @@ router.post('/sync-vapi', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/fix-webhooks — patch ALL existing Vapi numbers with the correct serverUrl
+// POST /api/phones/fix-webhooks - patch ALL existing Vapi numbers with the correct serverUrl
 // Run once to repair numbers that were provisioned before the serverUrl approach was in place
 router.post('/fix-webhooks', async (req, res, next) => {
   try {
@@ -632,7 +632,7 @@ router.get('/health', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/select — intelligent number selection
+// POST /api/phones/select - intelligent number selection
 router.post('/select', async (req, res, next) => {
   try {
     const { seller_state, exclude_ids = [], seller_phone, seller_area_code } = req.body;
@@ -662,7 +662,7 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/bulk — import CSV of numbers
+// POST /api/phones/bulk - import CSV of numbers
 router.post('/bulk', async (req, res, next) => {
   try {
     const { numbers } = req.body;
@@ -691,7 +691,7 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/:id/release — soft-delete: cancel in Vapi + mark released in DB
+// POST /api/phones/:id/release - soft-delete: cancel in Vapi + mark released in DB
 router.post('/:id/release', async (req, res, next) => {
   try {
     const { reason } = req.body;
@@ -704,7 +704,7 @@ router.post('/:id/release', async (req, res, next) => {
     if (fetchErr || !phone) return res.status(404).json({ success: false, error: 'Phone number not found' });
     if (phone.released_at) return res.status(400).json({ success: false, error: 'Number already released' });
 
-    // Delete from Vapi (best-effort — don't block on failure)
+    // Delete from Vapi (best-effort - don't block on failure)
     const vapiKey = process.env.VAPI_API_KEY;
     if (phone.vapi_phone_number_id && vapiKey) {
       await axios.delete(`https://api.vapi.ai/phone-number/${phone.vapi_phone_number_id}`, {
@@ -742,7 +742,7 @@ router.delete('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/provision-pool — manually provision the full number pool for current plan
+// POST /api/phones/provision-pool - manually provision the full number pool for current plan
 // Useful for existing operators who subscribed before auto-provisioning existed
 router.post('/provision-pool', async (req, res, next) => {
   try {
@@ -758,10 +758,10 @@ router.post('/provision-pool', async (req, res, next) => {
 
     const { provisionNumberPool } = require('../services/numberProvisioning');
 
-    // Respond immediately — provisioning happens in background
+    // Respond immediately - provisioning happens in background
     res.json({
       success: true,
-      message: `Provisioning numbers for ${user.subscription_plan} plan. Check back in a few minutes — your numbers will appear automatically.`,
+      message: `Provisioning numbers for ${user.subscription_plan} plan. Check back in a few minutes - your numbers will appear automatically.`,
       plan: user.subscription_plan,
     });
 
@@ -774,7 +774,7 @@ router.post('/provision-pool', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/phones/auto-scale — manually kick off geo-matched calling-capacity sizing + buy.
+// POST /api/phones/auto-scale - manually kick off geo-matched calling-capacity sizing + buy.
 // This is the same engine that fires automatically on every lead import (ensureCallingCapacity):
 // it counts callable leads, sizes the local fleet to burn them at a healthy pace (plan-capped,
 // per-operator paced), and buys only the per-state shortfall via the uncapped Twilio→Vapi path.
@@ -786,7 +786,7 @@ router.post('/auto-scale', async (req, res, next) => {
     const { ensureCallingCapacity } = require('../services/numberProvisioning');
     const result = await ensureCallingCapacity(req.user.id);
 
-    // ensureCallingCapacity never throws — it returns a skipped/error shape instead.
+    // ensureCallingCapacity never throws - it returns a skipped/error shape instead.
     if (result?.skipped) {
       return res.json({
         success: true,
@@ -796,19 +796,19 @@ router.post('/auto-scale', async (req, res, next) => {
       });
     }
 
-    // bought:0 has TWO meanings — (a) nothing was needed (shortfall 0), or
+    // bought:0 has TWO meanings - (a) nothing was needed (shortfall 0), or
     // (b) the buy loop ran and every purchase failed (errors[] populated).
     // Report them distinctly so a real Twilio/Vapi failure isn't masked as "at capacity".
     const tried  = (result.neededLocal || 0) - (result.currentLocal || 0);
     const failed = tried > 0 && result.bought === 0;
     let message;
     if (result.bought > 0) {
-      message = `Bought ${result.bought} local number${result.bought === 1 ? '' : 's'} — sized to ${result.callableLeads} callable leads at a ${result.pace_days}-day pace.`;
+      message = `Bought ${result.bought} local number${result.bought === 1 ? '' : 's'} - sized to ${result.callableLeads} callable leads at a ${result.pace_days}-day pace.`;
     } else if (failed) {
       const firstErr = result.errors?.[0]?.error || 'unknown error';
       message = `Tried to buy ${tried} local number${tried === 1 ? '' : 's'} but all purchases failed: ${firstErr}`;
     } else {
-      message = `Already at capacity — ${result.currentLocal} local number${result.currentLocal === 1 ? '' : 's'} cover ${result.callableLeads} callable leads. Nothing to buy.`;
+      message = `Already at capacity - ${result.currentLocal} local number${result.currentLocal === 1 ? '' : 's'} cover ${result.callableLeads} callable leads. Nothing to buy.`;
     }
 
     return res.json({

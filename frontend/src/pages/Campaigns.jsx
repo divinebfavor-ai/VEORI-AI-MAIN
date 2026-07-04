@@ -10,7 +10,7 @@ function statusVariant(s) {
   return m[s?.toLowerCase()] || 'gray'
 }
 
-// Primary lead tags assigned by leadTaggingService — [value, friendly label].
+// Primary lead tags assigned by leadTaggingService - [value, friendly label].
 // Operators pick which tags a campaign calls. None selected = call all leads.
 const LEAD_TAGS = [
   ['pre_foreclosure', 'Pre-Foreclosure'], ['tax_delinquent', 'Tax Delinquent'],
@@ -33,7 +33,7 @@ function CreateModal({ onClose, onCreated }) {
   const toggleTag = t => setForm(f => ({ ...f, tags: f.tags.includes(t) ? f.tags.filter(x => x !== t) : [...f.tags, t] }))
 
   // Load the operator's saved SMS templates so they can blast with custom copy.
-  // Non-blocking — failure just leaves the picker showing "built-in copy" only.
+  // Non-blocking - failure just leaves the picker showing "built-in copy" only.
   useEffect(() => {
     smsTemplates.getAll()
       .then(r => { const raw = r.data?.data ?? r.data; setTemplates(Array.isArray(raw) ? raw : []) })
@@ -48,7 +48,7 @@ function CreateModal({ onClose, onCreated }) {
       const campaignId = created?.data?.data?.id || created?.data?.id
       if (smsFirst && campaignId) {
         await campaigns.startSMSFirst(campaignId, blastCount, smsTemplateId || undefined)
-        toast.success(`SMS First campaign launched — ${blastCount}× blast to non-responders`)
+        toast.success(`SMS First campaign launched - ${blastCount}× blast to non-responders`)
       } else {
         toast.success('Campaign created')
       }
@@ -84,7 +84,7 @@ function CreateModal({ onClose, onCreated }) {
               >
                 <option value="">Use my default (from Settings)</option>
                 <option value="wholesale">Wholesaler / Cash Investor</option>
-                <option value="agent_listing">Real Estate Agent — Listing</option>
+                <option value="agent_listing">Real Estate Agent - Listing</option>
                 <option value="buyer_agent">Buyer's Agent</option>
                 <option value="landlord_pm">Property Management</option>
                 <option value="investor_outreach">Investor Outreach</option>
@@ -117,7 +117,7 @@ function CreateModal({ onClose, onCreated }) {
             <p className="text-[11px] text-text-muted mt-4">
               {form.tags.length === 0
                 ? 'All leads will be called.'
-                : `${form.tags.length} tag${form.tags.length !== 1 ? 's' : ''} selected — only matching leads will be called.`}
+                : `${form.tags.length} tag${form.tags.length !== 1 ? 's' : ''} selected - only matching leads will be called.`}
             </p>
           </div>
         )}
@@ -137,11 +137,11 @@ function CreateModal({ onClose, onCreated }) {
               </div>
               <div>
                 <p className="text-[13px] font-semibold text-text-primary">SMS First mode</p>
-                <p className="text-[11px] text-text-muted mt-0.5">Text every lead first. Only leads that reply get called by Alex — cuts cost, increases response rate.</p>
+                <p className="text-[11px] text-text-muted mt-0.5">Text every lead first. Only leads that reply get called by Alex - cuts cost, increases response rate.</p>
               </div>
             </div>
 
-            {/* Blast cadence — how many times a non-responder gets texted (1× / 2× / 3×) */}
+            {/* Blast cadence - how many times a non-responder gets texted (1× / 2× / 3×) */}
             {smsFirst && (
               <div className="mb-5 pl-1" onClick={e => e.stopPropagation()}>
                 <label className="label-caps block mb-2">Blast cadence</label>
@@ -165,7 +165,7 @@ function CreateModal({ onClose, onCreated }) {
               </div>
             )}
 
-            {/* Custom SMS template picker — pick saved copy, or use built-in. */}
+            {/* Custom SMS template picker - pick saved copy, or use built-in. */}
             {smsFirst && (
               <div className="mb-5 pl-1" onClick={e => e.stopPropagation()}>
                 <label className="label-caps block mb-2">SMS Copy</label>
@@ -229,7 +229,7 @@ function CreateModal({ onClose, onCreated }) {
             <div className="space-y-1 mb-6">
               {[
                 ['Campaign Name',  form.name],
-                ['Use Case',       ({ wholesale:'Wholesaler / Cash Investor', agent_listing:'Real Estate Agent — Listing', buyer_agent:"Buyer's Agent", landlord_pm:'Property Management', investor_outreach:'Investor Outreach', general:'General Real Estate' }[form.use_case]) || 'Account default'],
+                ['Use Case',       ({ wholesale:'Wholesaler / Cash Investor', agent_listing:'Real Estate Agent - Listing', buyer_agent:"Buyer's Agent", landlord_pm:'Property Management', investor_outreach:'Investor Outreach', general:'General Real Estate' }[form.use_case]) || 'Account default'],
                 ['Target Leads',   form.tags.length === 0 ? 'All leads' : form.tags.map(t => (LEAD_TAGS.find(([v]) => v === t)?.[1]) || t).join(', ')],
                 ['Mode',           smsFirst ? `💬 SMS First (${blastCount}× blast)` : '📞 Direct Call'],
                 ...(smsFirst ? [['SMS Copy', smsTemplateId ? (templates.find(t => t.id === smsTemplateId)?.name || 'Custom template') : 'Built-in (auto)']] : []),

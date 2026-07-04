@@ -1,12 +1,12 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- Feature C — Email Campaigns: opt-out / suppression (CAN-SPAM compliance)
+-- Feature C - Email Campaigns: opt-out / suppression (CAN-SPAM compliance)
 -- ADDITIVE ONLY. Idempotent. No data loss. Run manually in Supabase SQL editor.
 --
 -- WHY: Veori already sends email via Resend (emailService.js) and runs
 -- multi-channel drips (sequenceEngine.js), but there is NO email unsubscribe
 -- anywhere. CAN-SPAM requires a working opt-out. These two tables add it:
---   • email_suppressions   — per-operator do-not-email list (checked before send)
---   • email_optout_tokens   — one-click unsubscribe links emailed in every drip
+--   • email_suppressions   - per-operator do-not-email list (checked before send)
+--   • email_optout_tokens   - one-click unsubscribe links emailed in every drip
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Per-operator suppression list. A send is blocked when (user_id, lower(email))

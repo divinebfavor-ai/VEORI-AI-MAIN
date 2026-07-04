@@ -14,7 +14,7 @@ async function send(deal, type, { phone, email, vapiPhoneNumberId } = {}) {
 
   console.log(`[Contract] ${type.toUpperCase()} → ${phone || email} | ${signingUrl}`);
 
-  // Send via Vapi native SMS — no Twilio
+  // Send via Vapi native SMS - no Twilio
   if (phone) {
     try {
       await vapiService.sendContractSMS({
@@ -42,7 +42,7 @@ Purchase Price: $${(deal.seller_agreed_price || deal.offer_price)?.toLocaleStrin
 Earnest Money: $1,000 (non-refundable after inspection period)
 Closing Date: ${closingDate}
 
-TERMS: Property sold AS-IS. Cash purchase — no financing contingency. Seller provides clear title. This agreement is assignable by Buyer without Seller consent. Buyer pays all closing costs.
+TERMS: Property sold AS-IS. Cash purchase - no financing contingency. Seller provides clear title. This agreement is assignable by Buyer without Seller consent. Buyer pays all closing costs.
 
 ASSIGNMENT CLAUSE: Buyer may assign this contract to any third party without Seller approval.
 

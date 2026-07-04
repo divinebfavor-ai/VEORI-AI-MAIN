@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- SUPERIOR STRATEGY ENGINE — auto-pick the BEST acquisition strategy per lead,
+-- SUPERIOR STRATEGY ENGINE - auto-pick the BEST acquisition strategy per lead,
 -- rank the fallbacks, and let the operator override the pick manually. Builds on
 -- 2026-06-23_multi_strategy.sql (run that first if you haven't).
 --
@@ -11,7 +11,7 @@
 --   2. The operator can override the auto-pick. Manual choice wins over the detector
 --      in resolveStrategy() (vapiService). → strategy_override (text).
 --
--- ALL ADD COLUMN IF NOT EXISTS — additive, nullable, idempotent, no drops, no data
+-- ALL ADD COLUMN IF NOT EXISTS - additive, nullable, idempotent, no drops, no data
 -- loss. Existing rows keep current behavior: strategy_override null == use the
 -- auto-detected strategy; detected_strategy null == cash fallback in code.
 -- ─────────────────────────────────────────────────────────────────────────────

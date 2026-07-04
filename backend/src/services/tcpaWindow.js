@@ -1,24 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// tcpaWindow — the ONE shared, DST-correct TCPA quiet-hours gate for SMS.
+// tcpaWindow - the ONE shared, DST-correct TCPA quiet-hours gate for SMS.
 //
 // WHY: TCPA's 8 AM–9 PM "quiet hours" rule applies to TEXTS exactly like calls.
 // At blast scale a single off-hours batch is hundreds of $500-per-message
 // violations. Before this module the SMS paths each had their OWN time check:
 //   • smsBlastProcessor (the engine for the heavy blast) had NONE.
 //   • smsFirstWorkflow / campaignManager used FIXED UTC offsets (`?? -5`) which
-//     are wrong half the year — a -5 offset for New York is actually -4 in summer
+//     are wrong half the year - a -5 offset for New York is actually -4 in summer
 //     (EDT), so a 10 PM local send could read as 9 PM and slip through.
 //
 // This module computes the lead's TRUE local hour using the IANA timezone via
 // Intl.DateTimeFormat (the same DST-safe approach already proven in calls.js),
-// so daylight saving is handled automatically by the runtime — no offset table
+// so daylight saving is handled automatically by the runtime - no offset table
 // to drift. It also computes how long to DEFER an off-hours message so it fires
 // at the next 8 AM in the lead's local time (BullMQ `delay`), so nobody is
 // dropped and nothing sends illegally.
 //
 // Federal rule implemented: block before 8 AM and at/after 9 PM local time.
 // Default timezone when a lead's state is unknown/missing = America/New_York
-// (Eastern) — the most conservative common case (Eastern hits 9 PM first).
+// (Eastern) - the most conservative common case (Eastern hits 9 PM first).
 // This is intentionally a HARD GATE for SMS (unlike the federal-DNC check which
 // fails open): time-of-day is deterministic and cheap, so there is no reason to
 // ever fail open on it.
@@ -56,8 +56,8 @@ const STATE_TZ = {
 };
 
 const DEFAULT_TZ = 'America/New_York';
-const START_HOUR = 8;   // 8 AM — first allowed hour (inclusive)
-const END_HOUR   = 21;  // 9 PM — first blocked hour (exclusive upper bound)
+const START_HOUR = 8;   // 8 AM - first allowed hour (inclusive)
+const END_HOUR   = 21;  // 9 PM - first blocked hour (exclusive upper bound)
 
 /** Resolve a state code (or anything falsy) to an IANA tz, defaulting to Eastern. */
 function tzForState(stateCode) {
@@ -66,7 +66,7 @@ function tzForState(stateCode) {
 
 /**
  * Read the wall-clock parts (hour, minute, second) in a given IANA timezone for
- * a given instant. Uses Intl so DST is applied by the runtime — no offset math.
+ * a given instant. Uses Intl so DST is applied by the runtime - no offset math.
  */
 function localParts(tz, when = new Date()) {
   const fmt = new Intl.DateTimeFormat('en-US', {
@@ -108,12 +108,12 @@ function tcpaLocalHour(stateCode, when = new Date()) {
  * Milliseconds from `when` until the NEXT moment the lead's local clock reads
  * 8:00 AM. Returns 0 if we're already inside the window (caller should send now).
  *
- * Implementation note: we don't need calendar math in the target tz — we know the
+ * Implementation note: we don't need calendar math in the target tz - we know the
  * current local hour/min/sec there, so the seconds-until-8AM is a pure modular
  * computation against the local time-of-day, independent of date. (If a DST
  * jump happens overnight the BullMQ delay can be off by an hour at the boundary;
  * the worker RE-CHECKS isWithinTcpaWindow on wake, so a boundary miss simply
- * defers once more rather than sending early — fail-safe, never fail-open.)
+ * defers once more rather than sending early - fail-safe, never fail-open.)
  *
  * @param {string} stateCode
  * @param {Date}   [when]

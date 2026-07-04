@@ -1,5 +1,5 @@
 /**
- * Direct Mail Service — Lob.com Integration
+ * Direct Mail Service - Lob.com Integration
  *
  * Sends physical postcards and letters to sellers via Lob.com API.
  * Triggers automatically when a seller doesn't answer 3+ consecutive calls.
@@ -26,7 +26,7 @@ const POSTCARD_TEMPLATES = {
 
 I recently tried calling you about your property at {address}.
 
-I'm a local cash buyer and I'd love to make you a fair all-cash offer — no repairs needed, no agent fees, close in as little as 14 days on your timeline.
+I'm a local cash buyer and I'd love to make you a fair all-cash offer - no repairs needed, no agent fees, close in as little as 14 days on your timeline.
 
 If you're even slightly curious, please call or text me at {phone}.
 
@@ -41,7 +41,7 @@ I promise it's worth 5 minutes of your time.
 
 We spoke recently about your property at {address}.
 
-I'm still very interested and my cash offer stands. We can close quickly — you pick the date, no repairs, no commissions, no hassle.
+I'm still very interested and my cash offer stands. We can close quickly - you pick the date, no repairs, no commissions, no hassle.
 
 Call or text: {phone}
 
@@ -50,12 +50,12 @@ Best,
 {companyName}`,
   },
   last_chance: {
-    subject: 'Final Notice — Cash Offer Expiring',
+    subject: 'Final Notice - Cash Offer Expiring',
     message: `Hi {firstName},
 
 This is my final outreach about your property at {address}.
 
-My cash offer is still available for a short time. If selling quickly, getting a fair price, and avoiding repairs and commissions sounds good — please call me.
+My cash offer is still available for a short time. If selling quickly, getting a fair price, and avoiding repairs and commissions sounds good - please call me.
 
 {phone}
 
@@ -94,7 +94,7 @@ async function sendPostcard({ lead, operator = {}, templateKey = 'no_answer' }) 
     .replace(/{companyName}/g, companyName);
 
   if (!LOB_API_KEY || LOB_API_KEY === 'test_placeholder') {
-    console.log(`[DirectMail] LOB_API_KEY not set — simulating postcard to ${lead.property_address}`);
+    console.log(`[DirectMail] LOB_API_KEY not set - simulating postcard to ${lead.property_address}`);
     // Log it in DB anyway
     await supabase.from('email_log').insert({
       user_id:    operator.id,
@@ -111,7 +111,7 @@ async function sendPostcard({ lead, operator = {}, templateKey = 'no_answer' }) 
 
   // Build Lob postcard request
   const payload = {
-    description: `Postcard to ${lead.first_name} ${lead.last_name} — ${lead.property_address}`,
+    description: `Postcard to ${lead.first_name} ${lead.last_name} - ${lead.property_address}`,
     to: {
       name: `${lead.first_name || 'Homeowner'} ${lead.last_name || ''}`.trim(),
       address_line1: lead.property_address,
@@ -122,7 +122,7 @@ async function sendPostcard({ lead, operator = {}, templateKey = 'no_answer' }) 
     },
     from: returnAddr,
     size: '4x6',
-    // Lob supports HTML front/back — using a simple template
+    // Lob supports HTML front/back - using a simple template
     front: `<html><body style="font-family:Arial,sans-serif;padding:20px;">
       <h2 style="color:#000;font-size:20px;">${tmpl.subject}</h2>
       <p style="font-size:14px;line-height:1.6;">${message.replace(/\n/g, '<br>')}</p>
@@ -149,7 +149,7 @@ async function sendPostcard({ lead, operator = {}, templateKey = 'no_answer' }) 
       external_id: data.id,
     }).then(null, () => {});
 
-    console.log(`[DirectMail] Postcard sent — Lob ID: ${data.id}`);
+    console.log(`[DirectMail] Postcard sent - Lob ID: ${data.id}`);
     return { success: true, lob_id: data.id, expected_delivery: data.expected_delivery_date };
   } catch (err) {
     console.error('[DirectMail] Lob error:', err.response?.data || err.message);

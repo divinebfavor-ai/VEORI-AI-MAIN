@@ -10,7 +10,7 @@ const router = express.Router();
 
 const SCRIPT_MODEL = 'claude-haiku-4-5-20251001';
 
-// GET /api/operator/voices — live Vapi voice catalog for the persona picker
+// GET /api/operator/voices - live Vapi voice catalog for the persona picker
 router.get('/voices', requireAuth, async (req, res, next) => {
   try {
     const voices = await vapiService.getVapiVoices();
@@ -41,7 +41,7 @@ router.put('/profile', requireAuth, async (req, res, next) => {
     }
     updates.updated_at = new Date().toISOString();
 
-    // Anti-fraud: if a custom script is being saved, scan it (flag-only — the
+    // Anti-fraud: if a custom script is being saved, scan it (flag-only - the
     // save still proceeds; compliance rules in the call prompt always override).
     let fraudWarning = null;
     if (typeof updates.ai_custom_instructions === 'string' && updates.ai_custom_instructions.trim()) {
@@ -55,7 +55,7 @@ router.put('/profile', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/operator/generate-script — draft a custom AI speaking-style script
+// POST /api/operator/generate-script - draft a custom AI speaking-style script
 // from the operator's plain-English description. Does NOT save; the operator
 // reviews/edits, then saves via PUT /profile. Output is fraud-scanned first.
 router.post('/generate-script', requireAuth, async (req, res, next) => {
@@ -85,7 +85,7 @@ RULES FOR WHAT YOU WRITE:
     );
     const script = (msg?.content?.[0]?.text || '').trim();
 
-    // Scan the generated draft too (defense in depth — a crafted description
+    // Scan the generated draft too (defense in depth - a crafted description
     // could try to coax non-compliant output). Flag-only.
     const verdict = await fraudGuard.scanAndLog(req.user.id, `${description}\n---\n${script}`, 'generate_script');
 
@@ -93,10 +93,10 @@ RULES FOR WHAT YOU WRITE:
   } catch (err) { next(err); }
 });
 
-// POST /api/operator/extract-script — F11 workflow import.
+// POST /api/operator/extract-script - F11 workflow import.
 // The operator pastes a full existing call script / dialer workflow (often a wall
 // of word-for-word lines, branches, and stage directions copied from another tool).
-// We DON'T want that raw monologue dumped verbatim into the live prompt — we want
+// We DON'T want that raw monologue dumped verbatim into the live prompt - we want
 // the reusable STYLE & STRATEGY distilled out of it. This extracts clean,
 // second-person instructions from the pasted workflow. Does NOT save; the operator
 // reviews/edits, then saves via PUT /profile. Output is fraud-scanned (flag-only).
@@ -104,7 +104,7 @@ router.post('/extract-script', requireAuth, async (req, res, next) => {
   try {
     const raw = String(req.body.workflow || req.body.script || req.body.text || '').trim();
     if (!raw) return res.status(400).json({ error: 'workflow/script text is required' });
-    if (raw.length > 12000) return res.status(400).json({ error: 'workflow too long (max 12000 chars) — paste the core script only' });
+    if (raw.length > 12000) return res.status(400).json({ error: 'workflow too long (max 12000 chars) - paste the core script only' });
 
     const prompt = `An operator imported an existing cold-call script or dialer workflow they used elsewhere. Distill it into reusable speaking-style instructions for an AI voice agent that calls property sellers.
 
@@ -187,7 +187,7 @@ router.delete('/bank-accounts/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/operator/preferences  — theme, dark mode, contextual tips
+// PUT /api/operator/preferences  - theme, dark mode, contextual tips
 router.put('/preferences', requireAuth, async (req, res, next) => {
   try {
     const allowed = ['theme', 'dark_mode', 'contextual_tips_enabled', 'notification_preferences', 'tfa_enabled', 'operator_mode'];
@@ -221,7 +221,7 @@ router.get('/preferences', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/operator/activity  — real AI action log for Command Center
+// GET /api/operator/activity  - real AI action log for Command Center
 router.get('/activity', requireAuth, async (req, res, next) => {
   try {
     const { limit = 20, offset = 0 } = req.query;

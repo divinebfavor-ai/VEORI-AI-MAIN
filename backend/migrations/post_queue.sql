@@ -1,5 +1,5 @@
 -- ============================================================
--- Social Media Post Queue — Feature 29
+-- Social Media Post Queue - Feature 29
 -- Run this in Supabase SQL Editor
 -- ============================================================
 

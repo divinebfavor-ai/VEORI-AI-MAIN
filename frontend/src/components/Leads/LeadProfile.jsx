@@ -48,18 +48,18 @@ const PREDICTION_LABELS = {
 }
 
 // Render a prediction value: percent for scores, formatted fee for the fee object,
-// raw for a date string, and an em-dash when null (Rule 1 — never fabricated).
+// raw for a date string, and an em-dash when null (Rule 1 - never fabricated).
 function renderPredValue(key, value) {
-  if (value == null) return '—'
+  if (value == null) return '-'
   if (key === 'assignment_fee' && typeof value === 'object') {
     const f = value
-    return f.suggested != null ? `$${Number(f.suggested).toLocaleString()}` : '—'
+    return f.suggested != null ? `$${Number(f.suggested).toLocaleString()}` : '-'
   }
   if (key === 'closing_date') return String(value)
   return `${value}%`
 }
 
-// One visual style per timeline event type — the unified seller "chat".
+// One visual style per timeline event type - the unified seller "chat".
 const EVENT_STYLE = {
   sms_out:  { icon: MessageSquare, color: '#3B82F6', label: 'Text sent' },
   sms_in:   { icon: MessageSquare, color: '#10B981', label: 'Text received' },
@@ -76,7 +76,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
   const [copied, setCopied] = useState(false)
   const [expandedCall, setExpandedCall] = useState(null)
 
-  // Unified timeline — every text, call, photo, document, and the assigned buyer.
+  // Unified timeline - every text, call, photo, document, and the assigned buyer.
   const [timeline, setTimeline] = useState([])
   const [tlCounts, setTlCounts] = useState(null)
   const [tlLoading, setTlLoading] = useState(false)
@@ -84,7 +84,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
   const [tlLoadedFor, setTlLoadedFor] = useState(null)
   const [expandedEvent, setExpandedEvent] = useState(null)
 
-  // AI Deal Prediction — fused per-lead prediction (sells/accepts/closes/fee/…).
+  // AI Deal Prediction - fused per-lead prediction (sells/accepts/closes/fee/…).
   const [prediction, setPrediction] = useState(null)
   const [predLoading, setPredLoading] = useState(false)
   const [predError, setPredError] = useState(false)
@@ -297,7 +297,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === 'Timeline' && (
             <div className="space-y-4">
-              {/* Assigned-buyer banner — WHO this deal is going to, always on top. */}
+              {/* Assigned-buyer banner - WHO this deal is going to, always on top. */}
               {assignedBuyer && (
                 <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2.5">
                   <UserCheck size={16} className="text-primary flex-shrink-0" />
@@ -308,7 +308,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
                 </div>
               )}
 
-              {/* Count chips — one glance at the whole relationship. */}
+              {/* Count chips - one glance at the whole relationship. */}
               {tlCounts && (
                 <div className="flex flex-wrap gap-1.5">
                   {[
@@ -335,7 +335,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
                 <div className="text-center py-8 text-text-muted text-sm">No activity yet for this lead.</div>
               )}
 
-              {/* The chronological feed — newest first. */}
+              {/* The chronological feed - newest first. */}
               {!tlLoading && timeline.length > 0 && (
                 <div className="space-y-2">
                   {timeline.map((ev, i) => {
@@ -434,7 +434,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
 
               {!predLoading && !predError && prediction && (
                 <>
-                  {/* Header — overall confidence + escalate flag + best next action. */}
+                  {/* Header - overall confidence + escalate flag + best next action. */}
                   <div className="bg-elevated rounded-lg p-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -452,7 +452,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
                     {prediction.escalate && (
                       <div className="flex items-center gap-2 mt-3 text-xs text-warning bg-warning/10 rounded-md px-2 py-1.5">
                         <AlertTriangle size={13} />
-                        <span>Low confidence — flagged for operator review before acting.</span>
+                        <span>Low confidence - flagged for operator review before acting.</span>
                       </div>
                     )}
 
@@ -496,7 +496,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
                     )}
                   </div>
 
-                  {/* Per-field predictions — value + confidence + evidence. Null = "—". */}
+                  {/* Per-field predictions - value + confidence + evidence. Null = "-". */}
                   <div className="space-y-2">
                     {Object.entries(prediction.predictions || {}).map(([key, field]) => (
                       <div key={key} className="bg-elevated rounded-lg p-3">

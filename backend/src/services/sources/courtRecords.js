@@ -2,7 +2,7 @@
  * Courthouse Records Source Connector
  *
  * Pulls from:
- *  1. CourtAPI.com (commercial API — covers probate, lis pendens, divorce, code violations)
+ *  1. CourtAPI.com (commercial API - covers probate, lis pendens, divorce, code violations)
  *  2. State court open data portals
  *  3. County recorder public databases
  *

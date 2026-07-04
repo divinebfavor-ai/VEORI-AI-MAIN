@@ -46,7 +46,7 @@ router.get('/stats', async (req, res) => {
     // OLD amounts so any legacy subscriber still counts correctly toward MRR.
     const planAmounts = {
       starter: 1499, solo: 2999, operator: 4999, scale: 8999, enterprise: 14999,
-      founding_member: 397, growth: 999, pro: 1799, // retired — legacy MRR only
+      founding_member: 397, growth: 999, pro: 1799, // retired - legacy MRR only
     };
     const mrr = subs.reduce((s, u) => s + (planAmounts[u.subscription_plan] || 0), 0);
 
@@ -130,7 +130,7 @@ router.get('/revenue', async (req, res) => {
     // OLD amounts so any legacy subscriber still counts correctly toward MRR.
     const planAmounts = {
       starter: 1499, solo: 2999, operator: 4999, scale: 8999, enterprise: 14999,
-      founding_member: 397, growth: 999, pro: 1799, // retired — legacy MRR only
+      founding_member: 397, growth: 999, pro: 1799, // retired - legacy MRR only
     };
 
     const breakdown = {};
@@ -159,7 +159,7 @@ router.get('/revenue', async (req, res) => {
 
 // GET /api/admin/legacy-plans
 // Read-only. Lists anyone still on a RETIRED tier so they can be migrated to a
-// current plan. Touches nothing — pure visibility into stranded subscribers.
+// current plan. Touches nothing - pure visibility into stranded subscribers.
 router.get('/legacy-plans', async (req, res) => {
   try {
     const RETIRED = ['founding_member', 'growth', 'pro'];
@@ -179,7 +179,7 @@ router.get('/legacy-plans', async (req, res) => {
       suggested_plan: MIGRATE_TO[u.subscription_plan] || 'starter',
     }));
 
-    // Count stranded users per retired tier (active subs first — they're the priority).
+    // Count stranded users per retired tier (active subs first - they're the priority).
     const byPlan = {};
     for (const u of users) {
       const p = u.subscription_plan;

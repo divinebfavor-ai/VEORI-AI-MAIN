@@ -15,12 +15,12 @@ const crypto   = require('crypto');
 const axios    = require('axios');
 const { sendEmail } = require('../services/emailService');
 
-// Commission rates — no cap
+// Commission rates - no cap
 const MONTH1_RATE    = 0.10; // 10% first month
 const RECURRING_RATE = 0.03; // 3% months 2-12
 
 function calcCommission(amount, rate) {
-  // No cap — pay full percentage on every plan
+  // No cap - pay full percentage on every plan
   return parseFloat((amount * rate).toFixed(2));
 }
 
@@ -38,17 +38,17 @@ async function triggerAutoPayout(referrerId, amount, description, referredName =
 
     const referrerFirst = referrer.full_name?.split(' ')[0] || 'there';
 
-    // Always notify the referrer first — they need to know who paid regardless of payout status
+    // Always notify the referrer first - they need to know who paid regardless of payout status
     const notifyReferrer = async (payoutLine) => {
       await sendEmail({
         to:      referrer.email,
-        subject: `${referredName} just paid — you earned $${amount}`,
+        subject: `${referredName} just paid - you earned $${amount}`,
         html: `
           <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;background:#060E1A;color:#fff;border-radius:16px;padding:40px;">
             <div style="font-size:22px;font-weight:900;margin-bottom:20px;">VEORI</div>
             <p style="font-size:16px;font-weight:700;color:#fff;margin:0 0 8px;">Hey ${referrerFirst},</p>
             <p style="font-size:15px;color:rgba(255,255,255,0.8);margin:0 0 20px;">
-              <strong style="color:#00C37A;">${referredName}</strong> — your referral — just subscribed and paid.
+              <strong style="color:#00C37A;">${referredName}</strong> - your referral - just subscribed and paid.
               You earned <strong style="color:#00C37A;">$${amount}</strong> in commission.
             </p>
             <div style="background:rgba(0,195,122,0.08);border:1px solid rgba(0,195,122,0.20);border-radius:10px;padding:18px;margin-bottom:24px;">
@@ -62,7 +62,7 @@ async function triggerAutoPayout(referrerId, amount, description, referredName =
       }).catch(() => {});
     };
 
-    // If no payout method set — notify + prompt them to add payout details
+    // If no payout method set - notify + prompt them to add payout details
     if (!referrer.payout_email && !referrer.payout_bank) {
       await notifyReferrer('To receive your payout, add your PayPal email under <strong>Referrals → Payout Settings</strong> in your dashboard.');
       return { success: false, reason: 'no_payout_method' };
@@ -102,13 +102,13 @@ async function triggerAutoPayout(referrerId, amount, description, referredName =
     });
 
     if (resp.data?.status === 'success') {
-      await notifyReferrer(`$${amount} has been sent to ${referrer.payout_email || 'your bank account'} — it should arrive within 1–3 business days.`);
+      await notifyReferrer(`$${amount} has been sent to ${referrer.payout_email || 'your bank account'} - it should arrive within 1–3 business days.`);
       return { success: true, transfer_id: resp.data?.data?.id };
     }
 
-    // Payout failed — still notify referrer, commission is logged as pending
+    // Payout failed - still notify referrer, commission is logged as pending
     console.warn('[Referrals] Flutterwave transfer failed:', resp.data?.message);
-    await notifyReferrer('Your commission has been recorded. We\'ll process the payout shortly — check your Referrals dashboard for status.');
+    await notifyReferrer('Your commission has been recorded. We\'ll process the payout shortly - check your Referrals dashboard for status.');
     return { success: false, reason: resp.data?.message };
   } catch (err) {
     console.error('[Referrals] Auto payout error:', err.message);
@@ -271,9 +271,9 @@ function requireInternal(req, res, next) {
   const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET;
   const provided        = req.headers['x-internal-secret'];
 
-  // INTERNAL_API_SECRET must be set — no fallback, no guessing
+  // INTERNAL_API_SECRET must be set - no fallback, no guessing
   if (!INTERNAL_SECRET) {
-    console.error('[Referrals] INTERNAL_API_SECRET not configured — blocking all internal-only requests');
+    console.error('[Referrals] INTERNAL_API_SECRET not configured - blocking all internal-only requests');
     return res.status(403).json({ success: false, error: 'Internal endpoint not configured' });
   }
 
@@ -285,7 +285,7 @@ function requireInternal(req, res, next) {
 }
 
 // ─── POST /api/referrals/trigger ─────────────────────────────────────────────
-// Called by billing webhook when a payment is confirmed — INTERNAL ONLY
+// Called by billing webhook when a payment is confirmed - INTERNAL ONLY
 // type: 'month1' or 'recurring'
 router.post('/trigger', requireInternal, async (req, res) => {
   try {
@@ -315,12 +315,12 @@ router.post('/trigger', requireInternal, async (req, res) => {
     // Key = FW transaction id + commission type. The referral_payments insert
     // below is the lock; a duplicate /trigger call hits the UNIQUE index (23505)
     // and bails before any payout/credit. If no key is passed, eventKey is null
-    // and the partial unique index ignores it — behavior identical to before.
+    // and the partial unique index ignores it - behavior identical to before.
     const { idempotency_key = null } = req.body;
     const eventKey = idempotency_key ? `${idempotency_key}_${type}` : null;
 
     if (type === 'month1') {
-      // First payment — 10% commission, create referral record
+      // First payment - 10% commission, create referral record
       const commission = calcCommission(amount, MONTH1_RATE);
 
       // Upsert referral record
@@ -340,7 +340,7 @@ router.post('/trigger', requireInternal, async (req, res) => {
         }, { onConflict: 'referred_id' })
         .select().single();
 
-      // Claim this event FIRST — the insert is the lock. If eventKey already
+      // Claim this event FIRST - the insert is the lock. If eventKey already
       // exists, 23505 fires and we bail before any payout or credit.
       const { data: payRow, error: claimErr } = await supabase
         .from('referral_payments')
@@ -357,16 +357,16 @@ router.post('/trigger', requireInternal, async (req, res) => {
 
       if (claimErr) {
         if (claimErr.code === '23505') {
-          console.log(`[Referrals] Duplicate month1 ignored — event ${eventKey} already paid`);
+          console.log(`[Referrals] Duplicate month1 ignored - event ${eventKey} already paid`);
           return res.json({ success: true, message: 'Duplicate commission event ignored' });
         }
         throw claimErr;
       }
 
-      // Notify referrer + trigger payout (runs at most once — gated by the claim above)
+      // Notify referrer + trigger payout (runs at most once - gated by the claim above)
       const payout = await triggerAutoPayout(
         referrerId, commission,
-        `10% first-month commission — ${plan} plan`,
+        `10% first-month commission - ${plan} plan`,
         referredName
       );
 
@@ -387,10 +387,10 @@ router.post('/trigger', requireInternal, async (req, res) => {
         .update({ referral_credits: (parseFloat(referrerUser?.referral_credits || 0) + commission) })
         .eq('id', referrerId);
 
-      console.log(`[Referrals] Month1 commission $${commission} for referrer ${referrerId} — payout: ${payout.success ? 'sent' : 'pending'}`);
+      console.log(`[Referrals] Month1 commission $${commission} for referrer ${referrerId} - payout: ${payout.success ? 'sent' : 'pending'}`);
 
     } else {
-      // Recurring payment — 3% of the LOCKED original plan amount, for 12 months only
+      // Recurring payment - 3% of the LOCKED original plan amount, for 12 months only
       const { data: referral } = await supabase
         .from('referrals')
         .select('id, total_earned, plan_amount, recurring_count')
@@ -409,7 +409,7 @@ router.post('/trigger', requireInternal, async (req, res) => {
       const lockedAmount = parseFloat(referral?.plan_amount || amount);
       const commission   = calcCommission(lockedAmount, RECURRING_RATE);
 
-      // Claim this event FIRST — before incrementing count or paying. If eventKey
+      // Claim this event FIRST - before incrementing count or paying. If eventKey
       // already exists, 23505 fires and we bail, so recurring_count/total_earned
       // can't double-bump and no second payout runs.
       const { data: payRow, error: claimErr } = await supabase
@@ -427,7 +427,7 @@ router.post('/trigger', requireInternal, async (req, res) => {
 
       if (claimErr) {
         if (claimErr.code === '23505') {
-          console.log(`[Referrals] Duplicate recurring ignored — event ${eventKey} already paid`);
+          console.log(`[Referrals] Duplicate recurring ignored - event ${eventKey} already paid`);
           return res.json({ success: true, message: 'Duplicate commission event ignored' });
         }
         throw claimErr;
@@ -443,10 +443,10 @@ router.post('/trigger', requireInternal, async (req, res) => {
         })
         .eq('id', referral.id);
 
-      // Notify referrer + trigger payout (runs at most once — gated by the claim above)
+      // Notify referrer + trigger payout (runs at most once - gated by the claim above)
       const payout = await triggerAutoPayout(
         referrerId, commission,
-        `3% recurring commission — month ${recurringCount + 1} of 12 (${plan} plan)`,
+        `3% recurring commission - month ${recurringCount + 1} of 12 (${plan} plan)`,
         referredName
       );
 

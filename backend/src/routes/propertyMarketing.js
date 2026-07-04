@@ -1,10 +1,10 @@
 /**
- * Property Marketing Engine — Cinematic AI Video Generator
+ * Property Marketing Engine - Cinematic AI Video Generator
  * Routes:
- *   POST /api/property-marketing/generate       — generate cinematic video
- *   GET  /api/property-marketing/status/:id     — poll render status
- *   GET  /api/property-marketing/videos         — list all generated videos
- *   POST /api/property-marketing/generate-captions — generate platform captions
+ *   POST /api/property-marketing/generate       - generate cinematic video
+ *   GET  /api/property-marketing/status/:id     - poll render status
+ *   GET  /api/property-marketing/videos         - list all generated videos
+ *   POST /api/property-marketing/generate-captions - generate platform captions
  */
 
 const router  = require('express').Router();

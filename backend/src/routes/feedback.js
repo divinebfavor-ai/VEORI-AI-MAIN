@@ -1,9 +1,9 @@
 /**
  * Feedback / Bug Reports
  *
- * POST /api/feedback        — submit a report (auth required)
- * GET  /api/feedback        — list all reports (service-role, for admin view)
- * PATCH /api/feedback/:id   — update status (service-role)
+ * POST /api/feedback        - submit a report (auth required)
+ * GET  /api/feedback        - list all reports (service-role, for admin view)
+ * PATCH /api/feedback/:id   - update status (service-role)
  */
 const router  = require('express').Router();
 const { requireAuth: auth } = require('../middleware/auth');
@@ -42,7 +42,7 @@ router.post('/', auth, async (req, res) => {
       subject: `[Veori ${type.toUpperCase()}] ${subject}`,
       html: `
         <div style="font-family:Inter,Arial,sans-serif;max-width:560px;background:#060E1A;color:#fff;border-radius:12px;padding:32px;">
-          <div style="font-size:20px;font-weight:900;margin-bottom:20px;">VEORI — User ${type.charAt(0).toUpperCase()+type.slice(1)}</div>
+          <div style="font-size:20px;font-weight:900;margin-bottom:20px;">VEORI - User ${type.charAt(0).toUpperCase()+type.slice(1)}</div>
           <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
             <tr><td style="padding:8px 0;color:rgba(255,255,255,0.5);font-size:12px;width:100px;">From</td><td style="font-size:13px;color:#fff;">${req.user.email}</td></tr>
             <tr><td style="padding:8px 0;color:rgba(255,255,255,0.5);font-size:12px;">Type</td><td style="font-size:13px;color:#fff;">${type}</td></tr>
@@ -64,7 +64,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // ─── GET /api/feedback ────────────────────────────────────────────────────────
-// Admin only — returns all reports sorted newest first
+// Admin only - returns all reports sorted newest first
 router.get('/', auth, async (req, res) => {
   try {
     const { status, type, limit = 100, offset = 0 } = req.query;

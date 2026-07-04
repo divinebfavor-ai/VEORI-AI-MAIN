@@ -37,7 +37,7 @@ const COUNTRY_NAMES = {
 const PLAN_COLORS = {
   starter: '#00C37A', solo: '#34D399', operator: '#60A5FA',
   scale: '#A78BFA', enterprise: '#F87171',
-  founding_member: '#C9A84C', growth: '#00C37A', pro: '#93C5FD', // retired tiers — legacy rows
+  founding_member: '#C9A84C', growth: '#00C37A', pro: '#93C5FD', // retired tiers - legacy rows
 }
 
 export default function Admin() {
@@ -181,17 +181,17 @@ export default function Admin() {
         </div>
       )}
 
-      {/* Visitors — Landing Page Analytics */}
+      {/* Visitors - Landing Page Analytics */}
       {tab === 'visitors' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* Stats row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             {[
-              { label: 'Today',      value: visitors?.stats?.today      ?? '—', icon: Eye,    color: '#00C37A' },
-              { label: 'This Week',  value: visitors?.stats?.this_week  ?? '—', icon: Eye,    color: '#4D9EFF' },
-              { label: 'This Month', value: visitors?.stats?.this_month ?? '—', icon: Eye,    color: '#C9A84C' },
-              { label: 'All Time',   value: visitors?.stats?.all_time   ?? '—', icon: Globe,  color: '#FF9500' },
+              { label: 'Today',      value: visitors?.stats?.today      ?? '-', icon: Eye,    color: '#00C37A' },
+              { label: 'This Week',  value: visitors?.stats?.this_week  ?? '-', icon: Eye,    color: '#4D9EFF' },
+              { label: 'This Month', value: visitors?.stats?.this_month ?? '-', icon: Eye,    color: '#C9A84C' },
+              { label: 'All Time',   value: visitors?.stats?.all_time   ?? '-', icon: Globe,  color: '#FF9500' },
             ].map(({ label, value, icon: Icon, color }) => (
               <div key={label} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ background: `${color}18`, borderRadius: 10, padding: 10 }}>
@@ -292,7 +292,7 @@ export default function Admin() {
                         {[v.city, v.region, v.country_name].filter(Boolean).join(', ') || 'Unknown'}
                       </td>
                       <td style={{ padding: '12px 20px', fontSize: 13, color: 'var(--t2)', textTransform: 'capitalize' }}>{v.referrer_source || 'direct'}</td>
-                      <td style={{ padding: '12px 20px', fontSize: 13, color: 'var(--t2)', textTransform: 'capitalize' }}>{v.device_type || '—'}</td>
+                      <td style={{ padding: '12px 20px', fontSize: 13, color: 'var(--t2)', textTransform: 'capitalize' }}>{v.device_type || '-'}</td>
                       <td style={{ padding: '12px 20px', fontSize: 12, color: 'var(--t3)' }}>
                         {new Date(v.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}
                       </td>

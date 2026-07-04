@@ -31,6 +31,6 @@ CREATE TABLE IF NOT EXISTS photo_upload_tokens (
 CREATE INDEX IF NOT EXISTS idx_photo_tokens_token   ON photo_upload_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_photo_tokens_lead_id ON photo_upload_tokens(lead_id);
 
--- ─── 3. RLS — no direct client access ────────────────────────────────────────
+-- ─── 3. RLS - no direct client access ────────────────────────────────────────
 ALTER TABLE lead_photos        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE photo_upload_tokens ENABLE ROW LEVEL SECURITY;

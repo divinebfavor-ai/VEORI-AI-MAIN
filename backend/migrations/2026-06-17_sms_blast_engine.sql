@@ -5,11 +5,11 @@
 -- Adds:
 --   * Per-number SMS throttle + rotation bookkeeping on phone_numbers
 --     (mirrors the existing voice columns daily_calls_made / daily_call_limit /
---      last_reset_date, but for SMS — so the SMS rotator can spread load across
+--      last_reset_date, but for SMS - so the SMS rotator can spread load across
 --      numbers and respect carrier-safe daily caps).
---   * sms_dead_letter — forensics + manual-replay surface for permanently failed
+--   * sms_dead_letter - forensics + manual-replay surface for permanently failed
 --     queued sends (after BullMQ exhausts retries).
---   * sms_first_leads.enqueue_job_id — ties a queued row to its BullMQ job for
+--   * sms_first_leads.enqueue_job_id - ties a queued row to its BullMQ job for
 --     idempotency / cancellation.
 --   * buyer_campaigns counters (sms_sent / sms_replies) for the dispo blast.
 --

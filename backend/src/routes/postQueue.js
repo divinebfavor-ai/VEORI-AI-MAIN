@@ -1,10 +1,10 @@
 /**
- * Social Media Post Queue — Feature 29 (Section 6 of Master Build)
+ * Social Media Post Queue - Feature 29 (Section 6 of Master Build)
  * Routes:
- *   GET    /api/post-queue          — list queue items (filter by tab/status)
- *   POST   /api/post-queue          — create/schedule a post
- *   PATCH  /api/post-queue/:id/cancel — cancel a pending/scheduled post
- *   POST   /api/post-queue/:id/retry  — retry a failed post
+ *   GET    /api/post-queue          - list queue items (filter by tab/status)
+ *   POST   /api/post-queue          - create/schedule a post
+ *   PATCH  /api/post-queue/:id/cancel - cancel a pending/scheduled post
+ *   POST   /api/post-queue/:id/retry  - retry a failed post
  */
 const router  = require('express').Router();
 const { requireAuth: auth } = require('../middleware/auth');
@@ -183,7 +183,7 @@ router.post('/auto-trigger', async (req, res) => {
 
     const platforms = (connections || []).map(c => c.platform);
     if (platforms.length === 0) {
-      return res.json({ message: 'No connected platforms — post skipped', platforms: [] });
+      return res.json({ message: 'No connected platforms - post skipped', platforms: [] });
     }
 
     const rows = platforms.map(platform => ({

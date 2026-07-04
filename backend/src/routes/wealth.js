@@ -31,7 +31,7 @@ router.post('/assessment', async (req, res) => {
       .single();
 
     if (aErr) {
-      // Table may not exist yet — gracefully continue with playbook generation
+      // Table may not exist yet - gracefully continue with playbook generation
       console.warn('[Wealth] Assessment table error (run migration):', aErr.message);
     }
 

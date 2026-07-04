@@ -1,6 +1,6 @@
 // ─── Veori Data Moat Engine ───────────────────────────────────────────────────
 // Every call WRITES intelligence. Every new call READS it.
-// This is what nobody can replicate — proprietary learning that compounds.
+// This is what nobody can replicate - proprietary learning that compounds.
 const supabase = require('../config/supabase');
 
 // ─── WRITE: Record everything learned from a completed call ──────────────────
@@ -10,12 +10,12 @@ async function recordCallIntelligence({ call, lead, aiAnalysis, operator }) {
 
   const worked = ['appointment', 'offer_made', 'verbal_yes'].includes(outcome);
 
-  // E — rejection cooldown: a hard "no" is a signal, not a dead end. We stamp WHEN
+  // E - rejection cooldown: a hard "no" is a signal, not a dead end. We stamp WHEN
   // it happened so the next touch re-approaches softly (acknowledge, don't re-pitch)
   // instead of hammering the same offer the day after they said no.
   const rejected = ['not_interested', 'rejected', 'do_not_call', 'hung_up'].includes(outcome);
 
-  // 1. Upsert seller profile — builds trust/personality model over every touch
+  // 1. Upsert seller profile - builds trust/personality model over every touch
   try {
     const { data: existing } = await supabase
       .from('seller_profiles')
@@ -52,7 +52,7 @@ async function recordCallIntelligence({ call, lead, aiAnalysis, operator }) {
     }
   } catch (e) { console.error('[DataMot] seller_profiles write failed:', e.message); }
 
-  // 2. Log conversation pattern — what approach + what outcome
+  // 2. Log conversation pattern - what approach + what outcome
   try {
     const opening = call?.transcript
       ? call.transcript.slice(0, 300)
@@ -92,7 +92,7 @@ async function recordCallIntelligence({ call, lead, aiAnalysis, operator }) {
     } catch (e) { console.error('[DataMot] objection_library write failed:', e.message); }
   }
 
-  // 4. Log market price anchor — build proprietary price intelligence per market
+  // 4. Log market price anchor - build proprietary price intelligence per market
   if (lead.property_state && (lead.estimated_value || call?.offer_made)) {
     try {
       await supabase.from('market_anchors').insert({
@@ -109,7 +109,7 @@ async function recordCallIntelligence({ call, lead, aiAnalysis, operator }) {
     } catch (e) { console.error('[DataMot] market_anchors write failed:', e.message); }
   }
 
-  console.log(`[DataMot] Intelligence recorded for lead ${lead.id} — outcome: ${outcome}, worked: ${worked}`);
+  console.log(`[DataMot] Intelligence recorded for lead ${lead.id} - outcome: ${outcome}, worked: ${worked}`);
 }
 
 // ─── WRITE: Record winning playbook when a deal closes ───────────────────────
@@ -189,7 +189,7 @@ async function getCallIntelligence({ lead, operator }) {
       .order('created_at', { ascending: false })
       .limit(10),
 
-    // B — verbatim recall: the most recent prior call WITH THIS SPECIFIC SELLER,
+    // B - verbatim recall: the most recent prior call WITH THIS SPECIFIC SELLER,
     // so the AI can quote their actual words instead of only a summary tag.
     supabase.from('calls')
       .select('transcript, ai_summary, outcome, created_at')
@@ -200,7 +200,7 @@ async function getCallIntelligence({ lead, operator }) {
       .single(),
 
     // Rule 3 (outcome learning): real closed/dead outcomes in THIS state, so Alex
-    // knows what's actually converting where this property is — not a guess.
+    // knows what's actually converting where this property is - not a guess.
     supabase.from('deal_outcome_learning')
       .select('outcome, days_to_outcome')
       .eq('state', state)
@@ -215,7 +215,7 @@ async function getCallIntelligence({ lead, operator }) {
   const lastCall      = lastCallRes.value?.data || null;
   const outcomeRows   = outcomesRes.value?.data || [];
 
-  // Rule 3 — same-state win rate from real terminal outcomes. Only surfaced with a
+  // Rule 3 - same-state win rate from real terminal outcomes. Only surfaced with a
   // meaningful sample (min 3 decided) so a single deal can't mislead the caller.
   const isWonOutcome  = o => /clos|won|assigned|funded/i.test(o?.outcome || '');
   const isLostOutcome = o => /fell|fail|dead|lost|cancel|withdraw/i.test(o?.outcome || '');
@@ -257,11 +257,11 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
 
   lines.push('');
   lines.push('═══════════════════════════════════════════');
-  lines.push('ACCUMULATED INTELLIGENCE — VEORI DATA ENGINE');
+  lines.push('ACCUMULATED INTELLIGENCE - VEORI DATA ENGINE');
   lines.push('═══════════════════════════════════════════');
   lines.push('This intelligence was built from real calls. Use it as your edge.');
 
-  // Returning seller — personalize based on history
+  // Returning seller - personalize based on history
   if (sellerProfile && sellerProfile.total_touches > 0) {
     lines.push('');
     lines.push(`THIS SELLER HAS BEEN CONTACTED ${sellerProfile.total_touches} TIME(S) BEFORE:`);
@@ -270,7 +270,7 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
       lines.push(`- Personality confirmed: ${sellerProfile.personality_type}`);
     }
     if (sellerProfile.dominant_objection) {
-      lines.push(`- Their dominant objection: ${sellerProfile.dominant_objection} — prepare for it`);
+      lines.push(`- Their dominant objection: ${sellerProfile.dominant_objection} - prepare for it`);
     }
     if (sellerProfile.last_positive_signal) {
       lines.push(`- Last positive signal: "${sellerProfile.last_positive_signal.slice(0, 150)}"`);
@@ -279,24 +279,24 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
     if (sellerProfile.responded_to_data)    lines.push('- RESPONDS TO: Data. Give them numbers.');
     if (sellerProfile.responded_to_urgency) lines.push('- RESPONDS TO: Urgency. Move fast.');
 
-    // E — rejection cooldown: if they recently said no, do NOT re-pitch the same way.
+    // E - rejection cooldown: if they recently said no, do NOT re-pitch the same way.
     // Acknowledge it, lead with what's NEW (a different angle / changed situation),
-    // and give them an easy out — a fresh hard sell the week after a "no" just burns
+    // and give them an easy out - a fresh hard sell the week after a "no" just burns
     // the lead. Older rejections (30+ days) are stale; treat as a warm re-open.
     if (sellerProfile.last_rejection_at) {
       const daysSince = Math.floor((Date.now() - new Date(sellerProfile.last_rejection_at).getTime()) / 86400000);
       if (daysSince >= 0 && daysSince < 14) {
-        lines.push(`- RECENTLY SAID NO (${daysSince} day(s) ago): Do NOT re-pitch the same offer. Open by acknowledging it — "I know the timing wasn't right last time" — then lead with something NEW. Soft, low-pressure, give them an easy out.`);
+        lines.push(`- RECENTLY SAID NO (${daysSince} day(s) ago): Do NOT re-pitch the same offer. Open by acknowledging it - "I know the timing wasn't right last time" - then lead with something NEW. Soft, low-pressure, give them an easy out.`);
       } else if (daysSince >= 14 && daysSince < 60) {
-        lines.push(`- Said no ${daysSince} days ago — enough time has passed to re-open warmly. "Wanted to circle back and see if anything's changed on your end."`);
+        lines.push(`- Said no ${daysSince} days ago - enough time has passed to re-open warmly. "Wanted to circle back and see if anything's changed on your end."`);
       }
     }
   }
 
-  // B — VERBATIM RECALL: the seller's actual words from the last call. A summary
+  // B - VERBATIM RECALL: the seller's actual words from the last call. A summary
   // tag ("price objection") tells you WHAT happened; their real sentence tells you
   // HOW they said it. Quoting them back ("Last time you mentioned the roof was your
-  // big worry…") is what a 50-year closer does — it proves you listened and skips
+  // big worry…") is what a 50-year closer does - it proves you listened and skips
   // re-discovery. We pull the last few "Seller:" lines from the stored transcript.
   if (lastCall && lastCall.transcript) {
     const sellerLines = String(lastCall.transcript)
@@ -307,12 +307,12 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
     const keyQuotes = sellerLines.slice(-3); // their last few real sentences
     if (keyQuotes.length) {
       lines.push('');
-      lines.push('LAST TIME THIS SELLER SAID (their exact words — reference these naturally):');
+      lines.push('LAST TIME THIS SELLER SAID (their exact words - reference these naturally):');
       keyQuotes.forEach(q => lines.push(`- "${q.slice(0, 180)}"`));
       if (lastCall.ai_summary) {
         lines.push(`Where it left off: ${String(lastCall.ai_summary).slice(0, 220)}`);
       }
-      lines.push('Do NOT make them repeat themselves — pick up where you left off and build on it.');
+      lines.push('Do NOT make them repeat themselves - pick up where you left off and build on it.');
     }
   }
 
@@ -338,7 +338,7 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
     lines.push(`- Use this to anchor your offer with confidence`);
   }
 
-  // Rule 3 — what's ACTUALLY closing in this state (real terminal outcomes).
+  // Rule 3 - what's ACTUALLY closing in this state (real terminal outcomes).
   if (stateLearning) {
     lines.push('');
     lines.push(`WHAT'S ACTUALLY CLOSING IN ${stateLearning.state || 'THIS STATE'} (from ${stateLearning.decided} real outcomes):`);
@@ -347,19 +347,19 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
       lines.push(`- Deals that close here average ${stateLearning.avg_days_to_close} days start-to-close`);
     }
     if (stateLearning.win_rate >= 50) {
-      lines.push('- This is a strong market for us — push with confidence, this is a winnable deal.');
+      lines.push('- This is a strong market for us - push with confidence, this is a winnable deal.');
     } else {
-      lines.push('- Tougher market — qualify hard, lead with value, do not over-chase a weak fit.');
+      lines.push('- Tougher market - qualify hard, lead with value, do not over-chase a weak fit.');
     }
   }
 
   // What to watch for
   if (topObjCategory) {
     const objGuide = {
-      price:  'The #1 objection in this market is price. Lead with value: "You pay no agent fees, no repairs, fast close — that has real value."',
-      trust:  'Trust is the #1 objection here. Build credibility first — mention references, past closings, your process.',
+      price:  'The #1 objection in this market is price. Lead with value: "You pay no agent fees, no repairs, fast close - that has real value."',
+      trust:  'Trust is the #1 objection here. Build credibility first - mention references, past closings, your process.',
       timing: 'Sellers here often need more time. Plant a seed: "I\'m not here to rush you. Can I follow up in a week?"',
-      agent:  'Some sellers have agents. Confirm early: "Are you working with anyone?" If yes: "No problem — your agent keeps full commission."',
+      agent:  'Some sellers have agents. Confirm early: "Are you working with anyone?" If yes: "No problem - your agent keeps full commission."',
     };
     lines.push('');
     lines.push(`MOST COMMON OBJECTION IN THIS MARKET: ${topObjCategory.toUpperCase()}`);
@@ -378,12 +378,12 @@ function buildAccumulatedIntelligenceBlock({ sellerProfile, playbooks, patterns,
   }
 
   lines.push('');
-  lines.push('Use this intelligence. It represents real seller interactions — patterns that work in the real world.');
+  lines.push('Use this intelligence. It represents real seller interactions - patterns that work in the real world.');
 
   return lines.join('\n');
 }
 
-// ─── READ: Compact seller memory for the SMS brain (A — unified memory) ──────
+// ─── READ: Compact seller memory for the SMS brain (A - unified memory) ──────
 // The voice brain already builds a rich profile (trust, personality, dominant
 // objection, what they respond to) in seller_profiles. The SMS brain used to
 // score/continue blind to all of it. This pulls that SAME row so a text reply is
@@ -399,12 +399,12 @@ async function getSellerContextForSMS(leadId) {
       .single();
     return data || null;
   } catch (e) {
-    return null; // no profile yet (first touch) — not an error
+    return null; // no profile yet (first touch) - not an error
   }
 }
 
 // Format the seller profile into a short prompt block the SMS LLM can use. Kept
-// tight on purpose — GPT-4o-mini scoring/continuation runs on a small token
+// tight on purpose - GPT-4o-mini scoring/continuation runs on a small token
 // budget. Returns '' when there is no prior history so the prompt is unchanged.
 function buildSMSContextBlock(sellerContext) {
   if (!sellerContext || !(sellerContext.total_touches > 0)) return '';
@@ -412,14 +412,14 @@ function buildSMSContextBlock(sellerContext) {
   lines.push(`- Contacted ${sellerContext.total_touches} time(s) before; trust ${sellerContext.trust_level || 0}/100`);
   if (sellerContext.personality_type)   lines.push(`- Personality: ${sellerContext.personality_type}`);
   if (sellerContext.dominant_objection) lines.push(`- Their usual objection: ${sellerContext.dominant_objection}`);
-  if (sellerContext.responded_to_empathy) lines.push('- Responds to empathy — lead with understanding.');
-  if (sellerContext.responded_to_data)    lines.push('- Responds to data — give concrete numbers.');
-  if (sellerContext.responded_to_urgency) lines.push('- Responds to urgency — a time reason moves them.');
+  if (sellerContext.responded_to_empathy) lines.push('- Responds to empathy - lead with understanding.');
+  if (sellerContext.responded_to_data)    lines.push('- Responds to data - give concrete numbers.');
+  if (sellerContext.responded_to_urgency) lines.push('- Responds to urgency - a time reason moves them.');
   if (sellerContext.last_positive_signal) lines.push(`- Last positive signal: "${String(sellerContext.last_positive_signal).slice(0, 140)}"`);
   return lines.join('\n');
 }
 
-// ─── C — BUYER-SIDE BRAIN ────────────────────────────────────────────────────
+// ─── C - BUYER-SIDE BRAIN ────────────────────────────────────────────────────
 // The seller brain (above) remembers each seller. The buyer brain remembers each
 // BUYER. `buyers` holds their static buy-box; buyer_deal_history holds how every
 // past deal landed with them. This reads both and derives the buyer's real
@@ -470,12 +470,12 @@ async function getBuyerIntelligence(buyerId) {
       lastOutcome:    history[0]?.outcome || null,
     };
   } catch (e) {
-    return null; // no history / table not yet present — not an error
+    return null; // no history / table not yet present - not an error
   }
 }
 
 // WRITE: record one buyer × deal outcome. Best-effort, idempotent on (buyer,deal)
-// via the partial unique index — re-touching a deal UPSERTs the outcome instead of
+// via the partial unique index - re-touching a deal UPSERTs the outcome instead of
 // stacking rows. Never throws: a logging miss must never break a blast or assign.
 async function recordBuyerDealOutcome({ buyerId, dealId, userId, outcome, offeredPrice, arv, propertyType, propertyState, reason }) {
   if (!supabase || !buyerId || !userId || !outcome) return;
@@ -501,7 +501,7 @@ async function recordBuyerDealOutcome({ buyerId, dealId, userId, outcome, offere
 function buildBuyerIntelBlock(intel) {
   if (!intel || !intel.buyer) return '';
   const b = intel.buyer;
-  const lines = ['', "THIS BUYER'S TRACK RECORD (use it — pitch them like you know them):"];
+  const lines = ['', "THIS BUYER'S TRACK RECORD (use it - pitch them like you know them):"];
 
   // Static buy-box (always known if the buyer row loaded).
   if (b.buy_box_types?.length)  lines.push(`- Buys: ${b.buy_box_types.join(', ')}`);
@@ -513,19 +513,19 @@ function buildBuyerIntelBlock(intel) {
   // Earned history (only if we've touched them before).
   if (intel.totalTouches > 0) {
     lines.push(`- History: bought ${intel.dealsWon}, passed ${intel.dealsPassed} of ${intel.totalTouches} deals shown`);
-    if (intel.avgPctOfArv) lines.push(`- Typically buys around ${intel.avgPctOfArv}% of ARV — anchor the price there, not higher`);
-    if (intel.topPassReason) lines.push(`- Usual reason they pass: "${intel.topPassReason}" — get ahead of it before they raise it`);
-    if (intel.lastOutcome === 'passed') lines.push('- They passed last time — acknowledge it: "I know the last one wasn\'t a fit — this one\'s different because…"');
-    if (intel.lastOutcome === 'won')    lines.push('- They bought last time — warm relationship, you can be direct: "Got another one like the last that worked for you."');
+    if (intel.avgPctOfArv) lines.push(`- Typically buys around ${intel.avgPctOfArv}% of ARV - anchor the price there, not higher`);
+    if (intel.topPassReason) lines.push(`- Usual reason they pass: "${intel.topPassReason}" - get ahead of it before they raise it`);
+    if (intel.lastOutcome === 'passed') lines.push('- They passed last time - acknowledge it: "I know the last one wasn\'t a fit - this one\'s different because…"');
+    if (intel.lastOutcome === 'won')    lines.push('- They bought last time - warm relationship, you can be direct: "Got another one like the last that worked for you."');
   }
 
   return lines.length > 2 ? lines.join('\n') : '';
 }
 
-// ─── D — DEAL-STATE AWARENESS ────────────────────────────────────────────────
+// ─── D - DEAL-STATE AWARENESS ────────────────────────────────────────────────
 // The seller/buyer brains remember PEOPLE. This one remembers the DEAL itself.
 // Until now the AI dialed every lead like a cold first-touch even when a deal
-// already existed — re-pitching a seller who'd already given a verbal yes, which
+// already existed - re-pitching a seller who'd already given a verbal yes, which
 // reads as broken to an experienced investor. This pulls the lead's most recent
 // deal so the AI knows where things actually stand (already agreed? under
 // contract? closing scheduled?). Read-only, single row, non-blocking: any
@@ -542,7 +542,7 @@ async function getDealContext(leadId) {
       .maybeSingle();
     return data || null;
   } catch (e) {
-    return null; // no deal yet (true cold lead) — not an error
+    return null; // no deal yet (true cold lead) - not an error
   }
 }
 
@@ -555,14 +555,14 @@ function buildDealContextBlock(deal) {
 
   const status = String(deal.status || '').toLowerCase();
   const STATUS_GUIDANCE = {
-    under_contract: 'You already have a verbal/contract agreement — this call is to confirm & advance to closing, NOT to re-negotiate price.',
-    closing:        'Deal is heading to close — call is logistics (title, dates, signatures), not a fresh pitch.',
-    won:            'Deal already closed — treat as a relationship/referral touch, not a new offer.',
-    lead:           'Appointment/early-stage deal exists — pick up where the last conversation left off.',
-    new:            'A deal record exists but is early — continue the existing thread, don\'t cold-open.',
+    under_contract: 'You already have a verbal/contract agreement - this call is to confirm & advance to closing, NOT to re-negotiate price.',
+    closing:        'Deal is heading to close - call is logistics (title, dates, signatures), not a fresh pitch.',
+    won:            'Deal already closed - treat as a relationship/referral touch, not a new offer.',
+    lead:           'Appointment/early-stage deal exists - pick up where the last conversation left off.',
+    new:            'A deal record exists but is early - continue the existing thread, don\'t cold-open.',
   };
-  if (deal.status) lines.push(`- Stage: ${deal.status}${STATUS_GUIDANCE[status] ? ' — ' + STATUS_GUIDANCE[status] : ''}`);
-  if (deal.seller_agreed_price) lines.push(`- Seller already agreed to: $${Number(deal.seller_agreed_price).toLocaleString()} — anchor here, do not lower it on them.`);
+  if (deal.status) lines.push(`- Stage: ${deal.status}${STATUS_GUIDANCE[status] ? ' - ' + STATUS_GUIDANCE[status] : ''}`);
+  if (deal.seller_agreed_price) lines.push(`- Seller already agreed to: $${Number(deal.seller_agreed_price).toLocaleString()} - anchor here, do not lower it on them.`);
   else if (deal.offer_price)    lines.push(`- Offer on the table: $${Number(deal.offer_price).toLocaleString()}.`);
   if (deal.closing_date)        lines.push(`- Closing date: ${new Date(deal.closing_date).toDateString()}.`);
   if (deal.arv)                 lines.push(`- ARV on file: $${Number(deal.arv).toLocaleString()}.`);
@@ -570,14 +570,14 @@ function buildDealContextBlock(deal) {
   return lines.length > 2 ? lines.join('\n') : '';
 }
 
-// ─── E — OPERATOR TRACK-RECORD ADAPTATION ────────────────────────────────────
+// ─── E - OPERATOR TRACK-RECORD ADAPTATION ────────────────────────────────────
 // Everything above remembers the MARKET (sellers, buyers, tags, the deal). This
-// one remembers the OPERATOR running Veori — and makes the AI call the way THIS
+// one remembers the OPERATOR running Veori - and makes the AI call the way THIS
 // operator's best calls already go. Until now every operator's AI behaved
 // identically; a closer with a 30% appointment rate and a brand-new user got the
-// exact same prompt. This reads the operator's OWN history — their real win rate
+// exact same prompt. This reads the operator's OWN history - their real win rate
 // from `calls`, the seller personality they convert best, and their typical
-// agreed-price discount + assignment fee from `deals` — and feeds it back so the
+// agreed-price discount + assignment fee from `deals` - and feeds it back so the
 // AI leans into what's working for them. ONLY verified columns are read: `calls`
 // (user_id, outcome, seller_personality, created_at) and `deals` (user_id,
 // status, seller_agreed_price, arv, assignment_fee). Read-only, two scoped
@@ -590,7 +590,7 @@ const OPERATOR_WIN_OUTCOMES = ['verbal_yes', 'appointment', 'offer_made'];
 async function getOperatorTrackRecord(userId) {
   if (!supabase || !userId) return null;
   try {
-    // Last 500 of the operator's own calls + deals — enough to see a pattern,
+    // Last 500 of the operator's own calls + deals - enough to see a pattern,
     // bounded so a heavy user's read stays cheap.
     const [callsRes, dealsRes] = await Promise.allSettled([
       supabase
@@ -658,25 +658,25 @@ async function getOperatorTrackRecord(userId) {
       avgAssignmentFee,
     };
   } catch (e) {
-    return null; // brand-new operator / read failure — AI behaves as before
+    return null; // brand-new operator / read failure - AI behaves as before
   }
 }
 
 // Format the operator's track record into a short prompt block. Returns '' when
 // there's no usable record so a new operator's AI runs the byte-for-byte original
-// prompt. Kept tight — this rides on top of the full call prompt.
+// prompt. Kept tight - this rides on top of the full call prompt.
 function buildOperatorTrackRecordBlock(track) {
   if (!track) return '';
   const lines = ['', "HOW THIS OPERATOR'S BEST CALLS GO (lean into what's working for them):"];
-  lines.push(`- Their AI converts ${track.winRate}% of calls to a yes/appointment/offer (over ${track.sampleSize} calls) — match that energy.`);
+  lines.push(`- Their AI converts ${track.winRate}% of calls to a yes/appointment/offer (over ${track.sampleSize} calls) - match that energy.`);
   if (track.bestPersonality) {
-    lines.push(`- They close "${track.bestPersonality}" sellers best — when you read this personality, press toward the close.`);
+    lines.push(`- They close "${track.bestPersonality}" sellers best - when you read this personality, press toward the close.`);
   }
   if (track.avgDiscountPct != null) {
-    lines.push(`- Their deals typically land around ${track.avgDiscountPct}% below ARV — that's a realistic anchor for this operator's market.`);
+    lines.push(`- Their deals typically land around ${track.avgDiscountPct}% below ARV - that's a realistic anchor for this operator's market.`);
   }
   if (track.avgAssignmentFee != null) {
-    lines.push(`- Their typical spread is about $${Number(track.avgAssignmentFee).toLocaleString()} — leave room for it; don't over-offer.`);
+    lines.push(`- Their typical spread is about $${Number(track.avgAssignmentFee).toLocaleString()} - leave room for it; don't over-offer.`);
   }
   return lines.length > 2 ? lines.join('\n') : '';
 }

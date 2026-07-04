@@ -1,15 +1,15 @@
 /**
- * Assignment Fee Service — the AI per-deal fee SUGGESTER.
+ * Assignment Fee Service - the AI per-deal fee SUGGESTER.
  *
  * The operator's directive: an assignment fee must NOT have a fixed number or a
  * fixed band (it is NOT "5k–25k"). It varies per deal by how the deal is being
- * done — the spread available, seller motivation, and deal economics. Veori should
+ * done - the spread available, seller motivation, and deal economics. Veori should
  * be the best negotiator and bring out the best from each deal.
  *
  * So this service does NOT hardcode a dollar figure. It DERIVES a suggested fee from
  * the deal's own spread and shapes it by signal (spread size, seller motivation). It
  * returns the suggestion PLUS the basis (the inputs + a reason) so the operator can
- * see WHY and decide. Pure, synchronous, null-safe — never throws, never calls out.
+ * see WHY and decide. Pure, synchronous, null-safe - never throws, never calls out.
  *
  * It is a SUGGESTER, not an enforcer: it writes nothing. The route layer decides
  * whether to surface it or persist it (assignment_fee_suggested / assignment_fee_basis).
@@ -18,7 +18,7 @@
 const { dealAskPrice } = require('./buyerDispoService');
 
 /**
- * The price the seller side costs us — what we're under contract to pay the seller.
+ * The price the seller side costs us - what we're under contract to pay the seller.
  * Prefer the agreed price, else the offer, else null (unknown).
  */
 function sellerCost(deal) {
@@ -32,13 +32,13 @@ function sellerCost(deal) {
  * us hold MORE of the spread as fee (the seller's pain is solved by speed, not price
  * shaving), so we lean the share UP. Lower / unknown motivation leans it toward the
  * middle. Reads optional signals that may or may not be present on the joined deal;
- * absent signals collapse to the neutral default — never throws.
+ * absent signals collapse to the neutral default - never throws.
  */
 function motivationFactor(deal) {
   // deal_velocity_score (0..100) is the closest existing motivation proxy on a deal.
   const v = Number(deal?.deal_velocity_score);
   if (Number.isFinite(v) && v > 0) return Math.max(0, Math.min(1, v / 100));
-  return 0.5; // neutral — no signal
+  return 0.5; // neutral - no signal
 }
 
 /**
@@ -59,7 +59,7 @@ function suggestAssignmentFee(deal) {
   const ask  = dealAskPrice(deal);
   const cost = sellerCost(deal);
 
-  // Without both sides we cannot derive a spread — return a null suggestion with a
+  // Without both sides we cannot derive a spread - return a null suggestion with a
   // reason, so the UI shows "need buyer price + seller cost" instead of a fake number.
   if (ask == null || cost == null) {
     return {
@@ -72,7 +72,7 @@ function suggestAssignmentFee(deal) {
         seller_cost: cost,
         arv:         deal?.arv != null ? Number(deal.arv) : null,
         mao:         deal?.mao != null ? Number(deal.mao) : null,
-        reason:      'Insufficient pricing — set a buyer price and seller/offer price to derive the spread.',
+        reason:      'Insufficient pricing - set a buyer price and seller/offer price to derive the spread.',
       },
     };
   }
@@ -89,7 +89,7 @@ function suggestAssignmentFee(deal) {
         seller_cost: cost,
         arv:         deal?.arv != null ? Number(deal.arv) : null,
         mao:         deal?.mao != null ? Number(deal.mao) : null,
-        reason:      'No spread between buyer ask and seller cost — no fee room without renegotiating.',
+        reason:      'No spread between buyer ask and seller cost - no fee room without renegotiating.',
       },
     };
   }

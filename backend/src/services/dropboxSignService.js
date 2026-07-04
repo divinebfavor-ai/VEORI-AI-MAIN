@@ -1,6 +1,6 @@
 /**
  * Dropbox Sign (HelloSign) e-signing service.
- * White-label — zero Dropbox branding in UI.
+ * White-label - zero Dropbox branding in UI.
  * All signing happens inside the Veori UI.
  */
 
@@ -23,7 +23,7 @@ async function createSignatureRequest({ contractId, contractType, pdfUrl, signer
 
   const opts = {
     test_mode: process.env.NODE_ENV !== 'production' ? 1 : 0,
-    title: title || `Veori AI — ${contractType} Agreement`,
+    title: title || `Veori AI - ${contractType} Agreement`,
     subject: subject || `Please review and sign your ${contractType} agreement`,
     message: message || `Your real estate contract is ready for your review and signature. ${CONTRACT_FOOTER.trim()}`,
     signers: signers.map((s, i) => ({

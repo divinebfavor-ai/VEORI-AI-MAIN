@@ -3,7 +3,7 @@ const { optionalAuth } = require('../middleware/auth');
 const { ariaChatbot } = require('../services/aiService');
 const router = express.Router();
 
-// POST /api/aria/chat — public Aria chatbot
+// POST /api/aria/chat - public Aria chatbot
 router.post('/chat', optionalAuth, async (req, res, next) => {
   try {
     const { message, history = [] } = req.body;

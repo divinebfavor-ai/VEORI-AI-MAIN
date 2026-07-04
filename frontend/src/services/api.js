@@ -171,7 +171,7 @@ export const deals = {
   sendContract:      (id, type, data) => api.post(`/api/deals/${id}/send-contract`, { type, ...data }),
   sendToTitle:       (id, data)     => api.post(`/api/deals/${id}/send-to-title`, data),
   startBuyerCampaign:(id)           => api.post(`/api/deals/${id}/start-buyer-campaign`),
-  // Post-contract lifecycle — EMD + assignment-fee suggester + wire instructions
+  // Post-contract lifecycle - EMD + assignment-fee suggester + wire instructions
   confirmEMD:         (id, data)     => api.post(`/api/deals/${id}/emd/confirm`, data),
   getFeeSuggestion:   (id)           => api.get(`/api/deals/${id}/fee-suggestion`),
   applyFeeSuggestion: (id, data)     => api.post(`/api/deals/${id}/fee-suggestion/apply`, data),
@@ -218,21 +218,21 @@ export const ai = {
 export const operator = {
   getProfile:       ()         => api.get('/api/operator/profile'),
   updateProfile:    (data)     => api.put('/api/operator/profile', data),
-  // (Vapi voice catalog removed from the operator surface — the voice picker now
+  // (Vapi voice catalog removed from the operator surface - the voice picker now
   // runs entirely off the ElevenLabs library at `v2voices` below. Operators never
   // see Vapi; it stays dormant in the engine as the admin's flip-back lever.)
   getBankAccounts:  ()         => api.get('/api/operator/bank-accounts'),
   addBankAccount:   (data)     => api.post('/api/operator/bank-accounts', data),
   deleteBankAccount:(id)       => api.delete(`/api/operator/bank-accounts/${id}`),
   generateScript:   (description) => api.post('/api/operator/generate-script', { description }),
-  // F11 — import an existing call script/workflow and distill reusable instructions.
+  // F11 - import an existing call script/workflow and distill reusable instructions.
   extractScript:    (workflow)    => api.post('/api/operator/extract-script', { workflow }),
 }
 
 // ─── v2 voice library (ElevenLabs) ───────────────────────────────────────────
 // The new Twilio + ElevenLabs picker. getLibrary lists the seeded voices the
 // operator can choose; getSelection/saveSelection read+write the per-operator
-// choice in veori_operator_voice_settings — the SAME table the call engine
+// choice in veori_operator_voice_settings - the SAME table the call engine
 // resolves the live call voice from (resolveOperatorVoiceId).
 export const v2voices = {
   getLibrary:    ()                       => api.get('/api/v2/voices'),
@@ -249,7 +249,7 @@ export const v2voices = {
 // The live call engine runs on Vapi (VOICE_ENGINE=vapi), so the persona voice
 // picker now lists Vapi's native voices (Elliot, Savannah, Clara, …) from the
 // backend catalog. The operator's pick saves to users.ai_voice_id (via
-// operator.updateProfile) — the SAME column the Vapi engine reads at call time.
+// operator.updateProfile) - the SAME column the Vapi engine reads at call time.
 export const vapiVoices = {
   getCatalog: () => api.get('/api/operator/voices'),
 }

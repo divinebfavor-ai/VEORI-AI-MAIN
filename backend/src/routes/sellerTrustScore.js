@@ -1,5 +1,5 @@
 /**
- * Feature 19 — Seller Trust Score
+ * Feature 19 - Seller Trust Score
  * Routes: GET /api/seller-trust/:leadId, POST /api/seller-trust/:leadId/calculate,
  *         GET /api/seller-trust/user/top
  */
@@ -20,7 +20,7 @@ function computeTrustScore(lead, calls, sentiment) {
   else if (motivation < 30) { score -= 15; factors.motivation = '-15 (low motivation)'; }
   else { factors.motivation = '0 (moderate)'; }
 
-  // 2. Contact consistency — how many times answered out of attempts
+  // 2. Contact consistency - how many times answered out of attempts
   const totalCalls = calls?.length || 0;
   const answered   = calls?.filter(c => ['completed','answered'].includes(c.status)).length || 0;
   const answerRate = totalCalls > 0 ? answered / totalCalls : 0;
@@ -36,7 +36,7 @@ function computeTrustScore(lead, calls, sentiment) {
   else if (negativeEvents > positiveEvents) { score -= 10; factors.sentiment = '-10 (negative tone)'; }
   else { factors.sentiment = '0 (neutral)'; }
 
-  // 4. Lead age — older uncontacted leads are riskier
+  // 4. Lead age - older uncontacted leads are riskier
   const createdDays = lead.created_at
     ? Math.floor((Date.now() - new Date(lead.created_at)) / 86400000)
     : 0;
@@ -44,7 +44,7 @@ function computeTrustScore(lead, calls, sentiment) {
   else if (createdDays <= 14) { score += 5; factors.age = '+5 (fresh lead)'; }
   else { factors.age = '0'; }
 
-  // 5. Equity — more equity = more motivated to sell
+  // 5. Equity - more equity = more motivated to sell
   const equity = lead.equity_percent || 0;
   if (equity >= 60) { score += 5; factors.equity = '+5 (high equity)'; }
   else if (equity < 10) { score -= 5; factors.equity = '-5 (low equity)'; }
@@ -53,12 +53,12 @@ function computeTrustScore(lead, calls, sentiment) {
   score = Math.max(0, Math.min(100, score));
 
   const recommendation = score >= 75
-    ? 'High trust — push for appointment now'
+    ? 'High trust - push for appointment now'
     : score >= 55
-    ? 'Moderate trust — continue nurturing'
+    ? 'Moderate trust - continue nurturing'
     : score >= 35
-    ? 'Low trust — soften approach, build rapport'
-    : 'Very low trust — consider removing from active pipeline';
+    ? 'Low trust - soften approach, build rapport'
+    : 'Very low trust - consider removing from active pipeline';
 
   return { score, factors, recommendation };
 }
@@ -117,7 +117,7 @@ router.post('/:leadId/calculate', async (req, res) => {
   }
 });
 
-// GET /api/seller-trust/user/top — top trusted leads
+// GET /api/seller-trust/user/top - top trusted leads
 router.get('/user/top', async (req, res) => {
   try {
     const { data, error } = await supabase

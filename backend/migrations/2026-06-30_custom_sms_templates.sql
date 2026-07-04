@@ -1,19 +1,19 @@
 -- ─── Custom SMS templates: operator-authored, guard-railed wholesale-RE copy ──
 -- Lets operators save their OWN SMS outreach text (or AI-generated drafts) and
--- point a campaign blast at one. All additive, nullable, idempotent — safe to run
+-- point a campaign blast at one. All additive, nullable, idempotent - safe to run
 -- more than once and a no-op if already applied. No existing data is modified.
 -- Run manually in the Supabase SQL editor.
 --
 -- Backward compatibility: every send path defaults to the existing built-in
 -- per-tag templates when no custom template is selected, so running this migration
--- only ENABLES custom copy — it never changes how current campaigns behave.
+-- only ENABLES custom copy - it never changes how current campaigns behave.
 
 -- A saved, reusable SMS template owned by one operator.
---   body            — the template text with {first_name}/{address}/{city}/{operator} tokens.
---   lead_type       — optional tag this template is meant for (pre_foreclosure, probate, …);
+--   body            - the template text with {first_name}/{address}/{city}/{operator} tokens.
+--   lead_type       - optional tag this template is meant for (pre_foreclosure, probate, …);
 --                     NULL = a general template usable for any lead.
---   ai_generated    — TRUE if drafted by the AI generator (vs hand-written).
---   moderation_*    — the result of the wholesale-RE guardrail at save time.
+--   ai_generated    - TRUE if drafted by the AI generator (vs hand-written).
+--   moderation_*    - the result of the wholesale-RE guardrail at save time.
 CREATE TABLE IF NOT EXISTS public.sms_templates (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,

@@ -12,12 +12,12 @@ const { suggestAssignmentFee } = require('../services/assignmentFeeService');
 const router = express.Router();
 router.use(requireAuth);
 
-// Helper — true if the table simply doesn't exist yet
+// Helper - true if the table simply doesn't exist yet
 function isTableMissing(err) {
   return err?.code === 'PGRST205' || (err?.message || '').includes('Could not find the table');
 }
 
-// ─── Learning loop (Rule 3) — record a deal's TERMINAL outcome ────────────────
+// ─── Learning loop (Rule 3) - record a deal's TERMINAL outcome ────────────────
 // When a deal flips to a final state (won = 'closed', lost = 'dead'/'lost'/'dnc'),
 // drop one row into deal_outcome_learning so the prediction engine can learn from
 // real history (predictionEngine.applyOutcomeLearning reads same-state outcomes to
@@ -25,7 +25,7 @@ function isTableMissing(err) {
 // but nothing was WRITING to it.
 //
 // SAFETY: best-effort & non-blocking (the response is already sent / about to be).
-// Never throws. NEVER FABRICATES — fields we don't have are written as null, not
+// Never throws. NEVER FABRICATES - fields we don't have are written as null, not
 // invented. Only fires on a real status TRANSITION into a terminal state, so a deal
 // can't be double-counted by re-saving the same status. Uses the deal row already in
 // hand (no buggy re-fetch); a missing table or insert error is swallowed + logged.
@@ -63,9 +63,9 @@ async function recordTerminalOutcome(deal, toStatus, leadRow = null) {
 
 // Mirror the deal's EMD state onto its per-deal title_logs row so the title view
 // stays in parity with deals (the source of truth). The old call was best-effort
-// with a swallowed .catch — a transient failure left title_logs permanently stale
+// with a swallowed .catch - a transient failure left title_logs permanently stale
 // (drift). This retries, and on permanent failure LOGS the drift instead of hiding
-// it, so it's recoverable rather than invisible. Never throws — the deals write
+// it, so it's recoverable rather than invisible. Never throws - the deals write
 // already succeeded; a mirror failure must not fail the request.
 async function mirrorEmdToTitleLog(userId, dealId, fields, attempts = 3) {
   for (let i = 0; i < attempts; i++) {
@@ -77,16 +77,16 @@ async function mirrorEmdToTitleLog(userId, dealId, fields, attempts = 3) {
       .select('id');
     if (!error) {
       if (!data || data.length === 0) {
-        // No title_logs row yet for this deal — nothing to mirror onto (title work
+        // No title_logs row yet for this deal - nothing to mirror onto (title work
         // hasn't started). Not an error; the title view will read deals directly.
-        console.log(`[Deal] EMD mirror skipped — no title_logs row for deal ${dealId}`);
+        console.log(`[Deal] EMD mirror skipped - no title_logs row for deal ${dealId}`);
       }
       return;
     }
-    if (isTableMissing(error)) return; // title_logs not provisioned — nothing to do
+    if (isTableMissing(error)) return; // title_logs not provisioned - nothing to do
     console.warn(`[Deal] EMD mirror attempt ${i + 1}/${attempts} failed for deal ${dealId}: ${error.message}`);
     if (i < attempts - 1) await new Promise(r => setTimeout(r, 400 * (i + 1)));
-    else console.error(`[Deal] EMD mirror DRIFT — title_logs not updated for deal ${dealId}: ${error.message}`);
+    else console.error(`[Deal] EMD mirror DRIFT - title_logs not updated for deal ${dealId}: ${error.message}`);
   }
 }
 
@@ -154,7 +154,7 @@ router.post('/', async (req, res, next) => {
     }]).select().single();
     if (error) throw error;
 
-    // logActivity is non-fatal — deal creation must succeed even if activity log fails
+    // logActivity is non-fatal - deal creation must succeed even if activity log fails
     logActivity({
       userId: req.user.id,
       dealId: data.id,
@@ -226,7 +226,7 @@ router.put('/:id', async (req, res, next) => {
     }
 
     // Learning loop (Rule 3): on a real transition into a terminal state, record the
-    // outcome so predictions sharpen over time. Best-effort + non-blocking — runs after
+    // outcome so predictions sharpen over time. Best-effort + non-blocking - runs after
     // the response, pulls the lead's motivation score if available, never fails the PUT.
     if (updates.status && updates.status !== existing.status && TERMINAL_OUTCOME[(updates.status || '').toLowerCase()]) {
       setImmediate(async () => {
@@ -271,7 +271,7 @@ router.post('/:id/generate-contract', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/deals/:id/contract.pdf?type=psa|assignment — on-demand downloadable PDF.
+// GET /api/deals/:id/contract.pdf?type=psa|assignment - on-demand downloadable PDF.
 // Streams the generated contract as a PDF attachment; nothing stored.
 router.get('/:id/contract.pdf', async (req, res, next) => {
   try {
@@ -424,7 +424,7 @@ router.get('/:id/title-log', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/deals/:id/wire — the EFFECTIVE wire instructions for this deal.
+// GET /api/deals/:id/wire - the EFFECTIVE wire instructions for this deal.
 // Resolution: per-deal override on title_logs wins; else the title-company default.
 // Stores/returns last-4 + free-text only (never full account/routing numbers).
 router.get('/:id/wire', async (req, res, next) => {
@@ -471,9 +471,9 @@ router.get('/:id/wire', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/deals/:id/wire — save a PER-DEAL wire override onto title_logs.
+// POST /api/deals/:id/wire - save a PER-DEAL wire override onto title_logs.
 // Upserts the deal's title_logs row (creating a minimal one if the deal hasn't been
-// sent to title yet) so wiring details are pinned to the exact deal — isolation.
+// sent to title yet) so wiring details are pinned to the exact deal - isolation.
 router.post('/:id/wire', async (req, res, next) => {
   try {
     const WIRE_KEYS = ['wire_bank_name','wire_account_name','wire_routing_last4','wire_account_last4','wire_instructions'];
@@ -539,7 +539,7 @@ router.post('/:id/wire', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/deals/:id/emd/confirm — manually confirm earnest money received.
+// POST /api/deals/:id/emd/confirm - manually confirm earnest money received.
 // The buyer-YES path auto-REQUESTS the EMD (sms.js handleBuyerReply); this is the
 // operator's manual CONFIRM that it actually landed. Mirrors the per-deal EMD onto
 // title_logs so the title view sees it too. Scoped to the operator.
@@ -577,7 +577,7 @@ router.post('/:id/emd/confirm', async (req, res, next) => {
       .single();
     if (error) throw error;
 
-    // Mirror onto the per-deal title log (retry + drift-logged — title view parity).
+    // Mirror onto the per-deal title log (retry + drift-logged - title view parity).
     await mirrorEmdToTitleLog(req.user.id, deal.id, {
       emd_status: 'received',
       emd_amount: confirmedAmount,
@@ -596,7 +596,7 @@ router.post('/:id/emd/confirm', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/deals/:id/fee-suggestion — AI-suggested assignment fee from the spread.
+// GET /api/deals/:id/fee-suggestion - AI-suggested assignment fee from the spread.
 // Read-only: returns the suggestion + basis WITHOUT writing. Operator decides.
 router.get('/:id/fee-suggestion', async (req, res, next) => {
   try {
@@ -613,7 +613,7 @@ router.get('/:id/fee-suggestion', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/deals/:id/fee-suggestion/apply — write the chosen fee onto the deal.
+// POST /api/deals/:id/fee-suggestion/apply - write the chosen fee onto the deal.
 // Persists the operator's accepted figure plus the AI suggestion + its basis for
 // the record. `fee` defaults to the AI suggestion if the operator doesn't override.
 router.post('/:id/fee-suggestion/apply', async (req, res, next) => {
@@ -631,7 +631,7 @@ router.post('/:id/fee-suggestion/apply', async (req, res, next) => {
     const suggestion = suggestAssignmentFee(deal);
     const chosen = fee != null ? Number(fee) : suggestion.suggested;
     if (chosen == null) {
-      return res.status(400).json({ success: false, error: 'No fee to apply — provide a fee or set deal pricing first.' });
+      return res.status(400).json({ success: false, error: 'No fee to apply - provide a fee or set deal pricing first.' });
     }
 
     const now = new Date().toISOString();
@@ -662,7 +662,7 @@ router.post('/:id/fee-suggestion/apply', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/deals/create — alias for POST /api/deals (schema-aligned)
+// POST /api/deals/create - alias for POST /api/deals (schema-aligned)
 router.post('/create', async (req, res, next) => {
   try {
     const { property_address, property_city, property_state, deal_type, strategy_terms, arv, repair_estimate, offer_price, lead_id, title_company_id } = req.body;
@@ -700,7 +700,7 @@ router.post('/create', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/deals/:id/stage — advance deal stage
+// PATCH /api/deals/:id/stage - advance deal stage
 router.patch('/:id/stage', async (req, res, next) => {
   try {
     const VALID_STAGES = ['lead','contacted','offer_sent','under_contract','sent_to_title','closing_prep','closed'];
@@ -746,7 +746,7 @@ router.patch('/:id/stage', async (req, res, next) => {
         } catch (e) { console.error('[DataMot] Playbook record failed:', e.message); }
       });
 
-      // CLOSE RITUAL (Stage 6) — stamp the fee, text thank-you to seller + buyer,
+      // CLOSE RITUAL (Stage 6) - stamp the fee, text thank-you to seller + buyer,
       // and drop a deal_closed row on the chart. Idempotent + best-effort; never
       // blocks the response (already sent above) and never throws here.
       setImmediate(() => {
@@ -778,7 +778,7 @@ router.patch('/:id/stage', async (req, res, next) => {
         }
       });
 
-      // Auto title company workflow — assign, email deal package, schedule follow-ups
+      // Auto title company workflow - assign, email deal package, schedule follow-ups
       setImmediate(async () => {
         try {
           const { data: fullDeal } = await supabase.from('deals').select('*').eq('id', req.params.id).single();
@@ -792,7 +792,7 @@ router.patch('/:id/stage', async (req, res, next) => {
             await scheduleTitleFollowUps(dealDbId, userId);
             console.log(`[Title] Full automation triggered for deal ${dealDbId} → ${assigned.name}`);
           } else {
-            console.log(`[Title] No title company found for deal ${dealDbId} — skipping auto-send`);
+            console.log(`[Title] No title company found for deal ${dealDbId} - skipping auto-send`);
           }
         } catch (e) {
           console.error('[Title] Auto title workflow failed:', e.message);
@@ -802,7 +802,7 @@ router.patch('/:id/stage', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/deals/:id/pause-ai — toggle AI pause for a deal
+// PATCH /api/deals/:id/pause-ai - toggle AI pause for a deal
 router.patch('/:id/pause-ai', async (req, res, next) => {
   try {
     const { paused } = req.body;
@@ -825,7 +825,7 @@ router.patch('/:id/pause-ai', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/deals/:id/velocity-score — compute Deal Velocity Score
+// GET /api/deals/:id/velocity-score - compute Deal Velocity Score
 router.get('/:id/velocity-score', async (req, res, next) => {
   try {
     const { data: deal } = await supabase.from('deals').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
@@ -840,7 +840,7 @@ router.get('/:id/velocity-score', async (req, res, next) => {
     const recencyScore      = Math.max(0, 100 - (daysSinceContact * 3)) * 0.20;
     const touchScore        = Math.min(100, (touchCount || 0) * 10) * 0.15;
     const stageScore        = (['offer_sent','under_contract','sent_to_title'].includes(deal.status) ? 80 : 40) * 0.15;
-    const buyerDepthScore   = 50 * 0.10; // default — update with buyer pool query if needed
+    const buyerDepthScore   = 50 * 0.10; // default - update with buyer pool query if needed
     const complianceScore   = 70 * 0.05; // default
 
     const velocity = Math.min(100, Math.round(motivationScore + recencyScore + touchScore + stageScore + buyerDepthScore + complianceScore));
@@ -855,7 +855,7 @@ router.get('/:id/velocity-score', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/deals/:id/brief — Smart Deal Brief (Claude Sonnet 4.6)
+// GET /api/deals/:id/brief - Smart Deal Brief (Claude Sonnet 4.6)
 router.get('/:id/brief', async (req, res, next) => {
   try {
     const { data: deal } = await supabase.from('deals').select('*, leads(first_name, last_name)').eq('id', req.params.id).eq('user_id', req.user.id).single();
@@ -873,7 +873,7 @@ router.get('/:id/brief', async (req, res, next) => {
     const { generateDealBrief } = require('../services/dualAIService');
     const result = await generateDealBrief({
       deal,
-      lastAiAction: lastLog ? `${lastLog.action_type} — ${new Date(lastLog.created_at).toLocaleDateString()}` : null,
+      lastAiAction: lastLog ? `${lastLog.action_type} - ${new Date(lastLog.created_at).toLocaleDateString()}` : null,
       sellerName,
       nextRecommendedStep: null,
     });
@@ -896,7 +896,7 @@ router.post('/:id/start-buyer-campaign', async (req, res, next) => {
 
     // Log in deals table that buyer search is active. Use the official 'under_contract'
     // stage (a deal in buyer search is already under contract) so the pipeline board
-    // can render the card — 'buyer search' was an off-spec status the board can't group.
+    // can render the card - 'buyer search' was an off-spec status the board can't group.
     await supabase.from('deals').update({ status: 'under_contract', updated_at: new Date().toISOString() })
       .eq('id', req.params.id).eq('user_id', req.user.id);
     const campaign = { id: req.params.id, status: 'active' };

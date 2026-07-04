@@ -35,7 +35,7 @@ const STRATEGIES = [
   ] },
   { id: 'novation',       label: '🔄 Novation',         fields: [
     { key: 'list_price',    label: 'Acquisition / List Price ($)' },
-    { key: 'target_resale', label: 'Target Resale ($, optional — defaults to ARV)' },
+    { key: 'target_resale', label: 'Target Resale ($, optional - defaults to ARV)' },
     { key: 'repairs',       label: 'Light Reno ($, optional)' },
     { key: 'agent_pct',     label: 'Agent Commission (%)' },
     { key: 'closing_pct',   label: 'Closing Costs (%)' },
@@ -144,7 +144,7 @@ export default function ProfitCalculator() {
           <div style={s.card}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: '#C9A84C' }}>DEAL INPUTS</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Strategy selector — Cash keeps the original behaviour & fields. */}
+              {/* Strategy selector - Cash keeps the original behaviour & fields. */}
               <div>
                 <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 4 }}>Strategy</label>
                 <select style={s.input} value={strategy}
@@ -157,7 +157,7 @@ export default function ProfitCalculator() {
               {field('Closing Costs %', 'closing_costs_pct', '2')}
               {field('Holding Costs ($)', 'holding_costs', '0')}
               {field('Target Assignment Fee ($)', 'assignment_fee_target', '10000')}
-              {/* Creative-finance fields — only shown for non-cash strategies. */}
+              {/* Creative-finance fields - only shown for non-cash strategies. */}
               {activeStrategy.fields.length > 0 && (
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#C9A84C', letterSpacing: '0.08em' }}>{activeStrategy.label.toUpperCase()} TERMS</div>
@@ -202,7 +202,7 @@ export default function ProfitCalculator() {
                   {result.roi_pct != null && s.row('ROI', `${result.roi_pct}%`, result.roi_pct >= 15 ? '#00C37A' : '#C9A84C')}
                 </div>
 
-                {/* Creative-finance terms — only present for non-cash strategies. */}
+                {/* Creative-finance terms - only present for non-cash strategies. */}
                 {result.creative && (
                   <div style={{ ...s.card, border: '1px solid rgba(201,168,76,0.25)', background: 'rgba(201,168,76,0.05)' }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#C9A84C', letterSpacing: '0.1em', marginBottom: 12 }}>

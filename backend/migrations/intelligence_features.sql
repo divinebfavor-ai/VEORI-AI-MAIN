@@ -1,5 +1,5 @@
 -- ============================================================
--- VEORI AI — Intelligence Features Migration
+-- VEORI AI - Intelligence Features Migration
 -- All NEW tables only. Do NOT modify existing tables.
 -- Run once against your Supabase project.
 -- ============================================================
@@ -76,7 +76,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_hot_lead_unique
   WHERE resolved_at IS NULL;  -- only one active escalation per lead
 
 -- 5. WEEKLY PREDICTIONS
--- Generated every Monday at 8am — top 10 leads most likely to close
+-- Generated every Monday at 8am - top 10 leads most likely to close
 CREATE TABLE IF NOT EXISTS weekly_predictions (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         UUID NOT NULL,

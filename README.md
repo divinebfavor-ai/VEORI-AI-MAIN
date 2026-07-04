@@ -1,6 +1,6 @@
-# VEORI AI — Autonomous Real Estate Acquisitions Platform
+# VEORI AI - Autonomous Real Estate Acquisitions Platform
 
-> The world's first fully autonomous real estate acquisitions platform. AI handles everything — calling sellers, making offers, running comps, closing contracts, finding buyers. Built to Achieve.
+> The world's first fully autonomous real estate acquisitions platform. AI handles everything - calling sellers, making offers, running comps, closing contracts, finding buyers. Built to Achieve.
 
 ---
 
@@ -39,7 +39,7 @@ Set these in Railway dashboard:
 - `VAPI_API_KEY`
 - `VAPI_PHONE_NUMBER_ID`
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`
-- `VAPI_VOICE_ID` (optional, e.g. `Elliot`) — Vapi-native voice for calls/voicemail
+- `VAPI_VOICE_ID` (optional, e.g. `Elliot`) - Vapi-native voice for calls/voicemail
 - `ALLOWED_ORIGINS` = your Vercel URL
 
 ### 3. Frontend (Vercel)
@@ -81,17 +81,17 @@ VEORI AI
 
 ## Key Features
 
-- **Concurrent AI Calling** — Up to 5 simultaneous Vapi sessions
-- **Live Monitor** — Watch calls in real-time, see transcripts word by word
-- **Operator Takeover** — Mute AI, speak directly to seller, get coaching
-- **Smart Phone Rotation** — Geographic matching, health scoring, spam prevention
-- **Motivation Scoring** — Claude Haiku analyzes every call, 0-100 score
-- **Auto Offer Calc** — MAO = ARV × 0.70 − repairs, with negotiation buffer
-- **Pipeline CRM** — Kanban board from New → Closed
-- **Buyer Module** — Isolated buyer campaigns per property
-- **Contract Gen** — Auto-fill PSA and Assignment Agreement
-- **Aria Chatbot** — Free public real estate advisor (acquisition funnel)
-- **Operator Assistant** — AI advisor with full business context
+- **Concurrent AI Calling** - Up to 5 simultaneous Vapi sessions
+- **Live Monitor** - Watch calls in real-time, see transcripts word by word
+- **Operator Takeover** - Mute AI, speak directly to seller, get coaching
+- **Smart Phone Rotation** - Geographic matching, health scoring, spam prevention
+- **Motivation Scoring** - Claude Haiku analyzes every call, 0-100 score
+- **Auto Offer Calc** - MAO = ARV × 0.70 − repairs, with negotiation buffer
+- **Pipeline CRM** - Kanban board from New → Closed
+- **Buyer Module** - Isolated buyer campaigns per property
+- **Contract Gen** - Auto-fill PSA and Assignment Agreement
+- **Aria Chatbot** - Free public real estate advisor (acquisition funnel)
+- **Operator Assistant** - AI advisor with full business context
 
 ---
 

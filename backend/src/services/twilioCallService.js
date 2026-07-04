@@ -1,5 +1,5 @@
 /**
- * Twilio Call Service — outbound dial engine for the Twilio + ElevenLabs layer.
+ * Twilio Call Service - outbound dial engine for the Twilio + ElevenLabs layer.
  *
  * This is the v2 replacement for vapiService.initiateCall(). It is built with the
  * IDENTICAL call signature so it can slot into the single swap point later
@@ -8,7 +8,7 @@
  *     initiateCall({ lead, phoneNumber, callId, operator, useCaseOverride })  ->  { id }
  *
  * The returned `id` is the Twilio Call SID; the caller stores it in
- * calls.vapi_call_id exactly as before (column name unchanged — it's just the
+ * calls.vapi_call_id exactly as before (column name unchanged - it's just the
  * provider call id now). Nothing here touches Vapi.
  *
  * MODULE 3 SCOPE (this file, right now): place the outbound call + status
@@ -34,7 +34,7 @@ const PUBLIC_BASE = process.env.PUBLIC_BASE_URL
     ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
     : null);
 
-/** Lazy Twilio client — only when creds present (same pattern as smsService). */
+/** Lazy Twilio client - only when creds present (same pattern as smsService). */
 function getClient() {
   if (!TWILIO_SID || !TWILIO_TOKEN) return null;
   return twilio(TWILIO_SID, TWILIO_TOKEN);
@@ -84,7 +84,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
     throw new Error('Twilio not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN missing)');
   }
   if (!PUBLIC_BASE) {
-    throw new Error('PUBLIC_BASE_URL / RAILWAY_PUBLIC_DOMAIN not set — Twilio cannot reach the voice webhook');
+    throw new Error('PUBLIC_BASE_URL / RAILWAY_PUBLIC_DOMAIN not set - Twilio cannot reach the voice webhook');
   }
 
   const to = toE164(lead?.phone);
@@ -104,7 +104,7 @@ async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseO
 
   // Per-call lifecycle callbacks (ringing/answered/completed) → updates calls row.
   // callId rides in the query so /status can key on OUR calls.id from the very
-  // first event — Twilio fires 'initiated'/'ringing' before the dial path has
+  // first event - Twilio fires 'initiated'/'ringing' before the dial path has
   // written vapi_call_id to the row, so sid-keyed updates lose that race
   // (0 rows matched, status/outcome silently dropped).
   const statusUrl = `${PUBLIC_BASE}/api/v2/voice/status?callId=${encodeURIComponent(callId || '')}`;

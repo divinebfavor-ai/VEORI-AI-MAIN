@@ -34,7 +34,7 @@ function isTcpaAllowed(stateCode) {
   const day  = new Date().getDay(); // 0=Sun
   // TCPA federal rule: 8 AM - 9 PM local time, no restrictions by day
   if (hour < 8 || hour >= 21) return { allowed: false, reason: `Calling not allowed at this time. TCPA prohibits calls before 8 AM or after 9 PM local time in ${stateCode || 'this state'} (current hour: ${hour}:00).` };
-  // Sunday morning — many state regulations restrict before noon
+  // Sunday morning - many state regulations restrict before noon
   if (day === 0 && hour < 12) return { allowed: false, reason: 'Calls to this state are restricted before noon on Sundays.' };
   return { allowed: true };
 }
@@ -56,7 +56,7 @@ async function logTcpa(userId, leadId, phone, action, reason) {
   } catch { /* non-fatal */ }
 }
 
-// GET /api/calls — list with filters
+// GET /api/calls - list with filters
 router.get('/', async (req, res, next) => {
   try {
     const { lead_id, status, campaign_id, direction, limit = 50, offset = 0, date_from, date_to } = req.query;
@@ -74,7 +74,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/calls/live — all active calls
+// GET /api/calls/live - all active calls
 router.get('/live', async (req, res, next) => {
   try {
     // A call that already has ended_at set is NOT live, even if a stale status
@@ -106,7 +106,7 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/calls/initiate — single call
+// POST /api/calls/initiate - single call
 router.post('/initiate', async (req, res, next) => {
   try {
     const { lead_id, phone_number_id } = req.body;
@@ -193,7 +193,7 @@ router.post('/initiate', async (req, res, next) => {
     // TCPA: DNC check
     if (lead.is_on_dnc) {
       await logTcpa(req.user.id, lead.id, lead.phone, 'blocked_dnc', 'Lead is on Do Not Call list');
-      return res.status(400).json({ success: false, error: 'Lead is on DNC list — call blocked for TCPA compliance' });
+      return res.status(400).json({ success: false, error: 'Lead is on DNC list - call blocked for TCPA compliance' });
     }
 
     // TCPA: calling hours enforcement (8 AM - 9 PM local time in lead's state)
@@ -203,22 +203,22 @@ router.post('/initiate', async (req, res, next) => {
       return res.status(400).json({ success: false, error: tcpa.reason });
     }
 
-    // TCPA: consent scrub (track + warn — consent is advisory, not a hard block)
+    // TCPA: consent scrub (track + warn - consent is advisory, not a hard block)
     const tcpaWarnings = [];
     if (!lead.consent) {
       tcpaWarnings.push('no_prior_consent');
       await logTcpa(req.user.id, lead.id, lead.phone, 'warn_no_consent', 'No prior express consent on record for this lead');
     }
 
-    // TCPA: federal DNC scrub — HARD BLOCK when the registry confirms the number is listed.
+    // TCPA: federal DNC scrub - HARD BLOCK when the registry confirms the number is listed.
     // Fails OPEN: if FTC_DNC_API_KEY is unset or the lookup errors, fed.checked is false,
     // so the call is NEVER blocked until the registry is configured and actively confirms a hit.
     try {
       const { isOnFederalDnc } = require('../services/ftcDncService');
       const fed = await isOnFederalDnc(lead.phone);
       if (fed.checked && fed.onList) {
-        await logTcpa(req.user.id, lead.id, lead.phone, 'blocked_federal_dnc', 'Number is on the FTC National DNC Registry — call blocked');
-        return res.status(400).json({ success: false, error: 'Number is on the FTC National Do Not Call Registry — call blocked for TCPA compliance' });
+        await logTcpa(req.user.id, lead.id, lead.phone, 'blocked_federal_dnc', 'Number is on the FTC National DNC Registry - call blocked');
+        return res.status(400).json({ success: false, error: 'Number is on the FTC National Do Not Call Registry - call blocked for TCPA compliance' });
       }
     } catch (e) {
       console.warn('[TCPA] Federal DNC check skipped:', e.message);
@@ -249,7 +249,7 @@ router.post('/initiate', async (req, res, next) => {
       .select('ai_caller_name, ai_voice_id, ai_personality_tone, ai_use_case, ai_intro_script, ai_voicemail_script, ai_custom_instructions, proactive_ai_disclosure, company_name, id')
       .eq('id', req.user.id).single();
 
-    // Send SMS disclosure before calling — TCPA best practice
+    // Send SMS disclosure before calling - TCPA best practice
     // Fire-and-forget: don't block the call if SMS fails
     const { getOpeningSMS } = require('../services/leadTaggingService');
     const smsBody = getOpeningSMS(lead);
@@ -293,7 +293,7 @@ router.post('/initiate', async (req, res, next) => {
       supabase.from('users').update({ calls_used: (opUser?.calls_used || 0) + 1 }).eq('id', req.user.id).then(null, () => {});
     }
 
-    // TCPA audit log — call was initiated within compliant hours, not on DNC
+    // TCPA audit log - call was initiated within compliant hours, not on DNC
     await logTcpa(req.user.id, lead.id, lead.phone, 'call_initiated', `Call placed to ${lead.property_state || 'unknown state'} within TCPA hours. Call ID: ${callId}`);
 
     res.json({
@@ -333,7 +333,7 @@ router.post('/campaign/stop', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/calls/:id — remove a failed call log
+// DELETE /api/calls/:id - remove a failed call log
 router.delete('/:id', async (req, res, next) => {
   try {
     // Only allow deletion of failed calls (not active or completed ones with data)
@@ -346,7 +346,7 @@ router.delete('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/calls/:id — update outcome, notes, score after manual call
+// PUT /api/calls/:id - update outcome, notes, score after manual call
 router.put('/:id', async (req, res, next) => {
   try {
     const allowed = ['outcome', 'notes', 'motivation_score', 'status', 'ai_summary'];
@@ -360,7 +360,7 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/calls/:id/listen — live-monitoring audio URL.
+// GET /api/calls/:id/listen - live-monitoring audio URL.
 // Prefers the IN-HOUSE stream engine (Twilio Media Streams → our /listen WS) when a
 // live streaming session exists for this call. Falls back to Vapi's monitor.listenUrl
 // only for legacy Vapi calls. The frontend player is identical either way: it opens
@@ -382,7 +382,7 @@ router.get('/:id/listen', async (req, res, next) => {
         const listenUrl = `${wsBase}/api/v2/voice/listen?callId=${encodeURIComponent(req.params.id)}&token=${encodeURIComponent(token)}`;
         return res.json({ success: true, listen_url: listenUrl, engine: 'stream' });
       }
-      // PUBLIC_BASE missing — fall through to Vapi (if any) rather than dead-end.
+      // PUBLIC_BASE missing - fall through to Vapi (if any) rather than dead-end.
     }
 
     // ── Legacy Vapi path ─────────────────────────────────────────────────────────
@@ -409,11 +409,11 @@ router.get('/:id/listen', async (req, res, next) => {
     // Twilio SID (which would 4xx and confuse the retry loop).
     if (typeof vapiCallId === 'string' && vapiCallId.startsWith('CA')) {
       const ended = callStatus && ['completed', 'failed', 'ended', 'no-answer', 'busy', 'canceled'].includes(callStatus);
-      if (ended) return res.status(409).json({ success: false, ended: true, error: 'Call has ended — no live audio' });
-      return res.status(404).json({ success: false, error: 'Audio not available yet — call is still connecting' });
+      if (ended) return res.status(409).json({ success: false, ended: true, error: 'Call has ended - no live audio' });
+      return res.status(404).json({ success: false, error: 'Audio not available yet - call is still connecting' });
     }
 
-    if (!vapiCallId) return res.status(400).json({ success: false, error: 'No call ID — call may not have connected yet' });
+    if (!vapiCallId) return res.status(400).json({ success: false, error: 'No call ID - call may not have connected yet' });
 
     const listenUrl = await vapiService.getListenUrl(vapiCallId);
     if (!listenUrl) {
@@ -430,16 +430,16 @@ router.get('/:id/listen', async (req, res, next) => {
         ended = vc?.status === 'ended' || !!vc?.endedAt || !!vc?.endedReason;
       } catch { /* if the lookup fails, fall through as "still connecting" */ }
       if (ended) {
-        return res.status(409).json({ success: false, ended: true, error: 'Call has ended — no live audio' });
+        return res.status(409).json({ success: false, ended: true, error: 'Call has ended - no live audio' });
       }
-      return res.status(404).json({ success: false, error: 'Audio not available yet — call is still connecting' });
+      return res.status(404).json({ success: false, error: 'Audio not available yet - call is still connecting' });
     }
 
     res.json({ success: true, listen_url: listenUrl });
   } catch (err) { next(err); }
 });
 
-// POST /api/calls/:id/listen-join — proxy WebRTC SDP offer to Vapi (avoids browser CORS)
+// POST /api/calls/:id/listen-join - proxy WebRTC SDP offer to Vapi (avoids browser CORS)
 router.post('/:id/listen-join', async (req, res, next) => {
   try {
     const { sdp } = req.body;
@@ -473,7 +473,7 @@ router.post('/:id/listen-join', async (req, res, next) => {
   }
 });
 
-// POST /api/calls/:id/end — manually end a live call
+// POST /api/calls/:id/end - manually end a live call
 router.post('/:id/end', async (req, res, next) => {
   try {
     const { data: call } = await supabase.from('calls').select('vapi_call_id')
@@ -487,7 +487,7 @@ router.post('/:id/end', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/calls/takeover — operator takes over live call
+// POST /api/calls/takeover - operator takes over live call
 router.post('/takeover', async (req, res, next) => {
   try {
     const { call_id } = req.body;
@@ -509,7 +509,7 @@ router.post('/takeover', async (req, res, next) => {
       ? await require('../services/aiService').getCoachingSuggestions(call.transcript)
       : { suggestions: [], objection_responses: [], offer_recommendation: null };
 
-    res.json({ success: true, message: 'Takeover active — you are live', coaching });
+    res.json({ success: true, message: 'Takeover active - you are live', coaching });
   } catch (err) { next(err); }
 });
 
@@ -529,7 +529,7 @@ router.post('/return-to-ai', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/calls/wire-inbound — one-time: put all of THIS operator's Vapi
+// POST /api/calls/wire-inbound - one-time: put all of THIS operator's Vapi
 // numbers into assistant-request (inbound) mode so sellers can call them back
 // into Veori. Idempotent. Scoped to the caller's own numbers only.
 router.post('/wire-inbound', async (req, res, next) => {

@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- Email Engagement + Deliverability — Resend event ingestion (Tier 1)
+-- Email Engagement + Deliverability - Resend event ingestion (Tier 1)
 -- ADDITIVE ONLY. Idempotent. No data loss. Run manually in Supabase SQL editor.
 --
 -- WHY: Veori sends email via Resend but captures NO engagement. The #1 cold-email

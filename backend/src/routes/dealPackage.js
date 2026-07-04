@@ -1,5 +1,5 @@
 /**
- * Feature 25 — Deal Package PDF Auto-Generator
+ * Feature 25 - Deal Package PDF Auto-Generator
  * Routes: POST /api/deal-package/generate/:listingId,
  *         GET /api/deal-package/:listingId
  */
@@ -9,7 +9,7 @@ const supabase = require('../config/supabase');
 
 router.use(auth);
 
-// POST /api/deal-package/generate/:listingId — generate PDF deal package
+// POST /api/deal-package/generate/:listingId - generate PDF deal package
 router.post('/generate/:listingId', async (req, res) => {
   try {
     const { listingId } = req.params;
@@ -204,7 +204,7 @@ router.post('/generate/:listingId', async (req, res) => {
   }
 });
 
-// GET /api/deal-package/:listingId — retrieve saved package metadata
+// GET /api/deal-package/:listingId - retrieve saved package metadata
 router.get('/:listingId', async (req, res) => {
   try {
     const { data, error } = await supabase

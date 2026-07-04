@@ -193,7 +193,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
     setProvisioningPool(true)
     try {
       await phones.provisionPool()
-      toast.success('Provisioning your number pool — numbers will appear here in a few minutes', { duration: 6000 })
+      toast.success('Provisioning your number pool - numbers will appear here in a few minutes', { duration: 6000 })
       setTimeout(async () => {
         const fresh = await phones.getPhones()
         const raw = fresh.data?.numbers ?? fresh.data?.data ?? fresh.data
@@ -209,7 +209,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
   // Manual kickstart for the geo-matched calling-capacity engine (same one that
   // fires automatically on every lead import). Sizes the LOCAL calling fleet to
   // callable-lead volume + geography, plan-capped, and buys only the shortfall.
-  // Runs synchronously — the buy result comes straight back.
+  // Runs synchronously - the buy result comes straight back.
   const [autoScaling, setAutoScaling] = useState(false)
 
   const handleAutoScale = async () => {
@@ -217,11 +217,11 @@ function PhoneTab({ phoneList, setPhoneList }) {
     try {
       const { data } = await phones.autoScale()
       if (data.buy_failed) {
-        // Buy loop ran but every purchase failed — surface the real Twilio/Vapi error.
+        // Buy loop ran but every purchase failed - surface the real Twilio/Vapi error.
         toast.error(data.message || 'Number purchase failed', { duration: 9000 })
       } else if (data.scaled === false) {
         toast(data.reason === 'no_callable_leads'
-          ? 'No callable leads yet — import leads first and numbers buy automatically.'
+          ? 'No callable leads yet - import leads first and numbers buy automatically.'
           : data.reason === 'no_twilio'
             ? 'Number buying is not configured on the server.'
             : data.reason === 'no_local_allotment'
@@ -265,7 +265,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
       setProvisionForm({ area_code: '', friendly_name: '' })
       toast.success(
         data.fell_back
-          ? `No number in ${data.requested_area_code} — bought ${data.number} (${data.area_code}) instead`
+          ? `No number in ${data.requested_area_code} - bought ${data.number} (${data.area_code}) instead`
           : 'Phone number purchased and ready to use!'
       )
       const fresh = await phones.getPhones()
@@ -371,14 +371,14 @@ function PhoneTab({ phoneList, setPhoneList }) {
       toast.error('Business name, notification email, use-case summary and a sample message are required')
       return
     }
-    // Twilio now REQUIRES opt-in proof image URLs — the exact field whose absence
+    // Twilio now REQUIRES opt-in proof image URLs - the exact field whose absence
     // caused "optInImageUrls is required". Split the textarea (newlines/commas) into
     // the array the backend/Twilio expect, and block an empty submit early with a
     // clear message instead of letting Twilio reject it.
     const optInImageUrls = String(tfForm.opt_in_image_urls || '')
       .split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
     if (!optInImageUrls.length) {
-      toast.error('Add at least one opt-in proof image URL — Twilio requires it for toll-free SMS')
+      toast.error('Add at least one opt-in proof image URL - the carrier requires it for toll-free SMS')
       return
     }
     setTfSubmitting(true)
@@ -388,7 +388,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
       setPhoneList(prev => prev.map(x => x.id === tfSubmitTarget.id
         ? { ...x, sms_verification_status: fresh.sms_verification_status, sms_verification_sid: fresh.sms_verification_sid, sms_verification_at: fresh.sms_verification_at }
         : x))
-      toast.success('Toll-free verification submitted to Twilio — now pending carrier review')
+      toast.success('Toll-free verification submitted - now pending carrier review')
       setTfSubmitTarget(null)
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to submit toll-free verification')
@@ -460,7 +460,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
         </div>
       )}
 
-      {/* SMS daily capacity — verified toll-free senders × their per-number caps.
+      {/* SMS daily capacity - verified toll-free senders × their per-number caps.
           Stage policy: ONLY verified toll-free can send SMS (mirrors smsRotation.js),
           so this is the real ceiling a blast can clear in one day. Lets the operator
           size a blast before launching instead of flying blind. */}
@@ -484,7 +484,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
           </div>
           {dailyCapacity === 0 && (
             <span style={{ fontSize: 11, fontWeight: 600, color: '#D98A30', background: 'rgba(217,138,48,0.10)', border: '1px solid rgba(217,138,48,0.25)', borderRadius: 6, padding: '4px 9px' }}>
-              No deliverable SMS sender yet — verify a toll-free number to send
+              No deliverable SMS sender yet - verify a toll-free number to send
             </span>
           )}
         </div>
@@ -524,7 +524,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
             return (
               <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
                 {stat('Verified toll-free to clear in ~1 day', `${numbersNeeded}`, '#00C37A')}
-                {stat('Days to clear at current capacity', daysAtCurrent == null ? '—' : `${daysAtCurrent}`, daysAtCurrent == null ? '#D98A30' : 'var(--t1)')}
+                {stat('Days to clear at current capacity', daysAtCurrent == null ? '-' : `${daysAtCurrent}`, daysAtCurrent == null ? '#D98A30' : 'var(--t1)')}
                 {stat('Expected replies (1–3%)', `${replyLo.toLocaleString()}–${replyHi.toLocaleString()}`)}
                 {stat('Warm / callable (~25% of replies)', `${callLo.toLocaleString()}–${callHi.toLocaleString()}`)}
               </div>
@@ -572,14 +572,14 @@ function PhoneTab({ phoneList, setPhoneList }) {
                     <span style={{ fontSize: 11, color: 'var(--t4)' }}>Active since {fmtDate(p.purchased_at)}</span>
                   )}
                 </div>
-                {/* Toll-free SMS carrier verification — only toll-free numbers need
+                {/* Toll-free SMS carrier verification - only toll-free numbers need
                     this. US carriers silently filter SMS from un-verified toll-free
                     numbers, so an operator must verify before they're picked as an
                     SMS sender. Local numbers route SMS via A2P 10DLC, not this. */}
                 {p.is_toll_free && (
                   <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
                     {(() => { const b = smsVerifyBadge(p.sms_verification_status); return <Badge variant={b.variant}>{b.label}</Badge> })()}
-                    {/* In-app Twilio submit — only for numbers Veori bought through
+                    {/* In-app Twilio submit - only for numbers Veori bought through
                         Twilio (have a PN SID) and not yet verified. Skips the console. */}
                     {p.twilio_phone_number_sid && p.sms_verification_status !== 'verified' && (
                       <button
@@ -599,7 +599,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
                       <button
                         onClick={() => handleRefreshSmsVerification(p)}
                         disabled={smsRefreshingId === p.id}
-                        title="Refresh status from Twilio"
+                        title="Refresh verification status"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--t4)', background: 'none', border: 'none', cursor: smsRefreshingId === p.id ? 'wait' : 'pointer', padding: 2 }}
                       >
                         <RotateCcw size={12} className={smsRefreshingId === p.id ? 'animate-spin' : ''} />
@@ -607,7 +607,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
                     )}
                   </div>
                 )}
-                {/* Per-number SMS daily cap — only meaningful once the toll-free is a
+                {/* Per-number SMS daily cap - only meaningful once the toll-free is a
                     deliverable (verified) sender. Carrier-safe ceiling per number;
                     rides PUT /api/phones/:id (sms_daily_limit). Default 1,000. */}
                 {p.is_toll_free && p.sms_verification_status === 'verified' && (
@@ -797,19 +797,19 @@ function PhoneTab({ phoneList, setPhoneList }) {
             <p style={{ fontSize: 13, color: 'var(--t3)', margin: '0 0 4px', fontFamily: 'Geist Mono, monospace' }}>{smsVerifyTarget.number}</p>
             <p style={{ fontSize: 12, color: 'var(--t4)', margin: '0 0 18px', lineHeight: 1.55 }}>
               US carriers silently block SMS from un-verified toll-free numbers. Submit
-              toll-free verification in your Twilio console, paste the request SID here
-              and set status to <strong>Pending</strong>. Once Twilio approves it, set it
-              to <strong>Verified</strong> — only then will Veori send SMS from this number.
+              toll-free verification with your carrier, paste the request SID here
+              and set status to <strong>Pending</strong>. Once the carrier approves it, set it
+              to <strong>Verified</strong> - only then will Veori send SMS from this number.
             </p>
 
-            <label className="label-caps block mb-1.5">Twilio Verification SID (optional)</label>
+            <label className="label-caps block mb-1.5">Verification Request SID (optional)</label>
             <Input
               value={smsVerifyForm.verification_sid}
               onChange={e => setSmsVerifyForm(p => ({ ...p, verification_sid: e.target.value }))}
               placeholder="HHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
             />
             <p style={{ fontSize: 11, color: 'var(--t4)', margin: '4px 0 16px' }}>
-              With a SID on file, the refresh button pulls live status straight from Twilio.
+              With a SID on file, the refresh button pulls live status straight from the carrier.
             </p>
 
             <label className="label-caps block mb-1.5">Status</label>
@@ -866,7 +866,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
         </div>
       )}
 
-      {/* In-app toll-free SMS verification SUBMIT modal — files the request with
+      {/* In-app toll-free SMS verification SUBMIT modal - files the request with
           Twilio directly so the operator skips the Twilio console. */}
       {tfSubmitTarget && (
         <div style={{
@@ -886,7 +886,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
             </div>
             <p style={{ fontSize: 13, color: 'var(--t3)', margin: '0 0 4px', fontFamily: 'Geist Mono, monospace' }}>{tfSubmitTarget.number}</p>
             <p style={{ fontSize: 12, color: 'var(--t4)', margin: '0 0 18px', lineHeight: 1.55 }}>
-              Files your toll-free verification straight to Twilio — no console needed.
+              Files your toll-free verification straight to the carrier - no console needed.
               Once submitted, status goes to <strong>Pending</strong> and the refresh button
               tracks carrier review. Carriers approve faster with a real business name,
               address, and a clear opt-in description.
@@ -925,7 +925,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
               <Input label="Contact phone" value={tfForm.contact_phone} onChange={e => setTfForm(f => ({ ...f, contact_phone: e.target.value }))} placeholder="+17045551234" />
             </div>
 
-            <Input label="Notification email *" value={tfForm.notification_email} onChange={e => setTfForm(f => ({ ...f, notification_email: e.target.value }))} placeholder="Where Twilio emails the result" />
+            <Input label="Notification email *" value={tfForm.notification_email} onChange={e => setTfForm(f => ({ ...f, notification_email: e.target.value }))} placeholder="Where the verification result is emailed" />
             <div style={{ height: 12 }} />
 
             <label className="label-caps block mb-1.5">Use-case summary *</label>
@@ -952,7 +952,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
             <textarea
               value={tfForm.opt_in_image_urls}
               onChange={e => setTfForm(f => ({ ...f, opt_in_image_urls: e.target.value }))}
-              placeholder={"https://veori.net/optin-form.png\nOne public image URL per line (screenshot of the web form / checkbox / written consent where recipients opted in). Twilio REQUIRES this."}
+              placeholder={"https://veori.net/optin-form.png\nOne public image URL per line (screenshot of the web form / checkbox / written consent where recipients opted in). The carrier REQUIRES this."}
               rows={2}
               className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2 text-[14px] text-text-primary focus:outline-none focus:border-primary"
               style={{ marginBottom: 6, resize: 'vertical' }}
@@ -988,7 +988,7 @@ function PhoneTab({ phoneList, setPhoneList }) {
                   fontSize: 13, cursor: tfSubmitting ? 'not-allowed' : 'pointer', opacity: tfSubmitting ? 0.6 : 1,
                 }}
               >
-                {tfSubmitting ? 'Submitting…' : 'Submit to Twilio'}
+                {tfSubmitting ? 'Submitting…' : 'Submit for verification'}
               </button>
               <button
                 onClick={() => setTfSubmitTarget(null)}
@@ -1164,7 +1164,7 @@ function TwoFactorPanel() {
         <Shield size={16} className={status?.enabled ? 'text-primary' : 'text-text-muted'} />
         <div className="flex-1">
           <p className="text-[13px] font-semibold text-text-primary">
-            {status?.enabled ? `2FA ON — ${METHOD_LABELS[status.method] || status.method}` : '2FA is OFF'}
+            {status?.enabled ? `2FA ON - ${METHOD_LABELS[status.method] || status.method}` : '2FA is OFF'}
           </p>
           <p className="text-[11px] text-text-muted mt-0.5">
             {status?.enabled
@@ -1199,7 +1199,7 @@ function TwoFactorPanel() {
         </div>
       )}
 
-      {/* TOTP — start */}
+      {/* TOTP - start */}
       {step === 'setup_totp_pre' && (
         <div className="space-y-3">
           <p className="text-[13px] text-text-secondary">Click below to generate your QR code, then scan it with Google Authenticator or Authy.</p>
@@ -1210,7 +1210,7 @@ function TwoFactorPanel() {
         </div>
       )}
 
-      {/* TOTP — QR code + enter code */}
+      {/* TOTP - QR code + enter code */}
       {step === 'setup_totp' && (
         <div className="space-y-4">
           <div className="flex gap-6 items-start">
@@ -1238,7 +1238,7 @@ function TwoFactorPanel() {
         </div>
       )}
 
-      {/* Email — auto-send, go straight to activating */}
+      {/* Email - auto-send, go straight to activating */}
       {step === 'setup_email' && (
         <div className="space-y-3">
           <p className="text-[13px] text-text-secondary">A 6-digit code will be sent to your email at every login.</p>
@@ -1249,7 +1249,7 @@ function TwoFactorPanel() {
         </div>
       )}
 
-      {/* Activate — enter code */}
+      {/* Activate - enter code */}
       {step === 'activating' && (
         <div className="space-y-3">
           <Input
@@ -1316,12 +1316,12 @@ export default function Settings() {
   const [previewLoading, setPreviewLoading] = useState('') // voice_id currently generating a preview clip
   const [scriptIdea, setScriptIdea]   = useState('')      // operator's plain-English description for AI script generation
   const [genningScript, setGenningScript] = useState(false)
-  const [importScript, setImportScript]   = useState('')  // F11 — pasted existing script/workflow to distill
+  const [importScript, setImportScript]   = useState('')  // F11 - pasted existing script/workflow to distill
   const [extracting, setExtracting]       = useState(false)
   const [bankAccounts, setBankAccounts] = useState([])
   const [showAddBank, setShowAddBank]   = useState(false)
   const [profileForm, setProfileForm] = useState({ full_name: '', company_name: '', email: '', phone: '', email_from_name: '', email_reply_to: '' })
-  // Business identity — Veori auto-files toll-free SMS verification with these on your behalf.
+  // Business identity - Veori auto-files toll-free SMS verification with these on your behalf.
   const [bizForm, setBizForm] = useState({
     legal_name: '', business_email: '', website: '',
     business_street: '', business_street2: '', business_city: '', business_state: '', business_postal_code: '', business_country: 'US',
@@ -1425,7 +1425,7 @@ export default function Settings() {
   useEffect(() => {
     if (tab === 'profile') {
       // Business-identity fields live on the operator profile, not the auth-store
-      // user object — load them so Veori can auto-file toll-free SMS verification.
+      // user object - load them so Veori can auto-file toll-free SMS verification.
       operatorApi.getProfile().then(r => {
         const p = r.data?.profile || {}
         setBizForm(f => ({
@@ -1463,10 +1463,10 @@ export default function Settings() {
         setPersona(p)
       }).catch(() => {})
       // The live streaming call engine resolves the voice from the ElevenLabs
-      // library via veori_operator_voice_settings.selected_voice_id — NOT Vapi
+      // library via veori_operator_voice_settings.selected_voice_id - NOT Vapi
       // and NOT users.ai_voice_id. So the picker lists the ElevenLabs voices
       // (getLibrary already returns voice_id / voice_name / voice_gender /
-      // voice_accent / voice_preview_url — the exact shape the dropdown +
+      // voice_accent / voice_preview_url - the exact shape the dropdown +
       // Preview button expect) and the current selection is read from the same
       // table the engine reads, so what you preview IS what the call speaks.
       v2voices.getLibrary().then(r => {
@@ -1539,7 +1539,7 @@ export default function Settings() {
         sms_use_case_summary: bizForm.sms_use_case_summary.trim(),
         sms_message_sample:   bizForm.sms_message_sample.trim(),
       })
-      toast.success('Business identity saved — Veori will use this to verify your texting numbers')
+      toast.success('Business identity saved - Veori will use this to verify your texting numbers')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to save business identity')
     } finally {
@@ -1656,7 +1656,7 @@ export default function Settings() {
                 </div>
               </Section>
 
-              <Section title="Business Identity" description="Veori uses these details to automatically verify your texting numbers with the carriers — you never touch Twilio. Fill this in once and every number Veori buys for you gets SMS-verified in the background.">
+              <Section title="Business Identity" description="Veori uses these details to automatically verify your texting numbers with the carriers - you never touch a carrier console. Fill this in once and every number Veori buys for you gets SMS-verified in the background.">
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <Input label="Legal Business Name *" value={bizForm.legal_name} onChange={e => setBizForm(f => ({...f, legal_name: e.target.value}))} placeholder="Smith Acquisitions LLC" />
@@ -1802,7 +1802,7 @@ export default function Settings() {
 
           {tab === 'security' && (
             <>
-              <Section title="Two-Factor Authentication" description="Require a verification code at login — Google Authenticator, SMS, or Email">
+              <Section title="Two-Factor Authentication" description="Require a verification code at login - Google Authenticator, SMS, or Email">
                 <TwoFactorPanel />
               </Section>
 
@@ -1897,7 +1897,7 @@ export default function Settings() {
                           setSelectedVoiceId(id)
                           setPersona(p => ({ ...p, ai_voice_id: id }))
                           // Persist to veori_operator_voice_settings.selected_voice_id
-                          // — the SAME column the live streaming call engine reads
+                          // - the SAME column the live streaming call engine reads
                           // (resolveOperatorVoiceId). Preserve the caller name so the
                           // upsert doesn't reset it. This makes the picked voice the
                           // one that actually speaks on the call.
@@ -1951,7 +1951,7 @@ export default function Settings() {
                                   toast.error('Could not generate preview')
                                 }
                               } catch {
-                                toast.error('Preview failed — check the voice is in your ElevenLabs account')
+                                toast.error('Preview failed - check the voice is in your voice library')
                               } finally {
                                 setPreviewLoading('')
                               }
@@ -1969,7 +1969,7 @@ export default function Settings() {
                       onChange={e => setPersona(p => ({ ...p, ai_use_case: e.target.value }))}
                       className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
                       <option value="wholesale">Wholesaler / Cash Investor</option>
-                      <option value="agent_listing">Real Estate Agent — Listing</option>
+                      <option value="agent_listing">Real Estate Agent - Listing</option>
                       <option value="buyer_agent">Buyer's Agent</option>
                       <option value="landlord_pm">Property Management</option>
                       <option value="investor_outreach">Investor Outreach</option>
@@ -2002,10 +2002,10 @@ export default function Settings() {
                   </div>
                   <div>
                     <label className="label-caps block mb-2">Custom AI Script (optional)</label>
-                    <p className="text-[12px] text-text-muted mb-2">Tell the AI how you want it to talk to <em>your</em> leads — your approach, tone, and strategy for the kind of sellers you work. Paste your own, or describe it and let AI draft one for you.</p>
+                    <p className="text-[12px] text-text-muted mb-2">Tell the AI how you want it to talk to <em>your</em> leads - your approach, tone, and strategy for the kind of sellers you work. Paste your own, or describe it and let AI draft one for you.</p>
                     <div className="flex gap-2 mb-2">
                       <input value={scriptIdea}
-                        placeholder="e.g. Tired landlords with vacant rentals — be calm, lead with their headache, no hard sell"
+                        placeholder="e.g. Tired landlords with vacant rentals - be calm, lead with their headache, no hard sell"
                         onChange={e => setScriptIdea(e.target.value)}
                         className="h-[44px] flex-1 bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary" />
                       <button type="button" disabled={genningScript || !scriptIdea.trim()}
@@ -2017,7 +2017,7 @@ export default function Settings() {
                             if (data?.script) {
                               setPersona(p => ({ ...p, ai_custom_instructions: data.script }))
                               if (data.fraud_warning) toast.error(`Heads up: ${data.fraud_warning}`)
-                              else toast.success('Script generated — review and edit below')
+                              else toast.success('Script generated - review and edit below')
                             } else {
                               toast.error('Could not generate a script')
                             }
@@ -2030,7 +2030,7 @@ export default function Settings() {
                     </div>
                     <details className="mb-2 group">
                       <summary className="text-[12px] text-primary cursor-pointer select-none hover:opacity-80">Import an existing script or workflow</summary>
-                      <p className="text-[11px] text-text-muted mt-2 mb-2">Paste a full call script or dialer workflow you already use. Veori distills the reusable tone & strategy from it — it won't read your old script word-for-word, and compliance rules always win.</p>
+                      <p className="text-[11px] text-text-muted mt-2 mb-2">Paste a full call script or dialer workflow you already use. Veori distills the reusable tone & strategy from it - it won't read your old script word-for-word, and compliance rules always win.</p>
                       <textarea rows={5} value={importScript}
                         placeholder="Paste your existing script / workflow here…"
                         onChange={e => setImportScript(e.target.value)}
@@ -2044,7 +2044,7 @@ export default function Settings() {
                             if (data?.script) {
                               setPersona(p => ({ ...p, ai_custom_instructions: data.script }))
                               if (data.fraud_warning) toast.error(`Heads up: ${data.fraud_warning}`)
-                              else toast.success('Imported — reusable instructions extracted below. Review and edit.')
+                              else toast.success('Imported - reusable instructions extracted below. Review and edit.')
                             } else {
                               toast.error('Could not extract instructions from that')
                             }
@@ -2056,10 +2056,10 @@ export default function Settings() {
                       </button>
                     </details>
                     <textarea rows={6} value={persona.ai_custom_instructions || ''}
-                      placeholder="Paste your own script, or use 'Generate with AI' above. This steers how the AI talks to your leads — it never overrides our compliance rules (AI disclosure, Do-Not-Call, no pressure)."
+                      placeholder="Paste your own script, or use 'Generate with AI' above. This steers how the AI talks to your leads - it never overrides our compliance rules (AI disclosure, Do-Not-Call, no pressure)."
                       onChange={e => setPersona(p => ({ ...p, ai_custom_instructions: e.target.value }))}
                       className="w-full bg-surface border border-border-subtle rounded-[6px] px-3 py-2.5 text-[14px] text-text-primary placeholder-text-muted focus:outline-none focus:border-primary resize-none" />
-                    <p className="text-[11px] text-text-muted mt-1">Compliance always wins: the AI will still identify as AI when asked, honor opt-outs, and never threaten or mislead — no matter what's written here.</p>
+                    <p className="text-[11px] text-text-muted mt-1">Compliance always wins: the AI will still identify as AI when asked, honor opt-outs, and never threaten or mislead - no matter what's written here.</p>
                   </div>
                   <Button onClick={() => operatorApi.updateProfile(persona).then(r => { toast.success('Persona saved'); if (r?.data?.fraud_warning) toast.error(`Flagged for review: ${r.data.fraud_warning}`) }).catch(() => toast.error('Failed to save'))}>
                     Save Persona
@@ -2187,7 +2187,7 @@ export default function Settings() {
 
           {tab === 'compliance' && (
             // Compliance lives here in Settings now (removed from the main sidebar).
-            // Render the full Compliance page as-is — its code is untouched.
+            // Render the full Compliance page as-is - its code is untouched.
             <Compliance />
           )}
 

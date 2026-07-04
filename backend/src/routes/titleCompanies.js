@@ -35,7 +35,7 @@ router.post('/', requireAuth, async (req, res, next) => {
       preferred_communication_method,
       relationship_status,
       is_default,
-      // Default wire/escrow instructions (last-4 + free-text only — never full numbers).
+      // Default wire/escrow instructions (last-4 + free-text only - never full numbers).
       wire_bank_name,
       wire_account_name,
       wire_routing_last4,

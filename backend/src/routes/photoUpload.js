@@ -1,10 +1,10 @@
 /**
  * Seller Photo Upload
  *
- * Public routes — no auth needed (sellers use a one-time token link)
+ * Public routes - no auth needed (sellers use a one-time token link)
  *
- *   GET  /api/photo-upload/:token        — get property info for the upload page
- *   POST /api/photo-upload/:token        — receive photos from seller
+ *   GET  /api/photo-upload/:token        - get property info for the upload page
+ *   POST /api/photo-upload/:token        - receive photos from seller
  */
 
 const express = require('express');

@@ -1,12 +1,12 @@
 /**
- * Creative-finance calculator — the math behind non-cash acquisition strategies
+ * Creative-finance calculator - the math behind non-cash acquisition strategies
  * (Subject-To, Seller Finance, Lease-Option). Kept in its own file so it's pure,
  * testable, and never touches the cash/wholesale path (that stays in
  * repairEstimator.calculateScenarios). ADDITIVE: profitCalc only calls these when
  * the request asks for a creative `strategy`; a cash request never reaches here.
  *
  * Every function is pure, never throws, and returns null fields when an input is
- * missing rather than fabricating a number — the UI prompts for what's missing.
+ * missing rather than fabricating a number - the UI prompts for what's missing.
  */
 
 const round = n => (n == null || Number.isNaN(n) ? null : Math.round(n));
@@ -114,7 +114,7 @@ function leaseOption({ arv = 0, option_price = null, option_fee = null,
 
 /**
  * NOVATION: you contract the property at one price, then re-paper (novate) the deal
- * and resell at a near-retail price — profit is the SPREAD between your locked
+ * and resell at a near-retail price - profit is the SPREAD between your locked
  * acquisition price and the resale, minus light reno, agent commission, and closing.
  * Best for fixed-up-but-overpriced / agent-listed / FSBO sellers who want near
  * retail and won't take a wholesale lowball. Pure, never throws, null when missing.

@@ -3,7 +3,7 @@
  *
  * Pulls property owners with 2+ years unpaid taxes from:
  *  1. State open data portals (FL, TX, CA, GA, NC, OH, PA, IL, NY, AZ, CO, NV, TN, MI)
- *  2. ATTOM Data API (if configured) — covers all 50 states
+ *  2. ATTOM Data API (if configured) - covers all 50 states
  *  3. County-specific open data portals as fallback
  *
  * Each record returned contains:
@@ -113,7 +113,7 @@ async function pullFromStatePortal(state) {
 }
 
 /**
- * Main pull function — tries ATTOM first, falls back to state portals
+ * Main pull function - tries ATTOM first, falls back to state portals
  */
 async function pullTaxDelinquent(state, county) {
   console.log(`[TaxDelinquent] Pulling ${state}${county ? '/' + county : ''}`);

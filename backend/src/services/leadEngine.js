@@ -1,25 +1,25 @@
 /**
- * VEORI Lead Engine — Autonomous Public Records Sourcing
+ * VEORI Lead Engine - Autonomous Public Records Sourcing
  *
  * Runs every 24 hours. Pulls from all sources simultaneously,
  * scores every record, skip traces, deduplicates, and pushes
  * directly into the Veori pipeline with AI calling triggered.
  *
  * Sources:
- *   tax_delinquent  — county tax assessor databases (2+ years unpaid)
- *   probate         — county courthouse estate filings
- *   lis_pendens     — pre-foreclosure notices
- *   divorce         — divorce filings with real property
- *   code_violation  — code enforcement violations
- *   usda_land       — USDA vacant/rural absentee parcels
- *   blm_land        — BLM adjacent private absentee land
- *   bankruptcy      — PACER federal bankruptcy with property assets
+ *   tax_delinquent  - county tax assessor databases (2+ years unpaid)
+ *   probate         - county courthouse estate filings
+ *   lis_pendens     - pre-foreclosure notices
+ *   divorce         - divorce filings with real property
+ *   code_violation  - code enforcement violations
+ *   usda_land       - USDA vacant/rural absentee parcels
+ *   blm_land        - BLM adjacent private absentee land
+ *   bankruptcy      - PACER federal bankruptcy with property assets
  */
 
 const { v4: uuidv4 }            = require('uuid');
 const supabase                   = require('../config/supabase');
 
-// Supabase's query builder is a *thenable*, not a real Promise — it has no
+// Supabase's query builder is a *thenable*, not a real Promise - it has no
 // .catch() method. Calling .catch() on it throws a TypeError, which aborted
 // every engine run at its FIRST job insert (the engine never pulled a record).
 // Promise.resolve() assimilates the thenable into a real Promise so best-effort
@@ -64,7 +64,7 @@ async function isExistingLead(userId, address, phone) {
 // ─── Insert with retry ───────────────────────────────────────────────────────
 // A sourced lead is expensive to find (skip-trace + scraping). A momentary Supabase
 // blip must NOT lose it. Retry the insert a few times with backoff before giving up.
-// A genuine duplicate-key error (23505 — the new unique index) is NOT retried: it is
+// A genuine duplicate-key error (23505 - the new unique index) is NOT retried: it is
 // the dedup working, so we return that row's existing-ness, not an error.
 async function insertLeadWithRetry(payload, attempts = 3) {
   let lastError = null;
@@ -121,7 +121,7 @@ async function processRecord(record, userId) {
       ...(record.county ? [`county:${record.county.toLowerCase()}`] : []),
     ];
 
-    // Insert into leads — retried, so a momentary DB blip doesn't lose the lead.
+    // Insert into leads - retried, so a momentary DB blip doesn't lose the lead.
     const { lead, error, duplicate } = await insertLeadWithRetry({
       id:               uuidv4(),
       user_id:          userId,
@@ -151,10 +151,10 @@ async function processRecord(record, userId) {
       status:           'new',
       motivation_score: score, // sourcing score as initial motivation estimate
       tags,
-      notes:            record.notes || `Auto-sourced via Lead Engine — ${signals.join(', ')}`,
+      notes:            record.notes || `Auto-sourced via Lead Engine - ${signals.join(', ')}`,
     });
 
-    // Unique index caught a race the pre-check missed — that's the dedup working.
+    // Unique index caught a race the pre-check missed - that's the dedup working.
     if (duplicate) return { status: 'skipped', reason: 'duplicate' };
     if (error) {
       console.error('[LeadEngine] Insert error after retries:', error.message);
@@ -165,7 +165,7 @@ async function processRecord(record, userId) {
     if (score >= 60 && phone) {
       try {
         const { enrollLeadInSequence } = require('./sequenceEngine');
-        // Signature is (userId, leadId, sequenceType) — args were previously swapped.
+        // Signature is (userId, leadId, sequenceType) - args were previously swapped.
         await enrollLeadInSequence(userId, lead.id, 'auto_sourced').catch(() => {});
       } catch (_) {}
     }
@@ -250,7 +250,7 @@ const SOURCE_LABELS = {
   code_violation: 'Code Violations',
 };
 
-// ─── Full engine run — pulls all verified free sources ────────────────────────
+// ─── Full engine run - pulls all verified free sources ────────────────────────
 async function runLeadEngine(userId) {
   console.log(`[LeadEngine] Starting run for user ${userId}`);
 
@@ -263,7 +263,7 @@ async function runLeadEngine(userId) {
 
   try {
     const rawRecords = await pullAllFreeRecords();
-    console.log(`[LeadEngine] ${rawRecords.length} raw records — processing...`);
+    console.log(`[LeadEngine] ${rawRecords.length} raw records - processing...`);
 
     const BATCH = 5;
     for (let i = 0; i < rawRecords.length; i += BATCH) {
@@ -287,7 +287,7 @@ async function runLeadEngine(userId) {
     records_skipped: skipped,
   }).eq('id', jobId));
 
-  console.log(`[LeadEngine] Done — ${imported} imported, ${skipped} skipped, ${errors} errors`);
+  console.log(`[LeadEngine] Done - ${imported} imported, ${skipped} skipped, ${errors} errors`);
   return { total_imported: imported, total_skipped: skipped };
 }
 
@@ -298,7 +298,7 @@ let engineTimer = null;
 function startLeadEngineScheduler() {
   if (engineTimer) return; // already running
 
-  console.log('[LeadEngine] Scheduler started — runs every 24h');
+  console.log('[LeadEngine] Scheduler started - runs every 24h');
 
   const runForAllUsers = async () => {
     try {

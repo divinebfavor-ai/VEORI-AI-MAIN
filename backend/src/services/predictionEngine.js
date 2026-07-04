@@ -1,5 +1,5 @@
 /**
- * AI DEAL PREDICTION ENGINE — the unifying spine.
+ * AI DEAL PREDICTION ENGINE - the unifying spine.
  *
  * Every existing scorer in Veori produces a number in isolation:
  *   • leadTaggingService.detectStrategy(lead)      → best play + ranked fallbacks
@@ -38,14 +38,14 @@ const { detectStrategy } = require('./leadTaggingService');
 const { suggestAssignmentFee } = require('./assignmentFeeService');
 const { calculateSourcingScore } = require('./leadEngineScorer');
 
-// Rule 4 — escalate to a human when we're not confident enough to act alone.
+// Rule 4 - escalate to a human when we're not confident enough to act alone.
 const ESCALATE_BELOW = 55;
 
 const clampPct = n =>
   n == null || Number.isNaN(n) ? null : Math.max(0, Math.min(100, Math.round(n)));
 const clampConf = n => (n == null || Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, Math.round(n))));
 
-/** A single prediction field — value (nullable, never fabricated), confidence, evidence. */
+/** A single prediction field - value (nullable, never fabricated), confidence, evidence. */
 function field(value, confidence, evidence, reason) {
   return {
     value: value == null ? null : value,
@@ -82,11 +82,11 @@ function predictMotivation(lead) {
       [`derived from ${signals.length} distress signal(s): ${signals.join(', ')}`],
     );
   }
-  return field(null, 0, [], 'No motivation_score and no distress signals — capture seller signals to score.');
+  return field(null, 0, [], 'No motivation_score and no distress signals - capture seller signals to score.');
 }
 
 /**
- * P(seller actually sells) — built off motivation + engagement signals already on
+ * P(seller actually sells) - built off motivation + engagement signals already on
  * the lead (answered calls, replied texts, asked for offer). Conservative; null if
  * we have nothing to read.
  */
@@ -94,7 +94,7 @@ function predictSells(lead, motivation) {
   const ev = [];
   let base = motivation.value; // anchor on motivation
   if (base == null) {
-    return field(null, 0, [], 'No motivation signal yet — cannot estimate likelihood to sell.');
+    return field(null, 0, [], 'No motivation signal yet - cannot estimate likelihood to sell.');
   }
   let conf = Math.min(80, 50 + Math.round(motivation.confidence * 0.3));
   ev.push(`motivation ${motivation.value}`);
@@ -117,12 +117,12 @@ function predictSells(lead, motivation) {
 }
 
 /**
- * P(accepts our offer) — only meaningful once there's a deal with pricing. Anchors
+ * P(accepts our offer) - only meaningful once there's a deal with pricing. Anchors
  * on the spread (room to land a deal both sides accept) + motivation.
  */
 function predictAcceptsOffer(lead, deal, motivation, fee) {
   if (!deal) {
-    return field(null, 0, [], 'No deal yet — create a deal with pricing to estimate offer acceptance.');
+    return field(null, 0, [], 'No deal yet - create a deal with pricing to estimate offer acceptance.');
   }
   const spread = fee?.basis?.spread;
   if (spread == null) {
@@ -134,11 +134,11 @@ function predictAcceptsOffer(lead, deal, motivation, fee) {
   if (motivation.value != null) { p += Math.round((motivation.value - 50) * 0.4); ev.push(`motivation ${motivation.value}`); }
   if (spread > 0)      { p += 15; }
   if (spread >= 25000) { p += 10; ev.push('healthy spread to negotiate'); }
-  if (spread <= 0)     { p = Math.min(p, 20); ev.push('no spread — acceptance unlikely without renegotiation'); }
+  if (spread <= 0)     { p = Math.min(p, 20); ev.push('no spread - acceptance unlikely without renegotiation'); }
   return field(clampPct(p), motivation.value != null ? 70 : 55, ev);
 }
 
-/** P(gets under contract) — sells × accepts, when both exist. */
+/** P(gets under contract) - sells × accepts, when both exist. */
 function predictUnderContract(sells, accepts) {
   if (sells.value == null || accepts.value == null) {
     return field(null, 0, [], 'Needs both likelihood-to-sell and offer-acceptance.');
@@ -149,29 +149,29 @@ function predictUnderContract(sells, accepts) {
 }
 
 /**
- * P(deal closes) — under_contract discounted by title/fallout risk. Title clears,
+ * P(deal closes) - under_contract discounted by title/fallout risk. Title clears,
  * buyer performs, no liens surprise. Null until under_contract exists.
  */
 function predictCloses(underContract, lead, deal) {
   if (underContract.value == null) {
-    return field(null, 0, [], 'Not under contract yet — closing probability not meaningful.');
+    return field(null, 0, [], 'Not under contract yet - closing probability not meaningful.');
   }
   let p = underContract.value;
   const ev = [`under-contract ${underContract.value}%`];
   // Known frictions pull it down.
-  if (lead.has_liens)        { p = Math.round(p * 0.9);  ev.push('liens present — title risk'); }
-  if (lead.has_lis_pendens)  { p = Math.round(p * 0.88); ev.push('lis pendens — timeline risk'); }
+  if (lead.has_liens)        { p = Math.round(p * 0.9);  ev.push('liens present - title risk'); }
+  if (lead.has_lis_pendens)  { p = Math.round(p * 0.88); ev.push('lis pendens - timeline risk'); }
   if (deal?.title_status && /clear|clean/i.test(deal.title_status)) { p = Math.min(100, Math.round(p * 1.05)); ev.push('title reported clear'); }
   return field(clampPct(p), Math.max(40, underContract.confidence - 5), ev);
 }
 
 /**
- * Assignment fee range — wraps the existing suggester verbatim (no new math). Returns
+ * Assignment fee range - wraps the existing suggester verbatim (no new math). Returns
  * the {suggested, floor, ceiling} band + its basis as evidence.
  */
 function predictAssignmentFee(fee) {
   if (!fee || fee.suggested == null) {
-    return field(null, 0, [], fee?.basis?.reason || 'No spread yet — set buyer + seller pricing to derive a fee.');
+    return field(null, 0, [], fee?.basis?.reason || 'No spread yet - set buyer + seller pricing to derive a fee.');
   }
   return field(
     { suggested: fee.suggested, floor: fee.floor, ceiling: fee.ceiling },
@@ -181,11 +181,11 @@ function predictAssignmentFee(fee) {
 }
 
 /**
- * Estimated closing date — only when a deal carries a close-by / period signal. We
+ * Estimated closing date - only when a deal carries a close-by / period signal. We
  * never invent a date; null + reason otherwise.
  */
 function predictClosingDate(deal) {
-  if (!deal) return field(null, 0, [], 'No deal — no closing timeline.');
+  if (!deal) return field(null, 0, [], 'No deal - no closing timeline.');
   if (deal.target_close_date) {
     return field(deal.target_close_date, 70, [`deal.target_close_date set`]);
   }
@@ -203,7 +203,7 @@ function predictClosingDate(deal) {
 /** Fallout risk 0..100 = inverse of closes, surfaced with its drivers. */
 function predictFalloutRisk(closes, lead) {
   if (closes.value == null) {
-    return field(null, 0, [], 'Closing probability unknown — fallout risk not yet meaningful.');
+    return field(null, 0, [], 'Closing probability unknown - fallout risk not yet meaningful.');
   }
   const risk = 100 - closes.value;
   const ev = [`inverse of close probability (${closes.value}%)`];
@@ -213,14 +213,14 @@ function predictFalloutRisk(closes, lead) {
 }
 
 /**
- * Rule 5 — best next action ranks by close probability × expected profit, then by
+ * Rule 5 - best next action ranks by close probability × expected profit, then by
  * what's blocking progress. Always returns SOMETHING actionable (never null), but
  * its confidence reflects how much we actually know.
  */
 function bestNextAction({ sells, accepts, underContract, closes, fee, strategy, escalate }) {
-  // Escalation wins — Rule 4.
+  // Escalation wins - Rule 4.
   if (escalate) {
-    return { action: 'escalate_to_human', reason: 'Overall confidence below threshold — route to operator review before acting.', confidence: 90 };
+    return { action: 'escalate_to_human', reason: 'Overall confidence below threshold - route to operator review before acting.', confidence: 90 };
   }
   // No pricing yet → get the numbers that unlock every downstream prediction.
   if (accepts.value == null && fee?.suggested == null) {
@@ -230,20 +230,20 @@ function bestNextAction({ sells, accepts, underContract, closes, fee, strategy, 
   if (sells.value != null && sells.value >= 60 && (underContract.value == null || underContract.value < 50)) {
     return {
       action: 'present_offer',
-      reason: `Seller likely to sell (${sells.value}%). Lead with ${strategy?.strategy || 'cash'} — ${strategy?.ranked?.[0]?.reason || 'best-fit play'}.`,
+      reason: `Seller likely to sell (${sells.value}%). Lead with ${strategy?.strategy || 'cash'} - ${strategy?.ranked?.[0]?.reason || 'best-fit play'}.`,
       confidence: 78,
     };
   }
   // Under contract, decent close odds → push the file to close.
   if (closes.value != null && closes.value >= 55) {
-    return { action: 'drive_to_close', reason: `Strong close odds (${closes.value}%) — clear title + confirm buyer to lock it.`, confidence: 75 };
+    return { action: 'drive_to_close', reason: `Strong close odds (${closes.value}%) - clear title + confirm buyer to lock it.`, confidence: 75 };
   }
-  // Default — keep nurturing.
+  // Default - keep nurturing.
   return { action: 'nurture_followup', reason: 'Keep the seller warm; signals not yet strong enough to push.', confidence: 55 };
 }
 
 /**
- * Rule 3 — if outcome history is supplied (recent closed/failed deals of the same
+ * Rule 3 - if outcome history is supplied (recent closed/failed deals of the same
  * strategy), nudge overall confidence: a track record of closing this play raises
  * confidence; repeated fallout lowers it. Absent history = no change.
  * @param {number} baseConf
@@ -267,7 +267,7 @@ function applyOutcomeLearning(baseConf, outcomes, strategy) {
 }
 
 /**
- * MAIN — predict everything for a lead (+ optional best deal + outcome history).
+ * MAIN - predict everything for a lead (+ optional best deal + outcome history).
  * @param {object} lead     joined lead row
  * @param {object} [deal]   the lead's most-advanced deal (for pricing/timeline)
  * @param {object} [opts]   { outcomes?:Array } recent deal_outcome_learning rows
@@ -301,13 +301,13 @@ function predict(lead, deal = null, opts = {}) {
     ? Math.round(computed.reduce((s, f) => s + f.confidence, 0) / computed.length)
     : 0;
 
-  // Rule 3 — outcome learning nudge.
+  // Rule 3 - outcome learning nudge.
   const learned = applyOutcomeLearning(overall, opts.outcomes, strategy.strategy);
   overall = learned.conf;
 
   const escalate = overall < ESCALATE_BELOW;           // Rule 4
 
-  // Rule 5 — expected value = P(closes) × suggested fee (when both exist).
+  // Rule 5 - expected value = P(closes) × suggested fee (when both exist).
   const expectedValue = (closes.value != null && fee?.suggested != null)
     ? Math.round((closes.value / 100) * fee.suggested)
     : null;
@@ -316,7 +316,7 @@ function predict(lead, deal = null, opts = {}) {
 
   // Flat evidence stream (Rule 2 + Rule 6 audit).
   const evidence = [
-    `strategy: ${strategy.strategy} (${strategy.confidence}%) — ${strategy.ranked?.[0]?.reason || ''}`,
+    `strategy: ${strategy.strategy} (${strategy.confidence}%) - ${strategy.ranked?.[0]?.reason || ''}`,
     ...motivation.evidence.map(e => `motivation: ${e}`),
     ...sells.evidence.map(e => `sells: ${e}`),
     ...accepts.evidence.map(e => `accepts: ${e}`),

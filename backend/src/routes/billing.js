@@ -1,9 +1,9 @@
 /**
- * Billing — Stripe
+ * Billing - Stripe
  *
  * If STRIPE_SECRET_KEY is set → Stripe handles all checkouts.
  * (Flutterwave is the current live processor and runs on its own route,
- *  /api/fw-billing — see routes/flutterwaveBilling.js. This file is kept
+ *  /api/fw-billing - see routes/flutterwaveBilling.js. This file is kept
  *  Stripe-ready for the planned switch to Stripe.)
  *
  * Stripe API docs: https://stripe.com/docs/api
@@ -27,7 +27,7 @@ const { requireAuth: auth } = require('../middleware/auth');
 // stripePriceId = Stripe price ID. amount in CENTS (Stripe convention).
 // outreach = operator-facing label; dials = enforced quota / number-pool size.
 // New 5-tier pricing. Stripe price IDs must be created in the Stripe dashboard
-// and set via env before the Stripe switch — fallbacks here are placeholders.
+// and set via env before the Stripe switch - fallbacks here are placeholders.
 const PLANS = {
   starter: {
     stripePriceId:  process.env.STRIPE_STARTER_PRICE_ID || null,
@@ -123,7 +123,7 @@ router.post('/checkout', async (req, res) => {
   }
 });
 
-// Alias used in some frontend calls — identical logic, just a different path
+// Alias used in some frontend calls - identical logic, just a different path
 router.post('/create-checkout-session', async (req, res) => {
   try {
     const plan = req.body.plan || req.body.planName?.toLowerCase() || 'starter';
@@ -148,7 +148,7 @@ router.post('/create-checkout-session', async (req, res) => {
 });
 
 // ─── POST /api/billing/portal ─────────────────────────────────────────────────
-// Manage subscription — Stripe hosted billing portal
+// Manage subscription - Stripe hosted billing portal
 router.post('/portal', auth, async (req, res) => {
   try {
     const siteUrl = process.env.SITE_URL || process.env.APP_URL || 'https://veori.net';
@@ -272,7 +272,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           userId = created?.id || null;
         }
 
-        // Auto-provision phone number pool for the plan (fire and forget — mirrors Flutterwave flow)
+        // Auto-provision phone number pool for the plan (fire and forget - mirrors Flutterwave flow)
         if (userId) {
           const { handlePlanUpgrade } = require('../services/numberProvisioning');
           handlePlanUpgrade(userId, plan)

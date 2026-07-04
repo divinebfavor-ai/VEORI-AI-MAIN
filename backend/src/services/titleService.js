@@ -59,7 +59,7 @@ async function sendDealPackageToTitle(dealId, userId) {
 
     const { data: titleCo } = await supabase.from('title_companies').select('*').eq('id', titleCoId).single();
     if (!titleCo?.email) {
-      console.warn('[Title] Title company has no email — skipping send');
+      console.warn('[Title] Title company has no email - skipping send');
       return;
     }
 
@@ -77,7 +77,7 @@ async function sendDealPackageToTitle(dealId, userId) {
     const emailBody = `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
   <div style="background: #0D0D0F; padding: 24px; border-radius: 8px 8px 0 0;">
-    <h1 style="color: #00C37A; font-size: 20px; margin: 0;">New Deal Package — Action Required</h1>
+    <h1 style="color: #00C37A; font-size: 20px; margin: 0;">New Deal Package - Action Required</h1>
     <p style="color: #aaa; font-size: 13px; margin: 6px 0 0;">${operator?.company_name || 'Veori AI'}</p>
   </div>
 
@@ -109,7 +109,7 @@ async function sendDealPackageToTitle(dealId, userId) {
   </div>
 
   <div style="background: #0D0D0F; padding: 14px 24px; border-radius: 0 0 8px 8px; text-align: center;">
-    <p style="color: #555; font-size: 11px; margin: 0;">Powered by Veori AI — Autonomous Real Estate</p>
+    <p style="color: #555; font-size: 11px; margin: 0;">Powered by Veori AI - Autonomous Real Estate</p>
   </div>
 </div>`;
 
@@ -117,7 +117,7 @@ async function sendDealPackageToTitle(dealId, userId) {
       userId,
       dealId,
       to: titleCo.email,
-      subject: `New Deal Package — ${deal.property_address}${deal.property_state ? ', ' + deal.property_state : ''}`,
+      subject: `New Deal Package - ${deal.property_address}${deal.property_state ? ', ' + deal.property_state : ''}`,
       body: emailBody,
       emailType: 'title_package',
     });
@@ -192,7 +192,7 @@ async function scheduleTitleFollowUps(dealId, userId) {
         reason:           i === 0
           ? `Call ${titleCo?.name || 'title company'} to confirm receipt of deal package`
           : i === 1
-          ? `Email ${titleCo?.name || 'title company'} — request title search update`
+          ? `Email ${titleCo?.name || 'title company'} - request title search update`
           : `Follow up with ${titleCo?.name || 'title company'} on closing timeline`,
         status:           'pending',
         created_at:       now.toISOString(),
@@ -211,7 +211,7 @@ async function scheduleTitleFollowUps(dealId, userId) {
           contact_type:     'title_company',
           follow_up_type:   'call',
           next_follow_up_at: threeDaysBefore.toISOString(),
-          reason:           `Final check-in with ${titleCo?.name || 'title company'} — 3 days before closing`,
+          reason:           `Final check-in with ${titleCo?.name || 'title company'} - 3 days before closing`,
           status:           'pending',
           created_at:       now.toISOString(),
         });
@@ -244,9 +244,9 @@ async function sendTitleFollowUpEmail(dealId, userId, followUpNumber = 1) {
 
     const titleCo = deal.title_companies;
     const subjects = [
-      `Following Up — ${deal.property_address}`,
-      `Title Search Status — ${deal.property_address}`,
-      `Closing Update Needed — ${deal.property_address}`,
+      `Following Up - ${deal.property_address}`,
+      `Title Search Status - ${deal.property_address}`,
+      `Closing Update Needed - ${deal.property_address}`,
     ];
     const messages = [
       `Hi ${titleCo.contact_name || 'Team'},\n\nJust following up to confirm you received our deal package for ${deal.property_address}. Please let us know if you need anything additional to proceed.\n\nTarget close: ${deal.closing_date || 'TBD'}`,

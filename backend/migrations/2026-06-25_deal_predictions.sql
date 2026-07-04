@@ -1,15 +1,15 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- AI DEAL PREDICTION ENGINE — audit log table (Rule 6: log every prediction).
+-- AI DEAL PREDICTION ENGINE - audit log table (Rule 6: log every prediction).
 --
 -- WHY:
 --   The new predictionEngine.predict() fuses every existing scorer (detectStrategy,
 --   suggestAssignmentFee, calculateSourcingScore, motivation_score) into ONE
 --   prediction per lead/deal, with per-field confidence + evidence. The
 --   GET /api/leads/:id/prediction endpoint persists each run here so the operator
---   has a queryable history of what Veori predicted, when, and on what evidence —
+--   has a queryable history of what Veori predicted, when, and on what evidence -
 --   and so future model tuning can compare predictions to real outcomes.
 --
--- SAFETY: CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS — additive,
+-- SAFETY: CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS - additive,
 -- idempotent, no drops, no data loss. The endpoint writes here BEST-EFFORT: if this
 -- migration hasn't been run yet, the prediction still returns; only the audit log
 -- is skipped. Run this once in the Supabase SQL editor to enable logging.

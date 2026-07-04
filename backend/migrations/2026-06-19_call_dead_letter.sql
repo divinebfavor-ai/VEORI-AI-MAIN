@@ -1,10 +1,10 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- Call-outcome dead-letter — never silently lose a completed call.
+-- Call-outcome dead-letter - never silently lose a completed call.
 --
 -- WHY: when Vapi fires end-of-call-report, handleCallEnded matches the call row by
 -- vapi_call_id, with a phone-number fallback. If BOTH miss (e.g. the initial
 -- vapi_call_id write lost a race, or Vapi dialed a number we can't reconcile) the
--- old code logged a warning and returned — the call's outcome, transcript,
+-- old code logged a warning and returned - the call's outcome, transcript,
 -- duration and recording URL were lost forever. At 80k+ outreach that is real,
 -- unrecoverable deal intelligence gone.
 --

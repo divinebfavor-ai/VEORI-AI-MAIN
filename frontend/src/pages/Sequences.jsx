@@ -1,5 +1,5 @@
 /**
- * Sequences Page — View and manage follow-up sequences per lead.
+ * Sequences Page - View and manage follow-up sequences per lead.
  * Shows active/completed sequences and allows manual enrollment.
  */
 
@@ -27,7 +27,7 @@ const STATUS_META = {
 const STEP_ICONS = { call: Phone, sms: MessageSquare, email: Mail, default: Zap }
 
 function fmtDate(str) {
-  if (!str) return '—'
+  if (!str) return '-'
   const d = new Date(str)
   const diff = Math.floor((new Date(str) - Date.now()) / 86400000)
   if (diff < 0)  return `${Math.abs(diff)}d ago`
@@ -361,7 +361,7 @@ export default function Sequences() {
                 <option value="">Select a lead...</option>
                 {filteredLeads.slice(0, 50).map(l => (
                   <option key={l.id} value={l.id} style={{ background: 'var(--card-bg)' }}>
-                    {[l.first_name, l.last_name].filter(Boolean).join(' ') || l.phone || l.id.slice(0, 8)} — {l.property_address || 'No address'}
+                    {[l.first_name, l.last_name].filter(Boolean).join(' ') || l.phone || l.id.slice(0, 8)} - {l.property_address || 'No address'}
                   </option>
                 ))}
               </select>

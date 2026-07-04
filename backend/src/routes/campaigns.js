@@ -99,11 +99,11 @@ router.post('/:id/start', async (req, res, next) => {
   try {
     const session = campaignManager.activeCampaigns.get(req.params.id);
     if (session && session.paused) {
-      // Session still in memory — just unpause
+      // Session still in memory - just unpause
       await campaignManager.resume(req.params.id);
       res.json({ success: true, data: { status: 'resumed' } });
     } else {
-      // Fresh start (or server restarted — will skip already-called leads)
+      // Fresh start (or server restarted - will skip already-called leads)
       const result = await campaignManager.start(req.params.id, req.user.id);
       res.json({ success: true, data: result });
     }

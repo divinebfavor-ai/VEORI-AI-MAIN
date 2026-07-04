@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- VEORI AI — Missing Tables Migration
+-- VEORI AI - Missing Tables Migration
 -- Run this in Supabase SQL Editor:
 -- https://supabase.com/dashboard/project/xqllxyoeftkbufoungcz/sql
 -- ═══════════════════════════════════════════════════════════════════════════════

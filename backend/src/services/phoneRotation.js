@@ -21,7 +21,7 @@ async function selectBestNumber(userId, sellerState = null, excludeIds = [], sel
     .eq('is_active', true)
     .not('health_status', 'eq', 'flagged')
     .not('health_status', 'eq', 'resting')
-    .not('is_toll_free', 'is', true)    // calls go out on LOCAL numbers only — toll-free is SMS-only (higher seller answer rate)
+    .not('is_toll_free', 'is', true)    // calls go out on LOCAL numbers only - toll-free is SMS-only (higher seller answer rate)
     .not('twilio_phone_number_sid', 'is', null); // OWNERSHIP GATE: only dial FROM numbers in the operator's own Twilio account. Vapi-owned numbers (sid NULL) → "Account not allowed to call".
 
   if (error || !numbers?.length) return null;
@@ -46,7 +46,7 @@ async function selectBestNumber(userId, sellerState = null, excludeIds = [], sel
     }
   }
 
-  // Rule 3: Geographic matching — TRUE local presence boosts answer rates.
+  // Rule 3: Geographic matching - TRUE local presence boosts answer rates.
   // Tier 1: exact area-code match (305 lead → 305 number).
   if (sellerAreaCode) {
     const acMatch = available.filter(n => n.area_code === String(sellerAreaCode));
@@ -76,7 +76,7 @@ function pickHealthiest(numbers) {
 }
 
 /**
- * Record a call starting on a number — apply cooldown
+ * Record a call starting on a number - apply cooldown
  */
 async function recordCallStart(phoneNumberId) {
   const cooldownUntil = new Date(Date.now() + COOLDOWN_SECONDS * 1000).toISOString();
@@ -106,7 +106,7 @@ async function applyHealthDelta(phoneNumberId, { duration, outcome, answered }) 
 
   let delta = 0;
   if (!answered || !duration || duration < 15) delta = -10; // spam hang-up
-  else if (duration < 60) delta = -5;                       // very short — suspicious
+  else if (duration < 60) delta = -5;                       // very short - suspicious
   else delta = 3;                                            // answered properly
   if (['appointment', 'offer_made', 'verbal_yes'].includes(outcome)) delta += 5;
 

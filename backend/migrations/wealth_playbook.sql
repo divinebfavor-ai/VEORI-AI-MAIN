@@ -1,4 +1,4 @@
--- ─── Veori Wealth Playbook — Supabase Migration ──────────────────────────────
+-- ─── Veori Wealth Playbook - Supabase Migration ──────────────────────────────
 -- Run this in your Supabase SQL Editor: https://supabase.com/dashboard/project/xqllxyoeftkbufoungcz/sql
 
 CREATE TABLE IF NOT EXISTS wealth_assessments (
@@ -82,7 +82,7 @@ ALTER TABLE wealth_scores             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE strategy_progress         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wealth_calculator_sessions ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies (service role bypasses these — they protect direct client access)
+-- RLS Policies (service role bypasses these - they protect direct client access)
 CREATE POLICY "Users can manage own assessment"   ON wealth_assessments        FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users can manage own playbook"     ON wealth_playbooks          FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users can manage own score"        ON wealth_scores             FOR ALL USING (auth.uid() = user_id);

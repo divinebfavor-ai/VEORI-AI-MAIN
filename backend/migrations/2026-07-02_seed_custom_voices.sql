@@ -8,11 +8,11 @@
 -- OWN voices in ElevenLabs and wants the picker to show ONLY those. This:
 --   1. Upserts the 7 real cloned voices (real voice_id + chosen display name).
 --   2. Deactivates the 8 stock voices (is_active=false) so they vanish from the
---      picker WITHOUT deleting the rows (reversible — flip is_active back to true).
+--      picker WITHOUT deleting the rows (reversible - flip is_active back to true).
 --
 -- voice_preview_url is left NULL here; run POST /api/v2/voices/sync (which reads
 -- the live ElevenLabs catalog) later to backfill real preview clips + metadata.
--- The call audio does NOT need the preview — resolveOperatorVoiceId + streamTts
+-- The call audio does NOT need the preview - resolveOperatorVoiceId + streamTts
 -- use voice_id directly.
 --
 -- RUN THIS MANUALLY in the Supabase SQL editor. Review before running.

@@ -1,19 +1,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// propertyImageryService — Feature A: derive aerial + street-view imagery for a
+// propertyImageryService - Feature A: derive aerial + street-view imagery for a
 // lead's property from the address Veori already has on file.
 //
-// WHY: an operator sizing up a lead wants to SEE the house — roof, lot, curb
-// condition — without leaving the lead page. Google's Static Maps API (satellite)
+// WHY: an operator sizing up a lead wants to SEE the house - roof, lot, curb
+// condition - without leaving the lead page. Google's Static Maps API (satellite)
 // and Street View Static API render a property from just its address. This service
 // builds those image URLs; the front end renders them.
 //
 // SAFETY / ZERO-REGRESSION:
 //   • Pure helper. No DB writes, no mutation of any lead. Reads nothing.
-//   • If GOOGLE_MAPS_API_KEY is unset, EVERY function returns null — the imagery
+//   • If GOOGLE_MAPS_API_KEY is unset, EVERY function returns null - the imagery
 //     section simply shows "unavailable" and nothing else in the app changes.
 //   • Optional URL signing (GOOGLE_MAPS_SIGNING_SECRET) is supported for accounts
 //     that require signed Static API requests; without it we send the plain key.
-//   • This is the only NEW imagery code — seller MMS/upload photos already flow
+//   • This is the only NEW imagery code - seller MMS/upload photos already flow
 //     through mmsCaptureService.js / photoUpload.js and are NOT touched here.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ function addressFromLead(lead = {}) {
 }
 
 // Google's optional URL-signing: HMAC-SHA1 over the path+query using the
-// base64url-decoded signing secret, then base64url-encoded. Best-effort — if the
+// base64url-decoded signing secret, then base64url-encoded. Best-effort - if the
 // secret is malformed we just skip signing rather than break the URL.
 function signUrl(urlString, secret) {
   if (!secret) return urlString;
@@ -57,7 +57,7 @@ function signUrl(urlString, secret) {
       .replace(/\//g, '_');
     return `${urlString}&signature=${signature}`;
   } catch (e) {
-    return urlString; // unsigned fallback — never throw
+    return urlString; // unsigned fallback - never throw
   }
 }
 

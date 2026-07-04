@@ -1,5 +1,5 @@
 /**
- * Features 29-33 — AI Video Generator, Caption Generator, Email Blast Builder, Content Calendar
+ * Features 29-33 - AI Video Generator, Caption Generator, Email Blast Builder, Content Calendar
  * Routes: POST /api/content/generate-caption, POST /api/content/generate-video,
  *         GET /api/content, POST /api/content/email-blast, GET /api/content/calendar,
  *         POST /api/content/schedule
@@ -66,7 +66,7 @@ Write the caption only, no explanation.`,
       console.warn('[Content] AI caption fallback:', aiErr.message);
       // Fallback template
       const templates = {
-        instagram: `🏠 OFF-MARKET DEAL ALERT!\n\n${listing?.address || 'Prime Investment Property'} — ${listing?.city || ''}\n\n💰 Asking: $${listing?.asking_price?.toLocaleString() || 'Contact us'}\n📈 ARV: $${listing?.arv?.toLocaleString() || 'N/A'}\n🛏 ${listing?.bedrooms || '?'} bed / 🛁 ${listing?.bathrooms || '?'} bath\n\nDM us NOW before this deal is gone! 🔥\n\n#realestate #wholesaling #investmentproperty #offmarket #realestateinvesting #cashbuyers #fixandflip #motivated #dealoftheday`,
+        instagram: `🏠 OFF-MARKET DEAL ALERT!\n\n${listing?.address || 'Prime Investment Property'} - ${listing?.city || ''}\n\n💰 Asking: $${listing?.asking_price?.toLocaleString() || 'Contact us'}\n📈 ARV: $${listing?.arv?.toLocaleString() || 'N/A'}\n🛏 ${listing?.bedrooms || '?'} bed / 🛁 ${listing?.bathrooms || '?'} bath\n\nDM us NOW before this deal is gone! 🔥\n\n#realestate #wholesaling #investmentproperty #offmarket #realestateinvesting #cashbuyers #fixandflip #motivated #dealoftheday`,
         facebook:  `🏠 NEW OFF-MARKET DEAL!\n\n${listing?.address || 'Investment Property'}\nAsking: $${listing?.asking_price?.toLocaleString() || 'Contact'} | ARV: $${listing?.arv?.toLocaleString() || 'N/A'}\n\nComment or DM for details. First come first served! 🔥`,
         twitter:   `🏠 OFF-MARKET: ${listing?.address || 'Investment Deal'} | Ask: $${listing?.asking_price?.toLocaleString() || '?'} | ARV: $${listing?.arv?.toLocaleString() || '?'} | DM for details 🔥 #realestate #wholesale`,
         default:   `Investment property available. ${listing?.address || 'Contact for address'}. Asking $${listing?.asking_price?.toLocaleString() || 'TBD'}. Contact for details.`,
@@ -150,7 +150,7 @@ router.post('/generate-video', async (req, res) => {
         videoResult = {
           render_id: renderResp?.response?.id,
           status:    'rendering',
-          message:   'Video rendering — check back in 2-3 minutes',
+          message:   'Video rendering - check back in 2-3 minutes',
         };
       } catch (e) {
         console.warn('[Content] Shotstack error:', e.message);
@@ -183,7 +183,7 @@ router.post('/generate-video', async (req, res) => {
   }
 });
 
-// ─── GET /api/content — list all generated content ───────────────────────────
+// ─── GET /api/content - list all generated content ───────────────────────────
 router.get('/', async (req, res) => {
   try {
     const { type, platform } = req.query;
@@ -208,7 +208,7 @@ router.get('/', async (req, res) => {
 
 // ─── FEATURE 32: EMAIL BLAST BUILDER ─────────────────────────────────────────
 
-// POST /api/content/email-blast — create and send email blast
+// POST /api/content/email-blast - create and send email blast
 router.post('/email-blast', async (req, res) => {
   try {
     const { listing_id, subject, body_html, recipient_type = 'all_buyers', recipient_ids = [] } = req.body;
@@ -260,7 +260,7 @@ router.post('/email-blast', async (req, res) => {
       for (const r of recipients) {
         if (!r.email) continue;
         // Per-recipient one-click unsubscribe (CAN-SPAM). Null if no public base
-        // is configured — sendEmail then omits the footer/header, but suppression
+        // is configured - sendEmail then omits the footer/header, but suppression
         // + logging below still apply because we pass userId.
         const unsubscribeUrl = await buildUnsubscribeUrl({
           userId: req.user.id,
@@ -298,7 +298,7 @@ router.post('/email-blast', async (req, res) => {
   }
 });
 
-// GET /api/content/email-blasts — list blasts
+// GET /api/content/email-blasts - list blasts
 router.get('/email-blasts', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -317,7 +317,7 @@ router.get('/email-blasts', async (req, res) => {
 
 // ─── FEATURE 33: CONTENT CALENDAR ────────────────────────────────────────────
 
-// GET /api/content/calendar — calendar view
+// GET /api/content/calendar - calendar view
 router.get('/calendar', async (req, res) => {
   try {
     const { month, year } = req.query;
@@ -344,7 +344,7 @@ router.get('/calendar', async (req, res) => {
   }
 });
 
-// POST /api/content/schedule — add to calendar
+// POST /api/content/schedule - add to calendar
 router.post('/schedule', async (req, res) => {
   try {
     const { content_id, scheduled_date, platform, notes } = req.body;

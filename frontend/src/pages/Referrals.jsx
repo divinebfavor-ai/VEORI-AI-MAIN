@@ -275,7 +275,7 @@ export default function Referrals() {
           </button>
         </div>
         <p style={{ fontSize: 11, color: 'var(--t3)', margin: '10px 0 0' }}>
-          Commissions are paid automatically via Flutterwave transfer. 10% on month 1 — 3% every month for 12 months. No cap.
+          Commissions are paid automatically by bank transfer. 10% on month 1 - 3% every month for 12 months. No cap.
         </p>
       </div>
 

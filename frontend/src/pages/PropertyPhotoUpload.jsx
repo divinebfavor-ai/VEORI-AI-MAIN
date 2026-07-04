@@ -1,7 +1,7 @@
 /**
  * Seller Photo Upload Page
  * Public route: /upload/:token
- * No login required — sellers use this to send property photos directly to Veori
+ * No login required - sellers use this to send property photos directly to Veori
  */
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
@@ -182,7 +182,7 @@ export default function PropertyPhotoUpload() {
               )}
               <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', margin: 0, lineHeight: 1.5 }}>
                 Please send us photos of <strong style={{ color: '#fff' }}>{address || 'your property'}</strong>.
-                The more photos the better — inside and outside.
+                The more photos the better - inside and outside.
               </p>
               {property.photo_count > 0 && (
                 <p style={{ fontSize: 11, color: '#00C37A', margin: '8px 0 0' }}>
@@ -242,7 +242,7 @@ export default function PropertyPhotoUpload() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Camera button — opens camera on mobile */}
+              {/* Camera button - opens camera on mobile */}
               <button
                 onClick={() => fileRef.current?.click()}
                 style={{

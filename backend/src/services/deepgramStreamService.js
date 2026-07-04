@@ -1,43 +1,43 @@
 /**
- * Deepgram Stream Service — real-time streaming STT for the v2 "stream" calling
+ * Deepgram Stream Service - real-time streaming STT for the v2 "stream" calling
  * engine (Twilio Media Streams pipeline).
  *
  * This is a thin, dependency-free wrapper around a single Deepgram streaming
  * WebSocket. It uses the raw `ws` package (already installed) rather than
  * @deepgram/sdk so we add NO new npm dependency. It is used ONLY by the new
- * mediaStreamServer.js — nothing existing imports it, so it is inert until the
+ * mediaStreamServer.js - nothing existing imports it, so it is inert until the
  * VOICE_ENGINE=stream flag routes a call through the streaming path.
  *
  * AUDIO CONTRACT (zero transcoding): Twilio Media Streams deliver mu-law (PCMU)
  * 8kHz base64 audio. We open Deepgram with encoding=mulaw & sample_rate=8000, so
- * the raw decoded bytes go straight in — no resampling/transcoding on our side.
+ * the raw decoded bytes go straight in - no resampling/transcoding on our side.
  *
  * Deepgram live transcription reference:
  *   https://developers.deepgram.com/docs/live-streaming-audio
  * Query params we use:
- *   encoding=mulaw            — matches Twilio's PCMU
- *   sample_rate=8000          — telephony rate
- *   model=nova-2              — same model Vapi already used (proven quality)
- *   interim_results=true      — needed for barge-in (early partials)
- *   endpointing=300           — ms of silence to mark end of a spoken segment
- *   utterance_end_ms=1000     — emits an UtteranceEnd event as a turn fallback
- *   punctuate=true            — cleaner transcript for the brain + scoring
- *   smart_format=true         — numbers/dates formatted naturally
+ *   encoding=mulaw            - matches Twilio's PCMU
+ *   sample_rate=8000          - telephony rate
+ *   model=nova-2              - same model Vapi already used (proven quality)
+ *   interim_results=true      - needed for barge-in (early partials)
+ *   endpointing=300           - ms of silence to mark end of a spoken segment
+ *   utterance_end_ms=1000     - emits an UtteranceEnd event as a turn fallback
+ *   punctuate=true            - cleaner transcript for the brain + scoring
+ *   smart_format=true         - numbers/dates formatted naturally
  *
  * PUBLIC SHAPE (event-emitter style, no external EventEmitter dep):
  *   const dg = createDeepgramStream({ onTranscript, onUtteranceEnd, onOpen, onClose, onError });
- *   dg.send(muLawBuffer)   — forward one chunk of caller audio (Buffer)
- *   dg.finish()            — politely flush + close (sends CloseStream)
- *   dg.close()             — hard close the socket
- *   dg.isOpen()            — boolean
+ *   dg.send(muLawBuffer)   - forward one chunk of caller audio (Buffer)
+ *   dg.finish()            - politely flush + close (sends CloseStream)
+ *   dg.close()             - hard close the socket
+ *   dg.isOpen()            - boolean
  *
  * onTranscript payload: { text, isFinal, speechFinal, confidence }
  *   - isFinal      → Deepgram marked this segment final (is_final)
- *   - speechFinal  → Deepgram detected end-of-speech (speech_final) — fire a turn
+ *   - speechFinal  → Deepgram detected end-of-speech (speech_final) - fire a turn
  *
  * RESILIENCE: every callback is wrapped so a caller bug never crashes the socket
  * handler; JSON parse errors are swallowed with a warning. The caller
- * (mediaStreamServer) owns reconnect/downgrade policy — this file just reports
+ * (mediaStreamServer) owns reconnect/downgrade policy - this file just reports
  * open/close/error truthfully.
  */
 
@@ -66,7 +66,7 @@ function buildUrl() {
   return u.toString();
 }
 
-/** Safe callback runner — a handler throwing must never take down the socket. */
+/** Safe callback runner - a handler throwing must never take down the socket. */
 function safe(fn, ...args) {
   if (typeof fn !== 'function') return;
   try {
@@ -80,9 +80,9 @@ function safe(fn, ...args) {
  * Open a Deepgram streaming session.
  *
  * @param {object}   handlers
- * @param {function} [handlers.onOpen]          () => void — socket ready for audio
+ * @param {function} [handlers.onOpen]          () => void - socket ready for audio
  * @param {function} [handlers.onTranscript]    ({text,isFinal,speechFinal,confidence}) => void
- * @param {function} [handlers.onUtteranceEnd]  ({lastWordEnd}) => void — turn fallback
+ * @param {function} [handlers.onUtteranceEnd]  ({lastWordEnd}) => void - turn fallback
  * @param {function} [handlers.onClose]         (code, reason) => void
  * @param {function} [handlers.onError]         (err) => void
  * @returns {{ send:Function, finish:Function, close:Function, isOpen:Function }}
@@ -93,7 +93,7 @@ function createDeepgramStream(handlers = {}) {
   if (!DEEPGRAM_API_KEY) {
     // No key → return a no-op stub so the caller can decide to downgrade the call
     // to the turn-based engine instead of crashing. Loud so it's obvious in logs.
-    console.warn('[Deepgram] DEEPGRAM_API_KEY not set — STT stream is a no-op stub');
+    console.warn('[Deepgram] DEEPGRAM_API_KEY not set - STT stream is a no-op stub');
     return {
       send: () => {},
       finish: () => {},
@@ -128,7 +128,7 @@ function createDeepgramStream(handlers = {}) {
       return;
     }
 
-    // UtteranceEnd is a top-level event (not a Results channel) — used as a
+    // UtteranceEnd is a top-level event (not a Results channel) - used as a
     // reliable turn-end fallback when speech_final doesn't fire.
     if (msg.type === 'UtteranceEnd') {
       safe(onUtteranceEnd, { lastWordEnd: msg.last_word_end });

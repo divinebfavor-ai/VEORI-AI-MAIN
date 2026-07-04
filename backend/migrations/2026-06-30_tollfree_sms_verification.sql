@@ -17,10 +17,10 @@
 -- ============================================================================
 
 -- Carrier SMS verification state for toll-free numbers.
---   'unverified' — never submitted for toll-free SMS verification (default).
---   'pending'    — submitted to Twilio/carrier, awaiting approval.
---   'verified'   — approved; safe to send SMS from this toll-free number.
--- Local numbers (non toll-free) ignore this column entirely — their SMS path is
+--   'unverified' - never submitted for toll-free SMS verification (default).
+--   'pending'    - submitted to Twilio/carrier, awaiting approval.
+--   'verified'   - approved; safe to send SMS from this toll-free number.
+-- Local numbers (non toll-free) ignore this column entirely - their SMS path is
 -- A2P 10DLC via a Messaging Service, gated separately.
 ALTER TABLE public.phone_numbers
   ADD COLUMN IF NOT EXISTS sms_verification_status  TEXT        DEFAULT 'unverified',

@@ -9,7 +9,7 @@ export function useAuth() {
 
   const login = async (email, password) => {
     const res = await auth.login(email, password)
-    // 2FA enabled — return pending state; Login.jsx will show code entry
+    // 2FA enabled - return pending state; Login.jsx will show code entry
     if (res.data.requires_2fa) return res.data
     const { token, user: userData } = res.data
     setAuth(userData, token)

@@ -1,5 +1,5 @@
 /**
- * Feature 20 — Direct Mail Auto-Trigger
+ * Feature 20 - Direct Mail Auto-Trigger
  * Routes: GET /api/direct-mail, POST /api/direct-mail/send, GET /api/direct-mail/templates,
  *         POST /api/direct-mail/auto-trigger/:leadId
  */
@@ -10,7 +10,7 @@ const directMailService = require('../services/directMailService');
 
 router.use(auth);
 
-// GET /api/direct-mail — history of sent mail
+// GET /api/direct-mail - history of sent mail
 router.get('/', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/direct-mail/templates — available templates
+// GET /api/direct-mail/templates - available templates
 router.get('/templates', async (_req, res) => {
   try {
     const templates = [
@@ -43,7 +43,7 @@ router.get('/templates', async (_req, res) => {
   }
 });
 
-// POST /api/direct-mail/send — manually send mail to a lead
+// POST /api/direct-mail/send - manually send mail to a lead
 router.post('/send', async (req, res) => {
   try {
     const { lead_id, template } = req.body;
@@ -102,7 +102,7 @@ router.post('/send', async (req, res) => {
       res.json({ success: true, mail: { ...logEntry, status: 'sent', lob_result: result } });
     } catch (lobErr) {
       console.warn('[DirectMail] Lob API error (logged as queued):', lobErr.message);
-      res.json({ success: true, mail: logEntry, warning: 'Mail queued — Lob API key not configured' });
+      res.json({ success: true, mail: logEntry, warning: 'Mail queued - Lob API key not configured' });
     }
   } catch (err) {
     console.error('[DirectMail] send error:', err.message);
@@ -110,7 +110,7 @@ router.post('/send', async (req, res) => {
   }
 });
 
-// POST /api/direct-mail/auto-trigger/:leadId — check triggers and send if matched
+// POST /api/direct-mail/auto-trigger/:leadId - check triggers and send if matched
 router.post('/auto-trigger/:leadId', async (req, res) => {
   try {
     const { leadId } = req.params;
@@ -202,7 +202,7 @@ router.post('/auto-trigger/:leadId', async (req, res) => {
   }
 });
 
-// GET /api/direct-mail/stats — overview stats
+// GET /api/direct-mail/stats - overview stats
 router.get('/stats', async (req, res) => {
   try {
     const { data, error } = await supabase

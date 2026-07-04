@@ -1,11 +1,11 @@
 /**
- * Email Opt-Out (public — no auth)
+ * Email Opt-Out (public - no auth)
  *
- * Feature C — CAN-SPAM one-click unsubscribe. Every cold-drip email embeds a
+ * Feature C - CAN-SPAM one-click unsubscribe. Every cold-drip email embeds a
  * link to this route with a one-time token. Hitting it adds the address to the
  * operator's email_suppressions list so future sends are blocked.
  *
- *   GET /api/email/unsubscribe/:token   — process unsubscribe, render a page
+ *   GET /api/email/unsubscribe/:token   - process unsubscribe, render a page
  *
  * SAFETY: read-only on everything except the NEW suppression tables. Never
  * touches leads, calls, or the existing email pipeline beyond adding a gate.
@@ -20,7 +20,7 @@ const {
   autoSuppressOnEvent,
 } = require('../services/emailSuppression');
 const { handleInboundReply } = require('../services/emailReplyStop');
-const { requireAuth } = require('../middleware/auth'); // Tier 4 — authed analytics
+const { requireAuth } = require('../middleware/auth'); // Tier 4 - authed analytics
 
 const router = express.Router();
 
@@ -70,9 +70,9 @@ router.get('/unsubscribe/:token', async (req, res) => {
   }
 });
 
-// ─── Resend Webhook — engagement + deliverability ingestion ──────────────────
+// ─── Resend Webhook - engagement + deliverability ingestion ──────────────────
 //
-//   POST /api/email/webhook   — Resend posts delivered/opened/clicked/bounced/
+//   POST /api/email/webhook   - Resend posts delivered/opened/clicked/bounced/
 //                               complained events here. Public (provider posts
 //                               server-to-server; verified by signing secret).
 //
@@ -87,7 +87,7 @@ router.get('/unsubscribe/:token', async (req, res) => {
 // storm) and never throws. Touches only email_log (existing) + email_suppressions
 // (existing). If RESEND_WEBHOOK_SECRET is set, we require a matching signature;
 // if it's unset we still accept (so the feature works before the secret is wired)
-// but log a warning — set the secret in Railway to lock it down.
+// but log a warning - set the secret in Railway to lock it down.
 
 const crypto = require('crypto');
 
@@ -105,7 +105,7 @@ const EVENT_COLUMN = {
 // Capture the raw request bytes alongside the parsed JSON. The Svix/HMAC
 // signature is computed over the EXACT raw payload, so a re-serialized
 // JSON.stringify(req.body) would not match. Scoped to this route's middleware
-// only — does not affect any other route's body parsing.
+// only - does not affect any other route's body parsing.
 const captureRaw = express.json({
   type: '*/*',
   verify: (req, _res, buf) => { req.rawBody = buf; },
@@ -134,7 +134,7 @@ function verifyResendSignature(req) {
     const expected = crypto.createHmac('sha256', key).update(signedContent).digest('base64');
     const expectedBuf = Buffer.from(expected);
 
-    // Header looks like "v1,<sig> v1,<sig2>" — compare against each candidate.
+    // Header looks like "v1,<sig> v1,<sig2>" - compare against each candidate.
     for (const part of String(sigHeader).split(' ')) {
       const comma = part.indexOf(',');
       const candidate = comma === -1 ? part : part.slice(comma + 1);
@@ -154,16 +154,16 @@ function verifyResendSignature(req) {
 router.post('/webhook', captureRaw, async (req, res) => {
   try {
     // Signature gate. When RESEND_WEBHOOK_SECRET is set, require a cryptographically
-    // valid Svix/HMAC signature — reject anything that doesn't verify. When the
+    // valid Svix/HMAC signature - reject anything that doesn't verify. When the
     // secret is unset, accept unverified events (so the feature works before the
     // secret is wired) but log a warning. Set the secret in Railway to lock down.
     if (RESEND_WEBHOOK_SECRET) {
       if (!verifyResendSignature(req)) {
-        console.warn('[ResendWebhook] signature verification failed — rejecting');
+        console.warn('[ResendWebhook] signature verification failed - rejecting');
         return res.status(401).json({ ok: false });
       }
     } else {
-      console.warn('[ResendWebhook] RESEND_WEBHOOK_SECRET not set — accepting unverified event');
+      console.warn('[ResendWebhook] RESEND_WEBHOOK_SECRET not set - accepting unverified event');
     }
 
     const evt   = req.body || {};
@@ -178,7 +178,7 @@ router.post('/webhook', captureRaw, async (req, res) => {
     const email = toRaw ? String(toRaw).trim() : null;
 
     if (!type || !column) {
-      // Unknown/irrelevant event type — ack so Resend stops retrying.
+      // Unknown/irrelevant event type - ack so Resend stops retrying.
       return res.json({ ok: true, ignored: true });
     }
 
@@ -216,7 +216,7 @@ router.post('/webhook', captureRaw, async (req, res) => {
 
     return res.json({ ok: true });
   } catch (err) {
-    // Never 500 a provider webhook — that triggers retry storms. Log + ack.
+    // Never 500 a provider webhook - that triggers retry storms. Log + ack.
     console.error('[ResendWebhook] error:', err.message);
     return res.json({ ok: true, error: 'handled' });
   }
@@ -224,7 +224,7 @@ router.post('/webhook', captureRaw, async (req, res) => {
 
 // ─── Inbound reply → auto-stop the drip ─────────────────────────────────────
 //
-//   POST /api/email/inbound   — Resend Inbound (or any mailbox forwarder) posts a
+//   POST /api/email/inbound   - Resend Inbound (or any mailbox forwarder) posts a
 //                               received reply here. When a lead emails back, we
 //                               stop their active cold-email drip (a human is now
 //                               in the loop). Public: provider posts server-to-
@@ -236,7 +236,7 @@ router.post('/webhook', captureRaw, async (req, res) => {
 //     ACTIVE email sequences via emailReplyStop.handleInboundReply.
 //
 // SAFETY: fail-open. Any DB/parse error returns 200 (so the forwarder doesn't
-// retry-storm) and never throws. Only flips sequences active→cancelled — never
+// retry-storm) and never throws. Only flips sequences active→cancelled - never
 // touches the send path, leads, or email_log. A no-match is a clean no-op.
 
 const EMAIL_INBOUND_SECRET = process.env.EMAIL_INBOUND_SECRET || '';
@@ -249,7 +249,7 @@ router.post('/inbound', express.json({ type: '*/*' }), async (req, res) => {
       const provided =
         req.headers['x-inbound-secret'] || req.query.key || '';
       if (provided !== EMAIL_INBOUND_SECRET) {
-        console.warn('[EmailInbound] bad/missing secret — rejecting');
+        console.warn('[EmailInbound] bad/missing secret - rejecting');
         return res.status(401).json({ ok: false });
       }
     }
@@ -267,7 +267,7 @@ router.post('/inbound', express.json({ type: '*/*' }), async (req, res) => {
       (Array.isArray(data.from) ? data.from[0] : null) ||
       null;
 
-    // Operator hint, if the forwarder supplies one (optional — service falls back
+    // Operator hint, if the forwarder supplies one (optional - service falls back
     // to an unscoped lookup when absent).
     const userId = body.user_id || data.user_id || req.query.user_id || null;
 
@@ -279,14 +279,14 @@ router.post('/inbound', express.json({ type: '*/*' }), async (req, res) => {
   }
 });
 
-// ─── Tier 4 — Email analytics (authed) ──────────────────────────────────────
+// ─── Tier 4 - Email analytics (authed) ──────────────────────────────────────
 //
-//   GET /api/email/analytics?days=30   — per-operator email performance.
+//   GET /api/email/analytics?days=30   - per-operator email performance.
 //
 // Reads ONLY email_log (existing + Tier 1 engagement columns). Computes funnel
 // rates (sent → delivered → opened → clicked), suppression/bounce/complaint
-// counts, and — using the Tier 2b variant suffix on email_type (e.g.
-// "coldDrip1:B") — the WINNING subject variant per drip template by open rate.
+// counts, and - using the Tier 2b variant suffix on email_type (e.g.
+// "coldDrip1:B") - the WINNING subject variant per drip template by open rate.
 //
 // SAFETY: read-only, operator-scoped (user_id = req.user.id). Fail-soft: any
 // query/parse error returns a zeroed payload rather than 500, so the dashboard

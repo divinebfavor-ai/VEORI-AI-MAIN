@@ -1,10 +1,10 @@
 /**
  * SMS First Workflow Routes
  *
- * POST /api/sms-first/:id/start   — start SMS first mode for a campaign
- * POST /api/sms-first/:id/stop    — stop monitoring
- * GET  /api/sms-first/:id/status  — get current SMS first stats
- * GET  /api/sms-first/:id/leads   — list leads and their reply status
+ * POST /api/sms-first/:id/start   - start SMS first mode for a campaign
+ * POST /api/sms-first/:id/stop    - stop monitoring
+ * GET  /api/sms-first/:id/status  - get current SMS first stats
+ * GET  /api/sms-first/:id/leads   - list leads and their reply status
  */
 
 const router   = require('express').Router();

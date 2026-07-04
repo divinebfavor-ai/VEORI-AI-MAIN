@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- AI COO COMMAND CENTER — audit log for the fused 4-answer briefing.
+-- AI COO COMMAND CENTER - audit log for the fused 4-answer briefing.
 --
 -- WHY:
 --   GET /api/coo/briefing fuses every existing engine (predictionEngine across the
@@ -9,7 +9,7 @@
 --   logged) so the operator has a history of what the COO saw and recommended, and
 --   so we can later compare recommendations to outcomes.
 --
--- SAFETY: CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS — additive,
+-- SAFETY: CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS - additive,
 -- idempotent, no drops, no data loss. The route writes here BEST-EFFORT: if this
 -- migration hasn't run, the briefing still returns; only the audit log is skipped.
 -- ─────────────────────────────────────────────────────────────────────────────

@@ -67,7 +67,7 @@ export default function LeadIntelligence() {
   const [memory, setMemory]       = useState([])
   const [timeline, setTimeline]   = useState([])
   const [prob, setProb]           = useState(null)
-  const [imagery, setImagery]     = useState(null)   // Feature A — aerial + street view
+  const [imagery, setImagery]     = useState(null)   // Feature A - aerial + street view
   const [photos, setPhotos]       = useState([])     // seller MMS / upload photos
   const [loading, setLoading]     = useState(false)
 
@@ -92,7 +92,7 @@ export default function LeadIntelligence() {
       setProb(dp)
     }).catch(() => {}).finally(() => setLoading(false))
 
-    // Feature A — fetch property imagery + any seller photos (best-effort, never blocks)
+    // Feature A - fetch property imagery + any seller photos (best-effort, never blocks)
     fetch(`${API}/leads/${selectedLead}/imagery`, { headers: authHeader() })
       .then(r => r.json()).then(d => setImagery(d.imagery || null)).catch(() => setImagery(null))
     fetch(`${API}/leads/${selectedLead}/photos`, { headers: authHeader() })
@@ -140,7 +140,7 @@ export default function LeadIntelligence() {
       {selectedLead && !loading && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
-          {/* Feature A — Property Imagery (aerial + street view) + seller photos */}
+          {/* Feature A - Property Imagery (aerial + street view) + seller photos */}
           <div style={{ ...s.card, gridColumn: '1 / -1' }}>
             <div style={s.label}>Property Imagery</div>
             {imagery?.available ? (
@@ -170,7 +170,7 @@ export default function LeadIntelligence() {
             ) : (
               <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>
                 {imagery && !imagery.address
-                  ? 'No property address on this lead yet — add one to see aerial & street view.'
+                  ? 'No property address on this lead yet - add one to see aerial & street view.'
                   : 'Aerial & street-view imagery unavailable. (Configure GOOGLE_MAPS_API_KEY to enable.)'}
               </div>
             )}

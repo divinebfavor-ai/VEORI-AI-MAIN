@@ -116,7 +116,7 @@ function LandingNav() {
         <a href="#pricing" style={{ fontSize: 13.5, fontWeight: 700, color: '#000', background: '#00C47B', padding: '7px 18px', borderRadius: 8, textDecoration: 'none', transition: 'all 0.2s' }}
           onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 6px 22px rgba(0,196,123,0.38)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none'; }}
-        >Get started</a>
+        >Start calling sellers</a>
       </div>
     </motion.nav>
   )
@@ -158,11 +158,11 @@ function CountUp({ to, prefix = '', suffix = '', duration = 1800 }) {
 // ─── Live AI call simulation ──────────────────────────────────────────────────
 
 const CALL_SCRIPT = [
-  { role: 'ai',     text: "Hi, is this Maria? I'm reaching out about the property on Elmwood Drive — are you still the owner?", score: 12 },
+  { role: 'ai',     text: "Hi, is this Maria? I'm reaching out about the property on Elmwood Drive - are you still the owner?", score: 12 },
   { role: 'seller', text: "Yes, that's me. Who is this?", score: 12 },
   { role: 'ai',     text: "I work with local cash buyers in your area. Would you consider an offer if the price made sense?", score: 34 },
   { role: 'seller', text: "Honestly… maybe. The house needs more work than I can handle right now.", score: 68 },
-  { role: 'ai',     text: "Understood. If we could close in 14 days, buy as-is, no repairs and no fees — would that help your situation?", score: 81 },
+  { role: 'ai',     text: "Understood. If we could close in 14 days, buy as-is, no repairs and no fees - would that help your situation?", score: 81 },
   { role: 'seller', text: "That would be a huge relief, actually. What would the next step be?", score: 94 },
 ]
 
@@ -260,7 +260,7 @@ function LiveCallCard() {
         {done && (
           <div className="lp-msg" style={{ alignSelf: 'center', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.30)', borderRadius: 100, padding: '8px 18px' }}>
             <span style={{ color: '#00C47B', fontWeight: 800, fontSize: 13 }}>✓</span>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#00C47B', fontFamily: 'Inter,sans-serif' }}>Qualified — appointment booked Thu 2:00 PM</span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#00C47B', fontFamily: 'Inter,sans-serif' }}>Qualified - appointment booked Thu 2:00 PM</span>
           </div>
         )}
       </div>
@@ -294,7 +294,7 @@ function Hero() {
       <motion.div style={{ position: 'relative', zIndex: 10, y: textY, opacity: opacityVal, padding: '140px 32px 90px', maxWidth: 1180, margin: '0 auto', width: '100%' }}>
         <div className="lp-hero-grid">
 
-          {/* Left — copy */}
+          {/* Left - copy */}
           <div className="lp-hero-left">
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
               className="lp-badge-row" style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
@@ -305,14 +305,14 @@ function Hero() {
             </motion.div>
 
             <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.85, delay: 0.22, ease: [0.16,1,0.3,1] }}
-              style={{ fontSize: 'clamp(40px,5.4vw,68px)', fontWeight: 900, letterSpacing: '-0.045em', lineHeight: 1.04, marginBottom: 22, fontFamily: 'Inter,sans-serif' }}>
-              Your AI calls sellers.<br />
-              <span className="lp-shimmer">You close deals.</span>
+              style={{ fontSize: 'clamp(40px,5.4vw,70px)', fontWeight: 600, letterSpacing: '-0.035em', lineHeight: 1.02, marginBottom: 22, fontFamily: "'Space Grotesk',Inter,sans-serif" }}>
+              Speed wins the deal.<br />
+              <span className="lp-shimmer">Yours answers in 60 seconds.</span>
             </motion.h1>
 
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.85, delay: 0.34, ease: [0.16,1,0.3,1] }}
               style={{ fontSize: 'clamp(15px,1.7vw,18px)', color: 'rgba(255,255,255,0.62)', lineHeight: 1.7, maxWidth: 520, margin: '0 auto 40px', fontFamily: 'Inter,sans-serif' }}>
-              VEORI dials thousands of sellers a month, qualifies them in real conversations, scores their motivation, sends contracts for e-signature, and coordinates title — around the clock, without you on the phone.
+              VEORI dials thousands of sellers a month, qualifies them in real conversations, scores their motivation, sends contracts for e-signature, and coordinates title - around the clock, without you on the phone.
             </motion.p>
 
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.85, delay: 0.46, ease: [0.16,1,0.3,1] }}>
@@ -321,13 +321,13 @@ function Hero() {
                   style={{ padding: '16px 38px', background: '#00C47B', color: '#000', fontSize: 15.5, fontWeight: 800, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)', letterSpacing: '-0.01em', boxShadow: '0 8px 32px rgba(0,196,123,0.25)' }}
                   onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 18px 44px rgba(0,196,123,0.45)' }}
                   onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,196,123,0.25)' }}>
-                  Start Closing Deals
+                  Start calling sellers
                 </a>
                 <a href="#how"
                   style={{ padding: '16px 38px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)', fontSize: 15.5, fontWeight: 700, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.25s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#fff' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}>
-                  See How It Works
+                  Watch a live call →
                 </a>
               </div>
               <div className="lp-badge-row" style={{ display: 'flex', justifyContent: 'center', fontSize: 13, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter,sans-serif' }}>
@@ -336,7 +336,7 @@ function Hero() {
             </motion.div>
           </div>
 
-          {/* Right — live call demo */}
+          {/* Right - live call demo */}
           <LiveCallCard />
         </div>
 
@@ -344,10 +344,10 @@ function Hero() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.8 }}
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, flexWrap: 'wrap', borderRadius: 16, background: 'rgba(8,18,34,0.75)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(16px)', maxWidth: 760, margin: '72px auto 0', overflow: 'hidden' }}>
           {[
-            { label: 'AI Dials / Month', node: <CountUp to={3000} />, color: '#00C47B' },
-            { label: 'Saved vs Human VA', node: <CountUp to={1421} prefix="$" />, color: '#C9A84C' },
-            { label: 'Hours On The Phone', node: 'Zero', color: '#fff' },
-            { label: 'Coverage', node: '24/7', color: '#fff' },
+            { label: 'Avg. speed to first call', node: <CountUp to={60} suffix="s" />, color: '#00C47B' },
+            { label: 'Close rate at 1-hr response', node: <CountUp to={70} suffix="%" />, color: '#00C47B' },
+            { label: 'Close rate at 24-hr response', node: <CountUp to={17} suffix="%" />, color: 'rgba(255,255,255,0.55)' },
+            { label: 'Monthly tool stack it replaces', node: <CountUp to={2000} prefix="$" suffix="+" />, color: '#C9A84C' },
           ].map(({ label, node, color }, i) => (
             <div key={label} style={{ flex: 1, minWidth: 150, padding: '22px 20px', textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
               <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 27, fontWeight: 900, color, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 6 }}>{node}</div>
@@ -534,7 +534,7 @@ const FEATURES = [
   { title: 'Title Company Coordination', body: 'Book your preferred title company inside VEORI. The AI calls them, delivers the contract, follows up on the schedule, and tracks the closing. You stay out of the admin loop.', icon: 'home' },
   { title: 'Property Photo Requests', body: 'VEORI automatically requests property photos from sellers during or after a call. Photos are stored directly in your deal dashboard alongside call recordings and notes.', icon: 'image' },
   { title: '24/7 Operation', body: 'Works while you sleep. No time zones, no weekends off, no sick days. Calls happen around the clock across your full pipeline: sellers, buyers, and title. Without you touching it.', icon: 'clock' },
-  { title: 'Full Deal CRM', body: 'Every call recording, motivation score, transcript, photo, contract, and status update lives in one dashboard. Your entire pipeline from first contact to closing, visible in one place.', icon: 'grid' },
+  { title: 'Full Acquisitions Command Center', body: 'Every call recording, motivation score, transcript, photo, contract, and status update lives in one dashboard. Your entire pipeline from first contact to closing, visible in one place.', icon: 'grid' },
 ]
 
 const ICONS = {
@@ -737,7 +737,7 @@ const PLAN_FEATURES = [
   'Real-time motivation scoring',
   'Automated 3-day follow-up sequence',
   'Pipeline dashboard',
-  'CRM lead management',
+  'Unified lead management',
   'Number health monitoring',
   'Cancel anytime',
 ]
@@ -949,7 +949,7 @@ function PlanCard({ plan, index, onSelect }) {
           if (isPopular) { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none' }
           else { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }
         }}>
-        Get Started →
+        Start this plan →
       </button>
     </motion.div>
   )
@@ -1002,7 +1002,7 @@ function ComingSoon() {
         </div>
         <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.7, delay: 0.4 }}
           style={{ textAlign: 'center', marginTop: 40, fontSize: 14, color: 'rgba(255,255,255,0.38)', fontFamily: 'Inter,sans-serif' }}>
-          Founding operators get every future feature unlocked automatically. <strong style={{ color: '#C9A84C' }}>No upgrade fees. Ever.</strong>
+          Every future feature unlocks automatically on your plan. <strong style={{ color: '#C9A84C' }}>No upgrade fees. Ever.</strong>
         </motion.div>
       </div>
     </section>
@@ -1171,7 +1171,7 @@ export default function LandingPage() {
       sid = Math.random().toString(36).slice(2) + Date.now().toString(36)
       sessionStorage.setItem('veori_sid', sid)
     }
-    // Fire and forget — never block the page
+    // Fire and forget - never block the page
     fetch(`${API_BASE}/api/analytics/visit`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },

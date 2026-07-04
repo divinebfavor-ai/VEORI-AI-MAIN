@@ -1,19 +1,19 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- AUDIT HARDENING — consolidated, idempotent schema for the "tighten every gap"
+-- AUDIT HARDENING - consolidated, idempotent schema for the "tighten every gap"
 -- sprint. Covers the new columns/tables the hardened code reads/writes:
 --
---   F3  — per-campaign + per-lead AI instruction overrides
+--   F3  - per-campaign + per-lead AI instruction overrides
 --           leads.ai_instructions, campaigns.ai_custom_instructions
---   F8  — bilingual EN/ES
+--   F8  - bilingual EN/ES
 --           leads.preferred_language, campaigns.language, users.default_language
---   F9  — buyer proof-of-funds / NCA / tire-kicker flags
+--   F9  - buyer proof-of-funds / NCA / tire-kicker flags
 --           buyers.proof_of_funds_verified, nca_signed, nca_signed_at,
 --           is_tire_kicker  (repair_tolerance already exists)
---   F17 — transactional funding marketplace
+--   F17 - transactional funding marketplace
 --           funding_partners, funding_requests
 --
 -- SAFETY: every statement is ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT
--- EXISTS — purely additive, no drops, no data loss, safe to re-run. If this
+-- EXISTS - purely additive, no drops, no data loss, safe to re-run. If this
 -- migration has NOT been run yet, the hardened code degrades honestly:
 --   • language defaults to en-US (every existing call unchanged)
 --   • campaign/lead instruction layers are simply empty
@@ -22,7 +22,7 @@
 --     (Postgres 42P01 / undefined_table handled in routes/funding.js)
 -- ─────────────────────────────────────────────────────────────────────────────
 
--- ── F3 — layered AI instructions ─────────────────────────────────────────────
+-- ── F3 - layered AI instructions ─────────────────────────────────────────────
 -- A note specific to ONE lead/person. Most specific layer; wins on conflict with
 -- operator/campaign style, but NEVER overrides the NON-NEGOTIABLE call rules.
 ALTER TABLE leads
@@ -32,7 +32,7 @@ ALTER TABLE leads
 ALTER TABLE campaigns
   ADD COLUMN IF NOT EXISTS ai_custom_instructions TEXT;
 
--- ── F8 — bilingual EN/ES ─────────────────────────────────────────────────────
+-- ── F8 - bilingual EN/ES ─────────────────────────────────────────────────────
 -- Per-lead language preference ('en' | 'es' | 'spanish' | …). NULL = en-US.
 ALTER TABLE leads
   ADD COLUMN IF NOT EXISTS preferred_language TEXT;
@@ -45,7 +45,7 @@ ALTER TABLE campaigns
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS default_language TEXT;
 
--- ── Caveat — proactive AI disclosure (per-operator opt-in) ───────────────────
+-- ── Caveat - proactive AI disclosure (per-operator opt-in) ───────────────────
 -- When TRUE, the live call prompt proactively states the AI is an AI within the
 -- first sentences (for stricter jurisdictions / bot-disclosure laws). Defaults
 -- FALSE → existing concealed-by-default-unless-asked behavior is byte-for-byte
@@ -53,7 +53,7 @@ ALTER TABLE users
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS proactive_ai_disclosure BOOLEAN DEFAULT FALSE;
 
--- ── Section E — copilot/autopilot operator mode ──────────────────────────────
+-- ── Section E - copilot/autopilot operator mode ──────────────────────────────
 -- 'manual' | 'copilot' (default) | 'autopilot'. Governs whether AI-recommended
 -- actions auto-fire (low-risk + reversible only, autopilot) or wait for operator
 -- approval. Defaults to the safest mode so nothing auto-fires until the operator
@@ -61,17 +61,17 @@ ALTER TABLE users
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS operator_mode TEXT DEFAULT 'copilot';
 
--- ── F9 — buyer vetting flags (proof-of-funds / NCA / tire-kicker) ────────────
+-- ── F9 - buyer vetting flags (proof-of-funds / NCA / tire-kicker) ────────────
 ALTER TABLE buyers
   ADD COLUMN IF NOT EXISTS proof_of_funds_verified BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS nca_signed              BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS nca_signed_at           TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS is_tire_kicker          BOOLEAN DEFAULT FALSE;
 
--- ── F17 — transactional funding marketplace ─────────────────────────────────
+-- ── F17 - transactional funding marketplace ─────────────────────────────────
 -- Vetted funding partners (transactional / EMD / gap / rehab / private). Rows are
 -- curated/seeded by the platform (is_public = true) OR added privately by an
--- operator (user_id set, is_public = false). We NEVER fabricate lenders — an empty
+-- operator (user_id set, is_public = false). We NEVER fabricate lenders - an empty
 -- table is an honest empty marketplace.
 CREATE TABLE IF NOT EXISTS funding_partners (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,7 +111,7 @@ ALTER TABLE funding_partners
 CREATE INDEX IF NOT EXISTS idx_funding_partners_public ON funding_partners(is_public) WHERE is_public = TRUE;
 CREATE INDEX IF NOT EXISTS idx_funding_partners_user   ON funding_partners(user_id);
 
--- An operator's funding request for a specific deal. Records intent only — the
+-- An operator's funding request for a specific deal. Records intent only - the
 -- platform NEVER moves money; the operator contacts the partner directly.
 CREATE TABLE IF NOT EXISTS funding_requests (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),

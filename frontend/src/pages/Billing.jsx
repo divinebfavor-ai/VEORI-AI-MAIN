@@ -235,7 +235,7 @@ export default function Billing() {
 
         {/* Footer note */}
         <div style={{ marginTop: 40, textAlign: 'center', fontSize: 13, color: 'var(--t2)' }}>
-          Secure payment via Flutterwave · Cancel anytime · All plans include every feature
+          Bank-grade secure checkout · Cancel anytime · All plans include every feature
         </div>
       </div>
     </div>

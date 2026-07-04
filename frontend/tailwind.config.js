@@ -12,11 +12,11 @@ export default {
         s4:  '#25252E',
         s5:  '#2D2D37',
 
-        // ─── Primary action — electric green ──────────────────────────
+        // ─── Primary action - electric green ──────────────────────────
         green:        '#00E57A',
         'green-hover':'#00CC6E',
 
-        // ─── Deal / money — gold ───────────────────────────────────────
+        // ─── Deal / money - gold ───────────────────────────────────────
         gold:  '#D4A843',
 
         // ─── Alerts ───────────────────────────────────────────────────
@@ -29,7 +29,7 @@ export default {
         t3: '#44444F',
         t4: '#2E2E38',
 
-        // ─── Legacy aliases — keep existing pages working ─────────────
+        // ─── Legacy aliases - keep existing pages working ─────────────
         primary:          '#00E57A',
         'primary-hover':  '#00CC6E',
         danger:           '#FF3B4E',

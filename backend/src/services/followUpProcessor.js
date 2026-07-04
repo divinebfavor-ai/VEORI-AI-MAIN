@@ -49,7 +49,7 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
     const userId = fu?.user_id || lead.user_id;
     if (!userId) throw new Error('No operator (user_id) for scheduled call');
 
-    // Full operator row — carries AI persona (voice, tone, scripts, use case).
+    // Full operator row - carries AI persona (voice, tone, scripts, use case).
     const { data: operator } = await supabase.from('users').select('*').eq('id', userId).single();
 
     // Healthy local number, area-code matched to the lead where possible.
@@ -60,7 +60,7 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
     const phoneNum = await phoneRotation.selectBestNumber(userId, lead.property_state, [], leadAreaCode);
     if (!phoneNum) throw new Error('No healthy phone numbers available');
 
-    // Call record — links the call to the CRM (webhook updates it on end).
+    // Call record - links the call to the CRM (webhook updates it on end).
     const callId = uuidv4();
     await supabase.from('calls').insert([{
       id: callId,
@@ -142,7 +142,7 @@ async function pollDueCallbacks() {
 
     let fired = 0;
     for (const row of due) {
-      // Atomic claim — only the caller that flips scheduled→processing proceeds.
+      // Atomic claim - only the caller that flips scheduled→processing proceeds.
       const { data: claimed, error: claimErr } = await supabase
         .from('follow_ups')
         .update({ status: 'processing' })
@@ -151,7 +151,7 @@ async function pollDueCallbacks() {
         .select('id');
 
       if (claimErr) { console.error('[CallbackSweep] claim error:', claimErr.message); continue; }
-      if (!claimed || claimed.length === 0) continue; // lost the race — someone else has it
+      if (!claimed || claimed.length === 0) continue; // lost the race - someone else has it
 
       console.log(`[CallbackSweep] Firing overdue callback ${row.id} for lead ${row.contact_id} (due ${row.next_follow_up_at})`);
       // processScheduledCall re-reads the row + owns the completed/failed transition.
@@ -248,11 +248,11 @@ async function processSequenceStep({ sequenceId, stepIndex }) {
 
 // ─── Send SMS via Vapi ────────────────────────────────────────────────────────
 async function sendVapiSms(phone, message) {
-  // Vapi is decommissioned — SMS now belongs to Twilio only. This legacy Vapi
+  // Vapi is decommissioned - SMS now belongs to Twilio only. This legacy Vapi
   // sender stays inert unless VAPI_ENABLED=true is deliberately set, so a stale
   // VAPI_API_KEY on Railway can never spend the wallet on a sequence-step text.
   if (String(process.env.VAPI_ENABLED || '').toLowerCase() !== 'true') {
-    console.warn('[SMS] Vapi decommissioned (VAPI_ENABLED!=true) — skipping legacy Vapi SMS; route sequence SMS through Twilio.');
+    console.warn('[SMS] Vapi decommissioned (VAPI_ENABLED!=true) - skipping legacy Vapi SMS; route sequence SMS through Twilio.');
     return;
   }
   try {

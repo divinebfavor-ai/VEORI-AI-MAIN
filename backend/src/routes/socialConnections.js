@@ -3,17 +3,17 @@
  *
  * Architecture:
  *   - YOU (VEORI) register one app per platform (Facebook App, Twitter App, etc.)
- *   - Those app credentials (App ID + Secret) go in Railway ENV vars — set ONCE by you
+ *   - Those app credentials (App ID + Secret) go in Railway ENV vars - set ONCE by you
  *   - Each operator clicks "Connect" → standard OAuth popup → their own token stored per-user
  *   - Operators never touch Railway or see any technical config
  *
  * Routes:
- *   GET  /api/social-connections              — list all connections for user
- *   GET  /api/social-connections/auth-url/:p  — get OAuth redirect URL
- *   GET  /api/social-connections/callback     — handle OAuth redirect, exchange code → token
- *   POST /api/social-connections/connect      — manual connect (for testing)
- *   DELETE /api/social-connections/:platform  — disconnect
- *   POST /api/social-connections/publish      — post content to connected platform
+ *   GET  /api/social-connections              - list all connections for user
+ *   GET  /api/social-connections/auth-url/:p  - get OAuth redirect URL
+ *   GET  /api/social-connections/callback     - handle OAuth redirect, exchange code → token
+ *   POST /api/social-connections/connect      - manual connect (for testing)
+ *   DELETE /api/social-connections/:platform  - disconnect
+ *   POST /api/social-connections/publish      - post content to connected platform
  */
 const router  = require('express').Router();
 const { requireAuth: auth, optionalAuth } = require('../middleware/auth');
@@ -191,7 +191,7 @@ router.get('/auth-url/:platform', auth, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Unsupported platform' });
     }
 
-    // Encode user identity in state — callback uses this to store token for the right user
+    // Encode user identity in state - callback uses this to store token for the right user
     const statePayload = { platform, userId: req.user.id, ts: Date.now() };
     const url = buildAuthUrl(platform, statePayload);
 
@@ -211,7 +211,7 @@ router.get('/auth-url/:platform', auth, async (req, res) => {
 });
 
 // GET /api/social-connections/callback
-// OAuth redirect landing point — no auth middleware (user is unauthenticated at this step)
+// OAuth redirect landing point - no auth middleware (user is unauthenticated at this step)
 // Reads state to identify user, exchanges code for token, stores it, redirects to frontend
 router.get('/callback', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
@@ -266,7 +266,7 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-// POST /api/social-connections/connect — manual / test connect
+// POST /api/social-connections/connect - manual / test connect
 router.post('/connect', auth, async (req, res) => {
   try {
     const { platform, access_token, refresh_token, account_name, account_id, expires_in } = req.body;

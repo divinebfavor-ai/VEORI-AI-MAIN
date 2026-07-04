@@ -1,5 +1,5 @@
 /**
- * verifyTwilioSignature — Express middleware that proves an inbound webhook
+ * verifyTwilioSignature - Express middleware that proves an inbound webhook
  * actually came from Twilio before we act on it.
  *
  * Twilio signs every webhook it sends with your Auth Token: it HMAC-SHA1s the
@@ -22,12 +22,12 @@ const twilio = require('twilio');
 
 function verifyTwilioSignature(req, res, next) {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  // No token configured yet — allow through so dev/local isn't blocked.
+  // No token configured yet - allow through so dev/local isn't blocked.
   if (!authToken) return next();
 
   const sig = req.get('X-Twilio-Signature');
   if (!sig) {
-    console.warn(`[TwilioWebhook] Rejected ${req.originalUrl} — missing X-Twilio-Signature`);
+    console.warn(`[TwilioWebhook] Rejected ${req.originalUrl} - missing X-Twilio-Signature`);
     return res.sendStatus(403);
   }
 
@@ -39,7 +39,7 @@ function verifyTwilioSignature(req, res, next) {
 
   const valid = twilio.validateRequest(authToken, sig, url, req.body || {});
   if (!valid) {
-    console.warn(`[TwilioWebhook] Rejected ${req.originalUrl} — invalid Twilio signature`);
+    console.warn(`[TwilioWebhook] Rejected ${req.originalUrl} - invalid Twilio signature`);
     return res.sendStatus(403);
   }
   return next();

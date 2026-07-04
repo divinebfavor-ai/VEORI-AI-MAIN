@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error('[FATAL] JWT_SECRET environment variable is not set. Refusing to start — tokens would be insecure.');
+  console.error('[FATAL] JWT_SECRET environment variable is not set. Refusing to start - tokens would be insecure.');
   process.exit(1);
 }
 
@@ -20,7 +20,7 @@ async function requireAuth(req, res, next) {
   }
 }
 
-// Optional auth — attaches user if token present, continues if not
+// Optional auth - attaches user if token present, continues if not
 async function optionalAuth(req, res, next) {
   const auth = req.headers.authorization;
   if (auth && auth.startsWith('Bearer ')) {

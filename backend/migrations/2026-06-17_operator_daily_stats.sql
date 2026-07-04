@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- operator_daily_stats — per-operator, per-day rollup of outreach + dispo volume.
+-- operator_daily_stats - per-operator, per-day rollup of outreach + dispo volume.
 --
 -- WHY: at 1M+ SMS / operator, summing sms_messages live for a 30-day window is a
 -- full table scan every dashboard load. This table holds ONE row per operator per
@@ -8,7 +8,7 @@
 --
 -- Populated nightly by analyticsRollup.rollupYesterday() via the RUN_CRON-gated
 -- "analytics-rollup" repeatable job (~00:15). Idempotent: re-running a day UPSERTs.
--- Additive only — nothing reads/writes this table except the rollup job + endpoints.
+-- Additive only - nothing reads/writes this table except the rollup job + endpoints.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS operator_daily_stats (

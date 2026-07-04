@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// emailSubjectAB — Tier 2b: A/B subject-line rotation for cold drips.
+// emailSubjectAB - Tier 2b: A/B subject-line rotation for cold drips.
 //
 // WHY: Subject line is the single biggest lever on open rate. Sending ONE fixed
 // subject to a whole list means you never learn which line works and you give
 // spam filters one more constant to fingerprint. This rotates each drip step
 // across a small set of equivalent subjects and records WHICH variant was used,
 // so the existing email_log engagement columns (opened_at/open_count from Tier 1)
-// already tell you the winner per variant — no new table needed.
+// already tell you the winner per variant - no new table needed.
 //
 // DETERMINISTIC per recipient: variant = hash(seed) % N, using the SAME seed as
 // the spintax engine, so a lead's subject is stable across retries and matches
@@ -15,7 +15,7 @@
 // SAFETY / ZERO-REGRESSION:
 //   • Pure data + one pure function. No I/O, no deps beyond the local hash.
 //   • If a step/template has NO registered variants, chooseSubject returns the
-//     ORIGINAL subject untouched and label 'A' — i.e. current behavior exactly.
+//     ORIGINAL subject untouched and label 'A' - i.e. current behavior exactly.
 //   • Variants are alternate phrasings ONLY; the address token is preserved so
 //     the personalization the templates already do is never lost.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,17 +28,17 @@ const { hash32 } = require('./emailSpintax');
 // short (2–3) so opens-per-variant stay statistically readable.
 const SUBJECT_VARIANTS = {
   coldDrip1: [
-    'Your property on ${address}',          // A — current
+    'Your property on ${address}',          // A - current
     'Quick question about ${address}',      // B
     'Cash offer for ${address}',            // C
   ],
   coldDrip2: [
-    'Re: ${address}',                       // A — current
-    'Following up — ${address}',            // B
+    'Re: ${address}',                       // A - current
+    'Following up - ${address}',            // B
     'Still thinking about ${address}?',     // C
   ],
   coldDrip3: [
-    'Last note on ${address}',              // A — current
+    'Last note on ${address}',              // A - current
     'Closing the loop on ${address}',       // B
   ],
 };

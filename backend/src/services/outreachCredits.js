@@ -1,5 +1,5 @@
 /**
- * Outreach Credit Meter — lead-outreach SMS metering & enforcement.
+ * Outreach Credit Meter - lead-outreach SMS metering & enforcement.
  *
  * SECOND meter, separate from the dial meter (calls_used / monthly_dial_limit).
  *   * DIAL meter    : AI voice calls            (calls.js / campaignManager.js)
@@ -39,7 +39,7 @@ const THRESHOLDS = [
 
 /**
  * Compute the live balance for an operator from an already-fetched user row.
- * Pure function — no I/O. Keeps the math in one place.
+ * Pure function - no I/O. Keeps the math in one place.
  */
 function computeBalance(u) {
   const allocation     = Math.max(0, u.monthly_allocation || 0);
@@ -96,13 +96,13 @@ async function reserve(userId, n = 1) {
       .eq('id', userId)
       .single();
     if (error || !data) {
-      // Fail OPEN — never silently swallow outreach on a read error.
-      console.warn(`[Outreach] meter read failed for ${userId} — allowing send (fail-open):`, error?.message);
+      // Fail OPEN - never silently swallow outreach on a read error.
+      console.warn(`[Outreach] meter read failed for ${userId} - allowing send (fail-open):`, error?.message);
       return { allowed: true, source: 'unmetered', balance: null };
     }
     u = data;
   } catch (e) {
-    console.warn(`[Outreach] meter read threw for ${userId} — allowing send (fail-open):`, e.message);
+    console.warn(`[Outreach] meter read threw for ${userId} - allowing send (fail-open):`, e.message);
     return { allowed: true, source: 'unmetered', balance: null };
   }
 
@@ -211,10 +211,10 @@ async function notifyThresholds(userId, percent) {
   if (target.pct >= 100) {
     title        = '⛔ Outreach credits exhausted';
     message      = `You've used all ${allocation.toLocaleString()} monthly outreach credits${topup ? ' and your top-up balance' : ''}. Lead outreach is paused. Buy a top-up or upgrade to resume.`;
-    emailSubject = 'Your Veori outreach is paused — out of credits';
+    emailSubject = 'Your Veori outreach is paused - out of credits';
   } else if (target.pct >= 95) {
     title        = '🔴 95% of outreach credits used';
-    message      = `You have ${remaining.toLocaleString()} outreach credits left this cycle. Outreach will pause when they run out — consider a top-up.`;
+    message      = `You have ${remaining.toLocaleString()} outreach credits left this cycle. Outreach will pause when they run out - consider a top-up.`;
     emailSubject = "You're at 95% of your Veori outreach credits";
   } else {
     title        = '🟡 80% of outreach credits used';
@@ -240,7 +240,7 @@ async function notifyThresholds(userId, percent) {
         userId,
         to:        u.email,
         subject:   emailSubject,
-        body:      `Hi ${u.full_name || 'there'},\n\n${message}\n\nManage your plan and top-ups in your Veori billing dashboard.\n\n— The Veori Team`,
+        body:      `Hi ${u.full_name || 'there'},\n\n${message}\n\nManage your plan and top-ups in your Veori billing dashboard.\n\n- The Veori Team`,
         emailType: 'outreach_credits',
       });
     } catch (e) {

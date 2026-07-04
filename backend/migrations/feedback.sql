@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_feedback_user_id   ON public.feedback (user_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_status    ON public.feedback (status);
 CREATE INDEX IF NOT EXISTS idx_feedback_created   ON public.feedback (created_at DESC);
 
--- RLS — users can only insert/read their own; service role reads all
+-- RLS - users can only insert/read their own; service role reads all
 ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users insert own feedback"  ON public.feedback FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
 CREATE POLICY "Users read own feedback"    ON public.feedback FOR SELECT USING (auth.uid() = user_id);

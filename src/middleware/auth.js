@@ -16,7 +16,7 @@ async function requireAuth(req, res, next) {
   }
 }
 
-// Optional auth — attaches user if token present, continues if not
+// Optional auth - attaches user if token present, continues if not
 async function optionalAuth(req, res, next) {
   const auth = req.headers.authorization;
   if (auth && auth.startsWith('Bearer ')) {

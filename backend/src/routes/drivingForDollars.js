@@ -1,5 +1,5 @@
 /**
- * Feature 14 — Driving for Dollars Mobile AI Mode
+ * Feature 14 - Driving for Dollars Mobile AI Mode
  * Routes: POST /api/dfd/pin, GET /api/dfd/pins, POST /api/dfd/session/start,
  *         PUT /api/dfd/session/:id/end, GET /api/dfd/sessions, POST /api/dfd/pin/:id/analyze
  */
@@ -71,7 +71,7 @@ router.get('/sessions', async (req, res) => {
   }
 });
 
-// POST /api/dfd/pin — add a pin
+// POST /api/dfd/pin - add a pin
 router.post('/pin', async (req, res) => {
   try {
     const { lat, lng, address, notes, condition, session_id } = req.body;
@@ -117,7 +117,7 @@ router.get('/pins', async (req, res) => {
   }
 });
 
-// POST /api/dfd/pin/:id/analyze — AI analysis of property condition
+// POST /api/dfd/pin/:id/analyze - AI analysis of property condition
 router.post('/pin/:id/analyze', async (req, res) => {
   try {
     const { address, condition, notes } = req.body;
@@ -156,7 +156,7 @@ router.post('/pin/:id/analyze', async (req, res) => {
   }
 });
 
-// POST /api/dfd/pin/:id/convert-lead — convert pin to lead
+// POST /api/dfd/pin/:id/convert-lead - convert pin to lead
 router.post('/pin/:id/convert-lead', async (req, res) => {
   try {
     const { first_name, last_name, phone, address } = req.body;
@@ -310,7 +310,7 @@ Return ONLY the JSON array, no other text.`;
     }).select().single().then(null, () => {}); // non-blocking
 
     // ── Step 4: Create campaign (draft) linked to these leads ─────────────────
-    // NOTE: DFD leads have no phone numbers yet — they need skip-tracing first.
+    // NOTE: DFD leads have no phone numbers yet - they need skip-tracing first.
     // We create the campaign in DRAFT so the user can skip-trace leads then
     // start the campaign manually from the Campaigns page. If they have their
     // own phone numbers on some leads, they can still start immediately.
@@ -329,7 +329,7 @@ Return ONLY the JSON array, no other text.`;
           .from('campaigns')
           .insert({
             user_id:          req.user.id,
-            name:             `AI DFD — ${zip}${city ? ' ' + city : ''} ${new Date().toLocaleDateString()}`,
+            name:             `AI DFD - ${zip}${city ? ' ' + city : ''} ${new Date().toLocaleDateString()}`,
             status:           'draft',
             concurrent_lines: 3,
             lead_filter:      { source: scanSource },
@@ -338,7 +338,7 @@ Return ONLY the JSON array, no other text.`;
 
         if (!campErr && campaign) {
           campaignId = campaign.id;
-          campaignStarted = true; // campaign created and ready — user starts when leads are skip-traced
+          campaignStarted = true; // campaign created and ready - user starts when leads are skip-traced
           console.log(`[DFD AI Scan] Campaign ${campaign.id} created (draft) with ${imported} leads`);
         }
       } catch (e) {
@@ -373,7 +373,7 @@ Return ONLY the JSON array, no other text.`;
   }
 });
 
-// GET /api/dfd/scans — history of AI scans
+// GET /api/dfd/scans - history of AI scans
 router.get('/scans', async (req, res) => {
   try {
     const { data, error } = await supabase

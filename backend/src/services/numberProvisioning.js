@@ -2,7 +2,7 @@
  * Number Pool Auto-Provisioning
  *
  * When an operator subscribes or upgrades, this service provisions the right
- * number of phone numbers for their plan — matched to the geographic distribution
+ * number of phone numbers for their plan - matched to the geographic distribution
  * of their actual leads. If they have 60% FL leads and 40% TX leads, they get
  * 60% FL area codes and 40% TX area codes.
  *
@@ -23,7 +23,7 @@ const supabase = require('../config/supabase');
 // Sized from each plan's monthly DIAL limit at the documented health rate of
 // 1,320 dials/number/month (60 dials/number/day × 22 working days):
 //   starter 3k→3 · solo 7k→6 · operator 15k→12 · scale 30k→23 · enterprise 50k→38.
-// (Dial tiers are unchanged from the prior plan set — only the names changed —
+// (Dial tiers are unchanged from the prior plan set - only the names changed -
 //  so these counts carry forward 1:1.) `founding_member` is kept ONLY as a safe
 // fallback for any legacy subscriber still on that retired tier; it is no longer
 // an offered plan.
@@ -33,16 +33,16 @@ const PLAN_NUMBER_COUNTS = {
   operator:        12,
   scale:           23,
   enterprise:      38,
-  founding_member: 3,   // retired tier — fallback only
+  founding_member: 3,   // retired tier - fallback only
 };
 
 // ── Toll-free vs. local split ────────────────────────────────────────────────
 // Best-practice split for real-estate cold calling (decided with the owner):
-//   * The BULK of every plan is LOCAL — local presence (seller's own area code)
+//   * The BULK of every plan is LOCAL - local presence (seller's own area code)
 //     gets the most answers on OUTBOUND cold calls. These are lead-geo matched.
 //   * A SMALL FIXED number of TOLL-FREE lines provide a stable, A2P-10DLC-bypassing
 //     "call us back" / inbound + caller-ID-trust line. Toll-free does NOT scale
-//     linearly with dial volume — a couple is enough at any plan size.
+//     linearly with dial volume - a couple is enough at any plan size.
 // Monday's pricing reshape only needs to touch THIS map (single source of truth).
 const PLAN_TOLLFREE_COUNTS = {
   starter:         1,
@@ -50,7 +50,7 @@ const PLAN_TOLLFREE_COUNTS = {
   operator:        2,
   scale:           2,
   enterprise:      2,
-  founding_member: 1,   // retired tier — fallback only
+  founding_member: 1,   // retired tier - fallback only
 };
 
 /**
@@ -148,8 +148,8 @@ async function buildAreaCodeListFromLeads(userId, needed) {
     .limit(10000);
 
   if (!leads?.length) {
-    // No leads yet — use fallback top markets
-    console.log('[NumberProvisioning] No leads found — using top-market fallback area codes');
+    // No leads yet - use fallback top markets
+    console.log('[NumberProvisioning] No leads found - using top-market fallback area codes');
     const codes = [];
     for (let i = 0; i < needed; i++) codes.push(FALLBACK_AREA_CODES[i % FALLBACK_AREA_CODES.length]);
     return codes;
@@ -237,7 +237,7 @@ async function buyLocalTwilioNumber(userId, areaCode, label) {
     console.warn(`[NumberProvisioning][Twilio] area-code ${areaCode} search failed: ${e.message}`);
   }
 
-  // 2. Fallback — any voice-capable US local number (keeps provisioning moving
+  // 2. Fallback - any voice-capable US local number (keeps provisioning moving
   //    when a specific area code is exhausted).
   if (!candidates.length) {
     candidates = await twilio.availablePhoneNumbers('US').local.list({ voiceEnabled: true, limit: 5 });
@@ -252,9 +252,9 @@ async function buyLocalTwilioNumber(userId, areaCode, label) {
     friendlyName: label,
   });
   const number = purchased.phoneNumber || chosen;
-  const twilioSidNumber = purchased.sid || null; // PNxxxx — proof this number lives in the operator's OWN Twilio account.
+  const twilioSidNumber = purchased.sid || null; // PNxxxx - proof this number lives in the operator's OWN Twilio account.
 
-  // 4. Vapi is DECOMMISSIONED — the buy path no longer depends on it. The number
+  // 4. Vapi is DECOMMISSIONED - the buy path no longer depends on it. The number
   //    is already dialable from the operator's own Twilio account (it owns the SID
   //    above). We only attempt a Vapi import if the break-glass flag is explicitly
   //    set, and even then a failure NEVER aborts the purchase.
@@ -361,7 +361,7 @@ async function buyTollFreeTwilioNumber(userId, label) {
     area_code:            boughtPrefix,
     state:                null,            // toll-free is not geographic
     vapi_phone_number_id: vapiId,
-    twilio_phone_number_sid: purchased.sid || null,  // PNxxxx — needed to submit toll-free SMS verification
+    twilio_phone_number_sid: purchased.sid || null,  // PNxxxx - needed to submit toll-free SMS verification
     provider:             'twilio',
     is_toll_free:         true,
     pool_status:          'assigned',
@@ -453,7 +453,7 @@ async function provisionSingleNumber(userId, areaCode, label) {
  *
  * The plan total is split into { tollFree, local } (see splitNumberCounts):
  *   - LOCAL numbers are geographically matched to the operator's lead distribution
- *     (the bulk — best answer rates on outbound).
+ *     (the bulk - best answer rates on outbound).
  *   - TOLL-FREE numbers are a small fixed count (stable inbound / call-back line).
  *
  * Idempotent: counts existing toll-free and local SEPARATELY and only buys the
@@ -462,7 +462,7 @@ async function provisionSingleNumber(userId, areaCode, label) {
 async function provisionNumberPool(userId, plan) {
   const { total, tollFree: tollFreeTarget, local: localTarget } = splitNumberCounts(plan);
   if (!total) {
-    console.log(`[NumberProvisioning] Unknown plan: ${plan} — skipping`);
+    console.log(`[NumberProvisioning] Unknown plan: ${plan} - skipping`);
     return { provisioned: 0, already_had: 0, target: 0 };
   }
 
@@ -498,12 +498,12 @@ async function provisionNumberPool(userId, plan) {
   let localProvisioned    = 0;
   const errors           = [];
 
-  // 1. Toll-free first (Twilio-only — needs Twilio creds; skipped cleanly if absent).
+  // 1. Toll-free first (Twilio-only - needs Twilio creds; skipped cleanly if absent).
   const canBuyTwilio = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
   for (let i = 0; i < tollFreeNeeded; i++) {
     const label = `Veori Toll-Free ${haveTollFree + i + 1}`;
     if (!canBuyTwilio) {
-      errors.push({ type: 'toll_free', error: 'Twilio credentials not configured — toll-free skipped' });
+      errors.push({ type: 'toll_free', error: 'Twilio credentials not configured - toll-free skipped' });
       break;
     }
     try {
@@ -525,7 +525,7 @@ async function provisionNumberPool(userId, plan) {
       const label    = `Veori Line ${haveLocal + i + 1} (${areaCode})`;
       try {
         const result = await provisionSingleNumber(userId, areaCode, label);
-        console.log(`[NumberProvisioning] ✅ ${result.number} — ${result.state || areaCode}`);
+        console.log(`[NumberProvisioning] ✅ ${result.number} - ${result.state || areaCode}`);
         provisioned++; localProvisioned++;
         if (i < localNeeded - 1) await new Promise(r => setTimeout(r, 1500));
       } catch (err) {
@@ -535,18 +535,18 @@ async function provisionNumberPool(userId, plan) {
     }
   }
 
-  console.log(`[NumberProvisioning] Complete — ${provisioned}/${tollFreeNeeded + localNeeded} provisioned for ${userId} (TF ${tollFreeProvisioned}, local ${localProvisioned})`);
+  console.log(`[NumberProvisioning] Complete - ${provisioned}/${tollFreeNeeded + localNeeded} provisioned for ${userId} (TF ${tollFreeProvisioned}, local ${localProvisioned})`);
   return { provisioned, already_had: alreadyHad, target: total, tollFree: tollFreeProvisioned, local: localProvisioned, errors };
 }
 
 // Health math: each number safely handles this many calls/day before spam risk.
-// Must match DAILY_MAX in phoneRotation.js — the enforced rotation cap.
+// Must match DAILY_MAX in phoneRotation.js - the enforced rotation cap.
 const CALLS_PER_NUMBER_PER_DAY = 60;
 // Safety clamp so a single huge import can't drain the whole shared pool at once.
 const MAX_AUTO_ASSIGN = 80;
 
 // ── Auto-buy pace (ensureCallingCapacity) ────────────────────────────────────
-// Operators in this allowlist get "aggressive" sizing — enough LOCAL numbers to
+// Operators in this allowlist get "aggressive" sizing - enough LOCAL numbers to
 // call every lead within ~2 work-weeks. Everyone else is sized for a ~1-month
 // healthy burn. Keyed by user id (no schema column needed).
 const AGGRESSIVE_OPERATOR_IDS = ['c7429397-e6a5-4d57-8a21-2eab0dfc3fea'];
@@ -558,7 +558,7 @@ const WORKING_DAYS_ONE_MONTH  = 22;   // ~1 work-month (default)
  * while keeping each number healthy (≤40 calls/day). Sizes to ACTUAL callable lead
  * volume, then assigns the shortfall instantly from the shared pool.
  *
- * Pure DB + pool assignment — no Twilio/Vapi API call, so it works even when keys
+ * Pure DB + pool assignment - no Twilio/Vapi API call, so it works even when keys
  * are unavailable. Idempotent: recounts each call, only assigns what's missing.
  *
  * @param {string} userId
@@ -567,7 +567,7 @@ const WORKING_DAYS_ONE_MONTH  = 22;   // ~1 work-month (default)
 async function ensureCapacity(userId) {
   const { assignFromPool } = require('./poolService');
 
-  // 1. Count callable leads — not on DNC, has a phone number.
+  // 1. Count callable leads - not on DNC, has a phone number.
   const { count: callableLeads } = await supabase
     .from('leads')
     .select('*', { count: 'exact', head: true })
@@ -587,12 +587,12 @@ async function ensureCapacity(userId) {
 
   const current = currentNumbers || 0;
 
-  // 3. Health math — numbers needed for this call volume, clamped to the safety cap.
+  // 3. Health math - numbers needed for this call volume, clamped to the safety cap.
   const needed    = Math.min(Math.ceil(callable / CALLS_PER_NUMBER_PER_DAY), MAX_AUTO_ASSIGN);
   const shortfall = Math.max(0, needed - current);
 
   if (shortfall === 0) {
-    console.log(`[EnsureCapacity] ${userId} — ${callable} callable leads, has ${current}/${needed} numbers — no assignment needed`);
+    console.log(`[EnsureCapacity] ${userId} - ${callable} callable leads, has ${current}/${needed} numbers - no assignment needed`);
     return { callableLeads: callable, currentNumbers: current, needed, shortfall: 0, assigned: 0, pool_remaining: null };
   }
 
@@ -600,9 +600,9 @@ async function ensureCapacity(userId) {
   const result = await assignFromPool(userId, shortfall);
 
   if (result.assigned < shortfall) {
-    console.warn(`[EnsureCapacity] ${userId} — pool short: needed ${shortfall}, assigned ${result.assigned}, ${result.pool_remaining} left in pool. REFILL POOL.`);
+    console.warn(`[EnsureCapacity] ${userId} - pool short: needed ${shortfall}, assigned ${result.assigned}, ${result.pool_remaining} left in pool. REFILL POOL.`);
   } else {
-    console.log(`[EnsureCapacity] ${userId} — assigned ${result.assigned} number(s) for ${callable} callable leads (${result.pool_remaining} left in pool)`);
+    console.log(`[EnsureCapacity] ${userId} - assigned ${result.assigned} number(s) for ${callable} callable leads (${result.pool_remaining} left in pool)`);
   }
 
   return {
@@ -625,14 +625,14 @@ async function ensureCapacity(userId) {
  *      for everyone else) at the healthy rate of 60 dials/number/day.
  *   2. Clamps that to the plan's LOCAL allotment (splitNumberCounts).
  *   3. Compares against LOCAL numbers already owned, per state, and BUYS only the
- *      shortfall — geographically matched to the lead distribution (via the same
+ *      shortfall - geographically matched to the lead distribution (via the same
  *      buildAreaCodeListFromLeads engine used by provisionNumberPool), through the
  *      uncapped Twilio→Vapi path (buyLocalTwilioNumber).
  *
  * Idempotent: re-importing the same leads won't re-buy (shortfall becomes 0).
- * Never throws — a provisioning failure must never break a lead import.
+ * Never throws - a provisioning failure must never break a lead import.
  *
- * NOTE: toll-free numbers are intentionally ignored here — they are SMS-only and
+ * NOTE: toll-free numbers are intentionally ignored here - they are SMS-only and
  * excluded from call rotation (phoneRotation.js). This function only manages the
  * LOCAL calling fleet.
  *
@@ -644,7 +644,7 @@ async function ensureCallingCapacity(userId) {
     // Auto-buy uses the uncapped Twilio→Vapi path ONLY. Without Twilio creds we
     // do nothing (never silently create capped Vapi-owned numbers in background).
     if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
-      console.log(`[CallingCapacity] ${userId} — Twilio not configured, skipping auto-buy`);
+      console.log(`[CallingCapacity] ${userId} - Twilio not configured, skipping auto-buy`);
       return { skipped: 'no_twilio' };
     }
 
@@ -667,7 +667,7 @@ async function ensureCallingCapacity(userId) {
     const plan = u?.subscription_plan || 'starter';
     const { local: localTarget } = splitNumberCounts(plan);
     if (!localTarget) {
-      console.log(`[CallingCapacity] ${userId} — plan '${plan}' has 0 local allotment, skipping`);
+      console.log(`[CallingCapacity] ${userId} - plan '${plan}' has 0 local allotment, skipping`);
       return { skipped: 'no_local_allotment', plan };
     }
 
@@ -694,7 +694,7 @@ async function ensureCallingCapacity(userId) {
 
     const shortfall = Math.max(0, neededLocal - currentLocal);
     if (shortfall === 0) {
-      console.log(`[CallingCapacity] ${userId} — ${callable} callable leads, has ${currentLocal}/${neededLocal} local (${paceDays}d pace, ${plan}) — no buy needed`);
+      console.log(`[CallingCapacity] ${userId} - ${callable} callable leads, has ${currentLocal}/${neededLocal} local (${paceDays}d pace, ${plan}) - no buy needed`);
       return { callableLeads: callable, currentLocal, neededLocal, localTarget, pace_days: paceDays, bought: 0 };
     }
 
@@ -719,7 +719,7 @@ async function ensureCallingCapacity(userId) {
     while (buyList.length > shortfall) buyList.pop();
     while (buyList.length < shortfall) buyList.push(idealAreaCodes[buyList.length % idealAreaCodes.length]);
 
-    console.log(`[CallingCapacity] ${userId} — ${callable} callable leads, plan '${plan}', ${paceDays}d pace → need ${neededLocal} local, have ${currentLocal}, buying ${buyList.length}: [${buyList.join(', ')}]`);
+    console.log(`[CallingCapacity] ${userId} - ${callable} callable leads, plan '${plan}', ${paceDays}d pace → need ${neededLocal} local, have ${currentLocal}, buying ${buyList.length}: [${buyList.join(', ')}]`);
 
     // 6. Buy the shortfall (uncapped Twilio→Vapi). Each failure logged; loop continues.
     let bought = 0;
@@ -729,7 +729,7 @@ async function ensureCallingCapacity(userId) {
       const label    = `Veori Line ${currentLocal + bought + 1} (${areaCode})`;
       try {
         const result = await buyLocalTwilioNumber(userId, areaCode, label);
-        console.log(`[CallingCapacity] ✅ bought ${result.number} — ${result.state || areaCode}`);
+        console.log(`[CallingCapacity] ✅ bought ${result.number} - ${result.state || areaCode}`);
         bought++;
         if (i < buyList.length - 1) await new Promise(r => setTimeout(r, 1500));
       } catch (err) {
@@ -738,17 +738,17 @@ async function ensureCallingCapacity(userId) {
       }
     }
 
-    console.log(`[CallingCapacity] ${userId} — complete: bought ${bought}/${buyList.length}`);
+    console.log(`[CallingCapacity] ${userId} - complete: bought ${bought}/${buyList.length}`);
     return { callableLeads: callable, currentLocal, neededLocal, localTarget, pace_days: paceDays, bought, errors };
   } catch (err) {
     // Never let a provisioning failure break a lead import.
-    console.error(`[CallingCapacity] ${userId} — unexpected error: ${err.message}`);
+    console.error(`[CallingCapacity] ${userId} - unexpected error: ${err.message}`);
     return { skipped: 'error', error: err.message };
   }
 }
 
 // ── Toll-free SMS verification (auto, on Veori's behalf) ─────────────────────
-// Twilio enums (must match Twilio's accepted values — mirrors phones.js).
+// Twilio enums (must match Twilio's accepted values - mirrors phones.js).
 const TF_OPT_IN_TYPES   = ['VERBAL', 'WEB_FORM', 'PAPER_FORM', 'VIA_TEXT', 'MOBILE_QR_CODE', 'IMPORT'];
 const TF_BUSINESS_TYPES = ['PRIVATE_PROFIT', 'PUBLIC_PROFIT', 'SOLE_PROPRIETOR', 'NON_PROFIT', 'GOVERNMENT'];
 
@@ -763,11 +763,11 @@ function mapTwilioVerifyStatus(twStatus) {
 
 /**
  * File a Twilio toll-free SMS verification for a number Veori bought, using the
- * operator's STORED business identity (from the `users` row) — no operator action,
+ * operator's STORED business identity (from the `users` row) - no operator action,
  * no Twilio console. Flips the number to 'pending' on success.
  *
  * Additive twin of POST /api/phones/:id/sms-verification/submit, but fed by stored
- * identity instead of a request body. Never throws — provisioning must not break.
+ * identity instead of a request body. Never throws - provisioning must not break.
  *
  * @param {string} userId
  * @param {{id:string, number?:string, twilio_phone_number_sid:string}} phoneRow
@@ -797,7 +797,7 @@ async function submitTollFreeVerification(userId, phoneRow) {
   const useCaseSummary  = u.sms_use_case_summary
     || 'Real-estate outreach: we text property owners who expressed interest in selling, to follow up on their inquiry and coordinate next steps.';
   const messageSample   = u.sms_message_sample
-    || 'Hi, this is regarding your property — are you still open to a cash offer? Reply STOP to opt out.';
+    || 'Hi, this is regarding your property - are you still open to a cash offer? Reply STOP to opt out.';
 
   // Minimum coherent request. If the operator hasn't set a business name yet,
   // skip cleanly (they'll complete identity in Settings; re-file happens later).
@@ -807,13 +807,13 @@ async function submitTollFreeVerification(userId, phoneRow) {
 
   // Twilio now REQUIRES OptInImageUrls (public image URLs proving recipient opt-in).
   // Filing without them fails with "optInImageUrls is required". When the operator
-  // hasn't hosted any yet, SKIP cleanly here — the toll-free purchase must NOT break
+  // hasn't hosted any yet, SKIP cleanly here - the toll-free purchase must NOT break
   // on this. The operator files later from Settings (which collects the image URLs).
   const optInImageUrls = Array.isArray(u.sms_opt_in_image_urls)
     ? u.sms_opt_in_image_urls.map(s => String(s).trim()).filter(Boolean)
     : [];
   if (!optInImageUrls.length) {
-    return { submitted: false, reason: 'No opt-in proof image URLs on file — file toll-free SMS verification from Settings once opt-in images are hosted' };
+    return { submitted: false, reason: 'No opt-in proof image URLs on file - file toll-free SMS verification from Settings once opt-in images are hosted' };
   }
 
   const businessType = TF_BUSINESS_TYPES.includes(u.sms_business_type) ? u.sms_business_type : 'PRIVATE_PROFIT';

@@ -1,26 +1,26 @@
 /**
- * Custom SMS Service — operator-authored SMS copy, guard-railed to wholesale real estate.
+ * Custom SMS Service - operator-authored SMS copy, guard-railed to wholesale real estate.
  *
  * Operators can write (or AI-generate) their OWN outreach text instead of being limited
  * to the built-in per-tag templates. This module owns the three pieces that make that
  * safe and personal:
  *
- *   1. renderTemplate(body, lead, operatorName) — swaps {first_name} / {address} / {city}
+ *   1. renderTemplate(body, lead, operatorName) - swaps {first_name} / {address} / {city}
  *      / {operator} / {county} placeholders for this lead's real values at send time, so
  *      one saved template personalizes per lead (same fields the built-in templates use).
  *
- *   2. moderateTemplate(text) — the guardrail. A cheap deterministic fraud/off-topic
+ *   2. moderateTemplate(text) - the guardrail. A cheap deterministic fraud/off-topic
  *      pre-filter runs first (free, no token call); only text that clears it goes to a
  *      GPT-4o-mini classifier that confirms it is legitimate WHOLESALE REAL-ESTATE
  *      outreach. Returns { allowed, reason }. Used at BOTH save-time and generate-time so
  *      nothing off-topic can ever be stored or blasted.
  *
- *   3. generateTemplate({ leadType, angle, operatorName }) — AI writes a compliant
+ *   3. generateTemplate({ leadType, angle, operatorName }) - AI writes a compliant
  *      wholesale-RE SMS for a given lead type, then self-moderates it before returning.
  *      The operator REVIEWS the draft; nothing here sends anything.
  *
  * This module never sends an SMS and never bypasses DNC, outreach credits, or TCPA
- * quiet-hours — those gates remain entirely in smsService/smsFirstWorkflow at send time.
+ * quiet-hours - those gates remain entirely in smsService/smsFirstWorkflow at send time.
  * It only decides WHAT the body says and WHETHER that body is allowed.
  */
 
@@ -60,9 +60,9 @@ function renderTemplate(body, lead = {}, operatorName = 'Alex') {
 // ── Deterministic fraud / off-topic pre-filter ───────────────────────────────
 // Free, instant, runs BEFORE the AI classifier so we never spend a token call on
 // obvious garbage. Two checks:
-//   • RED_FLAGS — terms that have no place in legitimate wholesale outreach
+//   • RED_FLAGS - terms that have no place in legitimate wholesale outreach
 //     (scams, payment-harvesting, unrelated verticals). Any hit → blocked.
-//   • RE_INTENT — the text must show at least one real-estate/wholesale signal,
+//   • RE_INTENT - the text must show at least one real-estate/wholesale signal,
 //     so a blank or wholly-unrelated message can't slip through.
 const RED_FLAGS = [
   // financial-fraud / phishing / payment harvesting
@@ -105,7 +105,7 @@ function prefilter(text) {
  * Pre-filter first (free), then a GPT-4o-mini classifier for the nuanced call.
  * Fail-safe: if OpenAI isn't configured or errors AND the text already cleared the
  * deterministic pre-filter, we ALLOW it (the cheap check already removed fraud and
- * off-topic copy — we don't block legitimate operators on an API outage).
+ * off-topic copy - we don't block legitimate operators on an API outage).
  * @param {string} text  the template body (tokens or rendered, both fine)
  * @returns {Promise<{allowed:boolean, reason:string}>}
  */
@@ -154,7 +154,7 @@ async function moderateTemplate(text) {
     if (verdict.allowed === false) {
       return { allowed: false, reason: verdict.reason || 'Not recognized as wholesale real-estate outreach.' };
     }
-    // Default to allow when the classifier says allowed (or is ambiguous) — the
+    // Default to allow when the classifier says allowed (or is ambiguous) - the
     // deterministic pre-filter already removed fraud/off-topic copy.
     return { allowed: true, reason: verdict.reason || 'ok' };
   } catch (e) {

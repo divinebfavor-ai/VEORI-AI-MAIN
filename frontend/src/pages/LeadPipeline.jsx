@@ -1,5 +1,5 @@
 /**
- * Lead Pipeline — Kanban board for lead stages
+ * Lead Pipeline - Kanban board for lead stages
  * Five columns: New / Contacted / Interested / Offer Made / Closed
  * Click card to move stage. Drag not used (HTML5 DnD for zero-dependency move).
  */

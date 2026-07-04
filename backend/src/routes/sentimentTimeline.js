@@ -1,7 +1,7 @@
 /**
  * /api/sentiment
- * Seller Sentiment Timeline — track sentiment per call/SMS interaction
- * NEW FILE — does not modify any existing routes
+ * Seller Sentiment Timeline - track sentiment per call/SMS interaction
+ * NEW FILE - does not modify any existing routes
  */
 const express  = require('express');
 const supabase = require('../config/supabase');
@@ -16,7 +16,7 @@ function tableMissing(err) {
   return err?.code === 'PGRST205' || (err?.message || '').includes('does not exist');
 }
 
-// GET /api/sentiment/:leadId — full sentiment timeline for a lead
+// GET /api/sentiment/:leadId - full sentiment timeline for a lead
 router.get('/:leadId', async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -34,7 +34,7 @@ router.get('/:leadId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/sentiment/user/summary — sentiment distribution across all leads
+// GET /api/sentiment/user/summary - sentiment distribution across all leads
 router.get('/user/summary', async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -61,7 +61,7 @@ router.get('/user/summary', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/sentiment — add a sentiment event
+// POST /api/sentiment - add a sentiment event
 router.post('/', async (req, res, next) => {
   try {
     const { lead_id, call_id, source = 'call', sentiment, score, notes } = req.body;

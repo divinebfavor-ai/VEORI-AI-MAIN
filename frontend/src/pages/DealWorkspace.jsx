@@ -279,7 +279,7 @@ export default function DealWorkspace() {
   const [velocityScore, setVelocityScore] = useState(null)
   const [dealBrief, setDealBrief] = useState(null)
   const [loadingBrief, setLoadingBrief] = useState(false)
-  // Post-contract lifecycle — EMD + assignment-fee suggester + wire instructions
+  // Post-contract lifecycle - EMD + assignment-fee suggester + wire instructions
   const [feeSuggestion, setFeeSuggestion] = useState(null)
   const [loadingFee, setLoadingFee] = useState(false)
   const [applyingFee, setApplyingFee] = useState(false)
@@ -388,7 +388,7 @@ export default function DealWorkspace() {
       if (result.content) {
         setPreviewContract({ type, ...result })
         if (Array.isArray(result.missing) && result.missing.length) {
-          toast(`Generated as draft — fill in: ${result.missing.join(', ')}`, { icon: '⚠️' })
+          toast(`Generated as draft - fill in: ${result.missing.join(', ')}`, { icon: '⚠️' })
         } else {
           toast.success(`${(result.doc_title || type).toString()} ready`)
         }
@@ -1462,7 +1462,7 @@ export default function DealWorkspace() {
                     style={{ background: 'var(--s2)', border: '1px solid var(--border-rest)', borderRadius: 5, padding: '8px 10px', fontSize: 12, color: 'var(--t1)', outline: 'none', fontFamily: 'inherit', resize: 'vertical' }}
                   />
                   <p style={{ fontSize: 10, color: 'var(--t4)', lineHeight: 1.5, margin: 0 }}>
-                    Store only last-4 references — never full account or routing numbers.
+                    Store only last-4 references - never full account or routing numbers.
                   </p>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Button variant="primary" size="sm" loading={savingWire} onClick={saveWire}>Save for this deal</Button>

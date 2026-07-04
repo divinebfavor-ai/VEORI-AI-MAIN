@@ -13,7 +13,7 @@
   <circle cx="100" cy="100" r="100" fill="#050A14"/>
 
   <g clip-path="url(#bounds)" transform="rotate(20, 100, 100)">
-    <!-- Green — tilted right +30deg -->
+    <!-- Green - tilted right +30deg -->
     <rect x="26" y="26" width="148" height="148" rx="36" ry="36"
       fill="none"
       stroke="#00C37A"
@@ -21,7 +21,7 @@
       transform="rotate(30, 100, 100)"
     />
 
-    <!-- Gold — tilted left -30deg -->
+    <!-- Gold - tilted left -30deg -->
     <rect x="26" y="26" width="148" height="148" rx="36" ry="36"
       fill="none"
       stroke="#C9A84C"

@@ -43,7 +43,7 @@ async function runTitleWarningsScan() {
         });
       }
 
-      // Stale title — no update in 5+ days
+      // Stale title - no update in 5+ days
       const lastUpdate = deal.stage_changed_at ? new Date(deal.stage_changed_at) : null;
       const daysSinceUpdate = lastUpdate
         ? Math.floor((now - lastUpdate) / 86400000)

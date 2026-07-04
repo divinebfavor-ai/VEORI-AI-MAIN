@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { getStateCompliance, getContractDisclosure, STATE_COMPLIANCE } = require('../data/stateCompliance');
 const router = express.Router();
 
-// GET /api/compliance/states — get all state compliance rules
+// GET /api/compliance/states - get all state compliance rules
 router.get('/states', requireAuth, async (_req, res) => {
   res.json({ success: true, states: STATE_COMPLIANCE });
 });

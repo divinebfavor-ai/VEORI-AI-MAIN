@@ -1,14 +1,14 @@
 /**
- * SMS Number Rotation — spreads outbound blast SMS across an operator's senders
+ * SMS Number Rotation - spreads outbound blast SMS across an operator's senders
  * so high-volume outreach doesn't get carrier-filtered ("cut off") on a single
  * long-code, and so each number stays under its carrier-safe daily ceiling.
  *
  * Sender priority (mirrors smsService.sendSMS's 3-tier routing, but rotation-aware):
  *   1. operator's OWN A2P 10DLC Messaging Service (users.a2p_messaging_service_sid)
- *      — a registered service can sustain high throughput on its own, so when one
+ *      - a registered service can sustain high throughput on its own, so when one
  *      exists we always use it (Twilio load-balances inside the service).
- *   2. else ROTATE across the operator's phone_numbers pool — SMS-enabled, active,
- *      not released, still under sms_daily_limit — least-recently-used first.
+ *   2. else ROTATE across the operator's phone_numbers pool - SMS-enabled, active,
+ *      not released, still under sms_daily_limit - least-recently-used first.
  *      Toll-free numbers ARE included (unlike the voice rotator).
  *
  * Returns a sender the worker passes straight to Twilio:
@@ -18,7 +18,7 @@
  *
  * recordSmsSent() bumps the chosen number's daily counter + LRU marker so the
  * next pick rotates onward. Daily counters are zeroed by the sms-daily-reset
- * repeatable job (queueService) — recordSmsSent also self-heals a stale counter
+ * repeatable job (queueService) - recordSmsSent also self-heals a stale counter
  * if the reset job hasn't run yet.
  *
  * Columns (see migrations/2026-06-17_sms_blast_engine.sql):
@@ -45,7 +45,7 @@ async function selectSmsNumber(userId) {
     return null;
   }
 
-  // 1. Operator's own A2P Messaging Service — best, no rotation needed.
+  // 1. Operator's own A2P Messaging Service - best, no rotation needed.
   try {
     const { data: op } = await supabase
       .from('users')
@@ -84,11 +84,11 @@ async function selectSmsNumber(userId) {
   //
   // STAGE POLICY (pre-A2P): SMS only ever sends from a carrier-VERIFIED TOLL-FREE
   // number. Local numbers are CALLS-ONLY (bought on Twilio, imported into Vapi for
-  // the voice dialer) and must NEVER be chosen as an SMS sender — carriers also
+  // the voice dialer) and must NEVER be chosen as an SMS sender - carriers also
   // silently filter SMS from un-verified toll-free numbers. So the deliverable
   // SMS pool is strictly: is_toll_free === true AND sms_verification_status ===
   // 'verified'. (When A2P 10DLC is funded later, local SMS routes via the
-  // operator's Messaging Service in smsService — tier 1 — not through this pool.)
+  // operator's Messaging Service in smsService - tier 1 - not through this pool.)
   const deliverable = candidates.filter(c =>
     c.is_toll_free && c.sms_verification_status === 'verified');
 
@@ -114,7 +114,7 @@ async function selectSmsNumber(userId) {
 /**
  * Record a successful send against a rotation number: bump its daily counter and
  * stamp the LRU marker. Self-heals a stale daily counter (resets to 1 if the
- * stored reset date is before today). Best-effort — never throws.
+ * stored reset date is before today). Best-effort - never throws.
  * @param {string|null} numberId  phone_numbers.id (null for MGS / env senders)
  */
 async function recordSmsSent(numberId) {

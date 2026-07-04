@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { enrollLeadInSequence, SEQUENCE_DEFINITIONS } = require('../services/sequenceEngine');
 const router = express.Router();
 
-// GET /api/sequences — list active sequences for user
+// GET /api/sequences - list active sequences for user
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const { data, error } = await supabase.from('sequences')
@@ -28,7 +28,7 @@ router.post('/enroll', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/sequences/:id — cancel a sequence
+// DELETE /api/sequences/:id - cancel a sequence
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     await supabase.from('sequences').update({ status: 'cancelled' }).eq('id', req.params.id).eq('user_id', req.user.id);

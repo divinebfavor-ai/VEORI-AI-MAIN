@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   VEORI GLASS — Design System Foundation
+   VEORI GLASS - Design System Foundation
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─── Dark mode (default) ────────────────────────────────────────────────── */
@@ -16,7 +16,7 @@
 
   --rail-width: 240px;
 
-  /* Brand accents — same in both modes */
+  /* Brand accents - same in both modes */
   --green:  #00C37A;
   --gold:   #C9A84C;
   --red:    #FF4444;
@@ -69,13 +69,13 @@
 
 /* ─── Light mode token overrides ────────────────────────────────────────── */
 [data-theme="light"] {
-  /* Warm off-white app shell — cards pop off it */
+  /* Warm off-white app shell - cards pop off it */
   --app-bg: #ECEEF2;
 
   --sidebar-bg:           rgba(255,255,255,0.97);
   --sidebar-border:       rgba(0,0,0,0.09);
 
-  /* Cards: pure white with visible border + shadow — clearly darker than the bg */
+  /* Cards: pure white with visible border + shadow - clearly darker than the bg */
   --card-bg:              #FFFFFF;
   --card-border:          rgba(0,0,0,0.13);
   --card-bg-hover:        #FAFAFA;
@@ -121,7 +121,7 @@
 /* ─── Light mode: fix invisible white text inside the app layout ────────────
    Scoped to [data-app-layout] so Login/Register/Landing keep their dark design.
    Targets inline styles with hardcoded white (107 instances across app pages).
-   Colored text (green, red, amber) uses specific rgb values — not affected.     */
+   Colored text (green, red, amber) uses specific rgb values - not affected.     */
 
 /* Pure white text → near-black */
 [data-theme="light"] [data-app-layout] [style*="color: rgb(255, 255, 255)"],
@@ -157,7 +157,7 @@
   color: #0D0D0F !important;
 }
 
-/* White backgrounds that need to flip — dark panels inside the app */
+/* White backgrounds that need to flip - dark panels inside the app */
 [data-theme="light"] [data-app-layout] [style*="background: rgb(0, 0, 0)"],
 [data-theme="light"] [data-app-layout] [style*="background: #000000"],
 [data-theme="light"] [data-app-layout] [style*="background: #060E1A"],
@@ -166,7 +166,7 @@
   border: 1px solid rgba(0,0,0,0.10) !important;
 }
 
-/* ─── Light mode: make ALL text black — keep colors as-is ───────────────── */
+/* ─── Light mode: make ALL text black - keep colors as-is ───────────────── */
 
 /* CATCH-ALL: every element defaults to rich black text in light mode.
    Color-specific classes (green, gold, red, amber) are excluded below. */
@@ -183,7 +183,7 @@
 [data-theme="light"] .text-warning        { color: #CC7700 !important; }
 [data-theme="light"] .text-success        { color: #00C37A !important; }
 
-/* Secondary and muted text — still black, just at lower opacity */
+/* Secondary and muted text - still black, just at lower opacity */
 [data-theme="light"] .text-text-secondary { color: rgba(13,13,15,0.68) !important; }
 [data-theme="light"] .text-text-muted     { color: rgba(13,13,15,0.48) !important; }
 [data-theme="light"] .label-caps          { color: rgba(13,13,15,0.45) !important; }
@@ -203,7 +203,7 @@
 [data-theme="light"] .border-border-default   { border-color: rgba(0,0,0,0.15) !important; }
 [data-theme="light"] .divide-border-subtle > * + * { border-color: rgba(0,0,0,0.09); }
 
-/* Inputs — white background, black text */
+/* Inputs - white background, black text */
 [data-theme="light"] input,
 [data-theme="light"] textarea,
 [data-theme="light"] select {
@@ -337,7 +337,7 @@ body {
   border-right: 1px solid rgba(255,255,255,0.07);
   border-left: 1px solid rgba(255,255,255,0.03);
 
-  /* Top highlight — glass refraction */
+  /* Top highlight - glass refraction */
   box-shadow:
     inset 1px 0 0 rgba(255,255,255,0.06),
     inset -1px 0 0 rgba(0,0,0,0.1),
@@ -453,8 +453,8 @@ h1, h2, h3, h4 { font-family: 'Geist', 'Inter', sans-serif; color: var(--t1); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LIGHT MODE — SIDEBAR NAV ITEM OVERRIDES
-   (inline styles in CommandRail use hardcoded colors — override via CSS)
+   LIGHT MODE - SIDEBAR NAV ITEM OVERRIDES
+   (inline styles in CommandRail use hardcoded colors - override via CSS)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 [data-theme="light"] .nav-item-label {
@@ -737,7 +737,7 @@ h1, h2, h3, h4 { font-family: 'Geist', 'Inter', sans-serif; color: var(--t1); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LANDING PAGE — classes used by LandingPage.jsx
+   LANDING PAGE - classes used by LandingPage.jsx
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -802,7 +802,7 @@ body:has(.lp-body) {
   50%       { transform: translateX(-50%) translateY(-7px); }
 }
 
-/* ═══ LANDING V2 — premium motion system ═══ */
+/* ═══ LANDING V2 - premium motion system ═══ */
 .lp-hero-grid { display: grid; grid-template-columns: 1fr; gap: 48px; align-items: center; width: 100%; }
 .lp-hero-left { text-align: center; }
 @media (min-width: 1060px) {

@@ -7,7 +7,7 @@
 //   GET  /api/privacy/requests        → the user's past privacy requests
 //
 // IMPORTANT: deletion is recorded as a REQUEST only. The actual row deletion is
-// run manually by the operator — the app never hard-deletes user data itself.
+// run manually by the operator - the app never hard-deletes user data itself.
 
 const express  = require('express');
 const supabase = require('../config/supabase');
@@ -17,7 +17,7 @@ const audit    = require('../services/auditLog');
 const router = express.Router();
 router.use(requireAuth);
 
-// Safe user columns — NEVER export password_hash, two_fa_secret, or raw billing IDs.
+// Safe user columns - NEVER export password_hash, two_fa_secret, or raw billing IDs.
 const SAFE_USER_COLS = [
   'id', 'email', 'full_name', 'company_name', 'phone', 'plan',
   'calls_used', 'calls_limit', 'ai_messages_used', 'ai_messages_limit',
@@ -38,7 +38,7 @@ function clientMeta(req) {
   };
 }
 
-// ─── GET /api/privacy/export — right to access ───────────────────────────────
+// ─── GET /api/privacy/export - right to access ───────────────────────────────
 router.get('/export', async (req, res, next) => {
   try {
     const uid = req.user.id;
@@ -85,7 +85,7 @@ router.get('/export', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ─── POST /api/privacy/delete-request — right to erasure (request only) ──────
+// ─── POST /api/privacy/delete-request - right to erasure (request only) ──────
 router.post('/delete-request', async (req, res, next) => {
   try {
     const uid = req.user.id;
@@ -117,7 +117,7 @@ router.post('/delete-request', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ─── GET /api/privacy/requests — list the user's own privacy requests ────────
+// ─── GET /api/privacy/requests - list the user's own privacy requests ────────
 router.get('/requests', async (req, res, next) => {
   try {
     const { data, error } = await supabase.from('data_requests')

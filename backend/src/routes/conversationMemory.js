@@ -1,7 +1,7 @@
 /**
  * /api/lead-memory
- * AI Conversation Memory — persistent per-lead call history
- * NEW FILE — does not modify any existing routes
+ * AI Conversation Memory - persistent per-lead call history
+ * NEW FILE - does not modify any existing routes
  */
 const express  = require('express');
 const supabase = require('../config/supabase');
@@ -14,7 +14,7 @@ function tableMissing(err) {
   return err?.code === 'PGRST205' || (err?.message || '').includes('does not exist');
 }
 
-// GET /api/lead-memory/:leadId — full conversation history for a lead
+// GET /api/lead-memory/:leadId - full conversation history for a lead
 router.get('/:leadId', async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -57,7 +57,7 @@ router.get('/:leadId/prompt-context', async (req, res, next) => {
     const lines = ['=== PREVIOUS CALL HISTORY (most recent first) ==='];
     data.forEach((m, i) => {
       const date = new Date(m.created_at).toLocaleDateString();
-      lines.push(`\nCall ${i + 1} — ${date}`);
+      lines.push(`\nCall ${i + 1} - ${date}`);
       lines.push(`Outcome: ${m.call_outcome || 'unknown'} | Motivation: ${m.motivation_score || '?'}/100 | Sentiment: ${m.sentiment || 'unknown'}`);
       if (m.key_statements?.length) lines.push(`Key statements: ${m.key_statements.join('; ')}`);
       if (m.objections?.length) lines.push(`Objections raised: ${m.objections.join('; ')}`);
@@ -68,7 +68,7 @@ router.get('/:leadId/prompt-context', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/lead-memory — save a new memory entry after a call
+// POST /api/lead-memory - save a new memory entry after a call
 router.post('/', async (req, res, next) => {
   try {
     const {
@@ -92,7 +92,7 @@ router.post('/', async (req, res, next) => {
     }).select().single();
 
     if (error) {
-      if (tableMissing(error)) return res.status(503).json({ success: false, error: 'Run migrations first — table conversation_memory not found' });
+      if (tableMissing(error)) return res.status(503).json({ success: false, error: 'Run migrations first - table conversation_memory not found' });
       throw error;
     }
     res.status(201).json({ success: true, memory: data });
@@ -106,7 +106,7 @@ router.post('/auto-extract', async (req, res, next) => {
     const { lead_id, call_id, transcript, motivation_score, sentiment } = req.body;
     if (!lead_id || !transcript) return res.status(400).json({ success: false, error: 'lead_id and transcript required' });
 
-    // Simple heuristic extraction — key phrases that indicate seller statements
+    // Simple heuristic extraction - key phrases that indicate seller statements
     const lines = transcript.split('\n').filter(l => l.toLowerCase().startsWith('seller:'));
     const sellerText = lines.map(l => l.replace(/^seller:\s*/i, '').trim());
 

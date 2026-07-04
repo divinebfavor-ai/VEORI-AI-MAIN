@@ -42,7 +42,7 @@ async function selectBestNumber(userId, sellerState = null, excludeIds = []) {
     }
   }
 
-  // Rule 3: Geographic matching — prefer same area code/state as seller
+  // Rule 3: Geographic matching - prefer same area code/state as seller
   if (sellerState) {
     const geoMatch = available.filter(n => n.state?.toLowerCase() === sellerState?.toLowerCase());
     if (geoMatch.length > 0) {
@@ -64,7 +64,7 @@ function pickHealthiest(numbers) {
 }
 
 /**
- * Record a call starting on a number — apply cooldown
+ * Record a call starting on a number - apply cooldown
  */
 async function recordCallStart(phoneNumberId) {
   const cooldownUntil = new Date(Date.now() + COOLDOWN_SECONDS * 1000).toISOString();
@@ -101,7 +101,7 @@ async function applyHealthDelta(phoneNumberId, { duration, outcome, answered }) 
 
   let delta = 0;
   if (!answered || !duration || duration < 15) delta = -10; // spam hang-up
-  else if (duration < 60) delta = -5;                       // very short — suspicious
+  else if (duration < 60) delta = -5;                       // very short - suspicious
   else delta = 3;                                            // answered properly
   if (['appointment', 'offer_made', 'verbal_yes'].includes(outcome)) delta += 5;
 

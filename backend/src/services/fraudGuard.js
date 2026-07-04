@@ -1,4 +1,4 @@
-// ─── Fraud Guard — flag-only abuse/fraud detection ───────────────────────────
+// ─── Fraud Guard - flag-only abuse/fraud detection ───────────────────────────
 // Policy (per product decision): FLAG FOR REVIEW ONLY. This service NEVER
 // restricts, suspends, or blocks an account on its own. It detects suspicious
 // custom scripts and usage patterns, writes them to the `fraud_flags` table for
@@ -6,9 +6,9 @@
 // soft warning. Account-level enforcement is a human decision, not automated.
 //
 // Covers three categories the operator asked for:
-//   1. scam_script       — impersonation, upfront-fee, advance-fee, known scams
-//   2. compliance_bypass — make the AI deny it's AI, ignore DNC, pressure/threaten
-//   3. abuse_rate        — behavioral: mass-blasting one number, volume spikes,
+//   1. scam_script       - impersonation, upfront-fee, advance-fee, known scams
+//   2. compliance_bypass - make the AI deny it's AI, ignore DNC, pressure/threaten
+//   3. abuse_rate        - behavioral: mass-blasting one number, volume spikes,
 //                          excessive "remove me" complaints
 //
 // All DB writes are best-effort: a logging failure must never block a save or a
@@ -46,7 +46,7 @@ function keywordPrescreen(text) {
   return hits;
 }
 
-// ─── LLM classifier — catches paraphrased / subtle attempts ──────────────────
+// ─── LLM classifier - catches paraphrased / subtle attempts ──────────────────
 async function llmClassify(text) {
   const prompt = `You are a fraud & compliance reviewer for a real estate cold-calling platform.
 A user submitted the following custom instruction script that will steer how an AI voice agent talks to property sellers.
@@ -55,7 +55,7 @@ Flag it ONLY if it tries to do one of these:
 - scam_script: impersonate a bank/government/lawyer/another person, demand upfront/advance fees, ask for SSN/bank/card numbers, run an advance-fee or known scam.
 - compliance_bypass: make the AI deny it is an AI, refuse to honor "remove me"/Do-Not-Call, threaten/intimidate/harass, or apply heavy pressure.
 
-A normal, persuasive, friendly, or direct sales script is NOT fraud. Be conservative — do not flag legitimate negotiation, urgency, or rapport-building.
+A normal, persuasive, friendly, or direct sales script is NOT fraud. Be conservative - do not flag legitimate negotiation, urgency, or rapport-building.
 
 SCRIPT:
 """
@@ -101,7 +101,7 @@ async function scanScript(text) {
     };
   }
 
-  // No obvious keyword hit — ask the LLM for the subtle cases.
+  // No obvious keyword hit - ask the LLM for the subtle cases.
   return llmClassify(text);
 }
 

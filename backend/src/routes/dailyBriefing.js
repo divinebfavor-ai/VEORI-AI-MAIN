@@ -1,7 +1,7 @@
 /**
  * /api/briefing
- * Daily AI Briefing — morning digest of stats + priority follow-ups
- * NEW FILE — does not modify any existing routes
+ * Daily AI Briefing - morning digest of stats + priority follow-ups
+ * NEW FILE - does not modify any existing routes
  */
 const express  = require('express');
 const supabase = require('../config/supabase');
@@ -80,7 +80,7 @@ async function generateBriefingForUser(userId) {
       name:   `${h.first_name || ''} ${h.last_name || ''}`.trim(),
       phone:  h.phone,
       score:  h.motivation_score,
-      reason: `Motivation ${h.motivation_score}/100 — high priority`,
+      reason: `Motivation ${h.motivation_score}/100 - high priority`,
     })),
   ];
 
@@ -107,7 +107,7 @@ async function generateBriefingForUser(userId) {
     await supabase.from('notifications').insert({
       operator_id: userId,
       type:        'daily_briefing',
-      title:       `☀️ Good morning — ${today}`,
+      title:       `☀️ Good morning - ${today}`,
       message:     aiSummary.slice(0, 200),
       link:        '/dashboard',
       is_read:     false,
@@ -130,7 +130,7 @@ function buildSummary(stats, priorities) {
   return lines.join(' ');
 }
 
-// GET /api/briefing/today — get today's briefing (generates if not yet done)
+// GET /api/briefing/today - get today's briefing (generates if not yet done)
 router.get('/today', async (req, res, next) => {
   try {
     const today = todayDate();
@@ -157,7 +157,7 @@ router.get('/today', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/briefing/history — past briefings
+// GET /api/briefing/history - past briefings
 router.get('/history', async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -175,7 +175,7 @@ router.get('/history', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/briefing/generate — manually regenerate today's briefing
+// POST /api/briefing/generate - manually regenerate today's briefing
 router.post('/generate', async (req, res, next) => {
   try {
     const briefing = await generateBriefingForUser(req.user.id);
@@ -213,7 +213,7 @@ function schedule8amDaily() {
     runDailyBriefingsForAllUsers();
     setInterval(runDailyBriefingsForAllUsers, 24 * 60 * 60 * 1000);
   }, ms);
-  console.log(`[DailyBriefing] Scheduled — next run in ${Math.round(ms / 60000)} min`);
+  console.log(`[DailyBriefing] Scheduled - next run in ${Math.round(ms / 60000)} min`);
 }
 
 // Start scheduler

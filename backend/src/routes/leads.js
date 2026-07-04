@@ -9,7 +9,7 @@ const predictionEngine = require('../services/predictionEngine');
 const router = express.Router();
 router.use(requireAuth);
 
-// GET /api/leads — list with all filters
+// GET /api/leads - list with all filters
 router.get('/', async (req, res, next) => {
   try {
     const { campaign_id, status, score_min, score_max, state, source, limit = 50, offset = 0, search, date_from } = req.query;
@@ -35,7 +35,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/reset-stale-calling — reset any leads stuck in "calling" with no active call
+// POST /api/leads/reset-stale-calling - reset any leads stuck in "calling" with no active call
 router.post('/reset-stale-calling', async (req, res, next) => {
   try {
     // Find leads with status "calling" that have no in-progress call
@@ -55,7 +55,7 @@ router.post('/reset-stale-calling', async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LEAD DEDUPLICATION — find duplicate homeowners and collapse them into ONE.
+// LEAD DEDUPLICATION - find duplicate homeowners and collapse them into ONE.
 //
 // WHY: the bulk import already dedups on EXACT (user_id, phone) via the unique index,
 // but copies still slip in: a lead added once by CSV and again by hand, the same
@@ -80,7 +80,7 @@ function phoneKey(phone) {
   return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
 }
 
-// Name + address signature — the fallback dedup key for leads that have NO phone
+// Name + address signature - the fallback dedup key for leads that have NO phone
 // (a phone-less property can't use the phone index, but two hand-typed copies of the
 // same owner+house should still surface as duplicates). Returns '' if too thin to be
 // a confident match (we never guess on name alone).
@@ -91,7 +91,7 @@ function identityKey(lead) {
   return '';
 }
 
-// Count how many non-empty fields a lead carries — used to pick the most COMPLETE
+// Count how many non-empty fields a lead carries - used to pick the most COMPLETE
 // record as the survivor when two copies are otherwise equally old.
 function completeness(lead) {
   const fields = ['first_name','last_name','phone','email','property_address','property_city',
@@ -112,7 +112,7 @@ function pickCanonical(group) {
   })[0];
 }
 
-// GET /api/leads/duplicates — surface duplicate groups for THIS operator. Read-only.
+// GET /api/leads/duplicates - surface duplicate groups for THIS operator. Read-only.
 // Groups by normalized phone first; phone-less leads fall back to name+address. Only
 // groups with 2+ members are returned. Each group names its canonical survivor and the
 // ids that would be merged away, so the UI can show "merge 3 → 1" before acting.
@@ -149,7 +149,7 @@ router.get('/duplicates', async (req, res, next) => {
         members,
       });
     }
-    // Biggest clusters first — that's where the most clutter is.
+    // Biggest clusters first - that's where the most clutter is.
     groups.sort((a, b) => b.count - a.count);
 
     res.json({
@@ -161,9 +161,9 @@ router.get('/duplicates', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/merge — collapse duplicates into a single canonical lead.
+// POST /api/leads/merge - collapse duplicates into a single canonical lead.
 // Body: { canonical_id, merge_ids:[...] }  (merge the listed copies INTO canonical_id)
-//   — or { groups:[{canonical_id, merge_ids}] } to merge several groups in one call.
+//   - or { groups:[{canonical_id, merge_ids}] } to merge several groups in one call.
 // For each group we: (1) re-point every child row (calls, sms_messages, lead_photos,
 // deal_activity, deals) from a copy to the canonical lead, (2) carry over a DNC flag
 // if any copy had it, (3) delete the now-empty copies. All scoped to req.user.id.
@@ -184,7 +184,7 @@ router.post('/merge', async (req, res, next) => {
 
     // Child tables that reference a lead by lead_id. We re-home these before deleting
     // the copy so a call/text/photo is never orphaned. `scoped` says whether the table
-    // carries a user_id column we can additionally filter on — `lead_photos` does NOT
+    // carries a user_id column we can additionally filter on - `lead_photos` does NOT
     // (the timeline query filters it on lead_id alone), so re-homing it must skip the
     // user_id guard or the update would error and the photos would never move.
     const CHILD_TABLES = [
@@ -204,7 +204,7 @@ router.post('/merge', async (req, res, next) => {
       const mergeIds = (Array.isArray(g.merge_ids) ? g.merge_ids : []).filter(id => id && id !== canonicalId);
       if (!canonicalId || !mergeIds.length) continue;
 
-      // Verify the canonical lead belongs to this operator — never merge into someone
+      // Verify the canonical lead belongs to this operator - never merge into someone
       // else's record, and never trust an id from the client without this check.
       const { data: canonical } = await supabase
         .from('leads').select('id, is_on_dnc, status')
@@ -219,7 +219,7 @@ router.post('/merge', async (req, res, next) => {
       if (!verifiedIds.length) { errors.push({ canonical_id: canonicalId, error: 'no valid copies' }); continue; }
 
       // 1. Re-home children from each copy onto the canonical lead. Best-effort per
-      //    table — a missing table or column won't abort the whole merge.
+      //    table - a missing table or column won't abort the whole merge.
       for (const { table, scoped } of CHILD_TABLES) {
         let q = supabase.from(table).update({ lead_id: canonicalId }).in('lead_id', verifiedIds);
         if (scoped) q = q.eq('user_id', uid);
@@ -236,7 +236,7 @@ router.post('/merge', async (req, res, next) => {
         if (dncErr) console.warn('[Leads merge] DNC carry-over skipped:', dncErr.message);
       }
 
-      // 3. Delete the copies — children are already re-homed, so nothing is lost.
+      // 3. Delete the copies - children are already re-homed, so nothing is lost.
       const { error: delErr } = await supabase
         .from('leads').delete().eq('user_id', uid).in('id', verifiedIds);
       if (delErr) { errors.push({ canonical_id: canonicalId, error: delErr.message }); continue; }
@@ -249,7 +249,7 @@ router.post('/merge', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/leads/:id — full lead with call history
+// GET /api/leads/:id - full lead with call history
 router.get('/:id', async (req, res, next) => {
   try {
     const { data, error } = await supabase.from('leads').select('*, calls(*), deals(*)')
@@ -261,24 +261,24 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/leads/:id/timeline — ONE living profile: every event for this lead,
+// GET /api/leads/:id/timeline - ONE living profile: every event for this lead,
 // merged chronologically into a single feed. This is the "chart" the operator
 // reads to see the whole story of a lead in order:
 //   • inbound + outbound TEXTS        (sms_messages)
 //   • AI/operator CALLS w/ transcript (calls)
-//   • seller PHOTOS                   (lead_photos — seller_upload + sms_mms)
+//   • seller PHOTOS                   (lead_photos - seller_upload + sms_mms)
 //   • signed/sent DOCUMENTS           (contracts, via the lead's deals)
-//   • all deal ACTIVITY               (deal_activity — buyer-assigned, etc.)
+//   • all deal ACTIVITY               (deal_activity - buyer-assigned, etc.)
 //
 // Additive, read-only. Every source is fetched best-effort and normalized to a
 // common { type, at, title, body, meta } shape, then sorted newest-first. A
-// failure in any one source degrades that lane to empty — it never 500s the
+// failure in any one source degrades that lane to empty - it never 500s the
 // chart. All queries are scoped to req.user.id so an operator only ever sees
 // their own lead's history.
 //
 // NOTE: declared AFTER GET /:id above. Express matches the more specific
 // '/:id/timeline' path correctly because the literal '/timeline' segment can't
-// be consumed by '/:id' (which is a single segment) — so ordering is safe.
+// be consumed by '/:id' (which is a single segment) - so ordering is safe.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/:id/timeline', async (req, res, next) => {
   try {
@@ -292,7 +292,7 @@ router.get('/:id/timeline', async (req, res, next) => {
       .eq('id', leadId).eq('user_id', uid).single();
     if (leadErr || !lead) return res.status(404).json({ success: false, error: 'Lead not found' });
 
-    // The lead's deals — used to pull the documents (contracts) for this property.
+    // The lead's deals - used to pull the documents (contracts) for this property.
     const { data: deals } = await supabase
       .from('deals').select('id').eq('lead_id', leadId).eq('user_id', uid);
     const dealIds = (deals || []).map(d => d.id).filter(Boolean);
@@ -326,7 +326,7 @@ router.get('/:id/timeline', async (req, res, next) => {
     const val = r => (r.status === 'fulfilled' ? (r.value?.data || []) : []);
     const events = [];
 
-    // TEXTS — inbound vs outbound, body verbatim.
+    // TEXTS - inbound vs outbound, body verbatim.
     for (const m of val(smsRes)) {
       const out = m.direction === 'outbound';
       events.push({
@@ -338,13 +338,13 @@ router.get('/:id/timeline', async (req, res, next) => {
       });
     }
 
-    // CALLS — surface the AI summary + transcript so the whole conversation lives here.
+    // CALLS - surface the AI summary + transcript so the whole conversation lives here.
     for (const c of val(callsRes)) {
       const mins = c.duration_seconds ? Math.round((c.duration_seconds / 60) * 10) / 10 : 0;
       events.push({
         type: 'call',
         at: c.started_at || c.created_at,
-        title: `Call${c.direction ? ` (${c.direction})` : ''}${c.outcome ? ` — ${c.outcome}` : ''}`,
+        title: `Call${c.direction ? ` (${c.direction})` : ''}${c.outcome ? ` - ${c.outcome}` : ''}`,
         body: c.ai_summary || '',
         meta: {
           status: c.status, outcome: c.outcome, minutes: mins,
@@ -353,7 +353,7 @@ router.get('/:id/timeline', async (req, res, next) => {
       });
     }
 
-    // PHOTOS — seller pictures, whether uploaded via link or texted in (MMS).
+    // PHOTOS - seller pictures, whether uploaded via link or texted in (MMS).
     for (const p of val(photosRes)) {
       events.push({
         type: 'photo',
@@ -364,12 +364,12 @@ router.get('/:id/timeline', async (req, res, next) => {
       });
     }
 
-    // DOCUMENTS — every contract sent/signed for this property.
+    // DOCUMENTS - every contract sent/signed for this property.
     for (const k of val(contractsRes)) {
       events.push({
         type: 'document',
         at: k.fully_signed_at || k.sent_at || k.created_at,
-        title: `${(k.contract_type || 'contract').toUpperCase()} — ${k.signing_status || 'draft'}`,
+        title: `${(k.contract_type || 'contract').toUpperCase()} - ${k.signing_status || 'draft'}`,
         body: '',
         meta: {
           contract_type: k.contract_type, signing_status: k.signing_status,
@@ -378,7 +378,7 @@ router.get('/:id/timeline', async (req, res, next) => {
       });
     }
 
-    // ACTIVITY — buyer-assigned, media_received, stage changes, etc.
+    // ACTIVITY - buyer-assigned, media_received, stage changes, etc.
     for (const a of val(activityRes)) {
       events.push({
         type: 'activity',
@@ -414,7 +414,7 @@ router.get('/:id/timeline', async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/leads/:id/prediction — AI DEAL PREDICTION ENGINE.
+// GET /api/leads/:id/prediction - AI DEAL PREDICTION ENGINE.
 // Runs the unified predictor (predictionEngine.predict) over the lead, its most-
 // advanced deal, and recent same-state outcome history, then returns the full
 // prediction object: per-field { value, confidence, evidence }, best_next_action,
@@ -423,7 +423,7 @@ router.get('/:id/timeline', async (req, res, next) => {
 // Honors the 7 AI Rules: never fabricates (null + reason when inputs are missing),
 // every field carries confidence + evidence, learns from deal_outcome_learning,
 // escalates below threshold, prioritizes close-prob × expected fee, and LOGS every
-// prediction to deal_predictions (best-effort — a logging failure never fails the
+// prediction to deal_predictions (best-effort - a logging failure never fails the
 // response; Rule 6). Read-only on the lead; additive endpoint, scoped to the user.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/:id/prediction', async (req, res, next) => {
@@ -440,7 +440,7 @@ router.get('/:id/prediction', async (req, res, next) => {
       ? deals.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))[0]
       : null;
 
-    // Rule 3 — pull recent same-state outcomes to nudge confidence. Best-effort.
+    // Rule 3 - pull recent same-state outcomes to nudge confidence. Best-effort.
     let outcomes = [];
     try {
       const { data } = await supabase.from('deal_outcome_learning')
@@ -453,7 +453,7 @@ router.get('/:id/prediction', async (req, res, next) => {
 
     const prediction = predictionEngine.predict(lead, deal, { outcomes });
 
-    // Rule 6 — persist the prediction for audit/history. Best-effort: if the table
+    // Rule 6 - persist the prediction for audit/history. Best-effort: if the table
     // isn't migrated yet or the insert fails, we still return the prediction.
     try {
       await supabase.from('deal_predictions').insert({
@@ -467,24 +467,24 @@ router.get('/:id/prediction', async (req, res, next) => {
         evidence:           prediction.evidence,
         strategy:           prediction.strategy,
       });
-    } catch { /* table not migrated / insert failed — logging is non-blocking */ }
+    } catch { /* table not migrated / insert failed - logging is non-blocking */ }
 
     res.json({ success: true, data: prediction });
   } catch (err) { next(err); }
 });
 
-// POST /api/leads — create single
+// POST /api/leads - create single
 router.post('/', async (req, res, next) => {
   try {
     const { first_name, last_name, phone, email, property_address, property_city, property_state, property_zip, property_type, estimated_value, estimated_equity, source, notes, tags } = req.body;
     if (!phone) return res.status(400).json({ success: false, error: 'phone required' });
 
-    // AUTOMATIC DEDUP — before inserting, check whether this operator already has this
+    // AUTOMATIC DEDUP - before inserting, check whether this operator already has this
     // person. The bulk import dedups on the unique index, but a single hand-add had no
     // guard, so the same lead typed twice made a second row. We catch it two ways:
     //   • same normalized phone (so "+1 (704) 555-0000" == "7045550000"), and
     //   • same name + property address when the new add has no phone.
-    // On a hit we DON'T create a copy — we return the existing lead (200, deduped:true)
+    // On a hit we DON'T create a copy - we return the existing lead (200, deduped:true)
     // so the UI just opens the lead the operator already has. Fully automatic; the
     // operator never sees a duplicate appear. Best-effort: any scan error falls through
     // to a normal insert rather than blocking lead creation.
@@ -500,7 +500,7 @@ router.post('/', async (req, res, next) => {
         (!incomingPhoneKey && incomingIdentity && identityKey(r) === incomingIdentity)
       );
       if (match) {
-        // Already have this lead — return it instead of duplicating.
+        // Already have this lead - return it instead of duplicating.
         const { data: full } = await supabase.from('leads').select('*')
           .eq('id', match.id).eq('user_id', req.user.id).single();
         return res.status(200).json({ success: true, deduped: true, data: full || match });
@@ -521,7 +521,7 @@ router.post('/', async (req, res, next) => {
 
     if (error) throw error;
 
-    // Auto-tag within 60 seconds (async — don't block response)
+    // Auto-tag within 60 seconds (async - don't block response)
     setImmediate(async () => {
       const tagged = await tagLead(data.id);
       if (tagged && !is_on_dnc) {
@@ -542,7 +542,7 @@ router.post('/', async (req, res, next) => {
     });
 
     // Auto-size the operator's toll-free (SMS) pool + local (calling) capacity to
-    // their callable lead volume, geo-matched. (async — never blocks, never throws)
+    // their callable lead volume, geo-matched. (async - never blocks, never throws)
     setImmediate(() => {
       require('../services/numberProvisioning').ensureCapacity(req.user.id)
         .catch(err => console.error('[Leads] ensureCapacity error:', err.message));
@@ -554,7 +554,7 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/bulk — CSV import up to 10,000
+// POST /api/leads/bulk - CSV import up to 10,000
 router.post('/bulk', async (req, res, next) => {
   try {
     const { leads } = req.body;
@@ -589,7 +589,7 @@ router.post('/bulk', async (req, res, next) => {
     // one (the unique index only catches byte-identical phones). Phone-less rows fall
     // back to a name+address signature. This makes the import filter copies out for the
     // operator automatically, before anything is inserted. Best-effort on the existing
-    // pull — if it fails we still dedup within the batch and lean on the unique index.
+    // pull - if it fails we still dedup within the batch and lean on the unique index.
     let existingKeys = new Set();
     try {
       const { data: existingRows } = await supabase
@@ -620,7 +620,7 @@ router.post('/bulk', async (req, res, next) => {
     const chunkSize = 500;
     for (let i = 0; i < unique.length; i += chunkSize) {
       const chunk = unique.slice(i, i + chunkSize);
-      // Upsert against the leads_user_phone_unique index — duplicate (user_id, phone)
+      // Upsert against the leads_user_phone_unique index - duplicate (user_id, phone)
       // rows are IGNORED, not re-inserted. `.select('id')` returns only the rows that
       // actually inserted, so `imported` reflects NEW leads and the rest are counted
       // as duplicates_skipped. With ignoreDuplicates the upsert won't error on dupes,
@@ -635,14 +635,14 @@ router.post('/bulk', async (req, res, next) => {
         duplicates += chunk.length - inserted; // the rest already existed
       } else {
         // A real error (not a dedup conflict, which ignoreDuplicates swallows).
-        // Do NOT fall back to a plain insert — that would re-create duplicates.
+        // Do NOT fall back to a plain insert - that would re-create duplicates.
         // Surface it so the operator sees the import didn't fully land.
         console.warn('[Leads import] Upsert error:', error.message);
         duplicates += chunk.length;
       }
     }
 
-    // Auto-tag all imported leads async — don't block the response
+    // Auto-tag all imported leads async - don't block the response
     const { data: newLeads } = await supabase
       .from('leads')
       .select('*')
@@ -668,7 +668,7 @@ router.post('/bulk', async (req, res, next) => {
     }
 
     // Auto-size the operator's toll-free number pool to their callable lead volume
-    // (async — never blocks the import response, never throws)
+    // (async - never blocks the import response, never throws)
     setImmediate(() => {
       require('../services/numberProvisioning').ensureCapacity(req.user.id)
         .catch(err => console.error('[Leads] ensureCapacity (bulk) error:', err.message));
@@ -707,8 +707,8 @@ router.delete('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/leads/:id/research — AI property analysis
-// POST /api/leads/:id/retag — manually retag a lead
+// GET /api/leads/:id/research - AI property analysis
+// POST /api/leads/:id/retag - manually retag a lead
 router.post('/:id/retag', async (req, res, next) => {
   try {
     const { data: lead } = await supabase.from('leads').select('id, user_id').eq('id', req.params.id).eq('user_id', req.user.id).single();
@@ -718,7 +718,7 @@ router.post('/:id/retag', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/retag-all — retag all leads for this operator
+// POST /api/leads/retag-all - retag all leads for this operator
 router.post('/retag-all', async (req, res, next) => {
   try {
     const { data: leads } = await supabase.from('leads').select('id').eq('user_id', req.user.id);
@@ -751,7 +751,7 @@ router.post('/:id/dnc', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/:id/skip-trace — run skip trace on a lead
+// POST /api/leads/:id/skip-trace - run skip trace on a lead
 router.post('/:id/skip-trace', async (req, res, next) => {
   try {
     const { skipTraceLead } = require('../services/skipTraceService');
@@ -762,7 +762,7 @@ router.post('/:id/skip-trace', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/:id/direct-mail — send a physical postcard
+// POST /api/leads/:id/direct-mail - send a physical postcard
 router.post('/:id/direct-mail', async (req, res, next) => {
   try {
     const { sendPostcard } = require('../services/directMailService');
@@ -776,7 +776,7 @@ router.post('/:id/direct-mail', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/:id/voicemail — drop a ringless voicemail
+// POST /api/leads/:id/voicemail - drop a ringless voicemail
 router.post('/:id/voicemail', async (req, res, next) => {
   try {
     const { dropVoicemail } = require('../services/voicemailService');
@@ -791,7 +791,7 @@ router.post('/:id/voicemail', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/ingest — structured lead ingestion with all required fields
+// POST /api/leads/ingest - structured lead ingestion with all required fields
 router.post('/ingest', async (req, res, next) => {
   try {
     const {
@@ -824,7 +824,7 @@ router.post('/ingest', async (req, res, next) => {
     if (error) throw error;
 
     // Auto-size the operator's toll-free number pool to their callable lead volume
-    // (async — never blocks the response, never throws)
+    // (async - never blocks the response, never throws)
     setImmediate(() => {
       require('../services/numberProvisioning').ensureCapacity(req.user.id)
         .catch(err => console.error('[Leads] ensureCapacity (ingest) error:', err.message));
@@ -836,7 +836,7 @@ router.post('/ingest', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/leads/qualify — AI qualification engine
+// POST /api/leads/qualify - AI qualification engine
 router.post('/qualify', async (req, res, next) => {
   try {
     const { lead_id, conversation_text } = req.body;
@@ -889,7 +889,7 @@ router.post('/qualify', async (req, res, next) => {
         deal_id: deal?.id,
         contact_name: `${lead.first_name} ${lead.last_name}`.trim(),
         action_type: 'escalated_to_pipeline',
-        message_sent: `Score: ${result.motivation_score}/100 — auto-escalated to deal pipeline`,
+        message_sent: `Score: ${result.motivation_score}/100 - auto-escalated to deal pipeline`,
         outcome: 'deal_created',
         operator_id: req.user.id,
       });
@@ -919,7 +919,7 @@ async function generatePhotoToken(leadId, userId, sentVia = 'manual') {
   return { token, url: `${FRONTEND_URL}/upload/${token}`, expiresAt };
 }
 
-// POST /api/leads/:id/send-photo-request — generate link and send to seller
+// POST /api/leads/:id/send-photo-request - generate link and send to seller
 router.post('/:id/send-photo-request', async (req, res, next) => {
   try {
     const { data: lead } = await supabase
@@ -943,7 +943,7 @@ router.post('/:id/send-photo-request', async (req, res, next) => {
     // Try SMS first
     if (lead.phone && SMS_ENABLED) {
       const { token, url } = await generatePhotoToken(lead.id, req.user.id, 'sms');
-      const message = `Hi ${name}, thanks for speaking with us about ${address || 'your property'}. Please tap the link to send us photos — takes 2 min on your phone:\n\n${url}\n\nThis link expires in 7 days.`;
+      const message = `Hi ${name}, thanks for speaking with us about ${address || 'your property'}. Please tap the link to send us photos - takes 2 min on your phone:\n\n${url}\n\nThis link expires in 7 days.`;
 
       try {
         await sendSMS(lead.phone, message);
@@ -976,17 +976,17 @@ router.post('/:id/send-photo-request', async (req, res, next) => {
       return res.json({ success: true, sent_via: 'email', email: lead.email, token, url });
     }
 
-    // Neither worked — return the link anyway for manual sharing
+    // Neither worked - return the link anyway for manual sharing
     const { token, url } = await generatePhotoToken(lead.id, req.user.id, 'manual');
     res.json({ success: true, sent_via: 'link_only', token, url,
-      message: 'No phone/email delivery available — copy the link to share manually.' });
+      message: 'No phone/email delivery available - copy the link to share manually.' });
   } catch (err) { next(err); }
 });
 
-// GET /api/leads/:id/imagery — Feature A: aerial + street-view imagery for the
+// GET /api/leads/:id/imagery - Feature A: aerial + street-view imagery for the
 // property, derived from the lead's stored address. Owner-scoped. Returns null
 // URLs (available:false) when GOOGLE_MAPS_API_KEY is unset or the lead has no
-// address — never errors, never blocks the page.
+// address - never errors, never blocks the page.
 router.get('/:id/imagery', async (req, res, next) => {
   try {
     const { data: lead, error } = await supabase
@@ -1003,7 +1003,7 @@ router.get('/:id/imagery', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/leads/:id/photos — list photos for a lead
+// GET /api/leads/:id/photos - list photos for a lead
 router.get('/:id/photos', async (req, res, next) => {
   try {
     const { data, error } = await supabase

@@ -1,7 +1,7 @@
 /**
  * /api/hot-leads
- * Hot Lead Auto-Escalation — triggers when motivation_score > 85
- * NEW FILE — does not modify any existing routes
+ * Hot Lead Auto-Escalation - triggers when motivation_score > 85
+ * NEW FILE - does not modify any existing routes
  */
 const express  = require('express');
 const supabase = require('../config/supabase');
@@ -21,7 +21,7 @@ async function createNotification(userId, leadId, leadName, score) {
     await supabase.from('notifications').insert({
       operator_id: userId,
       type:        'hot_lead',
-      title:       `🔥 Hot Lead — ${leadName}`,
+      title:       `🔥 Hot Lead - ${leadName}`,
       message:     `Motivation score hit ${score}/100. Lead has been flagged for immediate follow-up. Contract draft ready.`,
       link:        `/leads`,
       is_read:     false,
@@ -36,7 +36,7 @@ async function createFollowUpTask(userId, leadId, leadName) {
       lead_id:     leadId,
       type:        'call',
       priority:    'urgent',
-      title:       `🔥 HOT LEAD — Call ${leadName} within 10 minutes`,
+      title:       `🔥 HOT LEAD - Call ${leadName} within 10 minutes`,
       notes:       'Auto-created by hot lead escalation. Motivation score exceeded 85. Strike while hot.',
       due_date:    new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes
       status:      'pending',
@@ -45,7 +45,7 @@ async function createFollowUpTask(userId, leadId, leadName) {
 }
 
 /**
- * Core escalation logic — can be called from scanner or webhook
+ * Core escalation logic - can be called from scanner or webhook
  */
 async function escalateLead(userId, lead) {
   // Check if already escalated (active escalation exists)
@@ -94,7 +94,7 @@ async function escalateLead(userId, lead) {
   return { escalated: true, lead_id: lead.id, leadName, score: lead.motivation_score };
 }
 
-// GET /api/hot-leads — list all current hot leads (score > 85 or tagged HOT)
+// GET /api/hot-leads - list all current hot leads (score > 85 or tagged HOT)
 router.get('/', async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -126,7 +126,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/hot-leads/escalations — history of all escalation events
+// GET /api/hot-leads/escalations - history of all escalation events
 router.get('/escalations', async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -144,7 +144,7 @@ router.get('/escalations', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/hot-leads/scan — scan all leads and escalate those above threshold
+// POST /api/hot-leads/scan - scan all leads and escalate those above threshold
 router.post('/scan', async (req, res, next) => {
   try {
     const { data: hotLeads, error } = await supabase
@@ -169,7 +169,7 @@ router.post('/scan', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/hot-leads/:leadId/escalate — manually escalate a specific lead
+// POST /api/hot-leads/:leadId/escalate - manually escalate a specific lead
 router.post('/:leadId/escalate', async (req, res, next) => {
   try {
     const { data: lead } = await supabase.from('leads').select('*').eq('id', req.params.leadId).eq('user_id', req.user.id).single();
@@ -180,7 +180,7 @@ router.post('/:leadId/escalate', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/hot-leads/escalations/:id/resolve — mark escalation as resolved
+// PUT /api/hot-leads/escalations/:id/resolve - mark escalation as resolved
 router.put('/escalations/:id/resolve', async (req, res, next) => {
   try {
     await supabase.from('hot_lead_escalations')

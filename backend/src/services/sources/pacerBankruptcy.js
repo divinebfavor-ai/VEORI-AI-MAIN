@@ -7,7 +7,7 @@
  * PACER API: https://pacer.login.uscourts.gov/csologin/login.jsf
  * API Docs:  https://pcl.uscourts.gov/pcl/pages/search/find.jsf
  *
- * Fallback: Court Listener (free, Open Law Project) — covers federal bankruptcies
+ * Fallback: Court Listener (free, Open Law Project) - covers federal bankruptcies
  * https://www.courtlistener.com/api/rest/v3/
  *
  * Source key: 'bankruptcy'
@@ -18,7 +18,7 @@ const PACER_USER     = process.env.PACER_USERNAME;
 const PACER_PASS     = process.env.PACER_PASSWORD;
 const PACER_BASE     = 'https://pcl.uscourts.gov/pcl/api/v1';
 
-// Court Listener (free fallback) — The Open Law Project
+// Court Listener (free fallback) - The Open Law Project
 const CL_BASE = 'https://www.courtlistener.com/api/rest/v3';
 const CL_TOKEN = process.env.COURT_LISTENER_TOKEN;
 
@@ -72,7 +72,7 @@ async function pullFromCourtListener(state) {
           last_name:        (d.case_name || '').split(/\s+vs?\.\s+/i)[0]?.split(' ').slice(1).join(' ') || '',
           property_state:   state,
           county:           '',
-          notes:            `Bankruptcy — ${d.cause || 'Chapter 7/13'} — ${d.court_id || court}`,
+          notes:            `Bankruptcy - ${d.cause || 'Chapter 7/13'} - ${d.court_id || court}`,
           is_bankruptcy:    true,
           case_url:         d.absolute_url ? `https://www.courtlistener.com${d.absolute_url}` : '',
         });
@@ -128,7 +128,7 @@ async function pullFromPACER(state) {
             property_state: state,
             county:        '',
             is_bankruptcy: true,
-            notes:         `${c.chapter || 'BK'} — ${c.caseType || 'bankruptcy'}`,
+            notes:         `${c.chapter || 'BK'} - ${c.caseType || 'bankruptcy'}`,
           });
         });
       } catch (e) {
@@ -143,7 +143,7 @@ async function pullFromPACER(state) {
 }
 
 /**
- * Main pull — PACER if configured, Court Listener as free fallback
+ * Main pull - PACER if configured, Court Listener as free fallback
  */
 async function pullBankruptcy(state) {
   console.log(`[Bankruptcy] Pulling ${state}`);

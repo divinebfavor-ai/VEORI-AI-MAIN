@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════
--- VEORI AI — New Features Migration
+-- VEORI AI - New Features Migration
 -- Features: Missed Call Text-Back, SMS Inbox, Lead Pipeline,
 --           Follow-Up Sequences UI, Appointment Booking
 -- Run in Supabase SQL Editor:
@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS availability_slots (
 
 CREATE INDEX IF NOT EXISTS idx_availability_slots_operator_id ON availability_slots(operator_id);
 
--- ─── APPOINTMENTS — add missing columns ───────────────────────────────────────
+-- ─── APPOINTMENTS - add missing columns ───────────────────────────────────────
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_sent     BOOLEAN DEFAULT FALSE;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS confirmation_sent BOOLEAN DEFAULT FALSE;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS call_notes        TEXT;

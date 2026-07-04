@@ -1,4 +1,4 @@
-// ─── Contact Masking — circumvention protection (Feature 13 / Feature 10) ────
+// ─── Contact Masking - circumvention protection (Feature 13 / Feature 10) ────
 // The wholesaler's moat is the seller relationship. A buyer who sees the seller's
 // real phone, email, or exact street address can go around the operator and close
 // directly. This utility strips/obscures seller PII from any buyer-facing payload
@@ -60,7 +60,7 @@ function maskEmail(email) {
 /**
  * Produce a buyer-safe view of a lead/seller. Strips raw phone/email, blurs the
  * street address, and redacts any contact details that leaked into free text.
- * Returns a NEW object — never mutates the input. The operator's own record is
+ * Returns a NEW object - never mutates the input. The operator's own record is
  * untouched; only what crosses to a buyer is masked.
  *
  * @param {object} lead

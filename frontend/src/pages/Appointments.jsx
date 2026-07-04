@@ -27,7 +27,7 @@ function scoreColor(s) {
 }
 
 function fmtDateTime(str) {
-  if (!str) return '—'
+  if (!str) return '-'
   const d = new Date(str)
   return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) +
     ' at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -508,7 +508,7 @@ export default function Appointments() {
                   <option value="">Select a lead…</option>
                   {allLeads.slice(0, 100).map(l => (
                     <option key={l.id} value={l.id} style={{ background: 'var(--card-bg)' }}>
-                      {[l.first_name, l.last_name].filter(Boolean).join(' ') || l.phone} — {l.property_address || 'No address'}
+                      {[l.first_name, l.last_name].filter(Boolean).join(' ') || l.phone} - {l.property_address || 'No address'}
                     </option>
                   ))}
                 </select>

@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// analyticsRollup — nightly per-operator daily rollup into operator_daily_stats.
+// analyticsRollup - nightly per-operator daily rollup into operator_daily_stats.
 //
 // Run by the RUN_CRON-gated "analytics-rollup" repeatable job (~00:15) once per day.
 // It aggregates the PREVIOUS calendar day's volume per operator and UPSERTs one row
 // per (user_id, stat_date). Reporting endpoints then sum these historical rows and
-// only live-count "today" — so a 30/90-day window stays O(days), not O(messages).
+// only live-count "today" - so a 30/90-day window stays O(days), not O(messages).
 //
-// Idempotent: re-running a date overwrites that date's row. Additive — reads the
+// Idempotent: re-running a date overwrites that date's row. Additive - reads the
 // raw event tables (sms_messages, calls, buyer_campaigns, deals) exactly as the live
 // endpoints do, using only verified columns; writes only to operator_daily_stats.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ function yesterdayStr() {
 // activity. Returns the number of operator rows written.
 async function rollupDay(dateStr = yesterdayStr()) {
   if (!supabase) {
-    console.warn('[Rollup] supabase unavailable — skipping');
+    console.warn('[Rollup] supabase unavailable - skipping');
     return 0;
   }
   const { startISO, endISO } = dayBounds(dateStr);

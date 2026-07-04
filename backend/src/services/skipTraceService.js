@@ -4,7 +4,7 @@
  * Finds additional contact information (phone numbers, emails, relatives)
  * for leads where contact info is missing or incomplete.
  *
- * Primary: BatchSkipTracing (batchskiptracing.com) — bulk API
+ * Primary: BatchSkipTracing (batchskiptracing.com) - bulk API
  * Fallback: PropStream, TLO, or manual lookup links
  */
 const axios = require('axios');
@@ -18,9 +18,9 @@ const BST_BASE    = 'https://api.batchskiptracing.com/v2';
  */
 async function skipTraceLead(lead) {
   if (!BST_API_KEY) {
-    // NEVER fabricate contact data — a fake number means Alex dials a stranger.
+    // NEVER fabricate contact data - a fake number means Alex dials a stranger.
     // Fail loud and flag the lead as needing real enrichment instead.
-    console.warn(`[SkipTrace] BATCH_SKIP_TRACE_API_KEY not configured — skip trace unavailable for ${lead.property_address}`);
+    console.warn(`[SkipTrace] BATCH_SKIP_TRACE_API_KEY not configured - skip trace unavailable for ${lead.property_address}`);
     return {
       success: false,
       unverified: true,
@@ -90,11 +90,11 @@ async function skipTraceLead(lead) {
 
 /**
  * Bulk skip trace multiple leads
- * BatchSkipTracing has a true batch endpoint — send up to 1000 at once
+ * BatchSkipTracing has a true batch endpoint - send up to 1000 at once
  */
 async function bulkSkipTrace(leads) {
   if (!BST_API_KEY) {
-    console.warn('[BulkSkipTrace] BATCH_SKIP_TRACE_API_KEY not configured — no records enriched');
+    console.warn('[BulkSkipTrace] BATCH_SKIP_TRACE_API_KEY not configured - no records enriched');
     return leads.map(l => ({ lead_id: l.id, unverified: true, reason: 'skip_trace_not_configured', phones_found: 0, emails_found: 0 }));
   }
 

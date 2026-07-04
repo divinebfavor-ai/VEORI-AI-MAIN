@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 import api from '../services/api'
 
 function fmtDate(str) {
-  if (!str) return '—'
+  if (!str) return '-'
   const d = new Date(str)
   const diff = Math.floor((Date.now() - d) / 60000) // minutes ago
   if (diff < 2)  return 'Just now'
