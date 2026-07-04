@@ -44,6 +44,7 @@ const elevenLabs = require('./elevenLabsService');
 const voiceBrain = require('./voiceBrainService');
 const twilioCallService = require('./twilioCallService');
 const v2voice = require('../routes/v2voice');
+const ambience = require('./ambienceService');
 
 // WS path Twilio's <Stream url="..."> points at. Guarded on upgrade so we never
 // hijack any other WebSocket traffic on the server.
@@ -128,6 +129,12 @@ class StreamSession {
     // the normal autonomous behaviour. Toggled by muteAgent()/unmuteAgent().
     this.muted = false;
 
+    // Background ambience (office room tone under/between agent speech). One
+    // cursor per call so the room sounds continuous. Null until startAmbience().
+    this.amb = null;
+    this.ambTimer = null;   // 20ms idle-bed ticker
+    this.ambNextAt = 0;     // wall-clock schedule for the next idle frame
+
     // Live-listen: operator browser WebSockets subscribed to this call's audio.
     // Empty by default → zero overhead. Each is a plain `ws` we push PCM16 frames to.
     this.listeners = new Set();
@@ -187,6 +194,10 @@ class StreamSession {
     // Open the Deepgram STT stream for this call.
     this.openDeepgram();
 
+    // Start the background room ambience (idle bed between utterances + ducked
+    // bed under speech). No-op when VOICE_AMBIENCE=off.
+    this.startAmbience();
+
     // Speak the deterministic opener immediately (no model call → zero dead air).
     // Delivered warm - a cold, flat first line is what makes sellers hang up.
     const opener = voiceBrain.openingLine(this.ctx);
@@ -231,6 +242,53 @@ class StreamSession {
         this.agentSpeaking = false;
         this.armSilenceTimer();
       }
+    }
+  }
+
+  // ── background ambience (office room tone) ───────────────────────────────────
+
+  /**
+   * Begin feeding the shared ambience bed into the call. Two paths share ONE
+   * cursor so the room never "jumps":
+   *   - idle: a 20ms ticker sends bed-only frames whenever the agent is silent.
+   *   - speech: withAmbience() mixes the ducked bed under every TTS frame.
+   * The seller therefore hears a continuous room from answer to hang-up.
+   */
+  startAmbience() {
+    if (!ambience.enabled() || this.ambTimer || this.ended) return;
+    this.amb = ambience.createCursor();
+    this.ambNextAt = Date.now();
+    this.ambTimer = setInterval(() => this.tickAmbience(), 20);
+  }
+
+  tickAmbience() {
+    if (this.ended) {
+      if (this.ambTimer) { clearInterval(this.ambTimer); this.ambTimer = null; }
+      return;
+    }
+    const now = Date.now();
+    // While the agent speaks (bed rides inside the TTS frames) or the operator
+    // has muted the AI, just keep the schedule pinned to "now" so we don't burst
+    // a backlog of frames the moment speech ends.
+    if (this.agentSpeaking || this.muted) { this.ambNextAt = now; return; }
+    if (now - this.ambNextAt > 200) this.ambNextAt = now; // hard resync after a stall
+    let sent = 0;
+    while (this.ambNextAt <= now && sent < 5) { // catch-up cap: ≤5 frames per tick
+      const frame = this.amb ? this.amb.nextFrameUlaw() : null;
+      if (!frame) { this.ambNextAt = now + 20; return; } // bed still loading
+      this.sendTwilioMedia(frame.toString('base64'));
+      this.ambNextAt += 20;
+      sent += 1;
+    }
+  }
+
+  /** Mix the ducked ambience bed under one outbound mu-law TTS frame. */
+  withAmbience(ulawFrame) {
+    if (!this.amb) return ulawFrame;
+    try {
+      return this.amb.mixTtsFrame(ulawFrame);
+    } catch (_e) {
+      return ulawFrame; // mixing must never break speech
     }
   }
 
@@ -313,14 +371,14 @@ class StreamSession {
       let offset = 0;
       while (combined.length - offset >= TWILIO_FRAME_BYTES) {
         const frame = combined.subarray(offset, offset + TWILIO_FRAME_BYTES);
-        this.sendTwilioMedia(frame.toString('base64'));
+        this.sendTwilioMedia(this.withAmbience(frame).toString('base64'));
         offset += TWILIO_FRAME_BYTES;
       }
       carry = combined.subarray(offset);
       if (force && carry.length) {
         // Pad the final short frame with mu-law silence (0xFF) so Twilio plays it.
         const pad = Buffer.alloc(TWILIO_FRAME_BYTES - carry.length, 0xff);
-        this.sendTwilioMedia(Buffer.concat([carry, pad]).toString('base64'));
+        this.sendTwilioMedia(this.withAmbience(Buffer.concat([carry, pad])).toString('base64'));
         carry = Buffer.alloc(0);
       }
     };
@@ -504,6 +562,7 @@ class StreamSession {
     if (this.ended) return;
     this.ended = true;
     this.clearSilenceTimer();
+    if (this.ambTimer) { clearInterval(this.ambTimer); this.ambTimer = null; }
     if (this.ttsAbort) { try { this.ttsAbort.abort(); } catch (_) { /* noop */ } }
     if (this.turnAbort) { try { this.turnAbort.abort(); } catch (_) { /* noop */ } }
     if (this.dg) { try { this.dg.finish(); this.dg.close(); } catch (_) { /* noop */ } }

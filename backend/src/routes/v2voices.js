@@ -198,16 +198,20 @@ router.post('/:voiceId/preview', requireAuth, async (req, res, next) => {
     }
 
     // Return the cached clip unless the caller forces a regenerate (?force=1).
+    // A cached URL only counts if it was rendered by the CURRENT preview
+    // pipeline (URL carries PREVIEW_VERSION_TAG). Older clips - ElevenLabs
+    // stock previews or clips made with old settings/model - are regenerated
+    // so the picker always plays the live-call sound.
     const force = req.query.force === '1' || req.body?.force === true;
-    if (voice.voice_preview_url && !force) {
+    const cachedIsCurrent = !!(voice.voice_preview_url
+      && voice.voice_preview_url.includes(elevenLabs.PREVIEW_VERSION_TAG));
+    if (cachedIsCurrent && !force) {
       return res.json({ success: true, cached: true, voice_id: voiceId, voice_preview_url: voice.voice_preview_url });
     }
 
-    // Generate the sample with the live-call tuning, upload, get a public URL.
-    const url = await elevenLabs.synthesizeToUrl(PREVIEW_SAMPLE_TEXT, {
-      voiceId,
-      callSid: `preview-${voiceId}`,
-    });
+    // Generate the sample exactly like a live call sounds: turbo stream model +
+    // per-voice tuning + human pacing + the shared room ambience bed.
+    const url = await elevenLabs.synthesizePreviewToUrl(PREVIEW_SAMPLE_TEXT, { voiceId });
     if (!url) {
       // Missing key or TTS failure - never 500 the picker; report cleanly.
       return res.status(502).json({ success: false, error: 'preview generation failed (check ELEVENLABS_API_KEY / voice belongs to that account)' });
