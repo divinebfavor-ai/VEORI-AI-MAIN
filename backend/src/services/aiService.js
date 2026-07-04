@@ -247,7 +247,11 @@ ${block.outcomeHint}` : ''}`;
     return JSON.parse(text);
   } catch (err) {
     console.error('[AI] analyzeCallTranscript error:', err.message);
-    return { motivation_score: 0, outcome: 'not_home', ai_summary: 'Analysis unavailable', key_signals: [], objections: [] };
+    // outcome: null on purpose. This function only runs when a transcript exists,
+    // i.e. a real conversation happened - stamping 'not_home' here reset leads to
+    // stage 'new' and erased pipeline progress. Null lets each caller fall back to
+    // its own status/AMD-derived outcome instead.
+    return { motivation_score: 0, outcome: null, ai_summary: 'Analysis unavailable', key_signals: [], objections: [] };
   }
 }
 

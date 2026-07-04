@@ -188,8 +188,9 @@ class StreamSession {
     this.openDeepgram();
 
     // Speak the deterministic opener immediately (no model call → zero dead air).
+    // Delivered warm - a cold, flat first line is what makes sellers hang up.
     const opener = voiceBrain.openingLine(this.ctx);
-    await this.speak(opener);
+    await this.speak(opener, { emotion: 'warm' });
 
     this.armSilenceTimer();
   }
@@ -269,7 +270,7 @@ class StreamSession {
     this.turnCount += 1;
 
     try {
-      const { reply, end } = await voiceBrain.nextTurn({
+      const { reply, end, emotion } = await voiceBrain.nextTurn({
         ...this.ctx,
         callId: this.callId,
         callSid: this.callSid,
@@ -282,7 +283,7 @@ class StreamSession {
       // If a barge-in aborted this turn while the brain was thinking, drop the reply.
       if (this.turnAbort?.signal.aborted || this.ended) return;
 
-      if (reply) await this.speak(reply);
+      if (reply) await this.speak(reply, { emotion });
       if (end) return this.endCall();
     } catch (err) {
       console.warn('[MediaStream] nextTurn failed:', err.message);
@@ -295,8 +296,13 @@ class StreamSession {
 
   // ── agent audio out (ElevenLabs → Twilio) ────────────────────────────────────
 
-  async speak(text) {
+  async speak(text, { emotion } = {}) {
     if (this.ended || !text) return;
+    // Human pacing (breath/beat punctuation) - same treatment the turn-based
+    // engine gives every line in v2voice.speakLine. Without it the stream engine
+    // read raw model text: run-on, no beats, rushed asks.
+    text = elevenLabs.humanizePacing(text);
+    if (!text) return;
     this.agentSpeaking = true;
     this.ttsAbort = new AbortController();
 
@@ -321,6 +327,7 @@ class StreamSession {
 
     const ok = await elevenLabs.streamTts(text, {
       voiceId: this.ctx.voiceId,
+      emotion: emotion || null,
       signal: this.ttsAbort.signal,
       onChunk: (b64) => {
         if (this.ttsAbort?.signal.aborted || this.ended) return;
@@ -446,7 +453,7 @@ class StreamSession {
     this.turnInFlight = true;
     this.turnAbort = new AbortController();
     try {
-      const { reply, end } = await voiceBrain.nextTurn({
+      const { reply, end, emotion } = await voiceBrain.nextTurn({
         ...this.ctx,
         callId: this.callId,
         callSid: this.callSid,
@@ -455,7 +462,7 @@ class StreamSession {
         lead: this.ctx.lead,
       });
       if (this.turnAbort?.signal.aborted || this.ended) return;
-      if (reply) await this.speak(reply);
+      if (reply) await this.speak(reply, { emotion });
       if (end) return this.endCall();
     } catch (err) {
       console.warn('[MediaStream] silence turn failed:', err.message);

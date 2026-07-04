@@ -294,16 +294,56 @@ const VOICE_TUNING = {
     stability: envNum('ELEVENLABS_TUNE_STEVEN_STABILITY', 0.34),
     style:     envNum('ELEVENLABS_TUNE_STEVEN_STYLE',     0.40),
   },
+  // Nick (male, 02N42Ac51lYGp3HHsqw2) - customer feedback: "the timing/beat of
+  // Nick's voice is off". Raise stability above base so his rhythm steadies
+  // (less erratic pitch/beat jumping between words) while keeping style near
+  // base so he stays warm, not flat. Timing is also helped globally by the
+  // pacing-beat softening in humanizePacing below.
+  '02N42Ac51lYGp3HHsqw2': {
+    stability: envNum('ELEVENLABS_TUNE_NICK_STABILITY', 0.50),
+    style:     envNum('ELEVENLABS_TUNE_NICK_STYLE',     0.24),
+  },
+  // Kiora (female, hGQkZQUA5RiOXIw7P9iO) - same direction as Vexa but milder:
+  // female clones on a compressed phone line tend to read bright/high. Steady
+  // her and pull style down so she sits calm, warm, trustworthy.
+  hGQkZQUA5RiOXIw7P9iO: {
+    stability: envNum('ELEVENLABS_TUNE_KIORA_STABILITY', 0.55),
+    style:     envNum('ELEVENLABS_TUNE_KIORA_STYLE',     0.18),
+  },
+  // Angel (female, aVR2rUXJY4MTezzJjPyQ) - same female-voice correction as Kiora.
+  aVR2rUXJY4MTezzJjPyQ: {
+    stability: envNum('ELEVENLABS_TUNE_ANGEL_STABILITY', 0.55),
+    style:     envNum('ELEVENLABS_TUNE_ANGEL_STYLE',     0.18),
+  },
+  // Matt (pwMBn0SsmN1220Aorv15) deliberately has NO entry - customer feedback
+  // says he already sounds right, so he keeps the base+emotion profile untouched.
 };
 
-// Layer a per-voice tuning override on top of an already-resolved voice_settings
+// Layer a per-voice tuning correction on top of an already-resolved voice_settings
 // object. No entry for this voice_id → returns settings unchanged (additive).
+//
+// v2 semantics: the tune value is the voice's corrected CENTER, and the emotion's
+// swing (its delta from the base profile) is preserved around that center at
+// TUNE_EMOTION_BLEND strength. The old hard-override pinned every tuned voice to
+// ONE static setting on every line regardless of emotion - i.e. it re-created the
+// exact "flat/robotic" delivery the tuning was meant to fix. With no emotion
+// (settings === base, delta 0) the result is exactly the tuned value, same as
+// before. ELEVENLABS_TUNE_EMOTION_BLEND=0 restores the hard-override behavior.
+const TUNE_EMOTION_BLEND = clamp01(envNum('ELEVENLABS_TUNE_EMOTION_BLEND', 0.5));
 function applyVoiceTuning(settings, voiceId) {
   const tune = voiceId ? VOICE_TUNING[voiceId] : null;
   if (!tune) return settings;
   const out = { ...settings };
-  if (Number.isFinite(tune.stability)) out.stability = clamp01(tune.stability);
-  if (Number.isFinite(tune.style))     out.style     = clamp01(tune.style);
+  if (Number.isFinite(tune.stability)) {
+    const emoDelta = (Number.isFinite(settings.stability) ? settings.stability : TTS_VOICE_SETTINGS.stability)
+      - TTS_VOICE_SETTINGS.stability;
+    out.stability = clamp01(tune.stability + emoDelta * TUNE_EMOTION_BLEND);
+  }
+  if (Number.isFinite(tune.style)) {
+    const emoDelta = (Number.isFinite(settings.style) ? settings.style : TTS_VOICE_SETTINGS.style)
+      - TTS_VOICE_SETTINGS.style;
+    out.style = clamp01(tune.style + emoDelta * TUNE_EMOTION_BLEND);
+  }
   return out;
 }
 
@@ -352,6 +392,13 @@ const PACING_MAX_HESITATIONS = Number.isFinite(parseInt(process.env.VOICE_PACING
 // only at the very start of the line (case-insensitive), and only when followed
 // by a comma or space + more words - so we don't touch "Sold." or "Well!".
 const HESITATION_LEADS = ['so', 'well', 'look', 'honestly', 'okay', 'alright', 'right', 'now', 'yeah'];
+// The beat inserted after a lead word. ElevenLabs renders "..." as a LONG,
+// trailing hesitation - fine once in a while, but Claude opens many lines with
+// "So"/"Well", so back-to-back ellipses made the delivery drag and land unsure
+// (the "timing is off" customer complaint). A comma is the natural short beat a
+// confident speaker actually takes. VOICE_PACING_BEAT=ellipsis restores the old
+// long pause without a redeploy.
+const PACING_BEAT = (process.env.VOICE_PACING_BEAT || 'comma').toLowerCase() === 'ellipsis' ? '...' : ',';
 
 function humanizePacing(text, opts = {}) {
   const on = opts.enabled != null ? opts.enabled : PACING_ON;
@@ -364,16 +411,16 @@ function humanizePacing(text, opts = {}) {
     s = s.replace(/\s+/g, ' ').trim();
 
     // 2) One capped hesitation beat after a leading discourse marker, e.g.
-    //    "So I was calling about..." → "So... I was calling about...".
-    //    Only at the very start, only if there are words after it, and only if a
-    //    pause isn't already there (idempotent).
+    //    "So I was calling about..." → "So, I was calling about..." (or "So..."
+    //    when VOICE_PACING_BEAT=ellipsis). Only at the very start, only if there
+    //    are words after it, and only if a pause isn't already there (idempotent).
     if (maxHes > 0) {
       const lead = new RegExp(`^(${HESITATION_LEADS.join('|')})([ ,])`, 'i');
       const m = s.match(lead);
       if (m && !/^\w+\s*\.\.\./.test(s)) {
-        // drop an existing bare comma right after the lead so we don't get ",..."
+        // drop an existing bare comma right after the lead so we don't stack ",,"/",..."
         const rest = s.slice(m[0].length).replace(/^\s*,?\s*/, '');
-        if (rest) s = `${m[1]}... ${rest}`;
+        if (rest) s = `${m[1]}${PACING_BEAT} ${rest}`;
       }
     }
 
@@ -537,8 +584,14 @@ async function synthesizeToUrl(text, { voiceId, callSid, emotion, voiceSettings 
 // { audio: <base64>, isFinal } frames until it closes/flushes.
 const WebSocket = require('ws');
 
-// Low-latency streaming model + telephony output format (env-overridable).
-const STREAM_MODEL_ID = process.env.ELEVENLABS_STREAM_MODEL || 'eleven_flash_v2_5';
+// Streaming model + telephony output format (env-overridable).
+// eleven_turbo_v2_5 over eleven_flash_v2_5: flash is ElevenLabs' lowest-quality
+// tier and is what made live calls sound noticeably more synthetic/flat than the
+// turn-based engine (which uses multilingual_v2). Turbo is the quality/latency
+// middle ground built for conversational agents - markedly more human prosody
+// while staying in the telephony latency class. If a deploy ever needs the old
+// behavior: set ELEVENLABS_STREAM_MODEL=eleven_flash_v2_5 (no redeploy).
+const STREAM_MODEL_ID = process.env.ELEVENLABS_STREAM_MODEL || 'eleven_turbo_v2_5';
 const STREAM_OUTPUT_FORMAT = process.env.ELEVENLABS_STREAM_FORMAT || 'ulaw_8000';
 
 /**
@@ -556,11 +609,20 @@ const STREAM_OUTPUT_FORMAT = process.env.ELEVENLABS_STREAM_FORMAT || 'ulaw_8000'
  * @param {string}   opts.voiceId          ElevenLabs voice_id (required)
  * @param {function} opts.onChunk          (base64Ulaw) => void - per audio frame
  * @param {AbortSignal} [opts.signal]      abort to stop mid-utterance (barge-in)
+ * @param {string}   [opts.emotion]        emotion key (EMOTION_PROFILES) → per-line
+ *                                         voice_settings, same as the REST path.
+ * @param {object}   [opts.voiceSettings]  explicit voice_settings override (wins
+ *                                         over emotion). Absent → base profile.
  * @returns {Promise<boolean>}             true if audio streamed, false on failure/abort
  */
-function streamTts(text, { voiceId, onChunk, signal } = {}) {
+function streamTts(text, { voiceId, onChunk, signal, emotion, voiceSettings } = {}) {
   return new Promise((resolve) => {
     const vId = voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
+    // Same resolution chain as synthesizeToUrl: emotion swing first, then the
+    // per-voice correction (VOICE_TUNING) layered on top. Before this, the live
+    // stream engine sent only the bare base profile - every line landed on one
+    // flat setting and per-voice fixes (Vexa/Nick/etc.) never reached real calls.
+    const settings = applyVoiceTuning(voiceSettings || voiceSettingsForEmotion(emotion), vId);
     if (!ELEVENLABS_API_KEY || !vId || !text) {
       if (!ELEVENLABS_API_KEY) console.warn('[ElevenLabs] streamTts skipped - no API key');
       return resolve(false);
@@ -599,10 +661,10 @@ function streamTts(text, { voiceId, onChunk, signal } = {}) {
 
     ws.on('open', () => {
       try {
-        // BOS: voice_settings + auth. Reuse the same tuned profile as REST TTS.
+        // BOS: voice_settings + auth. Emotion + per-voice tuned (see above).
         ws.send(JSON.stringify({
           text: ' ',
-          voice_settings: TTS_VOICE_SETTINGS,
+          voice_settings: settings,
           xi_api_key: ELEVENLABS_API_KEY,
         }));
         // The actual line to speak.

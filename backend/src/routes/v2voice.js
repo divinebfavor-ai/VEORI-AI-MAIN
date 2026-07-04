@@ -228,7 +228,12 @@ async function scoreTwilioCall(callSid) {
 
     const useCase = await resolveCallUseCase(callRec);
     const aiAnalysis = await aiService.analyzeCallTranscript(transcript, callRec.leads, useCase);
-    const outcome = aiAnalysis.outcome || callRec.outcome || 'not_home';
+    // Transcript is guaranteed non-null here (guard above), so a conversation
+    // happened. NEVER default to 'not_home' - it maps the lead back to stage
+    // 'new' and erases real progress. 'answered' falls through both outcome
+    // maps to status/stage 'contacted', which is the truthful floor for any
+    // call that produced a transcript.
+    const outcome = aiAnalysis.outcome || callRec.outcome || 'answered';
 
     const { error } = await supabase.from('calls').update({
       motivation_score: aiAnalysis.motivation_score ?? null,
