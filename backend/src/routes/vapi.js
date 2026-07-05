@@ -13,18 +13,29 @@ const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
+// Vapi is DECOMMISSIONED (live voice runs on Twilio Media Streams). The webhook
+// endpoints below are kept ONLY for a break-glass re-enable and now REQUIRE
+// VAPI_WEBHOOK_SECRET: without it they refuse all traffic (previously they were
+// an unauthenticated write path into calls/leads when the secret was unset).
+function verifyVapiWebhook(req, res) {
+  const VAPI_WEBHOOK_SECRET = process.env.VAPI_WEBHOOK_SECRET;
+  if (!VAPI_WEBHOOK_SECRET) {
+    res.status(410).json({ success: false, error: 'Vapi webhooks are decommissioned' });
+    return false;
+  }
+  const signature = req.headers['x-vapi-signature'] || req.headers['x-webhook-secret'];
+  if (!signature || signature !== VAPI_WEBHOOK_SECRET) {
+    console.warn('[Vapi Webhook] Rejected - invalid signature');
+    res.status(401).json({ success: false, error: 'Unauthorized' });
+    return false;
+  }
+  return true;
+}
+
 // POST /api/vapi/webhook - Vapi sends all call events here
 router.post('/webhook', async (req, res) => {
   try {
-    // Verify VAPI webhook secret if configured
-    const VAPI_WEBHOOK_SECRET = process.env.VAPI_WEBHOOK_SECRET;
-    if (VAPI_WEBHOOK_SECRET) {
-      const signature = req.headers['x-vapi-signature'] || req.headers['x-webhook-secret'];
-      if (!signature || signature !== VAPI_WEBHOOK_SECRET) {
-        console.warn('[Vapi Webhook] Rejected - invalid signature');
-        return res.status(401).json({ success: false, error: 'Unauthorized' });
-      }
-    }
+    if (!verifyVapiWebhook(req, res)) return;
 
     // Vapi wraps payload in a "message" envelope
     const event = req.body?.message || req.body;
@@ -70,6 +81,7 @@ router.post('/webhook', async (req, res) => {
 // POST /api/vapi/webhook/tool-call - Alex calls this to look up comps live
 router.post('/webhook/tool-call', async (req, res) => {
   try {
+    if (!verifyVapiWebhook(req, res)) return;
     const { toolCallList, call } = req.body;
     const results = [];
 

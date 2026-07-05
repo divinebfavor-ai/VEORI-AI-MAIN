@@ -13,12 +13,17 @@ router.get('/prioritized', async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // Column names must match the real leads schema: property_city/state/zip
+    // (not city/state/zip), estimated_equity + estimated_value (there is no
+    // equity_percent column), last_call_date (no last_contact_date). The old
+    // select referenced non-existent columns, so PostgREST errored and this
+    // endpoint 500'd on every request.
     const { data: leads, error } = await supabase
       .from('leads')
       .select(`
-        id, first_name, last_name, phone, property_address, city, state, zip,
-        motivation_score, equity_percent, status, pipeline_stage,
-        last_contact_date, created_at, call_count,
+        id, first_name, last_name, phone, property_address, property_city, property_state, property_zip,
+        motivation_score, estimated_equity, estimated_value, status, pipeline_stage,
+        last_call_date, created_at, call_count,
         seller_trust_scores(score, recommendation),
         deal_probability_scores(score)
       `)
@@ -29,14 +34,18 @@ router.get('/prioritized', async (req, res) => {
 
     const scored = (leads || []).map(lead => {
       const motivation = lead.motivation_score || 0;
-      const equity     = Math.min(lead.equity_percent || 0, 100);
+      // estimated_equity is a DOLLAR amount - derive a 0-100 percent from
+      // estimated_value when both are present.
+      const equity = lead.estimated_equity > 0 && lead.estimated_value > 0
+        ? Math.min(Math.round((lead.estimated_equity / lead.estimated_value) * 100), 100)
+        : 0;
       const trust      = lead.seller_trust_scores?.[0]?.score || 50;
       const dealProb   = lead.deal_probability_scores?.[0]?.score || 0;
       const calls      = Math.min(lead.call_count || 0, 10);
 
       // Days since last contact (recency penalty)
-      const daysSince = lead.last_contact_date
-        ? Math.floor((Date.now() - new Date(lead.last_contact_date)) / 86400000)
+      const daysSince = lead.last_call_date
+        ? Math.floor((Date.now() - new Date(lead.last_call_date)) / 86400000)
         : 999;
       const recencyBonus = daysSince <= 3 ? 10 : daysSince <= 7 ? 5 : 0;
       const callBonus    = calls >= 3 ? 8 : calls >= 1 ? 4 : 0;

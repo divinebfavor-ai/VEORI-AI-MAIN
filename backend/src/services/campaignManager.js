@@ -8,7 +8,7 @@ const { isWithinTcpaWindow } = require('./tcpaWindow');
 // In-memory active campaigns (in production use Redis)
 const activeCampaigns = new Map();
 
-const MAX_CONSECUTIVE_FAILURES = 3; // Stop immediately after 3 straight Vapi rejections
+const MAX_CONSECUTIVE_FAILURES = 3; // Stop immediately after 3 straight dial rejections
 
 async function start(campaignId, userId) {
   const { data: campaign, error } = await supabase.from('campaigns').select('*').eq('id', campaignId).eq('user_id', userId).single();
@@ -106,8 +106,8 @@ async function dialerTick(campaignId) {
 
     // Check consecutive failure threshold before trying another call
     if (session.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-      console.error(`[Campaign ${campaignId}] ${MAX_CONSECUTIVE_FAILURES} consecutive Vapi failures - pausing to protect leads`);
-      await pauseWithError(campaignId, session.lastVapiError || 'Vapi rejected multiple calls in a row. Check your Vapi account limits and phone number configuration.');
+      console.error(`[Campaign ${campaignId}] ${MAX_CONSECUTIVE_FAILURES} consecutive dial failures - pausing to protect leads`);
+      await pauseWithError(campaignId, session.lastVapiError || 'Multiple calls were rejected in a row. Check your Twilio account and phone number configuration.');
       return;
     }
 
@@ -279,7 +279,7 @@ async function dialerTick(campaignId) {
         }
       }).catch(() => {});
 
-      pollCallStatus(campaignId, callId, vapiCall.id);
+      pollCallStatus(campaignId, callId);
 
       console.log(`[Campaign ${campaignId}] ✅ Call initiated → ${lead.first_name} ${lead.last_name} | ${phoneNum.number} → ${lead.phone}`);
 
@@ -291,25 +291,46 @@ async function dialerTick(campaignId) {
   }
 }
 
-async function pollCallStatus(campaignId, callId, vapiCallId) {
+// Watches a live call and frees its concurrency slot when it ends.
+//
+// IMPORTANT: this polls OUR calls row, not Vapi. The old version polled
+// vapiService.getCall(sid) - but with the in-house stream engine the id is a
+// Twilio CallSid, so Vapi 404'd, .catch() mapped that to "ended", and the slot
+// was freed ~5s after dialing while the call was still live. Result: the dialer
+// kept filling "free" slots and over-dialed past concurrent_lines. The Twilio
+// status webhook (/api/v2/voice/status) writes the terminal status to the row,
+// so the row is the engine-agnostic source of truth.
+//
+// A hard max lifetime guarantees the interval can never leak: even if the
+// webhook is lost, the slot frees and the poller exits after CALL_POLL_MAX_MS.
+async function pollCallStatus(campaignId, callId) {
   const session = activeCampaigns.get(campaignId);
   if (!session) return;
 
+  const TERMINAL_STATUSES = ['completed', 'ended', 'failed', 'no-answer', 'busy', 'canceled'];
+  const MAX_POLL_MS = Number(process.env.CALL_POLL_MAX_MS) || 20 * 60 * 1000;
+  const pollStartedAt = Date.now();
+
   const poll = setInterval(async () => {
     try {
-      const call = await vapiService.getCall(vapiCallId).catch(() => null);
-      const isEnded = !call || call.status === 'ended' || call.status === 'failed';
-      if (isEnded) {
-        clearInterval(poll);
-        session.activeCalls.delete(callId);
-        console.log(`[Campaign ${campaignId}] Call finished. Active: ${session.activeCalls.size} | Queue: ${session.leadQueue.length}`);
+      // Session torn down (stop()) - exit so the interval never outlives it.
+      if (session.stopped) { clearInterval(poll); return; }
 
-        // Trigger next batch if queue still has leads
-        if (!session.paused && !session.stopped && session.leadQueue.length > 0) {
-          dialerTick(campaignId);
-        } else if (session.leadQueue.length === 0 && session.activeCalls.size === 0) {
-          await stop(campaignId);
-        }
+      const { data: row } = await supabase.from('calls').select('status').eq('id', callId).maybeSingle();
+      const timedOut = Date.now() - pollStartedAt > MAX_POLL_MS;
+      const isEnded = !row || TERMINAL_STATUSES.includes(row.status) || timedOut;
+      if (!isEnded) return;
+
+      clearInterval(poll);
+      session.activeCalls.delete(callId);
+      if (timedOut) console.warn(`[Campaign ${campaignId}] Call ${callId} poll timed out after ${Math.round(MAX_POLL_MS / 60000)}min - freeing slot`);
+      console.log(`[Campaign ${campaignId}] Call finished. Active: ${session.activeCalls.size} | Queue: ${session.leadQueue.length}`);
+
+      // Trigger next batch if queue still has leads
+      if (!session.paused && !session.stopped && session.leadQueue.length > 0) {
+        dialerTick(campaignId);
+      } else if (session.leadQueue.length === 0 && session.activeCalls.size === 0) {
+        await stop(campaignId);
       }
     } catch {
       clearInterval(poll);

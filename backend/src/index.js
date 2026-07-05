@@ -336,91 +336,31 @@ try {
 
 // ─── BullMQ Job Queue (replaces all setInterval business logic) ───────────────
 const { initWorkers } = require('./services/queueService');
+let queueWorkersRunning = false;
 try {
-  initWorkers();
+  // initWorkers() returns false when REDIS_URL is unset (it does NOT throw in
+  // that case), so the fallback must key off the return value too - previously
+  // "no Redis configured" silently meant NO sequence scanning at all.
+  queueWorkersRunning = initWorkers() === true;
 } catch (err) {
   console.warn('[Queue] BullMQ init failed (Redis may be unavailable):', err.message);
-  // Fallback: hourly sequence scan when Redis not available
+}
+if (!queueWorkersRunning) {
+  // Fallback: hourly sequence scan when the BullMQ cron isn't running.
+  // Armed ONLY when workers are confirmed absent, so it can never double-fire
+  // alongside the queue's */15 sequence-scan repeatable job.
   const { processReadySequences } = require('./services/sequenceEngine');
-  setInterval(processReadySequences, 60 * 60 * 1000);
+  setInterval(() => {
+    processReadySequences().catch(err => console.error('[SequenceScan] fallback tick error:', err.message));
+  }, 60 * 60 * 1000);
+  console.warn('[Queue] Running WITHOUT BullMQ - hourly interval fallback armed for sequence scans');
 }
 
-// ─── Auto VAPI sync - runs every 5 min to backfill missed recordings/transcripts
-async function autoSyncVapiCalls() {
-  try {
-    const axios    = require('axios');
-    const supabase = require('./config/supabase');
-    const VAPI_API_KEY = process.env.VAPI_API_KEY;
-    if (!VAPI_API_KEY) return;
-
-    const { data: vapiResp } = await axios.get('https://api.vapi.ai/call', {
-      headers: { Authorization: `Bearer ${VAPI_API_KEY}` },
-      params: { limit: 50 },
-      timeout: 15000,
-    });
-
-    const vapiCalls = Array.isArray(vapiResp) ? vapiResp : (vapiResp?.calls || vapiResp?.data || []);
-    let synced = 0;
-
-    for (const vc of vapiCalls) {
-      if (!vc.id) continue;
-
-      const { data: existing } = await supabase.from('calls')
-        .select('id, status, transcript, recording_url, lead_id, ended_at')
-        .eq('vapi_call_id', vc.id)
-        .single();
-
-      if (!existing) continue;
-
-      // Skip if we already have everything
-      const alreadyComplete = existing.status === 'ended' && existing.transcript && existing.recording_url;
-      if (alreadyComplete) continue;
-
-      const endedAt  = vc.endedAt || null;
-      const startedAt = vc.startedAt || null;
-      const duration  = startedAt && endedAt
-        ? Math.max(0, Math.round((new Date(endedAt) - new Date(startedAt)) / 1000))
-        : null;
-
-      let transcript = vc.transcript || null;
-      if (!transcript && Array.isArray(vc.messages)) {
-        transcript = vc.messages
-          .filter(m => m.role && m.message)
-          .map(m => `${m.role === 'assistant' ? 'Alex' : 'Seller'}: ${m.message}`)
-          .join('\n');
-      }
-
-      const updateFields = {};
-      if (vc.status === 'ended' && existing.status !== 'ended') updateFields.status = 'ended';
-      if (endedAt && !existing.ended_at) updateFields.ended_at = endedAt;
-      if (duration) updateFields.duration_seconds = duration;
-      if (vc.recordingUrl && !existing.recording_url) updateFields.recording_url = vc.recordingUrl;
-      if (transcript && !existing.transcript) updateFields.transcript = transcript;
-
-      if (Object.keys(updateFields).length === 0) continue;
-
-      await supabase.from('calls').update(updateFields).eq('id', existing.id);
-
-      // Un-stick lead status
-      if (existing.lead_id && updateFields.status === 'ended') {
-        const { data: lead } = await supabase.from('leads').select('status').eq('id', existing.lead_id).single();
-        if (lead?.status === 'calling') {
-          await supabase.from('leads').update({ status: 'contacted', last_call_date: endedAt || new Date().toISOString() }).eq('id', existing.lead_id);
-        }
-      }
-
-      synced++;
-    }
-
-    if (synced > 0) console.log(`[AutoSync] Synced ${synced} calls from VAPI`);
-  } catch (err) {
-    console.error('[AutoSync] VAPI sync error:', err.message);
-  }
-}
-
-// Run immediately at startup, then every 5 minutes
-autoSyncVapiCalls();
-setInterval(autoSyncVapiCalls, 5 * 60 * 1000);
+// NOTE: The 5-minute autoSyncVapiCalls poller was removed - Vapi is
+// decommissioned (voice engine is Twilio Media Streams / "stream"), so the
+// poller only burned an outbound API call every 5 min against a dead provider.
+// Manual backfill for legacy Vapi-era calls remains available via
+// POST /api/vapi/sync-calls (requireAuth), which the Leads page still exposes.
 
 // ─── Callback safety-net sweep (Redis-INDEPENDENT) ────────────────────────────
 // A "call me at 5" callback is normally fired by a BullMQ delayed job. If Redis
@@ -434,6 +374,17 @@ const CALLBACK_SWEEP_MS = Number(process.env.CALLBACK_SWEEP_MS) || 2 * 60 * 1000
 setInterval(() => {
   pollDueCallbacks().catch(err => console.error('[CallbackSweep] tick error:', err.message));
 }, CALLBACK_SWEEP_MS);
+
+// ─── Title follow-up sweep (Redis-INDEPENDENT) ────────────────────────────────
+// scheduleTitleFollowUps() inserts follow_ups rows (contact_type='title_company',
+// status='pending') when a deal goes under contract, but no queue job is enqueued
+// for them - this sweep is what actually sends the due title-company touches.
+// Atomic per-row claim inside prevents double-sends across overlapping ticks.
+const { pollDueTitleFollowUps } = require('./services/titleService');
+const TITLE_SWEEP_MS = Number(process.env.TITLE_SWEEP_MS) || 10 * 60 * 1000;
+setInterval(() => {
+  pollDueTitleFollowUps().catch(err => console.error('[TitleSweep] tick error:', err.message));
+}, TITLE_SWEEP_MS);
 
 // ─── Learning loop: nightly lesson distillation (Redis-INDEPENDENT) ───────────
 // Studies each active operator's VERIFIED call outcomes and refreshes the

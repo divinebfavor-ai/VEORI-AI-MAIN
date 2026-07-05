@@ -205,10 +205,13 @@ async function cancelJob(queueName, jobId) {
 }
 
 // ─── Initialize workers ───────────────────────────────────────────────────────
+// Returns true when BullMQ workers are actually running (Redis available),
+// false when disabled - so the caller can arm interval fallbacks ONLY when
+// the queue-driven crons are genuinely absent (no double-fire).
 function initWorkers() {
   if (!REDIS_AVAILABLE) {
     console.warn('[Queue] REDIS_URL not set - BullMQ disabled. Add Redis on Railway to enable job queues.');
-    return;
+    return false;
   }
   const conn = getRedisConnection();
 
@@ -365,6 +368,7 @@ function initWorkers() {
   }
 
   console.log('[Queue] BullMQ workers initialized');
+  return true;
 }
 
 module.exports = {

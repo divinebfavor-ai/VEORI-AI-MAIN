@@ -245,6 +245,7 @@ router.post('/inbound', express.json({ type: '*/*' }), async (req, res) => {
   try {
     // Optional shared-secret gate (set EMAIL_INBOUND_SECRET in Railway to lock it
     // down). Accepts the secret via header or ?key= so any forwarder can pass it.
+    let trustedForwarder = false;
     if (EMAIL_INBOUND_SECRET) {
       const provided =
         req.headers['x-inbound-secret'] || req.query.key || '';
@@ -252,6 +253,9 @@ router.post('/inbound', express.json({ type: '*/*' }), async (req, res) => {
         console.warn('[EmailInbound] bad/missing secret - rejecting');
         return res.status(401).json({ ok: false });
       }
+      trustedForwarder = true;
+    } else {
+      console.warn('[EmailInbound] EMAIL_INBOUND_SECRET not set - accepting unverified event');
     }
 
     const body = req.body || {};
@@ -267,9 +271,12 @@ router.post('/inbound', express.json({ type: '*/*' }), async (req, res) => {
       (Array.isArray(data.from) ? data.from[0] : null) ||
       null;
 
-    // Operator hint, if the forwarder supplies one (optional - service falls back
-    // to an unscoped lookup when absent).
-    const userId = body.user_id || data.user_id || req.query.user_id || null;
+    // Operator hint - honored ONLY when the forwarder authenticated via the shared
+    // secret. On an unauthenticated request the hint is client-supplied and ignored;
+    // the service falls back to an unscoped email match (same result quality).
+    const userId = trustedForwarder
+      ? (body.user_id || data.user_id || req.query.user_id || null)
+      : null;
 
     const result = await handleInboundReply({ fromRaw, userId });
     return res.json({ ok: true, ...result });

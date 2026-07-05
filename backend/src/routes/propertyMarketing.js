@@ -274,16 +274,47 @@ router.post('/generate', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Listing not found' });
     }
 
-    // Gather photos: from listing.photos array or property_photos table
-    let photos = listing.photos || [];
-    if (photos.length === 0) {
-      const { data: photosData } = await supabase
-        .from('property_photos')
-        .select('url')
-        .eq('listing_id', listing_id)
-        .order('display_order', { ascending: true })
-        .limit(8);
-      photos = (photosData || []).map(p => p.url).filter(Boolean);
+    // Gather photos: from listing.photos array, else fall back to the photos the
+    // platform actually stores. property_photos rows hang off DEALS (columns:
+    // deal_id + storage_path/photo_url - there is no listing_id/url/display_order),
+    // so bridge listing → lead → deals, then SIGN each private storage path so
+    // Shotstack can fetch the image during the render. Seller-texted photos
+    // (lead_photos.url, keyed by lead_id) are the second fallback.
+    let photos = (listing.photos || []).filter(Boolean);
+    if (photos.length === 0 && listing.lead_id) {
+      const { data: dealRows } = await supabase
+        .from('deals').select('id')
+        .eq('lead_id', listing.lead_id).eq('user_id', req.user.id);
+      const dealIds = (dealRows || []).map(d => d.id).filter(Boolean);
+
+      if (dealIds.length) {
+        const { data: photosData } = await supabase
+          .from('property_photos')
+          .select('storage_path, photo_url')
+          .in('deal_id', dealIds)
+          .eq('user_id', req.user.id)
+          .order('created_at', { ascending: true })
+          .limit(8);
+        const BUCKET = process.env.PROPERTY_PHOTOS_BUCKET || 'veori-property-photos';
+        const signed = await Promise.all((photosData || []).map(async (p) => {
+          const path = p.storage_path || p.photo_url;
+          if (!path) return null;
+          if (/^https?:\/\//i.test(path)) return path; // already a full URL
+          const { data: s } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
+          return s?.signedUrl || null;
+        }));
+        photos = signed.filter(Boolean);
+      }
+
+      if (photos.length === 0) {
+        const { data: leadPhotos } = await supabase
+          .from('lead_photos')
+          .select('url')
+          .eq('lead_id', listing.lead_id)
+          .order('created_at', { ascending: true })
+          .limit(8);
+        photos = (leadPhotos || []).map(p => p.url).filter(Boolean);
+      }
     }
 
     if (photos.length === 0) {

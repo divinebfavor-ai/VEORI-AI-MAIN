@@ -170,7 +170,6 @@ export const deals = {
   downloadContractPdf: (id, type)   => api.get(`/api/deals/${id}/contract.pdf`, { params: { type }, responseType: 'blob' }),
   sendContract:      (id, type, data) => api.post(`/api/deals/${id}/send-contract`, { type, ...data }),
   sendToTitle:       (id, data)     => api.post(`/api/deals/${id}/send-to-title`, data),
-  startBuyerCampaign:(id)           => api.post(`/api/deals/${id}/start-buyer-campaign`),
   // Post-contract lifecycle - EMD + assignment-fee suggester + wire instructions
   confirmEMD:         (id, data)     => api.post(`/api/deals/${id}/emd/confirm`, data),
   getFeeSuggestion:   (id)           => api.get(`/api/deals/${id}/fee-suggestion`),

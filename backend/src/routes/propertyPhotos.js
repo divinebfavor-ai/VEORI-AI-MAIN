@@ -30,18 +30,35 @@ router.post('/upload_property_photos', async (req, res, next) => {
     const deal = await ensureDealOwnership(req, deal_id);
     if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
 
+    // Only real image types land in the bucket - anything else (HTML, SVG with
+    // scripts, executables renamed .jpg) is silently skipped. The stored extension
+    // is derived from the VERIFIED content type, never from the client filename.
+    const ALLOWED_TYPES = {
+      'image/jpeg': 'jpg',
+      'image/png':  'png',
+      'image/webp': 'webp',
+      'image/heic': 'heic',
+      'image/heif': 'heif',
+      'image/gif':  'gif',
+    };
+    const MAX_PHOTO_BYTES = 15 * 1024 * 1024; // 15 MB per photo
+
     const uploads = [];
     for (const photo of photos.slice(0, 12)) {
       if (!photo?.data_base64 || !photo?.content_type) continue;
 
-      const ext = (photo.filename?.split('.').pop() || 'jpg').toLowerCase();
+      const contentType = String(photo.content_type).toLowerCase().split(';')[0].trim();
+      const ext = ALLOWED_TYPES[contentType];
+      if (!ext) continue; // not an allowed image type
+
       const path = `${req.user.id}/${deal_id}/${Date.now()}-${uuidv4()}.${ext}`;
       const buffer = Buffer.from(photo.data_base64, 'base64');
+      if (!buffer.length || buffer.length > MAX_PHOTO_BYTES) continue;
 
       const { error: uploadError } = await supabase.storage
         .from(BUCKET)
         .upload(path, buffer, {
-          contentType: photo.content_type,
+          contentType,
           upsert: false,
         });
       if (uploadError) throw uploadError;
@@ -54,7 +71,7 @@ router.post('/upload_property_photos', async (req, res, next) => {
         storage_path: path,
         photo_url: path,
         caption: photo.caption || null,
-        content_type: photo.content_type,
+        content_type: contentType,
         created_at: new Date().toISOString(),
       });
     }

@@ -14,10 +14,17 @@ router.get('/', async (req, res, next) => {
   try {
     const { campaign_id, status, score_min, score_max, state, source, limit = 50, offset = 0, search, date_from } = req.query;
 
+    // Cap page size at 500 so a client can't pull the whole table in one request,
+    // and add created_at as a tiebreaker so pagination is stable when many leads
+    // share the same motivation_score (Postgres gives no order guarantee otherwise).
+    const safeLimit  = Math.min(Math.max(Number(limit)  || 50, 1), 500);
+    const safeOffset = Math.max(Number(offset) || 0, 0);
+
     let q = supabase.from('leads').select('*', { count: 'exact' })
       .eq('user_id', req.user.id)
       .order('motivation_score', { ascending: false, nullsFirst: false })
-      .range(Number(offset), Number(offset) + Number(limit) - 1);
+      .order('created_at', { ascending: false })
+      .range(safeOffset, safeOffset + safeLimit - 1);
 
     if (status)    q = q.eq('status', status);
     if (state)     q = q.eq('property_state', state);
@@ -31,7 +38,7 @@ router.get('/', async (req, res, next) => {
 
     const { data, error, count } = await q;
     if (error) throw error;
-    res.json({ success: true, data, total: count, limit: Number(limit), offset: Number(offset) });
+    res.json({ success: true, data, total: count, limit: safeLimit, offset: safeOffset });
   } catch (err) { next(err); }
 });
 
@@ -521,23 +528,29 @@ router.post('/', async (req, res, next) => {
 
     if (error) throw error;
 
-    // Auto-tag within 60 seconds (async - don't block response)
+    // Auto-tag within 60 seconds (async - don't block response). The whole body is
+    // wrapped so a tagging/SMS failure is LOGGED instead of becoming an unhandled
+    // promise rejection (which can kill the process on modern Node).
     setImmediate(async () => {
-      const tagged = await tagLead(data.id);
-      if (tagged && !is_on_dnc) {
-        // Re-fetch to get tag for SMS
-        const { data: full } = await supabase.from('leads').select('*').eq('id', data.id).single();
-        if (full) {
-          const sms = getOpeningSMS(full);
-          // Log opening SMS to be sent (conversations service picks this up)
-          await supabase.from('ai_command_log').insert({
-            operator_id: req.user.id,
-            action_type: 'opening_sms',
-            contact_name: `${full.first_name} ${full.last_name}`,
-            message_sent: sms,
-            outcome: 'queued',
-          }).then(null, () => {});
+      try {
+        const tagged = await tagLead(data.id);
+        if (tagged && !is_on_dnc) {
+          // Re-fetch to get tag for SMS
+          const { data: full } = await supabase.from('leads').select('*').eq('id', data.id).single();
+          if (full) {
+            const sms = getOpeningSMS(full);
+            // Log opening SMS to be sent (conversations service picks this up)
+            await supabase.from('ai_command_log').insert({
+              operator_id: req.user.id,
+              action_type: 'opening_sms',
+              contact_name: `${full.first_name} ${full.last_name}`,
+              message_sent: sms,
+              outcome: 'queued',
+            }).then(null, () => {});
+          }
         }
+      } catch (err) {
+        console.error('[Leads create] async auto-tag/opening-SMS error:', err.message);
       }
     });
 
@@ -559,6 +572,17 @@ router.post('/bulk', async (req, res, next) => {
   try {
     const { leads } = req.body;
     if (!Array.isArray(leads) || !leads.length) return res.status(400).json({ success: false, error: 'leads array required' });
+
+    // Hard cap: one import request handles at most 10,000 rows. Larger files must be
+    // split client-side - an unbounded array here means an unbounded DNC .in() query,
+    // an unbounded map, and a request body big enough to stall the event loop.
+    const MAX_BULK_ROWS = 10000;
+    if (leads.length > MAX_BULK_ROWS) {
+      return res.status(400).json({
+        success: false,
+        error: `Too many rows (${leads.length}). Max ${MAX_BULK_ROWS} per import - split the file and retry.`,
+      });
+    }
 
     // Get all DNC numbers
     const phones = leads.map(l => l.phone).filter(Boolean);
@@ -651,19 +675,28 @@ router.post('/bulk', async (req, res, next) => {
       .limit(imported);
 
     if (newLeads?.length) {
-      setImmediate(() => tagLeadsBulk(newLeads.map(l => l.id)));
+      // Both async lanes catch their own failures - an import must never leave an
+      // unhandled rejection behind just because tagging or SMS hiccupped.
+      setImmediate(() => {
+        Promise.resolve(tagLeadsBulk(newLeads.map(l => l.id)))
+          .catch(err => console.error('[Leads import] bulk auto-tag error:', err.message));
+      });
 
       // Fire opening SMS to every lead that has a phone number
       const { sendOpeningSMS } = require('../services/smsService');
       const userId = req.user.id;
       setImmediate(async () => {
-        for (const lead of newLeads) {
-          if (lead.phone && !lead.is_on_dnc) {
-            await sendOpeningSMS(lead, userId).catch(() => {});
-            await new Promise(r => setTimeout(r, 300)); // 300ms between sends
+        try {
+          for (const lead of newLeads) {
+            if (lead.phone && !lead.is_on_dnc) {
+              await sendOpeningSMS(lead, userId).catch(() => {});
+              await new Promise(r => setTimeout(r, 300)); // 300ms between sends
+            }
           }
+          console.log(`[SMS] Opening texts sent to ${newLeads.filter(l => l.phone).length} leads`);
+        } catch (err) {
+          console.error('[Leads import] opening-SMS loop error:', err.message);
         }
-        console.log(`[SMS] Opening texts sent to ${newLeads.filter(l => l.phone).length} leads`);
       });
     }
 

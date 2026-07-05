@@ -882,27 +882,12 @@ router.get('/:id/brief', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/deals/:id/start-buyer-campaign
-router.post('/:id/start-buyer-campaign', async (req, res, next) => {
-  try {
-    const { data: deal } = await supabase.from('deals').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
-    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
-
-    // Find matching buyers
-    const { data: buyers } = await supabase.from('buyers')
-      .select('*').eq('user_id', req.user.id).eq('is_active', true)
-      .or(`buy_box_states.cs.{"${deal.property_state}"},buy_box_states.eq.{}`)
-      .lte('max_price', deal.buyer_price || (deal.offer_price ? Math.round(deal.offer_price * 1.1) : 9999999));
-
-    // Log in deals table that buyer search is active. Use the official 'under_contract'
-    // stage (a deal in buyer search is already under contract) so the pipeline board
-    // can render the card - 'buyer search' was an off-spec status the board can't group.
-    await supabase.from('deals').update({ status: 'under_contract', updated_at: new Date().toISOString() })
-      .eq('id', req.params.id).eq('user_id', req.user.id);
-    const campaign = { id: req.params.id, status: 'active' };
-
-    res.json({ success: true, data: { campaign, buyers_matched: buyers?.length || 0 } });
-  } catch (err) { next(err); }
-});
+// NOTE: POST /:id/start-buyer-campaign was removed. It was dead + broken:
+//   • no UI component ever called it (only an unused api.js wrapper),
+//   • its buyer matcher was inverted (.lte('max_price', price) matched buyers who
+//     could NOT afford the deal),
+//   • it returned a fake { campaign } object without starting anything.
+// The real dispo path is the automatic buyer blast that fires when a deal moves to
+// 'under_contract' (see the stage handler above → buyerDispoService.startBuyerBlast).
 
 module.exports = router;

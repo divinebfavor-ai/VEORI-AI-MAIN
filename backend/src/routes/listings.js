@@ -434,28 +434,11 @@ router.post('/:id/assignment', async (req, res) => {
 
     if (error) throw error;
 
-    // Attempt DropboxSign
-    let signUrl = null;
-    try {
-      const dropboxSignService = require('../services/dropboxSignService');
-      const signResult = await dropboxSignService.createAssignmentContract({
-        assignorName:     contract.assignor_name,
-        assigneeName:     contract.assignee_name,
-        propertyAddress:  contract.property_address,
-        purchasePrice:    purchase_price,
-        assignmentFee:    assignment_fee,
-      });
-      signUrl = signResult?.sign_url;
-      await supabase.from('assignment_contracts').update({
-        sign_url: signUrl,
-        dropbox_envelope_id: signResult?.envelope_id,
-        status: 'sent',
-      }).eq('id', contract.id);
-    } catch (e) {
-      console.warn('[Listings] DropboxSign error:', e.message);
-    }
-
-    res.json({ success: true, contract: { ...contract, sign_url: signUrl } });
+    // E-sign for assignment contracts is not wired up (the old Dropbox Sign
+    // call referenced a function that never existed and had no signer emails).
+    // The contract is stored as a draft; signing happens through the native
+    // contract flow (/api/contracts) once the deal is in the pipeline.
+    res.json({ success: true, contract: { ...contract, sign_url: null } });
   } catch (err) {
     console.error('[Listings] assignment error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to create assignment contract' });

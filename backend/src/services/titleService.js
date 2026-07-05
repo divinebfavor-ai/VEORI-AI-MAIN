@@ -240,7 +240,7 @@ async function sendTitleFollowUpEmail(dealId, userId, followUpNumber = 1) {
   try {
     const { data: deal } = await supabase.from('deals')
       .select('*, title_companies(*)').eq('id', dealId).single();
-    if (!deal?.title_companies?.email) return;
+    if (!deal?.title_companies?.email) return false;
 
     const titleCo = deal.title_companies;
     const subjects = [
@@ -270,8 +270,88 @@ async function sendTitleFollowUpEmail(dealId, userId, followUpNumber = 1) {
     }).eq('deal_id', dealId);
 
     console.log(`[Title] Follow-up #${followUpNumber} sent to ${titleCo.name}`);
+    return true;
   } catch (e) {
     console.error('[Title] Follow-up email failed:', e.message);
+    return false;
+  }
+}
+
+// ─── 5. Due title follow-up sweep (Redis-INDEPENDENT) ─────────────────────────
+// scheduleTitleFollowUps() inserts follow_ups rows (contact_type='title_company',
+// status='pending') but nothing executed them - they sat pending forever. This
+// sweep runs on a plain setInterval from index.js (same pattern as the callback
+// sweep) and fires each due title touch as an EMAIL to the title company.
+// 'call'-type rows also go out as email: the AI dialer only calls sellers, so an
+// email touch is the automated equivalent (the reason text is preserved in the
+// outcome for the operator's timeline).
+//
+// Double-send safety: each row is ATOMICALLY claimed (pending → processing,
+// guarded by .eq('status','pending')) before sending, so overlapping ticks or
+// multiple boxes never send the same follow-up twice.
+async function pollDueTitleFollowUps() {
+  try {
+    const nowIso = new Date().toISOString();
+    const { data: due, error } = await supabase
+      .from('follow_ups')
+      .select('id, user_id, deal_id, follow_up_type, reason, next_follow_up_at')
+      .eq('contact_type', 'title_company')
+      .eq('status', 'pending')
+      .lte('next_follow_up_at', nowIso)
+      .order('next_follow_up_at', { ascending: true })
+      .limit(25);
+
+    if (error) { console.error('[TitleSweep] query error:', error.message); return 0; }
+    if (!due || due.length === 0) return 0;
+
+    let fired = 0;
+    for (const row of due) {
+      if (!row.deal_id || !row.user_id) {
+        await supabase.from('follow_ups').update({
+          status: 'failed', outcome: 'missing deal_id/user_id', updated_at: new Date().toISOString(),
+        }).eq('id', row.id);
+        continue;
+      }
+
+      // Atomic claim - only the caller that flips pending→processing proceeds.
+      const { data: claimed, error: claimErr } = await supabase
+        .from('follow_ups')
+        .update({ status: 'processing', updated_at: new Date().toISOString() })
+        .eq('id', row.id)
+        .eq('status', 'pending')
+        .select('id');
+      if (claimErr) { console.error('[TitleSweep] claim error:', claimErr.message); continue; }
+      if (!claimed || claimed.length === 0) continue; // lost the race
+
+      // Follow-up number = completed title touches for this deal so far + 1
+      // (picks the matching subject/body variant in sendTitleFollowUpEmail).
+      let followUpNumber = 1;
+      try {
+        const { count } = await supabase.from('follow_ups')
+          .select('id', { count: 'exact', head: true })
+          .eq('deal_id', row.deal_id)
+          .eq('contact_type', 'title_company')
+          .eq('status', 'completed');
+        followUpNumber = (count || 0) + 1;
+      } catch (_) { /* default to 1 */ }
+
+      const sent = await sendTitleFollowUpEmail(row.deal_id, row.user_id, followUpNumber);
+      await supabase.from('follow_ups').update({
+        status:     sent ? 'completed' : 'failed',
+        outcome:    sent
+          ? (row.follow_up_type === 'call' ? 'sent as email (auto)' : 'email sent')
+          : 'send failed or title company has no email',
+        updated_at: new Date().toISOString(),
+      }).eq('id', row.id);
+
+      if (sent) fired++;
+    }
+
+    if (fired) console.log(`[TitleSweep] Sent ${fired} due title follow-up(s)`);
+    return fired;
+  } catch (err) {
+    console.error('[TitleSweep] Sweep error:', err.message);
+    return 0;
   }
 }
 
@@ -280,4 +360,5 @@ module.exports = {
   sendDealPackageToTitle,
   scheduleTitleFollowUps,
   sendTitleFollowUpEmail,
+  pollDueTitleFollowUps,
 };

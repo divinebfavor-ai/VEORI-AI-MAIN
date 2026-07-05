@@ -9,8 +9,11 @@ router.use(requireAuth);
 router.get('/', async (req, res, next) => {
   try {
     const { state, type, max_price, limit = 100, offset = 0 } = req.query;
+    // Cap page size at 500 so one request can't pull an entire buyer list.
+    const safeLimit  = Math.min(Math.max(Number(limit)  || 100, 1), 500);
+    const safeOffset = Math.max(Number(offset) || 0, 0);
     let q = supabase.from('buyers').select('*', { count: 'exact' }).eq('user_id', req.user.id)
-      .order('created_at', { ascending: false }).range(Number(offset), Number(offset) + Number(limit) - 1);
+      .order('created_at', { ascending: false }).range(safeOffset, safeOffset + safeLimit - 1);
     if (state) q = q.contains('buy_box_states', [state]);
     if (type)  q = q.contains('buy_box_types', [type]);
     if (max_price) q = q.gte('max_price', Number(max_price));
