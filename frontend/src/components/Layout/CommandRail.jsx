@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Radio,
@@ -49,11 +50,35 @@ const NAV = [
 ]
 
 // ─── Notifications dropdown ───────────────────────────────────────────────────
-function NotifDropdown({ open, onClose, onCountChange }) {
+function NotifDropdown({ open, onClose, onCountChange, anchorRef }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [pos, setPos] = useState(null)
   const ref = useRef(null)
   const navigate = useNavigate()
+
+  // Position the portal panel relative to the bell button. Rendering into
+  // document.body (not the sidebar, which has overflow:hidden) is what makes
+  // the panel actually visible — otherwise left:100% gets clipped away.
+  useEffect(() => {
+    if (!open) return
+    const place = () => {
+      const el = anchorRef?.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      setPos({
+        left: Math.min(r.right + 8, window.innerWidth - 332),
+        bottom: Math.max(8, window.innerHeight - r.bottom),
+      })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open, anchorRef])
 
   useEffect(() => {
     if (!open) return
@@ -65,10 +90,14 @@ function NotifDropdown({ open, onClose, onCountChange }) {
   }, [open])
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    const handler = (e) => {
+      const inPanel = ref.current && ref.current.contains(e.target)
+      const inAnchor = anchorRef?.current && anchorRef.current.contains(e.target)
+      if (!inPanel && !inAnchor) onClose()
+    }
     if (open) document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [open, onClose])
+  }, [open, onClose, anchorRef])
 
   const markAll = async () => {
     await notifApi.markAllRead().catch(() => {})
@@ -110,16 +139,16 @@ function NotifDropdown({ open, onClose, onCountChange }) {
     if (dest) navigate(dest)
   }
 
-  if (!open) return null
+  if (!open || !pos) return null
 
-  return (
+  return createPortal(
     <div ref={ref} style={{
-      position: 'absolute', left: '100%', top: 0, marginLeft: 8,
+      position: 'fixed', left: pos.left, bottom: pos.bottom,
       width: 320, maxHeight: 420,
       background: 'var(--card-bg)', border: '1px solid var(--border)',
       borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.40)',
       overflow: 'hidden', display: 'flex', flexDirection: 'column',
-      zIndex: 100,
+      zIndex: 9999,
     }}>
       <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>Notifications</span>
@@ -158,7 +187,8 @@ function NotifDropdown({ open, onClose, onCountChange }) {
           </div>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -352,7 +382,7 @@ export default function CommandRail() {
             </div>
             {!collapsed && <span style={{ fontSize: 13, color: 'var(--t3)' }}>Notifications</span>}
           </button>
-          <NotifDropdown open={notifOpen} onClose={() => setNotifOpen(false)} onCountChange={refreshUnread} />
+          <NotifDropdown open={notifOpen} onClose={() => setNotifOpen(false)} onCountChange={refreshUnread} anchorRef={notifRef} />
         </div>
 
         {/* Theme toggle */}
