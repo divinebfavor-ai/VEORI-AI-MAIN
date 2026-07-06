@@ -77,10 +77,26 @@ function NotifDropdown({ open, onClose, onCountChange }) {
   }
 
   // Resolve where a notification should take the operator when clicked.
+  // Explicit link / deal wins; otherwise fall back by type so a click is
+  // NEVER a dead no-op (many notifications are created without a link).
+  const TYPE_ROUTES = {
+    hot_lead:         '/hot-leads',
+    daily_briefing:   '/dashboard',
+    market_hotspot:   '/heatmap',
+    outreach_credits: '/marketplace',
+    title_warning:    '/title-companies',
+    appointment:      '/appointments',
+    missed_call:      '/missed-calls',
+    follow_up:        '/follow-ups',
+    new_lead:         '/leads',
+    contract:         '/pipeline',
+    offer:            '/pipeline',
+  }
   const destFor = (n) => {
     if (n.link) return n.link
     if (n.deal_id) return `/deals/${n.deal_id}`
-    return null
+    if (n.type && TYPE_ROUTES[n.type]) return TYPE_ROUTES[n.type]
+    return '/dashboard'
   }
 
   const handleClick = async (n) => {
