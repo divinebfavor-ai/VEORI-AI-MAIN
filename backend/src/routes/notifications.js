@@ -66,6 +66,29 @@ router.put('/:id/read', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// DELETE /api/notifications/clear-all - remove all of the operator's notifications
+router.delete('/clear-all', async (req, res, next) => {
+  try {
+    const { error } = await supabase.from('notifications')
+      .delete()
+      .eq('operator_id', req.user.id);
+    if (error && !isTableMissing(error)) throw error;
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/notifications/:id - remove a single notification
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const { error } = await supabase.from('notifications')
+      .delete()
+      .eq('notification_id', req.params.id)
+      .eq('operator_id', req.user.id);
+    if (error && !isTableMissing(error)) throw error;
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
 // POST /api/notifications - create a notification (internal use)
 router.post('/', async (req, res, next) => {
   try {

@@ -105,6 +105,21 @@ function NotifDropdown({ open, onClose, onCountChange, anchorRef }) {
     onCountChange?.()
   }
 
+  // Remove a single notification (X button). Stop the click from also
+  // triggering the row's navigate handler.
+  const clearOne = (e, n) => {
+    e.stopPropagation()
+    setItems(prev => prev.filter(x => x.notification_id !== n.notification_id))
+    notifApi.remove(n.notification_id).catch(() => {})
+    onCountChange?.()
+  }
+
+  const clearAll = async () => {
+    setItems([])
+    await notifApi.clearAll().catch(() => {})
+    onCountChange?.()
+  }
+
   // Resolve where a notification should take the operator when clicked.
   // Explicit link / deal wins; otherwise fall back by type so a click is
   // NEVER a dead no-op (many notifications are created without a link).
@@ -152,9 +167,16 @@ function NotifDropdown({ open, onClose, onCountChange, anchorRef }) {
     }}>
       <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>Notifications</span>
-        <button onClick={markAll} style={{ fontSize: 11, color: '#00C37A', background: 'none', border: 'none', cursor: 'pointer' }}>
-          Mark all read
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={markAll} style={{ fontSize: 11, color: '#00C37A', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Mark all read
+          </button>
+          {items.length > 0 && (
+            <button onClick={clearAll} style={{ fontSize: 11, color: 'var(--t4)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }} className="scrollbar-hide">
         {loading ? (
@@ -179,10 +201,25 @@ function NotifDropdown({ open, onClose, onCountChange, anchorRef }) {
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               {!n.is_read && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#00C37A', marginTop: 5, flexShrink: 0 }} />}
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--t1)', marginBottom: 2 }}>{n.title}</p>
                 <p style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.4 }}>{n.message}</p>
               </div>
+              <button
+                onClick={(e) => clearOne(e, n)}
+                title="Clear"
+                aria-label="Clear notification"
+                style={{
+                  flexShrink: 0, width: 18, height: 18, borderRadius: 4,
+                  border: 'none', background: 'none', cursor: 'pointer',
+                  color: 'var(--t4)', fontSize: 15, lineHeight: '18px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--t1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.10)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--t4)'; e.currentTarget.style.background = 'none' }}
+              >
+                ×
+              </button>
             </div>
           </div>
         ))}

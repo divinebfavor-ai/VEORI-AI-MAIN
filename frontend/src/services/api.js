@@ -334,6 +334,8 @@ export const notifications = {
   markRead:    (id)     => api.put(`/api/notifications/${id}/read`),
   markAllRead: ()       => api.put('/api/notifications/read-all'),
   getUnreadCount: ()    => api.get('/api/notifications/unread-count'),
+  remove:      (id)     => api.delete(`/api/notifications/${id}`),
+  clearAll:    ()       => api.delete('/api/notifications/clear-all'),
 }
 
 // ─── Analytics (extended) ─────────────────────────────────────────────────────
