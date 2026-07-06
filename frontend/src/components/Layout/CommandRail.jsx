@@ -49,10 +49,11 @@ const NAV = [
 ]
 
 // ─── Notifications dropdown ───────────────────────────────────────────────────
-function NotifDropdown({ open, onClose }) {
+function NotifDropdown({ open, onClose, onCountChange }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const ref = useRef(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!open) return
@@ -72,6 +73,25 @@ function NotifDropdown({ open, onClose }) {
   const markAll = async () => {
     await notifApi.markAllRead().catch(() => {})
     setItems(prev => prev.map(n => ({ ...n, is_read: true })))
+    onCountChange?.()
+  }
+
+  // Resolve where a notification should take the operator when clicked.
+  const destFor = (n) => {
+    if (n.link) return n.link
+    if (n.deal_id) return `/deals/${n.deal_id}`
+    return null
+  }
+
+  const handleClick = async (n) => {
+    if (!n.is_read) {
+      setItems(prev => prev.map(x => x.notification_id === n.notification_id ? { ...x, is_read: true } : x))
+      notifApi.markRead(n.notification_id).catch(() => {})
+      onCountChange?.()
+    }
+    const dest = destFor(n)
+    onClose()
+    if (dest) navigate(dest)
   }
 
   if (!open) return null
@@ -97,11 +117,21 @@ function NotifDropdown({ open, onClose }) {
         ) : items.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--t4)' }}>No notifications yet.</div>
         ) : items.map(n => (
-          <div key={n.notification_id} style={{
-            padding: '12px 16px',
-            borderBottom: '1px solid var(--border)',
-            background: n.is_read ? 'transparent' : 'rgba(0,195,122,0.04)',
-          }}>
+          <div
+            key={n.notification_id}
+            onClick={() => handleClick(n)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(n) } }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = n.is_read ? 'transparent' : 'rgba(0,195,122,0.04)' }}
+            style={{
+              padding: '12px 16px',
+              borderBottom: '1px solid var(--border)',
+              background: n.is_read ? 'transparent' : 'rgba(0,195,122,0.04)',
+              cursor: 'pointer',
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               {!n.is_read && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#00C37A', marginTop: 5, flexShrink: 0 }} />}
               <div style={{ flex: 1 }}>
@@ -195,14 +225,15 @@ export default function CommandRail() {
     })
   }
 
-  useEffect(() => {
-    const load = () => {
-      notifApi.getUnreadCount().then(r => setUnreadCount(r.data?.count || 0)).catch(() => {})
-    }
-    load()
-    const t = setInterval(load, 30000)
-    return () => clearInterval(t)
+  const refreshUnread = React.useCallback(() => {
+    notifApi.getUnreadCount().then(r => setUnreadCount(r.data?.count || 0)).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    refreshUnread()
+    const t = setInterval(refreshUnread, 30000)
+    return () => clearInterval(t)
+  }, [refreshUnread])
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -305,7 +336,7 @@ export default function CommandRail() {
             </div>
             {!collapsed && <span style={{ fontSize: 13, color: 'var(--t3)' }}>Notifications</span>}
           </button>
-          <NotifDropdown open={notifOpen} onClose={() => setNotifOpen(false)} />
+          <NotifDropdown open={notifOpen} onClose={() => setNotifOpen(false)} onCountChange={refreshUnread} />
         </div>
 
         {/* Theme toggle */}
