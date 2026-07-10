@@ -14,6 +14,16 @@ function tableMissing(err) {
   return err?.code === 'PGRST205' || (err?.message || '').includes('does not exist');
 }
 
+// Ownership check: confirm the lead belongs to the caller before writing memory for it
+// (service role bypasses RLS - prevents cross-tenant writes attached to a foreign lead_id).
+// Returns true if the caller owns the lead, false otherwise.
+async function callerOwnsLead(leadId, userId) {
+  const { data, error } = await supabase
+    .from('leads').select('user_id').eq('id', leadId).single();
+  if (error && error.code !== 'PGRST116') throw error;
+  return !!data && data.user_id === userId;
+}
+
 // GET /api/lead-memory/:leadId - full conversation history for a lead
 router.get('/:leadId', async (req, res, next) => {
   try {
@@ -77,6 +87,9 @@ router.post('/', async (req, res, next) => {
     } = req.body;
 
     if (!lead_id) return res.status(400).json({ success: false, error: 'lead_id required' });
+    if (!(await callerOwnsLead(lead_id, req.user.id))) {
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
 
     const { data, error } = await supabase.from('conversation_memory').insert({
       lead_id,
@@ -105,6 +118,9 @@ router.post('/auto-extract', async (req, res, next) => {
   try {
     const { lead_id, call_id, transcript, motivation_score, sentiment } = req.body;
     if (!lead_id || !transcript) return res.status(400).json({ success: false, error: 'lead_id and transcript required' });
+    if (!(await callerOwnsLead(lead_id, req.user.id))) {
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
 
     // Simple heuristic extraction - key phrases that indicate seller statements
     const lines = transcript.split('\n').filter(l => l.toLowerCase().startsWith('seller:'));

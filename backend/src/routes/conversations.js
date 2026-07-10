@@ -186,6 +186,15 @@ router.post('/schedule-call', async (req, res, next) => {
 // GET /api/conversations/:deal_id - get all messages for a deal
 router.get('/:deal_id', async (req, res, next) => {
   try {
+    // Ownership check: the service role bypasses RLS, so verify this deal
+    // belongs to the caller before returning its messages (prevents cross-tenant read).
+    const { data: deal, error: dealErr } = await supabase.from('deals')
+      .select('user_id').eq('id', req.params.deal_id).single();
+    if (dealErr && dealErr.code !== 'PGRST116') throw dealErr;
+    if (!deal || deal.user_id !== req.user.id) {
+      return res.status(404).json({ success: false, error: 'Deal not found' });
+    }
+
     const { data, error } = await supabase.from('conversations')
       .select('*')
       .eq('deal_id', req.params.deal_id)

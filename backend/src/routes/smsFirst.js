@@ -45,6 +45,15 @@ router.get('/:id/status', auth, async (req, res, next) => {
 // GET /api/sms-first/:id/leads
 router.get('/:id/leads', auth, async (req, res, next) => {
   try {
+    // Ownership check: verify the campaign belongs to the caller before listing its
+    // leads (service role bypasses RLS - prevents cross-tenant lead exposure).
+    const { data: campaign, error: campErr } = await supabase
+      .from('campaigns').select('user_id').eq('id', req.params.id).single();
+    if (campErr && campErr.code !== 'PGRST116') throw campErr;
+    if (!campaign || campaign.user_id !== req.user.id) {
+      return res.status(404).json({ success: false, error: 'Campaign not found' });
+    }
+
     const { data, error } = await supabase
       .from('sms_first_leads')
       .select('*, leads(first_name, last_name, phone, property_address, property_state)')

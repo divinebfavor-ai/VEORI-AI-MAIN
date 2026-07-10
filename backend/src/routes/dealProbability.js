@@ -64,6 +64,15 @@ function calculateDealProbability(lead, callCount, latestSentiment) {
 // GET /api/deal-probability/:leadId - get current score for a lead
 router.get('/:leadId', async (req, res, next) => {
   try {
+    // Ownership check: verify the lead belongs to the caller before scoring/reading
+    // (service role bypasses RLS - prevents cross-tenant lead + score exposure).
+    const { data: ownLead, error: ownErr } = await supabase
+      .from('leads').select('user_id').eq('id', req.params.leadId).single();
+    if (ownErr && ownErr.code !== 'PGRST116') throw ownErr;
+    if (!ownLead || ownLead.user_id !== req.user.id) {
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
+
     // Try cached score first
     const { data: cached, error: cacheErr } = await supabase
       .from('deal_probability_scores')
@@ -94,6 +103,11 @@ router.post('/:leadId/calculate', async (req, res, next) => {
   try {
     const { data: lead } = await supabase.from('leads').select('*').eq('id', req.params.leadId).single();
     if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+    // Ownership check: the lead must belong to the caller before we compute/store a score
+    // (service role bypasses RLS - prevents cross-tenant write/read).
+    if (lead.user_id !== req.user.id) {
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
 
     const { count: callCount } = await supabase.from('calls').select('*', { count: 'exact', head: true }).eq('lead_id', req.params.leadId);
     const { data: sentimentData } = await supabase.from('sentiment_events').select('sentiment').eq('lead_id', req.params.leadId).order('created_at', { ascending: false }).limit(1);

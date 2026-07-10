@@ -129,6 +129,16 @@ router.get('/:id', async (req, res) => {
 // GET /api/tours/:id/analytics - Feature 38: Tour Analytics
 router.get('/:id/analytics', async (req, res) => {
   try {
+    // Ownership check: verify this tour belongs to the caller before exposing
+    // its viewer analytics (service role bypasses RLS - prevents cross-tenant read).
+    const { data: tour, error: tourErr } = await supabase
+      .from('virtual_tours')
+      .select('user_id').eq('id', req.params.id).single();
+    if (tourErr && tourErr.code !== 'PGRST116') throw tourErr;
+    if (!tour || tour.user_id !== req.user.id) {
+      return res.status(404).json({ success: false, error: 'Tour not found' });
+    }
+
     const { data: views, error } = await supabase
       .from('tour_views')
       .select('*')

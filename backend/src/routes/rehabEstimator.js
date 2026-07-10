@@ -86,6 +86,16 @@ router.post('/estimate/:leadId/save', async (req, res) => {
 
     if (!arv) return res.status(400).json({ success: false, error: 'ARV required to save' });
 
+    // Ownership check: the lead must belong to the caller before we upsert a saved
+    // calculation keyed on lead_id (service role bypasses RLS - prevents a cross-tenant
+    // overwrite of another operator's profit_calculations row).
+    const { data: ownLead, error: ownErr } = await supabase
+      .from('leads').select('user_id').eq('id', leadId).single();
+    if (ownErr && ownErr.code !== 'PGRST116') throw ownErr;
+    if (!ownLead || ownLead.user_id !== req.user.id) {
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
+
     const { low, high, midpoint, breakdown } = calculateRepairEstimate(items || []);
     const scenarios = calculateScenarios(arv, midpoint);
     const mao = scenarios.moderate.mao;
