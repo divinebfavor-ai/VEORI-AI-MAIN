@@ -14,7 +14,7 @@ import Privacy    from './pages/Privacy'
 
 function Home() {
   return (
-    <div style={{ background: '#060E1A', minHeight: '100vh' }}>
+    <div style={{ background: '#06080D', minHeight: '100vh' }}>
       <Nav />
       <Hero />
       <Ticker />

@@ -58,11 +58,12 @@ function Step({ step, index }) {
           transition={{ duration: 0.5, delay: index * 0.06, ease: [0.22,1,0.36,1] }}
           style={{
             width: 52, height: 52, borderRadius: '50%',
-            border: '1px solid rgba(201,168,76,0.30)',
-            background: 'rgba(201,168,76,0.07)',
+            border: '1px solid rgba(201,168,76,0.35)',
+            background: '#fff',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 6px 18px rgba(201,168,76,0.10)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600,
-            color: '#C9A84C', flexShrink: 0, zIndex: 2,
+            color: 'var(--color-gold-ink)', flexShrink: 0, zIndex: 2,
           }}
         >
           {step.num}
@@ -72,7 +73,7 @@ function Step({ step, index }) {
             initial={{ scaleY: 0, opacity: 0 }}
             animate={visible ? { scaleY: 1, opacity: 1 } : {}}
             transition={{ duration: 0.9, delay: index * 0.06 + 0.3, ease: 'easeOut' }}
-            style={{ width: 1, flex: 1, minHeight: 32, background: 'linear-gradient(to bottom, rgba(0,196,123,0.5), rgba(0,196,123,0.06))', marginTop: 8, transformOrigin: 'top' }}
+            style={{ width: 1, flex: 1, minHeight: 32, background: 'linear-gradient(to bottom, rgba(0,196,123,0.45), rgba(0,196,123,0.06))', marginTop: 8, transformOrigin: 'top' }}
           />
         )}
       </div>
@@ -84,8 +85,8 @@ function Step({ step, index }) {
         transition={{ duration: 0.6, delay: index * 0.06 + 0.08, ease: [0.22,1,0.36,1] }}
         style={{ paddingBottom: isLast ? 0 : 44, paddingTop: 12 }}
       >
-        <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.025em', color: '#fff', marginBottom: 8 }}>{step.title}</div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.50)', lineHeight: 1.70, maxWidth: 480 }}>{step.body}</div>
+        <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.025em', color: '#1D1D1F', marginBottom: 8 }}>{step.title}</div>
+        <div style={{ fontSize: 14.5, color: '#6E6E73', lineHeight: 1.65, maxWidth: 480 }}>{step.body}</div>
       </motion.div>
     </div>
   )
@@ -95,20 +96,20 @@ export default function HowItWorks() {
   const { ref, visible } = useReveal()
 
   return (
-    <section id="how" style={{ padding: '100px 24px' }}>
+    <section id="how" style={{ padding: '120px 24px', background: '#F5F5F7' }}>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
         <motion.div
           ref={ref}
           initial={{ opacity: 0, y: 16 }}
           animate={visible ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }}
+          transition={{ duration: 0.6, ease: [0.28,0.11,0.32,1] }}
           style={{ marginBottom: 64 }}
         >
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14 }}>How it works</div>
-          <h2 style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14 }}>
+          <div className="eyebrow" style={{ marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.08em' }}>How it works</div>
+          <h2 className="headline" style={{ fontSize: 'clamp(30px,4.2vw,48px)', color: '#1D1D1F', marginBottom: 18 }}>
             Seller to buyer to signed.<br />VEORI runs the whole thing.
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', lineHeight: 1.65 }}>
+          <p style={{ fontSize: 'clamp(17px,1.6vw,20px)', fontWeight: 400, color: '#6E6E73', lineHeight: 1.55 }}>
             From first outbound call to closed title. Eight steps. Your only job is to review the dashboard.
           </p>
         </motion.div>

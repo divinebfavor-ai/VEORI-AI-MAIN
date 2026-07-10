@@ -91,22 +91,15 @@ function Card({ feature, index }) {
   return (
     <motion.div
       ref={ref}
+      className="card-apple"
       initial={{ opacity: 0, y: 28 }}
       animate={visible ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.65, delay: index * 0.07, ease: [0.22,1,0.36,1] }}
-      whileHover={{ y: -4, transition: { duration: 0.22 } }}
-      style={{
-        background: '#0A1526',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderLeft: '2px solid #00C47B',
-        borderRadius: 14,
-        padding: '28px 26px',
-        cursor: 'default',
-      }}
+      transition={{ duration: 0.65, delay: index * 0.06, ease: [0.28,0.11,0.32,1] }}
+      style={{ padding: '30px 28px', cursor: 'default' }}
     >
-      <div style={{ marginBottom: 16 }}>{feature.icon}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10, color: '#fff', letterSpacing: '-0.02em' }}>{feature.title}</div>
-      <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.50)', lineHeight: 1.68 }}>{feature.body}</div>
+      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, background: 'rgba(0,196,123,0.08)', marginBottom: 18 }}>{feature.icon}</div>
+      <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 9, color: '#1D1D1F', letterSpacing: '-0.02em' }}>{feature.title}</div>
+      <div style={{ fontSize: 14, color: '#6E6E73', lineHeight: 1.62 }}>{feature.body}</div>
     </motion.div>
   )
 }
@@ -115,26 +108,25 @@ export default function WhatYouGet() {
   const { ref, visible } = useReveal()
 
   return (
-    <section id="platform" style={{ padding: '100px 24px', position: 'relative', overflow: 'hidden' }}>
-      <div className="grid-pattern" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
-
+    <section id="platform" style={{ padding: '120px 24px', position: 'relative', background: '#F5F5F7' }}>
       <div style={{ maxWidth: 1080, margin: '0 auto', position: 'relative' }}>
         <motion.div
           ref={ref}
           initial={{ opacity: 0, y: 16 }}
           animate={visible ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }}
+          transition={{ duration: 0.6, ease: [0.28,0.11,0.32,1] }}
+          style={{ textAlign: 'center', marginBottom: 64 }}
         >
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14 }}>What you get today</div>
-          <h2 style={{ fontSize: 'clamp(28px,4vw,46px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14 }}>
+          <div className="eyebrow" style={{ marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.08em' }}>What you get today</div>
+          <h2 className="headline" style={{ fontSize: 'clamp(32px,4.4vw,52px)', color: '#1D1D1F', marginBottom: 18 }}>
             From first call to closed deal.<br />All of it. Automated.
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.52)', maxWidth: 560, lineHeight: 1.65, marginBottom: 56 }}>
+          <p style={{ fontSize: 'clamp(17px,1.6vw,20px)', fontWeight: 400, color: '#6E6E73', maxWidth: 620, lineHeight: 1.55, margin: '0 auto' }}>
             VEORI doesn't just call sellers. It works both sides of every deal: sellers, buyers, agents, and title companies. From first contact to closing.
           </p>
         </motion.div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px,1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px,1fr))', gap: 20 }}>
           {features.map((f, i) => <Card key={f.title} feature={f} index={i} />)}
         </div>
       </div>

@@ -12,14 +12,14 @@ const doubled = [...events, ...events]
 
 export default function Ticker() {
   return (
-    <div style={{ overflow: 'hidden', padding: '14px 0', background: 'rgba(0,196,123,0.04)', borderTop: '1px solid rgba(0,196,123,0.08)', borderBottom: '1px solid rgba(0,196,123,0.08)' }}>
+    <div style={{ overflow: 'hidden', padding: '16px 0', background: '#F5F5F7', borderTop: '1px solid rgba(0,0,0,0.06)', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
       <div className="ticker-track" style={{ display: 'flex', width: 'max-content', gap: 0 }}>
         {doubled.map((e, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 36px', fontSize: 12.5, color: 'rgba(255,255,255,0.40)', whiteSpace: 'nowrap' }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#00C47B', flexShrink: 0 }} />
-            <span>{e.label}</span>
-            <span style={{ color: 'rgba(255,255,255,0.75)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>{e.value}</span>
-            <span style={{ color: 'rgba(255,255,255,0.28)' }}>{e.city}</span>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 32px', fontSize: 13, color: '#6E6E73', whiteSpace: 'nowrap' }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00C47B', flexShrink: 0 }} />
+            <span style={{ fontWeight: 500 }}>{e.label}</span>
+            <span style={{ color: '#1D1D1F', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>{e.value}</span>
+            <span style={{ color: '#86868B' }}>{e.city}</span>
           </div>
         ))}
       </div>

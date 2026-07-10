@@ -23,7 +23,7 @@ export default function FinalCTA() {
   const hasWave = WAVE_BG !== '__WAVE_IMAGE_URL__'
 
   return (
-    <section style={{ position: 'relative', padding: '120px 24px', overflow: 'hidden', textAlign: 'center' }}>
+    <section style={{ position: 'relative', padding: '140px 24px', overflow: 'hidden', textAlign: 'center', background: '#06080D' }}>
       {/* Wave background */}
       {hasWave && (
         <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${WAVE_BG})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.25 }} />
@@ -41,13 +41,13 @@ export default function FinalCTA() {
         transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }}
         style={{ position: 'relative', maxWidth: 520, margin: '0 auto' }}
       >
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 18 }}>Get started</div>
+        <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 18 }}>Get started</div>
 
-        <h2 style={{ fontSize: 'clamp(32px,5vw,56px)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.06, marginBottom: 18 }}>
+        <h2 style={{ fontSize: 'clamp(34px,5vw,60px)', fontWeight: 700, letterSpacing: '-0.045em', lineHeight: 1.05, marginBottom: 20 }}>
           Put VEORI to work<br />on your deals
         </h2>
 
-        <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.55)', lineHeight: 1.65, marginBottom: 40 }}>
+        <p style={{ fontSize: 'clamp(17px,1.7vw,20px)', fontWeight: 400, color: 'rgba(255,255,255,0.60)', lineHeight: 1.55, marginBottom: 44 }}>
           Plans start at <strong style={{ color: '#00C47B' }}>$1,499/month.</strong><br />
           Every plan includes every feature. Cancel anytime.
         </p>
@@ -55,19 +55,19 @@ export default function FinalCTA() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 400, margin: '0 auto' }}>
           <input
             type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required
-            style={{ width: '100%', padding: '13px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
+            style={{ width: '100%', padding: '14px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
             onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.40)'}
             onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.10)'}
           />
           <input
             type="email" placeholder="Your email address" value={email} onChange={e => setEmail(e.target.value)} required
-            style={{ width: '100%', padding: '13px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
+            style={{ width: '100%', padding: '14px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
             onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.40)'}
             onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.10)'}
           />
           <button
             type="submit" disabled={loading}
-            style={{ width: '100%', padding: '15px', background: '#00C47B', color: '#000', fontSize: 16, fontWeight: 800, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
+            style={{ width: '100%', padding: '15px', background: '#00C47B', color: '#000', fontSize: 16, fontWeight: 600, border: 'none', borderRadius: 980, cursor: 'pointer', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
             onMouseEnter={e => { e.target.style.background = '#00d986'; e.target.style.boxShadow = '0 12px 36px rgba(0,196,123,0.42)'; e.target.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={e => { e.target.style.background = '#00C47B'; e.target.style.boxShadow = 'none'; e.target.style.transform = ''; }}
           >

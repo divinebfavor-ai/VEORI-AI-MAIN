@@ -14,62 +14,56 @@ export default function Nav() {
 
   return (
     <motion.nav
-      initial={{ opacity: 0, y: -12 }}
+      initial={{ opacity: 0, y: -14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-10 h-16"
+      transition={{ duration: 0.6, ease: [0.28, 0.11, 0.32, 1] }}
       style={{
-        background: scrolled ? 'rgba(6,14,26,0.92)' : 'rgba(6,14,26,0.6)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : '1px solid transparent',
-        boxShadow: scrolled ? '0 8px 40px rgba(0,0,0,0.5)' : 'none',
-        transition: 'all 0.35s ease',
+        position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 50, width: 'min(1080px, calc(100% - 28px))',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 10px 0 18px', height: 54, borderRadius: 980,
+        background: scrolled ? 'rgba(10,21,38,0.72)' : 'rgba(10,21,38,0.44)',
+        backdropFilter: 'saturate(180%) blur(22px)',
+        WebkitBackdropFilter: 'saturate(180%) blur(22px)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        boxShadow: scrolled ? '0 10px 40px rgba(0,0,0,0.42)' : '0 6px 22px rgba(0,0,0,0.24)',
+        transition: 'background 0.35s var(--ease-apple), box-shadow 0.35s var(--ease-apple)',
       }}
     >
       {/* Logo */}
-      <a href="#" className="flex items-center gap-2.5 no-underline">
-        <img src="/favicon.svg" alt="VEORI" width="32" height="32" style={{ display: 'block' }} />
-        <span style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff' }}>VEORI</span>
+      <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}>
+        <img src="/favicon.svg" alt="VEORI" width="26" height="26" style={{ display: 'block' }} />
+        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.03em', color: '#fff' }}>VEORI</span>
       </a>
 
       {/* Links */}
-      <ul className="hidden md:flex list-none gap-1">
+      <ul className="hidden md:flex" style={{ listStyle: 'none', display: 'flex', gap: 2, margin: 0, padding: 0 }}>
         {[['How it works', '#how'], ['Platform', '#platform'], ['Pricing', '#pricing']].map(([label, href]) => (
           <li key={label}>
             <a
               href={href}
-              style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.48)', textDecoration: 'none', padding: '6px 12px', borderRadius: 7, display: 'block', transition: 'color 0.2s' }}
-              onMouseEnter={e => e.target.style.color = '#fff'}
-              onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.48)'}
+              style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.62)', textDecoration: 'none', padding: '8px 14px', borderRadius: 980, display: 'block', transition: 'color 0.2s var(--ease-apple), background 0.2s var(--ease-apple)' }}
+              onMouseEnter={e => { e.target.style.color = '#fff'; e.target.style.background = 'rgba(255,255,255,0.06)' }}
+              onMouseLeave={e => { e.target.style.color = 'rgba(255,255,255,0.62)'; e.target.style.background = 'transparent' }}
             >{label}</a>
           </li>
         ))}
       </ul>
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <a
           href={`${APP_URL}/login`}
-          style={{
-            fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.70)',
-            background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-            padding: '7px 16px', borderRadius: 8, textDecoration: 'none',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => { e.target.style.color = '#fff'; e.target.style.borderColor = 'rgba(255,255,255,0.16)'; }}
-          onMouseLeave={e => { e.target.style.color = 'rgba(255,255,255,0.70)'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+          style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.70)', padding: '8px 14px', borderRadius: 980, textDecoration: 'none', transition: 'color 0.2s var(--ease-apple)' }}
+          onMouseEnter={e => e.target.style.color = '#fff'}
+          onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.70)'}
         >Log in</a>
         <a
           href="#pricing"
-          style={{
-            fontSize: 13.5, fontWeight: 700, color: '#000',
-            background: '#00C47B', border: 'none',
-            padding: '7px 18px', borderRadius: 8, textDecoration: 'none',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => { e.target.style.background = '#00d986'; e.target.style.boxShadow = '0 6px 22px rgba(0,196,123,0.38)'; }}
-          onMouseLeave={e => { e.target.style.background = '#00C47B'; e.target.style.boxShadow = 'none'; }}
+          className="btn-apple"
+          style={{ fontSize: 13.5, fontWeight: 600, color: '#000', background: '#00C47B', padding: '9px 18px' }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,196,123,0.40)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = 'none' }}
         >Get started</a>
       </div>
     </motion.nav>

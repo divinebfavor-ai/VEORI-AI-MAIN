@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom'
 
 export default function Footer() {
   return (
-    <footer style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '36px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+    <footer style={{ background: '#06080D', borderTop: '1px solid rgba(255,255,255,0.06)', padding: '44px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         <img src="/favicon.svg" alt="VEORI" width="28" height="28" style={{ display: 'block' }} />
-        <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff' }}>VEORI</span>
+        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.035em', color: '#fff' }}>VEORI</span>
       </div>
       <ul style={{ listStyle: 'none', display: 'flex', gap: 22, flexWrap: 'wrap', margin: 0, padding: 0 }}>
         {[['How it works', '#how'], ['Platform', '#platform'], ['Pricing', '#pricing'], ['Contact', 'mailto:support@veori.net']].map(([label, href]) => (

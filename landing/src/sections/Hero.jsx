@@ -87,26 +87,26 @@ export default function Hero() {
             <rect width="44" height="44" rx="11" fill="url(#hero-logo-lg)" />
             <text x="22" y="32" fontFamily="Inter,system-ui,sans-serif" fontSize="22" fontWeight="900" fill="#000" textAnchor="middle">V</text>
           </svg>
-          <span style={{ fontSize: 26, fontWeight: 900, letterSpacing: '-0.05em', color: '#fff' }}>VEORI</span>
+          <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.04em', color: '#fff' }}>VEORI</span>
         </motion.div>
 
         {/* Badge */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.2, ease: [0.22,1,0.36,1] }}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(0,196,123,0.10)', border: '1px solid rgba(0,196,123,0.22)', borderRadius: 100, padding: '6px 16px', marginBottom: 36 }}
+          transition={{ duration: 0.7, delay: 0.2, ease: [0.28,0.11,0.32,1] }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(0,196,123,0.09)', border: '1px solid rgba(0,196,123,0.20)', borderRadius: 980, padding: '6px 16px', marginBottom: 36 }}
         >
           <PulseDot />
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#00C47B', letterSpacing: '0.01em' }}>The AI VA that works both sides of every deal</span>
+          <span style={{ fontSize: 12.5, fontWeight: 500, color: '#00C47B', letterSpacing: '0.005em' }}>The AI VA that works both sides of every deal</span>
         </motion.div>
 
         {/* Headline */}
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.75, delay: 0.32, ease: [0.22,1,0.36,1] }}
-          style={{ fontSize: 'clamp(44px,7vw,80px)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.04, marginBottom: 22 }}
+          transition={{ duration: 0.75, delay: 0.32, ease: [0.28,0.11,0.32,1] }}
+          style={{ fontSize: 'clamp(44px,7vw,84px)', fontWeight: 700, letterSpacing: '-0.045em', lineHeight: 1.05, marginBottom: 24 }}
         >
           Your AI VA That<br />
           <span className="text-shimmer">Never Stops Calling</span>
@@ -116,8 +116,8 @@ export default function Hero() {
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.75, delay: 0.42, ease: [0.22,1,0.36,1] }}
-          style={{ fontSize: 'clamp(16px,1.8vw,19px)', color: 'rgba(255,255,255,0.72)', lineHeight: 1.68, maxWidth: 600, margin: '0 auto 48px' }}
+          transition={{ duration: 0.75, delay: 0.42, ease: [0.28,0.11,0.32,1] }}
+          style={{ fontSize: 'clamp(17px,1.8vw,21px)', fontWeight: 400, color: 'rgba(255,255,255,0.70)', lineHeight: 1.6, maxWidth: 620, margin: '0 auto 48px' }}
         >
           VEORI calls your sellers, qualifies them, makes offers, calls your buyers, sends contracts for e-sign, coordinates your title company, and closes the deal. All automatically. 24/7.
           Plans start at <strong style={{ color: '#00C47B' }}>$1,499/month.</strong> Cancel anytime.
@@ -133,19 +133,19 @@ export default function Hero() {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <input
               type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required
-              style={{ width: '100%', padding: '13px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
+              style={{ width: '100%', padding: '14px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
               onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.4)'}
               onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.10)'}
             />
             <input
               type="email" placeholder="Your email address" value={email} onChange={e => setEmail(e.target.value)} required
-              style={{ width: '100%', padding: '13px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
+              style={{ width: '100%', padding: '14px 18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, color: '#fff', fontSize: 15, fontFamily: 'Inter,sans-serif', outline: 'none' }}
               onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.4)'}
               onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.10)'}
             />
             <button
               type="submit" disabled={loading}
-              style={{ width: '100%', padding: '15px', background: loading ? 'rgba(0,196,123,0.7)' : '#00C47B', color: '#000', fontSize: 16, fontWeight: 800, border: 'none', borderRadius: 10, cursor: loading ? 'wait' : 'pointer', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em', transition: 'all 0.2s' }}
+              style={{ width: '100%', padding: '15px', background: loading ? 'rgba(0,196,123,0.7)' : '#00C47B', color: '#000', fontSize: 16, fontWeight: 600, border: 'none', borderRadius: 980, cursor: loading ? 'wait' : 'pointer', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em', transition: 'all 0.25s var(--ease-apple)' }}
               onMouseEnter={e => { if (!loading) { e.target.style.background = '#00d986'; e.target.style.transform = 'translateY(-1px)'; e.target.style.boxShadow = '0 12px 36px rgba(0,196,123,0.40)'; }}}
               onMouseLeave={e => { e.target.style.background = '#00C47B'; e.target.style.transform = ''; e.target.style.boxShadow = ''; }}
             >

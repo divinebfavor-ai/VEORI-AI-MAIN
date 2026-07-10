@@ -2,28 +2,94 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg:        #060E1A;
+  /* Dark cinematic surfaces (hero / final CTA) */
+  --color-bg:        #06080D;
   --color-surface:   #0A1526;
   --color-surface2:  #0F1E33;
+
+  /* Light Apple surfaces (body sections) */
+  --color-light:     #FFFFFF;
+  --color-light2:    #F5F5F7;   /* Apple's signature gray */
+  --color-ink:       #1D1D1F;   /* Apple's near-black text */
+  --color-ink2:      #6E6E73;   /* Apple secondary text */
+  --color-ink3:      #86868B;   /* Apple tertiary text */
+  --color-hair:      rgba(0,0,0,0.08);
+
+  /* Brand */
   --color-green:     #00C47B;
+  --color-green-ink: #00895A;   /* AA-safe green text on white */
   --color-gold:      #C9A84C;
+  --color-gold-ink:  #94741F;   /* AA-safe gold text on white */
+
+  /* Dark text tokens */
   --color-t1:        #FFFFFF;
   --color-t2:        rgba(255,255,255,0.78);
   --color-t3:        rgba(255,255,255,0.48);
   --color-t4:        rgba(255,255,255,0.26);
-  --font-sans: 'Inter', -apple-system, sans-serif;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+
+  /* Apple-style easing */
+  --ease-apple: cubic-bezier(0.28, 0.11, 0.32, 1);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-body { background: #060E1A; color: #fff; font-family: 'Inter', -apple-system, sans-serif; overflow-x: hidden; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body {
+  background: #06080D;
+  color: #1D1D1F;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow-x: hidden;
+  letter-spacing: -0.011em;
+}
 
-::-webkit-scrollbar { width: 3px; }
-::-webkit-scrollbar-track { background: #060E1A; }
-::-webkit-scrollbar-thumb { background: rgba(0,196,123,0.35); border-radius: 2px; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.32); }
 
 .mono { font-family: 'JetBrains Mono', monospace; }
+
+/* ── Apple type helpers ─────────────────────────────── */
+.eyebrow {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--color-green-ink);
+}
+.eyebrow-dark { color: #00C47B; }
+.eyebrow-gold { color: var(--color-gold-ink); }
+
+.headline {
+  font-weight: 700; letter-spacing: -0.035em; line-height: 1.06;
+}
+
+/* ── Apple pill button ──────────────────────────────── */
+.btn-apple {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 980px; border: none; cursor: pointer;
+  font-family: 'Inter', sans-serif; font-weight: 600; letter-spacing: -0.01em;
+  transition: transform 0.25s var(--ease-apple), background 0.25s var(--ease-apple), box-shadow 0.25s var(--ease-apple);
+}
+.btn-apple:active { transform: scale(0.97); }
+
+/* ── Soft Apple card ────────────────────────────────── */
+.card-apple {
+  background: #fff;
+  border-radius: 22px;
+  border: 1px solid rgba(0,0,0,0.05);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 28px rgba(0,0,0,0.05);
+  transition: transform 0.35s var(--ease-apple), box-shadow 0.35s var(--ease-apple);
+}
+.card-apple:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05), 0 18px 44px rgba(0,0,0,0.10);
+}
+
+/* Focus-visible for keyboard users */
+a:focus-visible, button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--color-green);
+  outline-offset: 2px;
+}
 
 .grid-pattern {
   background-image:
@@ -42,7 +108,7 @@ body { background: #060E1A; color: #fff; font-family: 'Inter', -apple-system, sa
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: shimmer 5s linear infinite;
+  animation: shimmer 6s linear infinite;
 }
 
 @keyframes pulse-ring {
@@ -59,7 +125,7 @@ body { background: #060E1A; color: #fff; font-family: 'Inter', -apple-system, sa
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
-.ticker-track { animation: ticker 32s linear infinite; }
+.ticker-track { animation: ticker 40s linear infinite; }
 .ticker-track:hover { animation-play-state: paused; }
 
 @keyframes float {
@@ -67,7 +133,13 @@ body { background: #060E1A; color: #fff; font-family: 'Inter', -apple-system, sa
   50%       { transform: translateY(-7px); }
 }
 
-@keyframes line-draw {
-  from { scaleY: 0; }
-  to   { scaleY: 1; }
+/* ── Respect reduced motion (Apple HIG) ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .ticker-track { animation: none; }
 }
