@@ -92,7 +92,7 @@ function LandingNav() {
     >
       <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
         <VeoriLogo size={32} />
-        <span style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff', fontFamily: 'Inter,sans-serif' }}>VEORI</span>
+        <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: '#fff', fontFamily: 'Inter,sans-serif' }}>VEORI</span>
       </a>
 
       <ul className="lp-nav-links" style={{ listStyle: 'none', display: 'flex', gap: 4, margin: 0, padding: 0 }}>
@@ -553,11 +553,11 @@ function FeatureCard({ f, index }) {
   return (
     <motion.div ref={ref} initial={{ opacity: 0, y: 28 }} animate={visible ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.65, delay: index * 0.07, ease: [0.22,1,0.36,1] }}
-      whileHover={{ y: -4, transition: { duration: 0.22 } }}
-      style={{ background: '#0A1526', border: '1px solid rgba(255,255,255,0.06)', borderLeft: '2px solid #00C47B', borderRadius: 14, padding: '28px 26px', cursor: 'default' }}>
+      className="lp-card-light"
+      style={{ borderLeft: '2px solid #00C47B', padding: '28px 26px', cursor: 'default' }}>
       <div style={{ marginBottom: 16 }}>{ICONS[f.icon]}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10, color: '#fff', letterSpacing: '-0.02em', fontFamily: 'Inter,sans-serif' }}>{f.title}</div>
-      <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.50)', lineHeight: 1.68, fontFamily: 'Inter,sans-serif' }}>{f.body}</div>
+      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 10, color: 'var(--lp-ink)', letterSpacing: '-0.02em', fontFamily: 'Inter,sans-serif' }}>{f.title}</div>
+      <div style={{ fontSize: 13.5, color: 'var(--lp-ink-soft)', lineHeight: 1.68, fontFamily: 'Inter,sans-serif' }}>{f.body}</div>
     </motion.div>
   )
 }
@@ -565,15 +565,15 @@ function FeatureCard({ f, index }) {
 function WhatYouGet() {
   const { ref, visible } = useReveal()
   return (
-    <section id="platform" style={{ padding: '100px 24px', position: 'relative', overflow: 'hidden' }}>
-      <div className="lp-grid" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
+    <section id="platform" style={{ padding: '120px 24px', position: 'relative', overflow: 'hidden', background: 'var(--lp-surface-2)' }}>
+      <div className="lp-grid-light" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
       <div style={{ maxWidth: 1080, margin: '0 auto', position: 'relative' }}>
         <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>What you get today</div>
-          <h2 style={{ fontSize: 'clamp(28px,4vw,46px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>
+          <div className="lp-eyebrow" style={{ textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--lp-green-ink)', marginBottom: 14 }}>What you get today</div>
+          <h2 className="lp-h2-light" style={{ fontSize: 'clamp(28px,4vw,46px)', marginBottom: 14 }}>
             From first call to closed deal.<br />All of it. Automated.
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.52)', maxWidth: 560, lineHeight: 1.65, marginBottom: 56, fontFamily: 'Inter,sans-serif' }}>
+          <p className="lp-sub-light" style={{ fontSize: 16, maxWidth: 560, lineHeight: 1.65, marginBottom: 56 }}>
             VEORI doesn't just call sellers. It works both sides of every deal: sellers, buyers, agents, and title companies. From first contact to closing.
           </p>
         </motion.div>
@@ -615,16 +615,16 @@ function SideCard({ title, rows, highlighted, delay = 0 }) {
   return (
     <motion.div ref={ref} initial={{ opacity: 0, x: highlighted ? 24 : -24 }} animate={visible ? { opacity: 1, x: 0 } : {}}
       transition={{ duration: 0.7, delay, ease: [0.22,1,0.36,1] }}
-      style={{ flex: 1, background: highlighted ? 'linear-gradient(160deg, rgba(0,196,123,0.08), rgba(0,196,123,0.03))' : 'rgba(255,255,255,0.015)', border: highlighted ? '1px solid rgba(0,196,123,0.28)' : '1px solid rgba(255,255,255,0.05)', borderRadius: 16, overflow: 'hidden', opacity: highlighted ? 1 : 0.55, transition: 'opacity 0.3s' }}
+      style={{ flex: 1, background: highlighted ? 'linear-gradient(160deg, rgba(0,196,123,0.07), rgba(0,196,123,0.02))' : '#fff', border: highlighted ? '1px solid rgba(0,196,123,0.30)' : '1px solid var(--lp-hair)', borderRadius: 20, overflow: 'hidden', opacity: highlighted ? 1 : 0.72, boxShadow: highlighted ? '0 12px 40px rgba(0,196,123,0.10)' : '0 1px 2px rgba(0,0,0,0.04), 0 12px 32px rgba(0,0,0,0.05)', transition: 'opacity 0.3s' }}
       whileHover={{ opacity: 1, transition: { duration: 0.2 } }}>
-      <div style={{ padding: '20px 26px', borderBottom: `1px solid ${highlighted ? 'rgba(0,196,123,0.16)' : 'rgba(255,255,255,0.05)'}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ padding: '20px 26px', borderBottom: `1px solid ${highlighted ? 'rgba(0,196,123,0.16)' : 'var(--lp-hair)'}`, display: 'flex', alignItems: 'center', gap: 10 }}>
         {highlighted && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00C47B', position: 'relative' }}><div style={{ position: 'absolute', inset: -3, borderRadius: '50%', background: 'rgba(0,196,123,0.3)', animation: 'lp-pulse-ring 2s ease-out infinite' }} /></div>}
-        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: highlighted ? '#00C47B' : 'rgba(255,255,255,0.50)', textTransform: 'uppercase', fontFamily: 'Inter,sans-serif' }}>{title}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: highlighted ? 'var(--lp-green-ink)' : 'var(--lp-ink-faint)', textTransform: 'uppercase', fontFamily: 'Inter,sans-serif' }}>{title}</div>
       </div>
       {rows.map((row, i) => (
-        <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 26px', borderBottom: i < rows.length - 1 ? `1px solid ${highlighted ? 'rgba(0,196,123,0.08)' : 'rgba(255,255,255,0.04)'}` : 'none' }}>
-          <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.45)', fontFamily: 'Inter,sans-serif' }}>{row.label}</span>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: row.good ? '#00C47B' : row.bad ? 'rgba(255,80,80,0.75)' : '#fff', fontFamily: 'JetBrains Mono, monospace' }}>{row.value}</span>
+        <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 26px', borderBottom: i < rows.length - 1 ? `1px solid ${highlighted ? 'rgba(0,196,123,0.08)' : 'var(--lp-hair)'}` : 'none' }}>
+          <span style={{ fontSize: 13.5, color: 'var(--lp-ink-soft)', fontFamily: 'Inter,sans-serif' }}>{row.label}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: row.good ? 'var(--lp-green-ink)' : row.bad ? '#C4342B' : 'var(--lp-ink)', fontFamily: 'JetBrains Mono, monospace' }}>{row.value}</span>
         </div>
       ))}
     </motion.div>
@@ -634,14 +634,14 @@ function SideCard({ title, rows, highlighted, delay = 0 }) {
 function Comparison() {
   const { ref, visible } = useReveal()
   return (
-    <section style={{ padding: '100px 24px', background: 'rgba(255,255,255,0.012)', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ padding: '120px 24px', background: 'var(--lp-surface)' }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }} style={{ textAlign: 'center', marginBottom: 56 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>The math</div>
-          <h2 style={{ fontSize: 'clamp(26px,4vw,44px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>
+          <div className="lp-eyebrow" style={{ textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--lp-green-ink)', marginBottom: 14 }}>The math</div>
+          <h2 className="lp-h2-light" style={{ fontSize: 'clamp(26px,4vw,44px)', marginBottom: 14 }}>
             More calls. Better results.<br />Up to $1,421 less per month.
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', maxWidth: 520, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+          <p className="lp-sub-light" style={{ fontSize: 16, maxWidth: 520, margin: '0 auto', lineHeight: 1.65 }}>
             A human VA makes 1,800 calls a month and costs $1,280-$1,920. Veori makes 3,000 calls for $1,499. Works nights. Works weekends. Never quits.
           </p>
         </motion.div>
@@ -680,20 +680,20 @@ function Step({ step, index }) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 52 }}>
         <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={visible ? { scale: 1, opacity: 1 } : {}}
           transition={{ duration: 0.5, delay: index * 0.06, ease: [0.22,1,0.36,1] }}
-          style={{ width: 52, height: 52, borderRadius: '50%', border: '1px solid rgba(201,168,76,0.30)', background: 'rgba(201,168,76,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600, color: '#C9A84C', flexShrink: 0, zIndex: 2 }}>
+          style={{ width: 52, height: 52, borderRadius: '50%', border: '1px solid rgba(148,116,31,0.28)', background: 'rgba(201,168,76,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600, color: 'var(--lp-gold-ink)', flexShrink: 0, zIndex: 2 }}>
           {step.num}
         </motion.div>
         {!isLast && (
           <motion.div initial={{ scaleY: 0, opacity: 0 }} animate={visible ? { scaleY: 1, opacity: 1 } : {}}
             transition={{ duration: 0.9, delay: index * 0.06 + 0.3, ease: 'easeOut' }}
-            style={{ width: 1, flex: 1, minHeight: 32, background: 'linear-gradient(to bottom, rgba(0,196,123,0.5), rgba(0,196,123,0.06))', marginTop: 8, transformOrigin: 'top' }} />
+            style={{ width: 1, flex: 1, minHeight: 32, background: 'linear-gradient(to bottom, rgba(0,137,90,0.45), rgba(0,137,90,0.06))', marginTop: 8, transformOrigin: 'top' }} />
         )}
       </div>
       <motion.div initial={{ opacity: 0, x: 16 }} animate={visible ? { opacity: 1, x: 0 } : {}}
         transition={{ duration: 0.6, delay: index * 0.06 + 0.08, ease: [0.22,1,0.36,1] }}
         style={{ paddingBottom: isLast ? 0 : 44, paddingTop: 12 }}>
-        <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.025em', color: '#fff', marginBottom: 8, fontFamily: 'Inter,sans-serif' }}>{step.title}</div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.50)', lineHeight: 1.70, maxWidth: 480, fontFamily: 'Inter,sans-serif' }}>{step.body}</div>
+        <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.025em', color: 'var(--lp-ink)', marginBottom: 8, fontFamily: 'Inter,sans-serif' }}>{step.title}</div>
+        <div style={{ fontSize: 14, color: 'var(--lp-ink-soft)', lineHeight: 1.70, maxWidth: 480, fontFamily: 'Inter,sans-serif' }}>{step.body}</div>
       </motion.div>
     </div>
   )
@@ -702,14 +702,14 @@ function Step({ step, index }) {
 function HowItWorks() {
   const { ref, visible } = useReveal()
   return (
-    <section id="how" style={{ padding: '100px 24px' }}>
+    <section id="how" style={{ padding: '120px 24px', background: 'var(--lp-surface)' }}>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
         <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }} style={{ marginBottom: 64 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>How it works</div>
-          <h2 style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>
+          <div className="lp-eyebrow" style={{ color: 'var(--lp-green-ink)', marginBottom: 14 }}>How it works</div>
+          <h2 className="lp-h2-light" style={{ marginBottom: 14 }}>
             Seller to buyer to signed.<br />VEORI runs the whole thing.
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+          <p className="lp-sub-light">
             From first outbound call to closed title. Eight steps. Your only job is to review the dashboard.
           </p>
         </motion.div>
@@ -810,39 +810,39 @@ function ROISection() {
     { number: '$10K-$25K', label: 'Average deal profit', sub: 'Wholesale assignment fee' },
   ]
   return (
-    <section style={{ padding: '80px 24px', background: 'rgba(0,196,123,0.03)', borderTop: '1px solid rgba(0,196,123,0.08)', borderBottom: '1px solid rgba(0,196,123,0.08)' }}>
+    <section style={{ padding: '96px 24px', background: 'var(--lp-surface-2)', borderTop: '1px solid var(--lp-hair)', borderBottom: '1px solid var(--lp-hair)' }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6 }}
           style={{ textAlign: 'center', marginBottom: 52 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 12, fontFamily: 'Inter,sans-serif' }}>The ROI</div>
-          <h2 style={{ fontSize: 'clamp(26px,4vw,44px)', fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 12, fontFamily: 'Inter,sans-serif' }}>
+          <div className="lp-eyebrow" style={{ color: 'var(--lp-green-ink)', marginBottom: 12 }}>The ROI</div>
+          <h2 className="lp-h2-light" style={{ marginBottom: 12 }}>
             For every $1 you spend on Veori,<br />you make back $6 to $16.
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.50)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+          <p className="lp-sub-light" style={{ maxWidth: 480, margin: '0 auto' }}>
             One closed wholesale deal covers your entire subscription for the month. Everything after that is pure profit.
           </p>
         </motion.div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20, marginBottom: 48 }}>
           {stats.map((s, i) => (
             <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.5, delay: i * 0.08 }}
-              style={{ background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '28px 24px', textAlign: 'center' }}>
-              <div style={{ fontSize: 38, fontWeight: 900, color: '#00C47B', letterSpacing: '-0.04em', fontFamily: 'Inter,sans-serif', marginBottom: 8 }}>{s.number}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>{s.label}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.40)', fontFamily: 'Inter,sans-serif' }}>{s.sub}</div>
+              className="lp-card-light" style={{ padding: '28px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 38, fontWeight: 700, color: 'var(--lp-green-ink)', letterSpacing: '-0.04em', fontFamily: 'Inter,sans-serif', marginBottom: 8 }}>{s.number}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--lp-ink)', marginBottom: 4, fontFamily: 'Inter,sans-serif' }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: 'var(--lp-ink-faint)', fontFamily: 'Inter,sans-serif' }}>{s.sub}</div>
             </motion.div>
           ))}
         </div>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, delay: 0.3 }}
-          style={{ background: 'linear-gradient(135deg, rgba(201,168,76,0.10), rgba(201,168,76,0.04))', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 16, padding: '28px 32px', display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', justifyContent: 'space-between' }}>
+          style={{ background: 'linear-gradient(135deg, rgba(201,168,76,0.14), rgba(201,168,76,0.05))', border: '1px solid rgba(148,116,31,0.22)', borderRadius: 20, padding: '28px 32px', display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', fontFamily: 'Inter,sans-serif', marginBottom: 6 }}>
+            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--lp-ink)', fontFamily: 'Inter,sans-serif', marginBottom: 6 }}>
               One deal pays for 6 months of Veori.
             </div>
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.50)', fontFamily: 'Inter,sans-serif' }}>
+            <div style={{ fontSize: 14, color: 'var(--lp-ink-soft)', fontFamily: 'Inter,sans-serif' }}>
               The average wholesale assignment fee is $10,000. Your Starter plan is $1,499/month.
             </div>
           </div>
-          <a href="#pricing" style={{ background: '#C9A84C', color: '#000', fontSize: 14, fontWeight: 800, padding: '14px 28px', borderRadius: 10, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <a href="#pricing" className="lp-pill" style={{ background: 'var(--lp-gold-ink)', color: '#fff', fontSize: 14, fontWeight: 600, padding: '14px 28px', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
             See Plans
           </a>
         </motion.div>
@@ -856,15 +856,15 @@ function Pricing() {
   const [selectedPlan, setSelectedPlan] = useState(null)
 
   return (
-    <section id="pricing" style={{ padding: '100px 24px', position: 'relative', overflow: 'hidden' }}>
+    <section id="pricing" style={{ padding: '120px 24px', position: 'relative', overflow: 'hidden', background: 'var(--lp-surface)' }}>
       {selectedPlan && <CheckoutModal plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
-      <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%,-50%)', width: 800, height: 600, background: 'radial-gradient(ellipse at center, rgba(0,196,123,0.05) 0%, transparent 70%)', pointerEvents: 'none', animation: 'lp-glow 5s ease-in-out infinite' }} />
+      <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%,-50%)', width: 800, height: 600, background: 'radial-gradient(ellipse at center, rgba(0,196,123,0.06) 0%, transparent 70%)', pointerEvents: 'none', animation: 'lp-glow 5s ease-in-out infinite' }} />
       <div style={{ maxWidth: 1160, margin: '0 auto', position: 'relative' }}>
         <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }}
           style={{ textAlign: 'center', marginBottom: 56 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>Pricing</div>
-          <h2 style={{ fontSize: 'clamp(28px,4vw,46px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>Simple. No surprises.</h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.48)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+          <div className="lp-eyebrow" style={{ color: 'var(--lp-green-ink)', marginBottom: 14 }}>Pricing</div>
+          <h2 className="lp-h2-light" style={{ marginBottom: 14 }}>Simple. No surprises.</h2>
+          <p className="lp-sub-light" style={{ maxWidth: 480, margin: '0 auto' }}>
             Every plan includes the full platform. Scale up as your operation grows.
           </p>
         </motion.div>
@@ -877,7 +877,7 @@ function Pricing() {
         </div>
 
         <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
-          style={{ textAlign: 'center', fontSize: 12.5, color: 'rgba(255,255,255,0.25)', marginTop: 28, fontFamily: 'Inter,sans-serif' }}>
+          style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--lp-ink-faint)', marginTop: 28, fontFamily: 'Inter,sans-serif' }}>
           All plans billed monthly. Cancel anytime. No setup fees.
         </motion.p>
       </div>
@@ -895,39 +895,39 @@ function PlanCard({ plan, index, onSelect }) {
       transition={{ duration: 0.6, delay: index * 0.07, ease: [0.22,1,0.36,1] }}
       whileHover={{ y: -4, transition: { duration: 0.22 } }}
       style={{
-        background: isPopular ? 'linear-gradient(160deg, #0D1F35 0%, #091628 100%)' : '#0A1526',
-        border: isPopular ? '1px solid rgba(0,196,123,0.35)' : '1px solid rgba(255,255,255,0.07)',
-        borderRadius: 18,
+        background: isPopular ? 'linear-gradient(165deg, #FFFFFF 0%, #F1FBF6 100%)' : '#fff',
+        border: isPopular ? '1px solid rgba(0,137,90,0.32)' : '1px solid var(--lp-hair)',
+        borderRadius: 20,
         padding: '28px 24px',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
-        boxShadow: isPopular ? '0 0 60px rgba(0,196,123,0.08), 0 20px 60px rgba(0,0,0,0.30)' : '0 8px 32px rgba(0,0,0,0.20)',
+        boxShadow: isPopular ? '0 0 40px rgba(0,196,123,0.10), 0 24px 60px rgba(0,0,0,0.10)' : '0 8px 28px rgba(0,0,0,0.05)',
       }}>
       {isPopular && (
         <>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, rgba(0,196,123,0.7), transparent)', borderRadius: '18px 18px 0 0' }} />
-          <div style={{ position: 'absolute', top: -1, right: 20, background: '#00C47B', color: '#000', fontSize: 10, fontWeight: 800, letterSpacing: '0.10em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: '0 0 8px 8px', fontFamily: 'Inter,sans-serif' }}>Most Popular</div>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, rgba(0,196,123,0.7), transparent)', borderRadius: '20px 20px 0 0' }} />
+          <div style={{ position: 'absolute', top: -1, right: 20, background: '#00C47B', color: '#fff', fontSize: 10, fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: '0 0 8px 8px', fontFamily: 'Inter,sans-serif' }}>Most Popular</div>
         </>
       )}
 
-      <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12, fontFamily: 'Inter,sans-serif', color: '#fff' }}>{plan.name}</div>
+      <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 12, fontFamily: 'Inter,sans-serif', color: 'var(--lp-ink)' }}>{plan.name}</div>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2, marginBottom: 4 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.50)', marginTop: 6, fontFamily: 'Inter,sans-serif' }}>$</span>
-        <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1, fontFamily: 'Inter,sans-serif' }}>{plan.price.toLocaleString()}</span>
+        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--lp-ink-faint)', marginTop: 6, fontFamily: 'Inter,sans-serif' }}>$</span>
+        <span style={{ fontSize: 42, fontWeight: 700, letterSpacing: '-0.05em', lineHeight: 1, color: 'var(--lp-ink)', fontFamily: 'Inter,sans-serif' }}>{plan.price.toLocaleString()}</span>
       </div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.38)', marginBottom: 6, fontFamily: 'Inter,sans-serif' }}>/month</div>
+      <div style={{ fontSize: 13, color: 'var(--lp-ink-faint)', marginBottom: 6, fontFamily: 'Inter,sans-serif' }}>/month</div>
 
-      <div style={{ fontSize: 12.5, color: '#00C47B', fontWeight: 700, marginBottom: 22, fontFamily: 'Inter,sans-serif' }}>
+      <div style={{ fontSize: 12.5, color: 'var(--lp-green-ink)', fontWeight: 600, marginBottom: 22, fontFamily: 'Inter,sans-serif' }}>
         {plan.outreach} outreach/month
       </div>
 
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 18, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
+      <div style={{ borderTop: '1px solid var(--lp-hair)', paddingTop: 18, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
         {PLAN_FEATURES.map(f => (
           <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 }}>
-            <span style={{ color: '#00C47B', flexShrink: 0, marginTop: 1, fontWeight: 700 }}>✓</span>
-            <span style={{ color: 'rgba(255,255,255,0.62)', lineHeight: 1.4, fontFamily: 'Inter,sans-serif' }}>{f}</span>
+            <span style={{ color: 'var(--lp-green-ink)', flexShrink: 0, marginTop: 1, fontWeight: 700 }}>✓</span>
+            <span style={{ color: 'var(--lp-ink-soft)', lineHeight: 1.4, fontFamily: 'Inter,sans-serif' }}>{f}</span>
           </div>
         ))}
       </div>
@@ -935,19 +935,19 @@ function PlanCard({ plan, index, onSelect }) {
       <button onClick={() => onSelect(plan)}
         style={{
           width: '100%', padding: '13px',
-          background: isPopular ? '#00C47B' : 'rgba(255,255,255,0.06)',
-          border: isPopular ? 'none' : '1px solid rgba(255,255,255,0.10)',
-          color: isPopular ? '#000' : 'rgba(255,255,255,0.85)',
-          fontSize: 14, fontWeight: 800, borderRadius: 10, cursor: 'pointer',
+          background: isPopular ? '#00C47B' : '#fff',
+          border: isPopular ? 'none' : '1px solid rgba(0,0,0,0.14)',
+          color: isPopular ? '#fff' : 'var(--lp-ink)',
+          fontSize: 14, fontWeight: 600, borderRadius: 980, cursor: 'pointer',
           fontFamily: 'Inter,sans-serif', transition: 'all 0.2s',
         }}
         onMouseEnter={e => {
-          if (isPopular) { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(0,196,123,0.38)' }
-          else { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#fff' }
+          if (isPopular) { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(0,196,123,0.30)' }
+          else { e.currentTarget.style.background = '#F5F5F7'; e.currentTarget.style.borderColor = 'rgba(0,0,0,0.24)' }
         }}
         onMouseLeave={e => {
           if (isPopular) { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none' }
-          else { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }
+          else { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = 'rgba(0,0,0,0.14)' }
         }}>
         Start this plan →
       </button>
@@ -961,13 +961,13 @@ function ComingSoonCard({ item, index }) {
   return (
     <motion.div ref={ref} initial={{ opacity: 0, y: 24 }} animate={visible ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.6, delay: index * 0.09, ease: [0.22,1,0.36,1] }}
-      style={{ background: 'rgba(201,168,76,0.03)', border: '1px dashed rgba(201,168,76,0.22)', borderRadius: 14, padding: '26px 24px' }}>
+      style={{ background: 'rgba(201,168,76,0.05)', border: '1px dashed rgba(148,116,31,0.30)', borderRadius: 20, padding: '26px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         {item.icon}
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: '#C9A84C', background: 'rgba(201,168,76,0.10)', padding: '3px 9px', borderRadius: 100, fontFamily: 'Inter,sans-serif' }}>Coming Soon</span>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'var(--lp-gold-ink)', background: 'rgba(201,168,76,0.14)', padding: '3px 9px', borderRadius: 100, fontFamily: 'Inter,sans-serif' }}>Coming Soon</span>
       </div>
-      <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 10, color: '#fff', fontFamily: 'Inter,sans-serif' }}>{item.title}</div>
-      <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>{item.body}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 10, color: 'var(--lp-ink)', fontFamily: 'Inter,sans-serif' }}>{item.title}</div>
+      <div style={{ fontSize: 13.5, color: 'var(--lp-ink-soft)', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>{item.body}</div>
     </motion.div>
   )
 }
@@ -975,23 +975,23 @@ function ComingSoonCard({ item, index }) {
 // ─── Coming Soon ──────────────────────────────────────────────────────────────
 
 const COMING_SOON = [
-  { title: 'Automatic Lead Sourcing', body: 'VEORI pulls motivated sellers directly from county public records. Distressed, pre-foreclosure, probate, absentee. No manual searching.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
-  { title: 'Expired Listing Auto-Contact', body: 'VEORI detects expired MLS listings and reaches out within 60 minutes. Before any other investor gets there.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
-  { title: 'Buyer Matching and Deal Automation', body: 'VEORI matches your contracts to buyers in your network automatically. Assignment fees calculated. Deals move without you coordinating manually.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-  { title: 'Contract Generation in 4 Minutes', body: 'The moment a seller agrees, VEORI drafts, populates, and sends a compliant contract. No delays. No lost deals.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
+  { title: 'Automatic Lead Sourcing', body: 'VEORI pulls motivated sellers directly from county public records. Distressed, pre-foreclosure, probate, absentee. No manual searching.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94741F" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
+  { title: 'Expired Listing Auto-Contact', body: 'VEORI detects expired MLS listings and reaches out within 60 minutes. Before any other investor gets there.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94741F" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+  { title: 'Buyer Matching and Deal Automation', body: 'VEORI matches your contracts to buyers in your network automatically. Assignment fees calculated. Deals move without you coordinating manually.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94741F" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+  { title: 'Contract Generation in 4 Minutes', body: 'The moment a seller agrees, VEORI drafts, populates, and sends a compliant contract. No delays. No lost deals.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94741F" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
 ]
 
 function ComingSoon() {
   const { ref, visible } = useReveal()
   return (
-    <section style={{ padding: '100px 24px', background: 'rgba(255,255,255,0.012)', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ padding: '120px 24px', background: 'var(--lp-surface-2)', borderTop: '1px solid var(--lp-hair)', borderBottom: '1px solid var(--lp-hair)' }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }} style={{ textAlign: 'center', marginBottom: 56 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A84C', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>Coming soon</div>
-          <h2 style={{ fontSize: 'clamp(26px,4vw,42px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.1, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>
+          <div className="lp-eyebrow" style={{ color: 'var(--lp-gold-ink)', marginBottom: 14 }}>Coming soon</div>
+          <h2 className="lp-h2-light" style={{ marginBottom: 14 }}>
             The roadmap is already built.<br />Every subscriber gets it all.
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.48)', maxWidth: 480, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+          <p className="lp-sub-light" style={{ maxWidth: 480, margin: '0 auto' }}>
             These features are in active development. Every VEORI subscriber gets them automatically - no extra cost, no upgrade required.
           </p>
         </motion.div>
@@ -1001,8 +1001,8 @@ function ComingSoon() {
           ))}
         </div>
         <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.7, delay: 0.4 }}
-          style={{ textAlign: 'center', marginTop: 40, fontSize: 14, color: 'rgba(255,255,255,0.38)', fontFamily: 'Inter,sans-serif' }}>
-          Every future feature unlocks automatically on your plan. <strong style={{ color: '#C9A84C' }}>No upgrade fees. Ever.</strong>
+          style={{ textAlign: 'center', marginTop: 40, fontSize: 14, color: 'var(--lp-ink-soft)', fontFamily: 'Inter,sans-serif' }}>
+          Every future feature unlocks automatically on your plan. <strong style={{ color: 'var(--lp-gold-ink)' }}>No upgrade fees. Ever.</strong>
         </motion.div>
       </div>
     </section>
@@ -1027,16 +1027,16 @@ const STACK_TOOLS = [
 function ReplaceYourStack() {
   const { ref, visible } = useReveal()
   return (
-    <section style={{ padding: '100px 24px', background: 'rgba(255,255,255,0.012)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ padding: '120px 24px', background: 'var(--lp-surface-2)' }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <motion.div ref={ref} initial={{ opacity: 0, y: 16 }} animate={visible ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6 }}
           style={{ textAlign: 'center', marginBottom: 56 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>Stop paying for 10 tools</div>
-          <h2 style={{ fontSize: 'clamp(26px,4vw,46px)', fontWeight: 900, letterSpacing: '-0.035em', lineHeight: 1.08, marginBottom: 14, fontFamily: 'Inter,sans-serif' }}>
-            Everything You Pay For Separately.<br />
-            <span className="lp-shimmer">Veori Has It All In One.</span>
+          <div className="lp-eyebrow" style={{ textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--lp-green-ink)', marginBottom: 14 }}>Stop paying for 10 tools</div>
+          <h2 className="lp-h2-light" style={{ fontSize: 'clamp(26px,4vw,46px)', marginBottom: 14 }}>
+            Everything you pay for separately.<br />
+            <span style={{ color: 'var(--lp-green-ink)' }}>Veori has it all in one.</span>
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.48)', maxWidth: 520, margin: '0 auto', lineHeight: 1.65, fontFamily: 'Inter,sans-serif' }}>
+          <p className="lp-sub-light" style={{ fontSize: 16, maxWidth: 520, margin: '0 auto', lineHeight: 1.65 }}>
             Most real estate investors are paying over $600 a month across different tools that don't even talk to each other. Veori replaces all of them.
           </p>
         </motion.div>
@@ -1045,50 +1045,48 @@ function ReplaceYourStack() {
 
           {/* Left: Tools they're paying for */}
           <motion.div initial={{ opacity: 0, x: -24 }} animate={visible ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.7, delay: 0.1 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,80,80,0.75)', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C4342B', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>
               What you're currently paying
             </div>
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ background: '#fff', border: '1px solid var(--lp-hair)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 12px 32px rgba(0,0,0,0.05)' }}>
               {STACK_TOOLS.map((item, i) => (
-                <div key={item.tool} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: i < STACK_TOOLS.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                <div key={item.tool} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: i < STACK_TOOLS.length - 1 ? '1px solid var(--lp-hair)' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 14, color: 'rgba(255,80,80,0.60)' }}>✕</span>
-                    <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.55)', fontFamily: 'Inter,sans-serif' }}>{item.tool}</span>
+                    <span style={{ fontSize: 14, color: '#C4342B' }}>✕</span>
+                    <span style={{ fontSize: 13.5, color: 'var(--lp-ink-soft)', fontFamily: 'Inter,sans-serif' }}>{item.tool}</span>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,80,80,0.75)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'nowrap' }}>{item.price}/mo</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#C4342B', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'nowrap' }}>{item.price}/mo</span>
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(255,80,80,0.06)', borderTop: '1px solid rgba(255,80,80,0.12)' }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: 'rgba(255,255,255,0.70)', fontFamily: 'Inter,sans-serif' }}>Total per month</span>
-                <span style={{ fontSize: 16, fontWeight: 900, color: 'rgba(255,80,80,0.85)', fontFamily: 'JetBrains Mono, monospace' }}>$695 - $2,415</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(196,52,43,0.05)', borderTop: '1px solid rgba(196,52,43,0.14)' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--lp-ink)', fontFamily: 'Inter,sans-serif' }}>Total per month</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#C4342B', fontFamily: 'JetBrains Mono, monospace' }}>$695 - $2,415</span>
               </div>
             </div>
           </motion.div>
 
           {/* Right: Veori */}
           <motion.div initial={{ opacity: 0, x: 24 }} animate={visible ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.7, delay: 0.18 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#00C47B', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--lp-green-ink)', marginBottom: 16, fontFamily: 'Inter,sans-serif' }}>
               What you pay with Veori
             </div>
-            <div style={{ background: 'linear-gradient(160deg, rgba(0,196,123,0.08), rgba(0,196,123,0.03))', border: '1px solid rgba(0,196,123,0.25)', borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ background: 'linear-gradient(160deg, rgba(0,196,123,0.07), rgba(0,196,123,0.02))', border: '1px solid rgba(0,196,123,0.30)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,196,123,0.10)' }}>
               {STACK_TOOLS.map((item, i) => (
-                <div key={item.tool} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: i < STACK_TOOLS.length - 1 ? '1px solid rgba(0,196,123,0.07)' : 'none' }}>
+                <div key={item.tool} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: i < STACK_TOOLS.length - 1 ? '1px solid rgba(0,196,123,0.10)' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 14, color: '#00C47B' }}>✓</span>
-                    <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.80)', fontFamily: 'Inter,sans-serif' }}>{item.tool}</span>
+                    <span style={{ fontSize: 14, color: 'var(--lp-green-ink)' }}>✓</span>
+                    <span style={{ fontSize: 13.5, color: 'var(--lp-ink)', fontFamily: 'Inter,sans-serif' }}>{item.tool}</span>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#00C47B', fontFamily: 'Inter,sans-serif', background: 'rgba(0,196,123,0.12)', padding: '3px 10px', borderRadius: 20 }}>Included</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--lp-green-ink)', fontFamily: 'Inter,sans-serif', background: 'rgba(0,196,123,0.12)', padding: '3px 10px', borderRadius: 20 }}>Included</span>
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(0,196,123,0.08)', borderTop: '1px solid rgba(0,196,123,0.15)' }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', fontFamily: 'Inter,sans-serif' }}>Total per month</span>
-                <span style={{ fontSize: 16, fontWeight: 900, color: '#00C47B', fontFamily: 'JetBrains Mono, monospace' }}>From $1,499</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(0,196,123,0.10)', borderTop: '1px solid rgba(0,196,123,0.18)' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--lp-ink)', fontFamily: 'Inter,sans-serif' }}>Total per month</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--lp-green-ink)', fontFamily: 'JetBrains Mono, monospace' }}>From $1,499</span>
               </div>
             </div>
 
-            <a href="#pricing" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 20, padding: '16px', background: '#00C47B', color: '#000', fontSize: 15, fontWeight: 800, borderRadius: 12, textDecoration: 'none', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,196,123,0.40)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
+            <a href="#pricing" className="lp-pill lp-pill-green" style={{ marginTop: 20, padding: '16px', width: '100%', fontSize: 15, fontWeight: 600 }}>
               Replace Your Stack Today
             </a>
           </motion.div>
@@ -1145,7 +1143,7 @@ function Footer() {
     <footer style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '36px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         <VeoriLogo size={28} />
-        <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff', fontFamily: 'Inter,sans-serif' }}>VEORI</span>
+        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: '#fff', fontFamily: 'Inter,sans-serif' }}>VEORI</span>
       </div>
       <ul style={{ listStyle: 'none', display: 'flex', gap: 22, flexWrap: 'wrap', margin: 0, padding: 0 }}>
         {[['How it works', '#how'], ['Platform', '#platform'], ['Pricing', '#pricing'], ['Contact', 'mailto:divinebfavor@gmail.com']].map(([label, href]) => (

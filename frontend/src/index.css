@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -746,13 +746,63 @@ h1, h2, h3, h4 { font-family: 'Geist', 'Inter', sans-serif; color: var(--t1); }
    LANDING PAGE - classes used by LandingPage.jsx
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
 .lp-body {
+  /* Apple hybrid palette + AA-safe brand inks for light sections */
+  --lp-ink:        #1D1D1F;
+  --lp-ink-soft:   #6E6E73;
+  --lp-ink-faint:  #86868B;
+  --lp-hair:       rgba(0,0,0,0.08);
+  --lp-surface:    #F5F5F7;
+  --lp-surface-2:  #FBFBFD;
+  --lp-green:      #00C47B;
+  --lp-green-ink:  #00895A;
+  --lp-gold:       #C9A84C;
+  --lp-gold-ink:   #94741F;
+  --lp-ease:       cubic-bezier(0.28, 0.11, 0.32, 1);
   background: #060E1A;
   color: #fff;
   font-family: 'Inter', -apple-system, sans-serif;
   overflow-x: hidden;
+}
+
+/* ── Apple light-section helpers ─────────────────────────────────────── */
+.lp-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.15em;
+  text-transform: uppercase; font-family: 'Inter', sans-serif;
+}
+.lp-h2-light {
+  color: var(--lp-ink);
+  font-size: clamp(28px, 4vw, 46px);
+  font-weight: 600; letter-spacing: -0.03em; line-height: 1.06;
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+}
+.lp-sub-light { color: var(--lp-ink-soft); font-size: 16px; line-height: 1.65; font-family: 'Inter', sans-serif; }
+/* Pill buttons (apple.com) */
+.lp-pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 980px; font-family: 'Inter', sans-serif;
+  font-weight: 600; text-decoration: none; cursor: pointer;
+  transition: transform 0.25s var(--lp-ease), background 0.25s var(--lp-ease), box-shadow 0.25s var(--lp-ease), color 0.25s var(--lp-ease);
+}
+.lp-pill-green { background: var(--lp-green); color: #08130D; }
+.lp-pill-green:hover { background: #00d986; transform: translateY(-1px); box-shadow: 0 10px 30px rgba(0,196,123,0.28); }
+.lp-pill-dark { background: var(--lp-ink); color: #fff; }
+.lp-pill-dark:hover { background: #000; transform: translateY(-1px); }
+.lp-pill-ghost-light { background: transparent; color: var(--lp-ink); border: 1px solid rgba(0,0,0,0.16); }
+.lp-pill-ghost-light:hover { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.28); }
+/* Soft card for light sections */
+.lp-card-light {
+  background: #fff; border: 1px solid var(--lp-hair); border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 12px 32px rgba(0,0,0,0.05);
+  transition: transform 0.35s var(--lp-ease), box-shadow 0.35s var(--lp-ease);
+}
+.lp-card-light:hover { transform: translateY(-4px); box-shadow: 0 2px 4px rgba(0,0,0,0.05), 0 24px 56px rgba(0,0,0,0.09); }
+/* Light grid texture for light sections */
+.lp-grid-light {
+  background-image:
+    linear-gradient(rgba(0,0,0,0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.028) 1px, transparent 1px);
+  background-size: 56px 56px;
 }
 
 /* Override the app-level body overflow:hidden so the landing page can scroll */
