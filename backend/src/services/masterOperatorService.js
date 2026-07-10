@@ -163,4 +163,11 @@ module.exports = {
   fullDoctrine,
   liveCallDoctrine,
   analysisOutputFormat,
+  // Doctrine sections exposed READ-ONLY so the specialized agents (Underwriting,
+  // Disposition, Counterparty judgment) inherit the SAME text the operator-facing
+  // doctrine uses - single source of truth, no drift. Additive: no existing
+  // consumer changes; these are the same constants fullDoctrine() already composes.
+  VALUATION,
+  COUNTERPARTY,
+  DISPOSITION,
 };

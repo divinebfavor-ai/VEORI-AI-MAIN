@@ -243,6 +243,7 @@ const dealPredictionRouter = require('./routes/dealPrediction');
 const heatmapRouter        = require('./routes/heatmap');
 const dailyBriefingRouter  = require('./routes/dailyBriefing');
 const cooRouter            = require('./routes/coo');
+const agentsRouter         = require('./routes/agents'); // 8-agent layer (flag-fenced, plans-only)
 app.use('/api/lead-memory',       leadMemoryRouter);
 app.use('/api/sentiment',         sentimentRouter);
 app.use('/api/deal-probability',  dealProbRouter);
@@ -251,6 +252,7 @@ app.use('/api/deal-prediction',   dealPredictionRouter);
 app.use('/api/heatmap',           heatmapRouter);
 app.use('/api/briefing',          dailyBriefingRouter);
 app.use('/api/coo',               cooRouter);
+app.use('/api/agents',            agentsRouter); // 503 until AGENTS_ENABLED=true → zero blast radius
 
 // ─── Advanced Acquisition Routes (Features 13-21) ─────────────────────────────
 const smartListRouter       = require('./routes/smartList');
