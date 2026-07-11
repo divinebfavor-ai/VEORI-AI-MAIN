@@ -762,7 +762,7 @@ h1, h2, h3, h4 { font-family: 'Geist', 'Inter', sans-serif; color: var(--t1); }
   background: #060E1A;
   color: #fff;
   font-family: 'Inter', -apple-system, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;   /* clip (not hidden) — hidden creates a scroll container that breaks position:sticky in PipelineStory */
 }
 
 /* ── Apple light-section helpers ─────────────────────────────────────── */
@@ -805,9 +805,14 @@ h1, h2, h3, h4 { font-family: 'Geist', 'Inter', sans-serif; color: var(--t1); }
   background-size: 56px 56px;
 }
 
-/* Override the app-level body overflow:hidden so the landing page can scroll */
+/* Override the app-level height:100%/overflow:hidden lock so the landing page
+   scrolls as a normal document. Body must NOT be its own scroll container, or
+   framer-motion useScroll (which tracks the document) can't drive PipelineStory. */
+html:has(.lp-body),
 body:has(.lp-body) {
-  overflow: auto !important;
+  height: auto !important;
+  overflow-x: clip !important;
+  overflow-y: visible !important;
 }
 
 #root:has(.lp-body) {
@@ -820,6 +825,52 @@ body:has(.lp-body) {
     linear-gradient(rgba(0,196,123,0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0,196,123,0.035) 1px, transparent 1px);
   background-size: 56px 56px;
+}
+
+/* ── PipelineStory (scroll-driven narrative) ─────────────────────────── */
+.ps-outer { height: 500vh; }               /* 4 acts × ~100vh of pinned scroll + lead-in */
+.ps-inner { grid-template-columns: 1.05fr 1fr; }
+.ps-device-wrap { order: 2; }
+
+@media (max-width: 900px) {
+  .ps-outer { height: 460vh; }
+  .ps-sticky { align-items: flex-start !important; }
+  .ps-inner {
+    grid-template-columns: 1fr !important;
+    gap: 28px !important;
+    padding: 92px 22px 40px !important;
+    min-height: 100vh;
+    align-content: center;
+  }
+  .ps-device-wrap { order: -1; }           /* device on top on mobile */
+  .ps-rail { display: none !important; }   /* rail hidden; act number + kicker carry progress */
+  .ps-device { max-width: 340px !important; min-height: 320px !important; }
+  .ps-narr { text-align: center; }
+  .ps-narr p { margin: 0 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-outer { height: auto; }
+  .ps-sticky { position: relative !important; min-height: auto !important; padding: 60px 0; }
+}
+
+/* ── Typewriter cursor (VideoHero) ───────────────────────────────────── */
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.animate-blink { animation: blink 1s step-end infinite; }
+
+/* Nav: hide the redundant CTA on phones (hero already carries it) */
+@media (max-width: 640px) {
+  .lp-nav-cta { display: none !important; }
+}
+
+/* Hero figure position + readability veil (image sits BEHIND the copy on all sizes) */
+.hero-img { object-position: 74% center; }
+.hero-veil {
+  background: linear-gradient(180deg, rgba(236,237,241,0.95) 0%, rgba(236,237,241,0.62) 40%, rgba(236,237,241,0.12) 70%, rgba(236,237,241,0) 100%);
+}
+@media (min-width: 1024px) {
+  .hero-img { object-position: right center; }
+  .hero-veil { background: linear-gradient(90deg, #ECEDF1 0%, #ECEDF1 24%, rgba(236,237,241,0.70) 44%, rgba(236,237,241,0) 64%); }
 }
 
 .lp-shimmer {

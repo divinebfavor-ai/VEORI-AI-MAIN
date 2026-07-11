@@ -1,6 +1,8 @@
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { useRef, useState, useEffect, useId } from 'react'
 import { useNavigate } from 'react-router-dom'
+import PipelineStory from './PipelineStory'
+import VideoHero from './VideoHero'
 
 const API_URL   = 'https://veori-ai-main-production.up.railway.app/api/fw-billing'
 
@@ -74,6 +76,15 @@ function LandingNav() {
     return () => window.removeEventListener('scroll', h)
   }, [])
 
+  // Theme-aware: over the light video hero (top) use dark ink; once scrolled
+  // into the dark sections, switch to the dark-glass / white-text treatment.
+  const ink       = scrolled ? '#fff' : '#141914'
+  const linkColor = scrolled ? 'rgba(255,255,255,0.48)' : 'rgba(28,46,30,0.60)'
+  const linkHover = scrolled ? '#fff' : '#0A0A0A'
+  const btnColor  = scrolled ? 'rgba(255,255,255,0.70)' : '#1C2E1E'
+  const btnBorder = scrolled ? 'rgba(255,255,255,0.08)' : 'rgba(28,46,30,0.18)'
+  const btnBorderHover = scrolled ? 'rgba(255,255,255,0.20)' : 'rgba(28,46,30,0.36)'
+
   return (
     <motion.nav
       initial={{ opacity: 0, y: -12 }}
@@ -82,25 +93,25 @@ function LandingNav() {
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 40px', height: 64,
-        background: scrolled ? 'rgba(6,14,26,0.92)' : 'rgba(6,14,26,0.60)',
+        padding: '0 clamp(16px, 4vw, 40px)', height: 64,
+        background: scrolled ? 'rgba(6,14,26,0.92)' : 'rgba(236,237,241,0.55)',
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : '1px solid transparent',
+        borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(28,46,30,0.06)',
         boxShadow: scrolled ? '0 8px 40px rgba(0,0,0,0.5)' : 'none',
         transition: 'all 0.35s ease',
       }}
     >
-      <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+      <a href="#top" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
         <VeoriLogo size={32} />
-        <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: '#fff', fontFamily: 'Inter,sans-serif' }}>VEORI</span>
+        <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: ink, fontFamily: 'Inter,sans-serif', transition: 'color 0.35s ease' }}>VEORI</span>
       </a>
 
       <ul className="lp-nav-links" style={{ listStyle: 'none', display: 'flex', gap: 4, margin: 0, padding: 0 }}>
         {[['How it works', '#how'], ['Platform', '#platform'], ['Pricing', '#pricing']].map(([label, href]) => (
           <li key={label}>
-            <a href={href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.48)', textDecoration: 'none', padding: '6px 12px', borderRadius: 7, display: 'block', whiteSpace: 'nowrap', transition: 'color 0.2s' }}
-              onMouseEnter={e => e.target.style.color = '#fff'}
-              onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.48)'}
+            <a href={href} style={{ fontSize: 13.5, color: linkColor, textDecoration: 'none', padding: '6px 12px', borderRadius: 7, display: 'block', whiteSpace: 'nowrap', transition: 'color 0.2s' }}
+              onMouseEnter={e => e.target.style.color = linkHover}
+              onMouseLeave={e => e.target.style.color = linkColor}
             >{label}</a>
           </li>
         ))}
@@ -109,11 +120,11 @@ function LandingNav() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button
           onClick={() => navigate('/login')}
-          style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.70)', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.20)'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.70)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+          style={{ fontSize: 13.5, fontWeight: 500, color: btnColor, background: 'transparent', border: `1px solid ${btnBorder}`, padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'Inter,sans-serif', transition: 'all 0.2s' }}
+          onMouseEnter={e => { e.currentTarget.style.color = linkHover; e.currentTarget.style.borderColor = btnBorderHover; }}
+          onMouseLeave={e => { e.currentTarget.style.color = btnColor; e.currentTarget.style.borderColor = btnBorder; }}
         >Log in</button>
-        <a href="#pricing" style={{ fontSize: 13.5, fontWeight: 700, color: '#000', background: '#00C47B', padding: '7px 18px', borderRadius: 8, textDecoration: 'none', transition: 'all 0.2s' }}
+        <a href="#pricing" className="lp-nav-cta" style={{ fontSize: 13.5, fontWeight: 700, color: '#000', background: '#00C47B', padding: '7px 18px', borderRadius: 8, textDecoration: 'none', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
           onMouseEnter={e => { e.currentTarget.style.background = '#00d986'; e.currentTarget.style.boxShadow = '0 6px 22px rgba(0,196,123,0.38)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = '#00C47B'; e.currentTarget.style.boxShadow = 'none'; }}
         >Start calling sellers</a>
@@ -1184,13 +1195,12 @@ export default function LandingPage() {
   return (
     <div className="lp-body">
       <LandingNav />
-      <Hero />
-      <Ticker />
+      <VideoHero />
+      <PipelineStory />
       <DashboardPreview />
       <WhatYouGet />
       <Comparison />
       <ReplaceYourStack />
-      <HowItWorks />
       <Pricing />
       <ComingSoon />
       <FinalCTA />
