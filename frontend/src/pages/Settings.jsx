@@ -1324,11 +1324,14 @@ export default function Settings() {
   // Business identity - Veori auto-files toll-free SMS verification with these on your behalf.
   const [bizForm, setBizForm] = useState({
     legal_name: '', business_email: '', website: '',
+    ein: '', business_phone: '', business_type: 'LLC', business_industry: 'REAL_ESTATE', contact_job_title: '',
     business_street: '', business_street2: '', business_city: '', business_state: '', business_postal_code: '', business_country: 'US',
     contact_first_name: '', contact_last_name: '', contact_email: '', contact_phone: '',
     sms_business_type: 'PRIVATE_PROFIT', sms_opt_in_type: 'VERBAL', sms_use_case_summary: '', sms_message_sample: '',
   })
   const [bizSaving, setBizSaving] = useState(false)
+  // A2P 10DLC brand-registration readiness (which required brand fields are still missing).
+  const [a2pReady, setA2pReady] = useState(null)
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' })
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false })
   const user = useAuthStore(s => s.user)
@@ -1433,6 +1436,11 @@ export default function Settings() {
           legal_name:           p.legal_name || p.company_name || '',
           business_email:       p.business_email || '',
           website:              p.website || '',
+          ein:                  p.ein || '',
+          business_phone:       p.business_phone || '',
+          business_type:        p.business_type || 'LLC',
+          business_industry:    p.business_industry || 'REAL_ESTATE',
+          contact_job_title:    p.contact_job_title || '',
           business_street:      p.business_street || '',
           business_street2:     p.business_street2 || '',
           business_city:        p.business_city || '',
@@ -1449,6 +1457,7 @@ export default function Settings() {
           sms_message_sample:   p.sms_message_sample || '',
         }))
       }).catch(() => {})
+      operatorApi.getA2pReadiness().then(r => setA2pReady(r.data)).catch(() => {})
     }
     if (tab === 'phones') {
       phones.getPhones().then(r => {
@@ -1520,10 +1529,18 @@ export default function Settings() {
 
     setBizSaving(true)
     try {
+      // company_type (messaging-profile) derives from the business-type dropdown.
+      const companyTypeMap = { PRIVATE_PROFIT: 'private', PUBLIC_PROFIT: 'public', SOLE_PROPRIETOR: 'private', NON_PROFIT: 'non-profit', GOVERNMENT: 'government' }
       await operatorApi.updateProfile({
         legal_name:           bizForm.legal_name.trim(),
         business_email:       bizForm.business_email.trim(),
         website:              bizForm.website.trim(),
+        ein:                  bizForm.ein.trim(),
+        business_phone:       bizForm.business_phone.trim(),
+        business_type:        bizForm.business_type,
+        business_industry:    bizForm.business_industry,
+        company_type:         companyTypeMap[bizForm.sms_business_type] || 'private',
+        contact_job_title:    bizForm.contact_job_title.trim(),
         business_street:      bizForm.business_street.trim(),
         business_street2:     bizForm.business_street2.trim(),
         business_city:        bizForm.business_city.trim(),
@@ -1540,6 +1557,7 @@ export default function Settings() {
         sms_message_sample:   bizForm.sms_message_sample.trim(),
       })
       toast.success('Business identity saved - Veori will use this to verify your texting numbers')
+      operatorApi.getA2pReadiness().then(r => setA2pReady(r.data)).catch(() => {})
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to save business identity')
     } finally {
@@ -1658,6 +1676,14 @@ export default function Settings() {
 
               <Section title="Business Identity" description="Veori uses these details to automatically verify your texting numbers with the carriers - you never touch a carrier console. Fill this in once and every number Veori buys for you gets SMS-verified in the background.">
                 <div className="space-y-4">
+                  {a2pReady && (
+                    <div className="rounded-[8px] px-4 py-3 text-[13px]"
+                      style={{ background: a2pReady.ready ? 'rgba(0,196,123,0.08)' : 'rgba(234,179,8,0.08)', border: `1px solid ${a2pReady.ready ? 'rgba(0,196,123,0.35)' : 'rgba(234,179,8,0.35)'}` }}>
+                      {a2pReady.ready
+                        ? '✓ Brand info complete. Ready for A2P 10DLC registration on your own verified number.'
+                        : <span>To register your own texting brand (A2P 10DLC), still needed: <strong>{(a2pReady.missing || []).join(', ')}</strong></span>}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <Input label="Legal Business Name *" value={bizForm.legal_name} onChange={e => setBizForm(f => ({...f, legal_name: e.target.value}))} placeholder="Smith Acquisitions LLC" />
                     <div>
@@ -1671,6 +1697,24 @@ export default function Settings() {
                   <div className="grid grid-cols-2 gap-4">
                     <Input label="Business Email *" type="email" value={bizForm.business_email} onChange={e => setBizForm(f => ({...f, business_email: e.target.value}))} placeholder="ops@yourcompany.com" hint="Where carriers send verification results" />
                     <Input label="Website" value={bizForm.website} onChange={e => setBizForm(f => ({...f, website: e.target.value}))} placeholder="https://yourcompany.com" />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <Input label="EIN *" value={bizForm.ein} onChange={e => setBizForm(f => ({...f, ein: e.target.value}))} placeholder="12-3456789" hint="Federal tax ID, required to register your brand" />
+                    <div>
+                      <label className="label-caps block mb-1.5">Legal Structure</label>
+                      <select value={bizForm.business_type} onChange={e => setBizForm(f => ({...f, business_type: e.target.value}))}
+                        className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
+                        {['LLC','Corporation','Partnership','Sole Proprietorship','Non-Profit'].map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label-caps block mb-1.5">Industry</label>
+                      <select value={bizForm.business_industry} onChange={e => setBizForm(f => ({...f, business_industry: e.target.value}))}
+                        className="h-[44px] w-full bg-surface border border-border-subtle rounded-[6px] px-3 text-[14px] text-text-primary focus:outline-none focus:border-primary">
+                        {['REAL_ESTATE','CONSTRUCTION','FINANCIAL','PROFESSIONAL_SERVICES','OTHER'].map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -1691,6 +1735,10 @@ export default function Settings() {
                   <div className="grid grid-cols-2 gap-4">
                     <Input label="Contact Email" type="email" value={bizForm.contact_email} onChange={e => setBizForm(f => ({...f, contact_email: e.target.value}))} placeholder="jane@yourcompany.com" />
                     <Input label="Contact Phone" type="tel" value={bizForm.contact_phone} onChange={e => setBizForm(f => ({...f, contact_phone: e.target.value}))} placeholder="+1 (555) 000-0000" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="Business Phone" type="tel" value={bizForm.business_phone} onChange={e => setBizForm(f => ({...f, business_phone: e.target.value}))} placeholder="+1 (555) 000-0000" />
+                    <Input label="Contact Job Title" value={bizForm.contact_job_title} onChange={e => setBizForm(f => ({...f, contact_job_title: e.target.value}))} placeholder="Owner / CEO" hint="Title of the person authorizing texting" />
                   </div>
 
                   <div>

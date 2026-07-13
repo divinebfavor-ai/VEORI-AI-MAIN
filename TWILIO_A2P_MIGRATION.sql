@@ -31,6 +31,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS authorized_rep_last_name      TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS authorized_rep_email          TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS authorized_rep_phone          TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS authorized_rep_job_position   TEXT;
+-- Authorized representative's job title. Reuses the existing contact_* person as the
+-- A2P authorized representative; this is the one missing piece of that identity.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_job_title             TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_users_a2p_step ON users(a2p_registration_step)
   WHERE a2p_registration_step IS NOT NULL AND a2p_registration_step <> 'not_started';

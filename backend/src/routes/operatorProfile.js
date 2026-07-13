@@ -6,6 +6,7 @@ const { callAnthropic } = require('../services/aiService');
 const fraudGuard = require('../services/fraudGuard');
 const fieldCrypto = require('../services/fieldCrypto');
 const operatorMode = require('../services/operatorMode');
+const a2p = require('../services/a2pRegistrationService');
 const router = express.Router();
 
 const SCRIPT_MODEL = 'claude-haiku-4-5-20251001';
@@ -23,7 +24,7 @@ router.get('/profile', requireAuth, async (req, res, next) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, ai_caller_name, ai_voice_id, ai_personality_tone, ai_use_case, ai_intro_script, ai_voicemail_script, ai_custom_instructions, proactive_ai_disclosure, legal_name, entity_name, entity_type, ein, re_license_number, re_license_state, business_phone, business_email, website, business_street, business_street2, business_city, business_state, business_postal_code, business_country, contact_first_name, contact_last_name, contact_email, contact_phone, sms_business_type, sms_opt_in_type, sms_use_case_summary, sms_message_sample, sms_opt_in_image_urls, buyer_name_on_contract, earnest_money_default, closing_period_default, inspection_period_default, include_assignment_fee_disclosure, custom_contract_addendum, target_states, target_cities, property_types_preferred, min_property_value, max_property_value')
+      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, ai_caller_name, ai_voice_id, ai_personality_tone, ai_use_case, ai_intro_script, ai_voicemail_script, ai_custom_instructions, proactive_ai_disclosure, legal_name, entity_name, entity_type, ein, re_license_number, re_license_state, business_phone, business_email, website, business_street, business_street2, business_city, business_state, business_postal_code, business_country, contact_first_name, contact_last_name, contact_email, contact_phone, contact_job_title, business_type, business_industry, company_type, sms_business_type, sms_opt_in_type, sms_use_case_summary, sms_message_sample, sms_opt_in_image_urls, buyer_name_on_contract, earnest_money_default, closing_period_default, inspection_period_default, include_assignment_fee_disclosure, custom_contract_addendum, target_states, target_cities, property_types_preferred, min_property_value, max_property_value')
       .eq('id', req.user.id)
       .single();
     if (error) throw error;
@@ -34,7 +35,7 @@ router.get('/profile', requireAuth, async (req, res, next) => {
 // PUT /api/operator/profile
 router.put('/profile', requireAuth, async (req, res, next) => {
   try {
-    const allowed = ['full_name','company_name','phone','email_from_name','email_reply_to','ai_caller_name','ai_voice_id','ai_personality_tone','ai_use_case','ai_intro_script','ai_voicemail_script','ai_custom_instructions','proactive_ai_disclosure','legal_name','entity_name','entity_type','ein','re_license_number','re_license_state','business_phone','business_email','website','business_street','business_street2','business_city','business_state','business_postal_code','business_country','contact_first_name','contact_last_name','contact_email','contact_phone','sms_business_type','sms_opt_in_type','sms_use_case_summary','sms_message_sample','sms_opt_in_image_urls','buyer_name_on_contract','earnest_money_default','closing_period_default','inspection_period_default','include_assignment_fee_disclosure','custom_contract_addendum','target_states','target_cities','property_types_preferred','min_property_value','max_property_value'];
+    const allowed = ['full_name','company_name','phone','email_from_name','email_reply_to','ai_caller_name','ai_voice_id','ai_personality_tone','ai_use_case','ai_intro_script','ai_voicemail_script','ai_custom_instructions','proactive_ai_disclosure','legal_name','entity_name','entity_type','ein','re_license_number','re_license_state','business_phone','business_email','website','business_street','business_street2','business_city','business_state','business_postal_code','business_country','contact_first_name','contact_last_name','contact_email','contact_phone','contact_job_title','business_type','business_industry','company_type','sms_business_type','sms_opt_in_type','sms_use_case_summary','sms_message_sample','sms_opt_in_image_urls','buyer_name_on_contract','earnest_money_default','closing_period_default','inspection_period_default','include_assignment_fee_disclosure','custom_contract_addendum','target_states','target_cities','property_types_preferred','min_property_value','max_property_value'];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
@@ -52,6 +53,28 @@ router.put('/profile', requireAuth, async (req, res, next) => {
     const { data, error } = await supabase.from('users').update(updates).eq('id', req.user.id).select().single();
     if (error) throw error;
     res.json({ success: true, profile: data, fraud_warning: fraudWarning });
+  } catch (err) { next(err); }
+});
+
+// GET /api/operator/a2p-readiness
+// Tells the onboarding form what brand info is still needed before this operator's A2P
+// 10DLC registration can run. Read-only, tenant-fenced.
+router.get('/a2p-readiness', requireAuth, async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select(a2p.USER_COLS)
+      .eq('id', req.user.id)
+      .single();
+    if (error) throw error;
+    const missing = a2p.validateBusinessData(data);
+    res.json({
+      success: true,
+      ready: missing.length === 0,
+      missing,
+      has_subaccount: !!data.twilio_subaccount_sid,
+      registration_step: data.a2p_registration_step || 'not_started',
+    });
   } catch (err) { next(err); }
 });
 
