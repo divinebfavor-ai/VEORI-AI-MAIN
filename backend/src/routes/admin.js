@@ -12,6 +12,7 @@ const router   = require('express').Router();
 const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 const audit    = require('../services/auditLog');
+const accountReview = require('../services/accountReviewService');
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',').map(e => e.trim());
 
@@ -198,6 +199,52 @@ router.get('/legacy-plans', async (req, res) => {
   } catch (err) {
     console.error('[Admin] legacy-plans error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to load legacy plans' });
+  }
+});
+
+// ─── Account lifecycle (manual, admin-triggered) ─────────────────────────────
+
+// POST /api/admin/accounts/:userId/deal-closed  { closed?: boolean }
+// Manually flag (or clear) a Starter account as "deal closed". When set on a Starter
+// account this creates the in-app Solo upgrade prompt. No calendar cutoff involved.
+router.post('/accounts/:userId/deal-closed', async (req, res) => {
+  try {
+    const closed = req.body?.closed !== false; // default true; pass { closed:false } to clear
+    const result = await accountReview.setDealClosed(req.params.userId, { closed, adminId: req.user.id });
+    if (!result.ok) return res.status(404).json({ success: false, error: result.reason || 'user not found' });
+    audit.log({ userId: req.user.id, action: audit.ACTIONS.ADMIN_ACCESS, req,
+      metadata: { action: 'deal_closed', target: req.params.userId, closed, promptCreated: result.promptCreated } });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('[Admin] deal-closed error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to update deal-closed flag' });
+  }
+});
+
+// POST /api/admin/engagement/scan  { dryRun?: boolean }
+// Manually run the engagement scan. Flags accounts >= 3 months old with zero hot
+// leads and zero responses for founder review. Never suspends or messages operators.
+router.post('/engagement/scan', async (req, res) => {
+  try {
+    const dryRun = req.body?.dryRun === true;
+    const result = await accountReview.scanEngagement({ dryRun });
+    audit.log({ userId: req.user.id, action: audit.ACTIONS.ADMIN_ACCESS, req,
+      metadata: { action: 'engagement_scan', dryRun, flagged: result.flagged } });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('[Admin] engagement scan error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to run engagement scan' });
+  }
+});
+
+// GET /api/admin/engagement/review — accounts currently awaiting founder review.
+router.get('/engagement/review', async (req, res) => {
+  try {
+    const accounts = await accountReview.listFounderReview();
+    res.json({ success: true, total: accounts.length, accounts });
+  } catch (err) {
+    console.error('[Admin] engagement review error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to load review list' });
   }
 });
 
