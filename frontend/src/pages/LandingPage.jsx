@@ -734,13 +734,31 @@ function HowItWorks() {
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 
-const PLANS = [
-  { key: 'starter',    name: 'Starter',    price: 1499,  outreach: '10,000'  },
-  { key: 'solo',       name: 'Solo',       price: 2999,  outreach: '25,000'  },
-  { key: 'operator',   name: 'Operator',   price: 4999,  outreach: '50,000',  popular: true },
-  { key: 'scale',      name: 'Scale',      price: 8999,  outreach: '100,000' },
-  { key: 'enterprise', name: 'Enterprise', price: 14999, outreach: '200,000' },
+// Section 1: the single, fully-inclusive entry plan.
+const STARTER_PLAN = { key: 'starter', name: 'Starter', price: 1499, outreach: '10,000', note: 'Fully inclusive, no setup required' }
+
+// Section 2: the four volume-scaling plans.
+const SCALE_PLANS = [
+  { key: 'solo',       name: 'Solo',       price: 1699,  outreach: '25,000'  },
+  { key: 'operator',   name: 'Operator',   price: 3299,  outreach: '50,000',  popular: true },
+  { key: 'scale',      name: 'Scale',      price: 6599,  outreach: '100,000' },
+  { key: 'enterprise', name: 'Enterprise', price: 12999, outreach: '200,000' },
 ]
+
+// Custom-pricing rates, per 1,000 outreach. Surfaced as TWO SEPARATE line items in
+// the calculator: platform fee and SMS & calling cost are never summed into one number.
+const PLATFORM_RATE_PER_K = 65     // Veori platform fee, USD per 1,000 outreach / month
+const USAGE_RATE_PER_K    = 30.5   // estimated SMS & calling cost, USD per 1,000 outreach / month
+
+// Pure + exported so the two line items can be unit-tested against exact expected values.
+export function computeCustom(volume) {
+  const v = Math.max(0, Number(volume) || 0)
+  const units = v / 1000
+  return { platformFee: units * PLATFORM_RATE_PER_K, usageCost: units * USAGE_RATE_PER_K }
+}
+
+const cpUsd = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n)
+const cpNum = (n) => new Intl.NumberFormat('en-US').format(n)
 
 const PLAN_FEATURES = [
   'AI voice calls included',
@@ -880,19 +898,98 @@ function Pricing() {
           </p>
         </motion.div>
 
-        {/* Plan grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-          {PLANS.map((plan, i) => (
-            <PlanCard key={plan.key} plan={plan} index={i} onSelect={setSelectedPlan} />
-          ))}
+        {/* Section 1: Starter Plan */}
+        <div style={{ marginBottom: 64 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 22, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <h3 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--lp-ink)', margin: 0, fontFamily: 'Inter,sans-serif' }}>Starter Plan</h3>
+            <span style={{ fontSize: 14, color: 'var(--lp-ink-faint)', fontFamily: 'Inter,sans-serif' }}>Everything you need to start closing.</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 340px)', justifyContent: 'center' }}>
+            <PlanCard plan={STARTER_PLAN} index={0} onSelect={setSelectedPlan} />
+          </div>
         </div>
 
+        {/* Section 2: Scale Plans */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 22, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <h3 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--lp-ink)', margin: 0, fontFamily: 'Inter,sans-serif' }}>Scale Plans</h3>
+            <span style={{ fontSize: 14, color: 'var(--lp-ink-faint)', fontFamily: 'Inter,sans-serif' }}>Grow your outreach volume as you grow.</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+            {SCALE_PLANS.map((plan, i) => (
+              <PlanCard key={plan.key} plan={plan} index={i} onSelect={setSelectedPlan} />
+            ))}
+          </div>
+
+          <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
+            style={{ textAlign: 'center', fontSize: 13.5, color: 'var(--lp-ink-soft)', marginTop: 22, maxWidth: 620, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.55, fontFamily: 'Inter,sans-serif' }}>
+            AI voice, closing, and CRM included. Outreach volume runs through your own verified business number, billed directly to you as you use it.
+          </motion.p>
+        </div>
+
+        {/* Custom Pricing (below Enterprise) */}
+        <CustomPricing />
+
         <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
-          style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--lp-ink-faint)', marginTop: 28, fontFamily: 'Inter,sans-serif' }}>
+          style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--lp-ink-faint)', marginTop: 36, fontFamily: 'Inter,sans-serif' }}>
           All plans billed monthly. Cancel anytime. No setup fees.
         </motion.p>
       </div>
     </section>
+  )
+}
+
+// ─── Custom Pricing calculator: two separate line items, never combined ──────
+function CustomPricing() {
+  const [volume, setVolume] = useState(300000)
+  const { platformFee, usageCost } = computeCustom(volume)
+  const cleanVolume = Math.max(0, Number(volume) || 0)
+
+  return (
+    <div id="custom-pricing" style={{ marginTop: 64 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <h3 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--lp-ink)', margin: 0, fontFamily: 'Inter,sans-serif' }}>Custom Pricing</h3>
+        <a href="#custom-pricing" style={{ fontSize: 14, color: 'var(--lp-green-ink)', fontWeight: 600, textDecoration: 'none', fontFamily: 'Inter,sans-serif' }}>
+          Need more than 200,000/month? Get custom pricing.
+        </a>
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid var(--lp-hair)', borderRadius: 20, padding: '28px 24px', maxWidth: 640, marginLeft: 'auto', marginRight: 'auto', boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 12px 32px rgba(0,0,0,0.05)' }}>
+        <label htmlFor="cp-vol" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--lp-ink-soft)', marginBottom: 8, fontFamily: 'Inter,sans-serif' }}>
+          Desired monthly outreach volume
+        </label>
+        <input
+          id="cp-vol"
+          type="number"
+          min="0"
+          step="1000"
+          value={volume}
+          onChange={(e) => setVolume(e.target.value)}
+          style={{ width: '100%', padding: '13px 14px', fontSize: 16, borderRadius: 12, border: '1px solid var(--lp-hair)', background: '#fff', color: 'var(--lp-ink)', fontFamily: 'Inter,sans-serif', fontVariantNumeric: 'tabular-nums', boxSizing: 'border-box', outline: 'none' }}
+          onFocus={e => e.target.style.borderColor = 'rgba(0,196,123,0.45)'}
+          onBlur={e => e.target.style.borderColor = 'var(--lp-hair)'}
+        />
+        <div style={{ fontSize: 12.5, color: 'var(--lp-ink-faint)', marginTop: 6, fontFamily: 'Inter,sans-serif' }}>{cpNum(cleanVolume)} outreach / month</div>
+
+        {/* Two SEPARATE line items, never combined into one total. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginTop: 22 }}>
+          <div style={{ background: 'rgba(0,196,123,0.04)', border: '1px solid var(--lp-hair)', borderRadius: 14, padding: '18px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--lp-ink-faint)', marginBottom: 8, fontFamily: 'Inter,sans-serif' }}>Platform fee</div>
+            <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--lp-ink)', fontVariantNumeric: 'tabular-nums', fontFamily: 'Inter,sans-serif' }}>{cpUsd(platformFee)}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--lp-ink-soft)', marginTop: 6, fontFamily: 'Inter,sans-serif' }}>$65 per 1,000 outreach · per month</div>
+          </div>
+          <div style={{ background: 'rgba(0,196,123,0.04)', border: '1px solid var(--lp-hair)', borderRadius: 14, padding: '18px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--lp-ink-faint)', marginBottom: 8, fontFamily: 'Inter,sans-serif' }}>Estimated SMS &amp; calling cost</div>
+            <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--lp-ink)', fontVariantNumeric: 'tabular-nums', fontFamily: 'Inter,sans-serif' }}>{cpUsd(usageCost)}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--lp-ink-soft)', marginTop: 6, fontFamily: 'Inter,sans-serif' }}>$30.50 per 1,000 outreach · billed directly to you</div>
+          </div>
+        </div>
+
+        <p style={{ fontSize: 12.5, color: 'var(--lp-ink-faint)', marginTop: 16, lineHeight: 1.5, fontFamily: 'Inter,sans-serif' }}>
+          Two separate charges. The platform fee is billed by Veori; the SMS and calling cost is billed directly to you through your own verified business number.
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -922,6 +1019,9 @@ function PlanCard({ plan, index, onSelect }) {
         </>
       )}
 
+      {plan.note && (
+        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--lp-green-ink)', marginBottom: 8, fontFamily: 'Inter,sans-serif' }}>{plan.note}</div>
+      )}
       <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 12, fontFamily: 'Inter,sans-serif', color: 'var(--lp-ink)' }}>{plan.name}</div>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2, marginBottom: 4 }}>
