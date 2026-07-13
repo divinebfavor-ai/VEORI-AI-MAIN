@@ -13,6 +13,7 @@ const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 const audit    = require('../services/auditLog');
 const accountReview = require('../services/accountReviewService');
+const subaccounts   = require('../services/twilioSubaccountService');
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',').map(e => e.trim());
 
@@ -234,6 +235,27 @@ router.post('/engagement/scan', async (req, res) => {
   } catch (err) {
     console.error('[Admin] engagement scan error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to run engagement scan' });
+  }
+});
+
+// POST /api/admin/accounts/:userId/twilio-subaccount
+// Manually create (or confirm) the isolated Twilio subaccount for a Solo+ account.
+// Idempotent - returns the existing SID if one is already provisioned. Used to retry a
+// failed auto-provision and to run the end-to-end verification.
+router.post('/accounts/:userId/twilio-subaccount', async (req, res) => {
+  try {
+    const { data: user, error } = await supabase
+      .from('users').select('id, subscription_plan, twilio_subaccount_sid').eq('id', req.params.userId).single();
+    if (error) throw error;
+    if (!user) return res.status(404).json({ success: false, error: 'user not found' });
+
+    const result = await subaccounts.ensureSubaccountForUser(user.id, user.subscription_plan);
+    audit.log({ userId: req.user.id, action: audit.ACTIONS.ADMIN_ACCESS, req,
+      metadata: { action: 'twilio_subaccount', target: user.id, created: result.created, sid: result.sid } });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('[Admin] twilio-subaccount error:', err.message);
+    res.status(500).json({ success: false, error: err.message || 'Failed to provision subaccount' });
   }
 });
 

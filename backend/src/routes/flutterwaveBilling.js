@@ -15,6 +15,7 @@ const router  = express.Router();
 const crypto  = require('crypto');
 const supabase = require('../config/supabase');
 const { requireAuth: auth } = require('../middleware/auth');
+const subaccounts = require('../services/twilioSubaccountService');
 
 const FW_BASE      = 'https://api.flutterwave.com/v3';
 const FW_SECRET    = () => process.env.FLUTTERWAVE_SECRET_KEY;
@@ -312,6 +313,19 @@ async function updateUserSubscription(userId, { plan, status, fwCustomerId, fwSu
 
   const { error } = await supabase.from('users').update(updates).eq('id', userId);
   if (error) console.error('[FW] Update user error:', error.message);
+
+  // Solo tier and above: provision an isolated Twilio subaccount for this customer.
+  // Flag-gated (off by default) so it stays dormant until verified in production, and
+  // best-effort so a Twilio hiccup never rolls back a paid activation. Idempotent, so a
+  // later retry (billing webhook re-fire or the admin retry endpoint) is safe.
+  if (process.env.TWILIO_SUBACCOUNTS_ENABLED === 'true' && subaccounts.isSubaccountTier(plan)) {
+    try {
+      const r = await subaccounts.ensureSubaccountForUser(userId, plan);
+      if (r.created) console.log(`[FW] Twilio subaccount ${r.sid} provisioned for user ${userId}`);
+    } catch (e) {
+      console.error('[FW] Twilio subaccount provisioning failed (non-fatal):', e.message);
+    }
+  }
 }
 
 // ─── GET /api/fw-billing/plans ────────────────────────────────────────────────
