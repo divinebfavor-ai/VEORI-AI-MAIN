@@ -14,6 +14,7 @@ const supabase = require('../config/supabase');
 const audit    = require('../services/auditLog');
 const accountReview = require('../services/accountReviewService');
 const subaccounts   = require('../services/twilioSubaccountService');
+const a2p           = require('../services/a2pRegistrationService');
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',').map(e => e.trim());
 
@@ -256,6 +257,40 @@ router.post('/accounts/:userId/twilio-subaccount', async (req, res) => {
   } catch (err) {
     console.error('[Admin] twilio-subaccount error:', err.message);
     res.status(500).json({ success: false, error: err.message || 'Failed to provision subaccount' });
+  }
+});
+
+// POST /api/admin/accounts/:userId/a2p/advance
+// Advance the customer's A2P 10DLC registration by one phase (resumable). Flag-gated
+// behind A2P_REGISTRATION_ENABLED because each real run incurs TCR fees. Returns the
+// missing-fields list if the customer's business data is incomplete.
+router.post('/accounts/:userId/a2p/advance', async (req, res) => {
+  if (process.env.A2P_REGISTRATION_ENABLED !== 'true') {
+    return res.status(503).json({ success: false, disabled: true, error: 'A2P registration is disabled (A2P_REGISTRATION_ENABLED is not true).' });
+  }
+  try {
+    const result = await a2p.advance(req.params.userId);
+    audit.log({ userId: req.user.id, action: audit.ACTIONS.ADMIN_ACCESS, req,
+      metadata: { action: 'a2p_advance', target: req.params.userId, step: result.step, reason: result.reason } });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('[Admin] a2p advance error:', err.message);
+    res.status(500).json({ success: false, error: err.message || 'Failed to advance A2P registration' });
+  }
+});
+
+// GET /api/admin/accounts/:userId/a2p/status — current A2P registration state (read-only).
+router.get('/accounts/:userId/a2p/status', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('users')
+      .select('id, subscription_plan, twilio_subaccount_sid, a2p_registration_step, a2p_customer_profile_sid, a2p_trust_bundle_sid, a2p_brand_sid, a2p_brand_status, a2p_campaign_sid, a2p_campaign_status, a2p_messaging_service_sid, a2p_last_error, a2p_updated_at')
+      .eq('id', req.params.userId).single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'user not found' });
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('[Admin] a2p status error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to load A2P status' });
   }
 });
 
