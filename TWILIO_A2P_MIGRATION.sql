@@ -34,6 +34,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS authorized_rep_job_position   TEXT;
 -- Authorized representative's job title. Reuses the existing contact_* person as the
 -- A2P authorized representative; this is the one missing piece of that identity.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_job_title             TEXT;
+-- Carrier/TCR rejection reason, shown to the operator so they can fix and resubmit.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS a2p_rejection_reason          TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_users_a2p_step ON users(a2p_registration_step)
   WHERE a2p_registration_step IS NOT NULL AND a2p_registration_step <> 'not_started';

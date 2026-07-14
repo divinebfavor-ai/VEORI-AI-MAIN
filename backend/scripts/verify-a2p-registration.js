@@ -38,13 +38,14 @@ const a2p = require('../src/services/a2pRegistrationService');
   for (let i = 0; i < 6; i++) {
     const r = await a2p.advance(user.id);
     console.log(`advance #${i + 1}:`, JSON.stringify(r));
+    if (r.step === 'rejected') { console.log('\nREJECTED by carrier. Reason:', r.reason); break; }
     if (!r.ok) { console.error('\nBLOCKED:', r.reason, r.missing ? '\nmissing fields: ' + r.missing.join(', ') : ''); process.exit(1); }
     if (r.done) { console.log('\nVERIFIED: registration reached ACTIVE.'); break; }
-    if (r.waiting) { console.log(`\nWAITING on TCR approval (${r.step}). Re-run this later to continue.`); break; }
+    if (r.waiting || r.step === 'brand_pending') { console.log(`\nSubmitted. Real status: PENDING carrier review (${r.step}). Re-run later to poll.`); break; }
   }
 
   const { data: after } = await supabase.from('users')
-    .select('a2p_registration_step, a2p_customer_profile_sid, a2p_trust_bundle_sid, a2p_brand_sid, a2p_brand_status, a2p_campaign_sid, a2p_campaign_status, a2p_messaging_service_sid, a2p_last_error')
+    .select('a2p_registration_step, a2p_customer_profile_sid, a2p_trust_bundle_sid, a2p_brand_sid, a2p_brand_status, a2p_campaign_sid, a2p_campaign_status, a2p_messaging_service_sid, a2p_rejection_reason, a2p_last_error')
     .eq('id', user.id).single();
   console.log('\n=== A2P STATE ON USER RECORD ===');
   console.log(JSON.stringify(after, null, 2));

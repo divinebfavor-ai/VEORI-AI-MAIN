@@ -218,6 +218,9 @@ export const operator = {
   getProfile:       ()         => api.get('/api/operator/profile'),
   updateProfile:    (data)     => api.put('/api/operator/profile', data),
   getA2pReadiness:  ()         => api.get('/api/operator/a2p-readiness'),
+  getA2pStatus:     ()         => api.get('/api/operator/a2p-status'),
+  registerA2p:      ()         => api.post('/api/operator/a2p-register'),
+  resubmitA2p:      ()         => api.post('/api/operator/a2p-resubmit'),
   // (Vapi voice catalog removed from the operator surface - the voice picker now
   // runs entirely off the ElevenLabs library at `v2voices` below. Operators never
   // see Vapi; it stays dormant in the engine as the admin's flip-back lever.)

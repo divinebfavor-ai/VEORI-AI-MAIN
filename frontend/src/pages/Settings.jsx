@@ -1332,6 +1332,9 @@ export default function Settings() {
   const [bizSaving, setBizSaving] = useState(false)
   // A2P 10DLC brand-registration readiness (which required brand fields are still missing).
   const [a2pReady, setA2pReady] = useState(null)
+  // A2P registration status (not_started | pending | approved | rejected) + rejection reason.
+  const [a2pStatus, setA2pStatus] = useState(null)
+  const [a2pBusy, setA2pBusy] = useState(false)
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' })
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false })
   const user = useAuthStore(s => s.user)
@@ -1458,6 +1461,7 @@ export default function Settings() {
         }))
       }).catch(() => {})
       operatorApi.getA2pReadiness().then(r => setA2pReady(r.data)).catch(() => {})
+      operatorApi.getA2pStatus().then(r => setA2pStatus(r.data)).catch(() => {})
     }
     if (tab === 'phones') {
       phones.getPhones().then(r => {
@@ -1558,10 +1562,44 @@ export default function Settings() {
       })
       toast.success('Business identity saved - Veori will use this to verify your texting numbers')
       operatorApi.getA2pReadiness().then(r => setA2pReady(r.data)).catch(() => {})
+      operatorApi.getA2pStatus().then(r => setA2pStatus(r.data)).catch(() => {})
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to save business identity')
     } finally {
       setBizSaving(false)
+    }
+  }
+
+  const refreshA2p = () => {
+    operatorApi.getA2pStatus().then(r => setA2pStatus(r.data)).catch(() => {})
+    operatorApi.getA2pReadiness().then(r => setA2pReady(r.data)).catch(() => {})
+  }
+
+  const registerA2p = async () => {
+    setA2pBusy(true)
+    try {
+      const { data } = await operatorApi.registerA2p()
+      toast.success('Texting-brand registration submitted to the carriers')
+      if (data?.data) setA2pStatus(s => ({ ...(s || {}), status: data.data.step === 'active' ? 'approved' : (data.data.step === 'rejected' ? 'rejected' : 'pending'), step: data.data.step, reason: data.data.reason }))
+      refreshA2p()
+    } catch (err) {
+      const d = err.response?.data
+      toast.error(d?.missing?.length ? `Complete these first: ${d.missing.join(', ')}` : (d?.error || 'Could not submit registration'))
+    } finally {
+      setA2pBusy(false)
+    }
+  }
+
+  const resubmitA2p = async () => {
+    setA2pBusy(true)
+    try {
+      await operatorApi.resubmitA2p()
+      toast.success('Resubmitted with your updated details')
+      refreshA2p()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not resubmit')
+    } finally {
+      setA2pBusy(false)
     }
   }
 
@@ -1777,6 +1815,41 @@ export default function Settings() {
                   <div className="pt-2">
                     <Button onClick={saveBusinessIdentity} loading={bizSaving}>Save Business Identity</Button>
                   </div>
+                </div>
+              </Section>
+
+              <Section title="Texting Brand (A2P 10DLC)" description="Register your business with the carriers so your texts send from your own verified number at full volume. While your registration is pending, Veori sends on a shared number and covers the cost.">
+                <div className="space-y-3">
+                  {!a2pStatus?.has_subaccount ? (
+                    <div className="text-[13px] text-text-muted">Texting-brand registration is available on Solo and above. On Starter, your texts run on Veori's bundled number at no extra cost.</div>
+                  ) : a2pStatus?.status === 'approved' ? (
+                    <div className="rounded-[8px] px-4 py-3 text-[13px]" style={{ background: 'rgba(0,196,123,0.08)', border: '1px solid rgba(0,196,123,0.35)' }}>
+                      ✓ Your texting brand is approved. Messages now send from your own registered number.
+                    </div>
+                  ) : a2pStatus?.status === 'pending' ? (
+                    <>
+                      <div className="rounded-[8px] px-4 py-3 text-[13px]" style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.35)' }}>
+                        Registration submitted and under carrier review (this can take up to a few business days). Until it is approved you are on Veori's shared texting number and we cover the cost.
+                      </div>
+                      <Button onClick={refreshA2p} loading={a2pBusy}>Check status</Button>
+                    </>
+                  ) : a2pStatus?.status === 'rejected' ? (
+                    <>
+                      <div className="rounded-[8px] px-4 py-3 text-[13px]" style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.35)' }}>
+                        <div className="font-semibold mb-1">Registration was rejected</div>
+                        <div>{a2pStatus.reason || 'The carrier did not approve your brand. Please review your business details above and resubmit.'}</div>
+                      </div>
+                      <div className="text-[12px] text-text-muted">Fix your business details in the form above, then resubmit.</div>
+                      <Button onClick={resubmitA2p} loading={a2pBusy}>Resubmit registration</Button>
+                    </>
+                  ) : a2pReady?.ready ? (
+                    <>
+                      <div className="text-[13px] text-text-muted">Your business info is complete. Register your brand to start sending from your own number.</div>
+                      <Button onClick={registerA2p} loading={a2pBusy}>Register my texting brand</Button>
+                    </>
+                  ) : (
+                    <div className="text-[13px] text-text-muted">Complete the Business Identity form above (all required fields) to register your texting brand.</div>
+                  )}
                 </div>
               </Section>
 

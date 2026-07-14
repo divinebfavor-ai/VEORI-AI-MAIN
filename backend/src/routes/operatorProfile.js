@@ -78,6 +78,57 @@ router.get('/a2p-readiness', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/operator/a2p-status - current registration status for the UI panel.
+router.get('/a2p-status', requireAuth, async (req, res, next) => {
+  try {
+    const { data, error } = await supabase.from('users').select(a2p.USER_COLS).eq('id', req.user.id).single();
+    if (error) throw error;
+    const ps = a2p.publicStatus(data);
+    res.json({
+      success:         true,
+      status:          ps.status,          // not_started | pending | approved | rejected
+      step:            ps.step,
+      reason:          ps.reason,          // Twilio/carrier rejection reason when rejected
+      billing_mode:    a2p.billingMode(data), // 'bundled' (Veori absorbs) until approved -> 'own'
+      brand_status:    data.a2p_brand_status || null,
+      campaign_status: data.a2p_campaign_status || null,
+      missing:         a2p.validateBusinessData(data),
+      has_subaccount:  !!data.twilio_subaccount_sid,
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/operator/a2p-register - submit/advance the operator's own A2P registration to
+// Twilio using their subaccount. Flag-gated, tenant-fenced. Idempotent/resumable.
+router.post('/a2p-register', requireAuth, async (req, res, next) => {
+  try {
+    if (process.env.A2P_REGISTRATION_ENABLED !== 'true') {
+      return res.status(503).json({ success: false, error: 'Texting-brand registration is not enabled yet.' });
+    }
+    const result = await a2p.advance(req.user.id);
+    if (!result.ok && result.reason && result.step !== a2p.STEPS.REJECTED) {
+      return res.status(400).json({ success: false, error: result.reason, missing: result.missing });
+    }
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
+// POST /api/operator/a2p-resubmit - clear a rejected registration and start fresh with the
+// operator's (edited) business data.
+router.post('/a2p-resubmit', requireAuth, async (req, res, next) => {
+  try {
+    if (process.env.A2P_REGISTRATION_ENABLED !== 'true') {
+      return res.status(503).json({ success: false, error: 'Texting-brand registration is not enabled yet.' });
+    }
+    await a2p.resetForResubmit(req.user.id);
+    const result = await a2p.advance(req.user.id);
+    if (!result.ok && result.reason && result.step !== a2p.STEPS.REJECTED) {
+      return res.status(400).json({ success: false, error: result.reason, missing: result.missing });
+    }
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
 // POST /api/operator/generate-script - draft a custom AI speaking-style script
 // from the operator's plain-English description. Does NOT save; the operator
 // reviews/edits, then saves via PUT /profile. Output is fraud-scanned first.

@@ -49,10 +49,14 @@ async function selectSmsNumber(userId) {
   try {
     const { data: op } = await supabase
       .from('users')
-      .select('a2p_messaging_service_sid')
+      .select('a2p_messaging_service_sid, a2p_registration_step')
       .eq('id', userId)
       .single();
-    if (op?.a2p_messaging_service_sid) {
+    // Use the operator's OWN registered A2P service only once registration is APPROVED
+    // (active). While A2P is pending/rejected we intentionally do NOT switch them onto
+    // their own (billed) service - they stay on Veori's shared bundled sender below, and
+    // Veori absorbs the Twilio cost until their brand is approved.
+    if (op?.a2p_registration_step === 'active' && op?.a2p_messaging_service_sid) {
       return { kind: 'mgs', value: op.a2p_messaging_service_sid, numberId: null };
     }
   } catch (e) {

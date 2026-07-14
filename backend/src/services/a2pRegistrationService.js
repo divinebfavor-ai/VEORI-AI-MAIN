@@ -26,10 +26,27 @@ const POLICY_SECONDARY_CUSTOMER_PROFILE = 'RNdfbf3fae0e1107f8aded0e7cead80bf5';
 const POLICY_A2P_MESSAGING              = 'RNb0d4771c2c98518d916a3d4cd70a8f8b';
 const PRIMARY_PROFILE_SID = () => process.env.TWILIO_PRIMARY_CUSTOMER_PROFILE_SID || null;
 
-const STEPS = { NOT_STARTED: 'not_started', PROFILE_READY: 'profile_ready', BRAND_PENDING: 'brand_pending', CAMPAIGN_PENDING: 'campaign_pending', ACTIVE: 'active', ERROR: 'error' };
+const STEPS = { NOT_STARTED: 'not_started', PROFILE_READY: 'profile_ready', BRAND_PENDING: 'brand_pending', CAMPAIGN_PENDING: 'campaign_pending', ACTIVE: 'active', REJECTED: 'rejected', ERROR: 'error' };
 
 // Columns pulled for a registration pass (canonical profile fields).
-const USER_COLS = 'id, subscription_plan, twilio_subaccount_sid, a2p_registration_step, a2p_customer_profile_sid, a2p_trust_bundle_sid, a2p_brand_sid, a2p_brand_status, a2p_campaign_sid, a2p_campaign_status, a2p_messaging_service_sid, entity_name, legal_name, business_type, business_industry, company_type, ein, website, business_email, business_phone, business_street, business_street2, business_city, business_state, business_postal_code, business_country, contact_first_name, contact_last_name, contact_email, contact_phone, contact_job_title, sms_use_case_summary, sms_message_sample, sms_opt_in_type';
+const USER_COLS = 'id, subscription_plan, twilio_subaccount_sid, a2p_registration_step, a2p_customer_profile_sid, a2p_trust_bundle_sid, a2p_brand_sid, a2p_brand_status, a2p_campaign_sid, a2p_campaign_status, a2p_messaging_service_sid, a2p_rejection_reason, entity_name, legal_name, business_type, business_industry, company_type, ein, website, business_email, business_phone, business_street, business_street2, business_city, business_state, business_postal_code, business_country, contact_first_name, contact_last_name, contact_email, contact_phone, contact_job_title, sms_use_case_summary, sms_message_sample, sms_opt_in_type';
+
+// Public-facing status for the operator UI + billing gate.
+//   not_started | pending | approved | rejected
+function publicStatus(u) {
+  const step = u.a2p_registration_step || STEPS.NOT_STARTED;
+  if (step === STEPS.ACTIVE)   return { status: 'approved',   step, reason: null };
+  if (step === STEPS.REJECTED || step === STEPS.ERROR) return { status: 'rejected', step, reason: u.a2p_rejection_reason || 'Registration failed. Please review your business details and resubmit.' };
+  if (step === STEPS.NOT_STARTED) return { status: 'not_started', step, reason: null };
+  return { status: 'pending', step, reason: null }; // profile_ready | brand_pending | campaign_pending
+}
+
+// Billing mode: the operator only moves onto their OWN (billed) registered A2P sender once
+// APPROVED. While pending/rejected/not-started they stay on Veori's shared bundled sender
+// (Veori absorbs the Twilio cost temporarily).
+function billingMode(u) {
+  return (u.a2p_registration_step === STEPS.ACTIVE && u.a2p_messaging_service_sid) ? 'own' : 'bundled';
+}
 
 const bizName = (u) => u.entity_name || u.legal_name;
 
@@ -218,6 +235,13 @@ async function advance(userId, { adapterFactory = realAdapter } = {}) {
     if (step === STEPS.BRAND_PENDING) {
       const brand = await a.fetchBrand(u.a2p_brand_sid);
       await patchUser(userId, { a2p_brand_status: brand.status });
+      if (String(brand.status).toUpperCase() === 'FAILED') {
+        const reason = brand.failureReason
+          || (Array.isArray(brand.errors) ? brand.errors.map(e => e.description || e.message).filter(Boolean).join('; ') : null)
+          || 'Brand registration was rejected by the carrier.';
+        await patchUser(userId, { a2p_registration_step: STEPS.REJECTED, a2p_rejection_reason: reason });
+        return { ok: true, step: STEPS.REJECTED, status: 'rejected', reason };
+      }
       if (brand.status !== 'APPROVED') return { ok: true, step: STEPS.BRAND_PENDING, brandStatus: brand.status, waiting: true };
 
       const svc = await a.createMessagingService({ friendlyName: `veori:${u.id} a2p` });
@@ -242,7 +266,14 @@ async function advance(userId, { adapterFactory = realAdapter } = {}) {
       const campaign = await a.fetchCampaign(u.a2p_messaging_service_sid, u.a2p_campaign_sid);
       const status = campaign.campaignStatus || campaign.status;
       await patchUser(userId, { a2p_campaign_status: status });
-      if (!['VERIFIED', 'ACTIVE', 'SUCCESS'].includes(String(status).toUpperCase())) {
+      const up = String(status).toUpperCase();
+      if (up === 'FAILED') {
+        const raw = campaign.failureReason || campaign.errors || 'Campaign registration was rejected by the carrier.';
+        const reason = typeof raw === 'string' ? raw : JSON.stringify(raw);
+        await patchUser(userId, { a2p_registration_step: STEPS.REJECTED, a2p_rejection_reason: reason });
+        return { ok: true, step: STEPS.REJECTED, status: 'rejected', reason };
+      }
+      if (!['VERIFIED', 'ACTIVE', 'SUCCESS'].includes(up)) {
         return { ok: true, step: STEPS.CAMPAIGN_PENDING, campaignStatus: status, waiting: true };
       }
       await patchUser(userId, { a2p_registration_step: STEPS.ACTIVE });
@@ -250,15 +281,36 @@ async function advance(userId, { adapterFactory = realAdapter } = {}) {
     }
 
     if (step === STEPS.ACTIVE) return { ok: true, step: STEPS.ACTIVE, done: true, messagingServiceSid: u.a2p_messaging_service_sid };
+    if (step === STEPS.REJECTED) return { ok: false, step: STEPS.REJECTED, status: 'rejected', reason: u.a2p_rejection_reason };
 
     return { ok: false, reason: `unknown step '${step}'` };
   } catch (e) {
-    await patchUser(userId, { a2p_last_error: e.message, a2p_registration_step: STEPS.ERROR }).catch(() => {});
+    await patchUser(userId, { a2p_last_error: e.message, a2p_registration_step: STEPS.ERROR, a2p_rejection_reason: e.message }).catch(() => {});
     throw e;
   }
+}
+
+// Clear a failed (or in-progress) registration so the operator can fix their business data
+// and start a fresh submission. Does not delete anything at Twilio - a new brand/campaign
+// is created on the next advance().
+async function resetForResubmit(userId) {
+  await patchUser(userId, {
+    a2p_registration_step:     STEPS.NOT_STARTED,
+    a2p_customer_profile_sid:  null,
+    a2p_trust_bundle_sid:      null,
+    a2p_brand_sid:             null,
+    a2p_brand_status:          null,
+    a2p_campaign_sid:          null,
+    a2p_campaign_status:       null,
+    a2p_messaging_service_sid: null,
+    a2p_rejection_reason:      null,
+    a2p_last_error:            null,
+  });
+  return { ok: true, step: STEPS.NOT_STARTED };
 }
 
 module.exports = {
   STEPS, USER_COLS, POLICY_SECONDARY_CUSTOMER_PROFILE, POLICY_A2P_MESSAGING,
   validateBusinessData, buildCampaign, realAdapter, advance,
+  publicStatus, billingMode, resetForResubmit,
 };
