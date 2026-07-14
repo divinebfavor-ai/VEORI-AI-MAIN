@@ -328,12 +328,17 @@ async function continueConversation(lead, sellerMessage, conversationHistory, se
     // for their lead type (empty string for unknown/missing tag → unchanged behavior).
     const tagPlaybook = buildTagPlaybookForSMS(lead);
 
+    // Concrete wholesale knowledge + authority bounds - the same domain grounding the
+    // voice brain gets, so texts handle objections/motivations with real substance.
+    const wk = require('../data/wholesaleKnowledge');
+    const knowledge = wk.buildKnowledgeBlock(lead) + wk.buildNegotiationBoundsBlock(lead);
+
     const res = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `You are Alex, a friendly local real estate investor texting a potential seller. Keep replies SHORT (1-2 sentences max), conversational, and focused on understanding their situation. Never pressure. Ask one question at a time. Goal: understand their timeline, motivation, and asking price.${tagPlaybook}${contextBlock ? '\n' + contextBlock : ''}`
+          content: `You are Alex, a friendly local real estate investor texting a potential seller. Keep replies SHORT (1-2 sentences max), conversational, and focused on understanding their situation. Never pressure. Ask one question at a time. Goal: understand their timeline, motivation, and asking price. Never state you are human; if asked, confirm you're an AI assistant. Honor STOP/remove-me instantly.${tagPlaybook}${contextBlock ? '\n' + contextBlock : ''}\n${knowledge}`
         },
         ...conversationHistory.map(m => ({ role: m.role === 'outbound' ? 'assistant' : 'user', content: m.body })),
         { role: 'user', content: sellerMessage }
@@ -345,7 +350,23 @@ async function continueConversation(lead, sellerMessage, conversationHistory, se
       timeout: 10000,
     });
 
-    return res.data.choices[0].message.content.trim();
+    let reply = res.data.choices[0].message.content.trim();
+
+    // Escalation sentinel: out-of-bounds seller request -> flag the lead for human
+    // review and STRIP the token so it is never texted to the seller.
+    if (reply.includes(wk.HUMAN_REVIEW_SENTINEL)) {
+      reply = reply.split(wk.HUMAN_REVIEW_SENTINEL).join('').trim();
+      if (lead?.id) {
+        await supabase.from('leads').update({
+          needs_human_review: true,
+          human_review_reason: 'Seller requested terms outside the agent\'s negotiation authority over SMS (price above approved ceiling or unusual contract terms). Review before responding.',
+        }).eq('id', lead.id).then(
+          () => console.log(`[SMS] lead ${lead.id} flagged for human review (out-of-bounds request)`),
+          () => {}
+        );
+      }
+    }
+    return reply;
   } catch (e) {
     console.error('[SMS] Continue conversation error:', e.message);
     return null;
@@ -419,6 +440,27 @@ async function sendReply(toPhone, body, userId, leadId) {
 
 async function escalateToCall(lead, userId) {
   try {
+    // DNC scrub BEFORE any dial - this path escalates an SMS reply into a live call, and
+    // must apply the same do-not-call gating the campaign dialer applies. Fail CLOSED on
+    // the lead flag + internal DNC list; federal registry check is best-effort.
+    if (lead.do_not_call) {
+      console.warn(`[SMS] Escalation blocked - lead ${lead.id} is marked do_not_call`);
+      return;
+    }
+    const { data: dncHit } = await supabase
+      .from('dnc_records').select('id').eq('phone', lead.phone).limit(1).maybeSingle();
+    if (dncHit) {
+      console.warn(`[SMS] Escalation blocked - ${lead.phone} is on the internal DNC list`);
+      return;
+    }
+    try {
+      const { isOnFederalDnc } = require('./ftcDncService');
+      if (await isOnFederalDnc(lead.phone)) {
+        console.warn(`[SMS] Escalation blocked - ${lead.phone} is on the federal DNC registry`);
+        return;
+      }
+    } catch (_) { /* federal check unavailable - internal gates above still applied */ }
+
     const vapiService  = require('./vapiService');
     const phoneRotation = require('./phoneRotation');
 

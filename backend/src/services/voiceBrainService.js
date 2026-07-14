@@ -303,9 +303,22 @@ async function nextTurn(args = {}) {
   }
 
   try {
-    // Same system prompt the Vapi path used, plus the silent end-call directive.
+    // Same system prompt the Vapi path used, plus the silent end-call directive,
+    // plus the concrete wholesale knowledge base, state-aware compliance constraints,
+    // negotiation-authority bounds, and the CURRENT PMI score - rebuilt every turn so
+    // each decision is grounded in the complete, current context.
     const basePrompt = vapiService.getScriptByLeadTag(lead, operator, args.useCaseOverride || null);
-    const system = withEndDirective(basePrompt);
+    const wk = require('../data/wholesaleKnowledge');
+    const pmiLine = lead.motivation_score != null
+      ? `\n\nCURRENT MOTIVATION (PMI) SCORE for this seller: ${lead.motivation_score}/100 (from all prior calls + texts). Calibrate your pace to it - high score: move toward the number and next step; low score: build trust before asking for anything.`
+      : '';
+    const system = withEndDirective(
+      basePrompt
+      + wk.buildKnowledgeBlock(lead)
+      + wk.buildCallComplianceBlock(lead)
+      + wk.buildNegotiationBoundsBlock(lead)
+      + pmiLine
+    );
 
     const anthropic = getAnthropic();
     const msg = await anthropic.messages.create({
@@ -326,6 +339,25 @@ async function nextTurn(args = {}) {
     // Detect + strip the end sentinel (anywhere in the reply, just in case).
     const end = reply.includes(END_SENTINEL);
     if (end) reply = reply.split(END_SENTINEL).join('').trim();
+
+    // Escalation path: the seller asked for something outside the agent's authority
+    // (price above ceiling, unusual terms). The model emits the review sentinel; we
+    // flag the lead for HUMAN review and strip the token so it is never spoken.
+    // Flag-only: the call continues warmly (the prompt's escalation line already told
+    // the seller a manager will follow up) - a human decides the actual answer.
+    const wkSentinel = require('../data/wholesaleKnowledge').HUMAN_REVIEW_SENTINEL;
+    if (reply.includes(wkSentinel)) {
+      reply = reply.split(wkSentinel).join('').trim();
+      if (lead?.id) {
+        supabase.from('leads').update({
+          needs_human_review: true,
+          human_review_reason: 'Seller requested terms outside the agent\'s negotiation authority on a live call (price above approved ceiling or unusual contract terms). Review before responding.',
+        }).eq('id', lead.id).then(
+          () => console.log(`[VoiceBrain] lead ${lead.id} flagged for human review (out-of-bounds request)`),
+          (e) => console.warn('[VoiceBrain] human-review flag failed:', e.message)
+        );
+      }
+    }
 
     // Parse + strip the leading emotion cue ("{gentle} ...") the prompt asks
     // Claude to prefix each line with. The cue must come off HERE - before the
