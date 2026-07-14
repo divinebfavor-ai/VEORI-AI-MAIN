@@ -26,12 +26,26 @@ const activeSessions = new Map();
 
 // ─── Multi-touch blast cadence ────────────────────────────────────────────────
 // The operator chooses how many times to text a NON-responder (1× / 2× / 3×).
-// Touch 1 is the initial blast. Touches 2-3 are re-sends to leads who still
-// haven't replied, spaced BLAST_INTERVAL_MS apart. The moment a lead replies,
-// the reply branch marks them 'replied' and they leave the re-blast loop, so a
-// responder is never re-texted. Clamp keeps it inside the 1-3 the UI offers.
+// Touch 1 is the initial blast (Day 1). Touches 2-3 are re-sends to leads who
+// still haven't replied, scheduled on the Day 1 / Day 3 / Day 7 cadence (offsets
+// from the initial send). The moment a lead replies, the reply branch marks them
+// 'replied' and they leave the re-blast loop, so a responder is never re-texted.
+// Clamp keeps it inside the 1-3 the UI offers.
 const MAX_BLAST_TOUCHES = 3;
-const BLAST_INTERVAL_MS = Number(process.env.SMS_BLAST_INTERVAL_DAYS || 3) * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Day offset of each touch from campaign start. Day 1 / Day 3 / Day 7 by default;
+// overridable via SMS_BLAST_DAY_OFFSETS="1,3,7". The gap BEFORE touch N is therefore
+// OFFSETS[N-1] - OFFSETS[N-2] days (2 days before touch 2, 4 days before touch 3).
+const BLAST_DAY_OFFSETS = (process.env.SMS_BLAST_DAY_OFFSETS || '1,3,7')
+  .split(',').map(s => Number(s.trim())).filter(n => Number.isFinite(n) && n >= 0);
+// Required wait since the last touch before sending touch (touchCount+1). touchCount is
+// 1-indexed (touches already sent); OFFSETS is 0-indexed (OFFSETS[0] = touch 1).
+function blastGapMs(touchCount) {
+  const cur = BLAST_DAY_OFFSETS[touchCount];       // offset of the touch we're about to send
+  const prev = BLAST_DAY_OFFSETS[touchCount - 1];  // offset of the last touch sent
+  if (cur == null || prev == null) return 3 * DAY_MS; // safety fallback
+  return Math.max(0, cur - prev) * DAY_MS;
+}
 function clampBlastCount(n) {
   const v = Math.floor(Number(n));
   if (!Number.isFinite(v) || v < 1) return 1;
@@ -375,7 +389,8 @@ async function monitorReplies(campaignId, userId) {
       } else {
         // ── No reply yet - multi-touch blast cadence ──────────────────────────
         // Operator chose 1× / 2× / 3× touches for non-responders. Touch 1 was the
-        // initial blast; touches 2-3 are re-sends spaced BLAST_INTERVAL_MS apart.
+        // initial blast (Day 1); touches 2-3 fire on the Day 3 / Day 7 cadence
+        // (per-touch gap from blastGapMs: 2 days before touch 2, 4 before touch 3).
         // We only re-blast a lead who STILL hasn't replied (this branch == no reply
         // found above), so a responder is never re-texted. When the lead has had
         // all their touches and still no reply, fall through to the original
@@ -385,7 +400,7 @@ async function monitorReplies(campaignId, userId) {
         const lastTouchAt  = row.last_touch_at ? new Date(row.last_touch_at).getTime() : sentAt;
         const sinceTouch   = now - lastTouchAt;
 
-        if (touchCount < blastCount && sinceTouch >= BLAST_INTERVAL_MS) {
+        if (touchCount < blastCount && sinceTouch >= blastGapMs(touchCount)) {
           // Re-send the opener as the next touch. Reuse buildSMSBody so the copy is
           // identical to the initial blast (custom template included); sendReply
           // applies the DNC gate + logs to sms_messages exactly like the first send.
