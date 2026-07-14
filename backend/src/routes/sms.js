@@ -231,38 +231,14 @@ async function scoreAndActInline(lead, userId, from, body, inboundMsgId) {
     // A - unified memory: same seller profile the voice brain uses (non-blocking).
     const sellerContext = await getSellerContextForSMS(lead.id);
 
-    const scoring = await scoreReply(formattedHistory, body, sellerContext);
-    const score = typeof scoring === 'number' ? scoring : scoring.score;
-    const nextAction = scoring.next_action || (score >= 60 ? 'call_now' : score >= 40 ? 'continue_sms' : 'follow_up_7_days');
-
-    console.log(`[SMS] Score: ${score} - action: ${nextAction}`);
-
-    await supabase.from('leads').update({ motivation_score: score }).eq('id', lead.id);
-
-    if (nextAction === 'call_now' || score >= 60) {
-      await sendReply(from, `Thanks for getting back to me! Let me give you a quick call right now to discuss further.`, userId, lead.id);
-      await escalateToCall(lead, userId);
-
-    } else if (nextAction === 'continue_sms' || (score >= 40 && score < 60)) {
-      const reply = await continueConversation(lead, body, formattedHistory, sellerContext);
-      if (reply) await sendReply(from, reply, userId, lead.id);
-
-    } else {
-      const followUpDate = new Date();
-      followUpDate.setDate(followUpDate.getDate() + 7);
-
-      await supabase.from('follow_ups').insert({
-        user_id:     userId,
-        lead_id:     lead.id,
-        type:        'sms',
-        scheduled_at: followUpDate.toISOString(),
-        notes:       `Lead replied via SMS but scored low (${score}). Auto-scheduled 7-day follow-up.`,
-        status:      'pending',
-        created_at:  new Date().toISOString(),
-      });
-
-      console.log(`[SMS] Cold lead - follow-up scheduled for ${followUpDate.toDateString()}`);
-    }
+    // Judgment-based next action (continue_sms | escalate_call | close_out) with the PMI
+    // score kept as a background sanity check + full decision logging. Replaces the old
+    // fixed score-threshold escalation.
+    const escalationJudge = require('../services/smsEscalationJudge');
+    const decision = await escalationJudge.decideAndExecute({
+      lead, userId, from, body, history: formattedHistory, sellerContext, inboundMsgId,
+    });
+    console.log(`[SMS] Decision: ${decision.action}${decision.needs_human_review ? ' (flagged for human review)' : ''} - pmi ${decision.pmi_score}`);
   } catch (err) {
     console.error('[SMS] inline scoreAndAct error:', err.message);
   }

@@ -105,43 +105,16 @@ async function processInboundSMS(data) {
     dealBlock = buildDealContextBlock(await getDealContext(leadId));
   } catch (_) { dealBlock = ''; }
 
-  // Score the reply (the slow part we moved off the webhook).
-  const scoring = await scoreReply(formattedHistory, body, sellerContext, dealBlock);
-  const score = typeof scoring === 'number' ? scoring : scoring.score;
-  const nextAction = scoring.next_action ||
-    (score >= 60 ? 'call_now' : score >= 40 ? 'continue_sms' : 'follow_up_7_days');
+  // Judgment-based next action (continue_sms | escalate_call | close_out) with the PMI
+  // score kept as a background sanity check + full decision logging. Replaces the old
+  // fixed score-threshold escalation. Deal-awareness (dealBlock) is threaded through.
+  const escalationJudge = require('./smsEscalationJudge');
+  const decision = await escalationJudge.decideAndExecute({
+    lead, userId, from, body, history: formattedHistory, sellerContext, dealBlock, inboundMsgId: inboundMsgId || null,
+  });
 
-  console.log(`[SMSInbound] Score: ${score} - action: ${nextAction}`);
-
-  await supabase.from('leads').update({ motivation_score: score }).eq('id', leadId).then(null, () => {});
-
-  if (nextAction === 'call_now' || score >= 60) {
-    // Hot lead - heads-up text then escalate to a Vapi call.
-    await sendReply(from, `Thanks for getting back to me! Let me give you a quick call right now to discuss further.`, userId, leadId);
-    await escalateToCall(lead, userId);
-
-  } else if (nextAction === 'continue_sms' || (score >= 40 && score < 60)) {
-    // Warm lead - continue the SMS conversation (with seller memory in context).
-    const reply = await continueConversation(lead, body, formattedHistory, sellerContext, dealBlock);
-    if (reply) await sendReply(from, reply, userId, leadId);
-
-  } else {
-    // Cold lead - schedule a 7-day follow-up.
-    const followUpDate = new Date();
-    followUpDate.setDate(followUpDate.getDate() + 7);
-    await supabase.from('follow_ups').insert({
-      user_id:      userId,
-      lead_id:      leadId,
-      type:         'sms',
-      scheduled_at: followUpDate.toISOString(),
-      notes:        `Lead replied via SMS but scored low (${score}). Auto-scheduled 7-day follow-up.`,
-      status:       'pending',
-      created_at:   new Date().toISOString(),
-    }).then(null, () => {});
-    console.log(`[SMSInbound] Cold lead - follow-up scheduled for ${followUpDate.toDateString()}`);
-  }
-
-  return { scored: score, action: nextAction };
+  console.log(`[SMSInbound] Decision: ${decision.action}${decision.needs_human_review ? ' (human review)' : ''} - pmi ${decision.pmi_score}`);
+  return { scored: decision.pmi_score, action: decision.action, needs_human_review: decision.needs_human_review };
 }
 
 module.exports = { processInboundSMS };
