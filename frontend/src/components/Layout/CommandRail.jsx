@@ -19,7 +19,6 @@ import { notifications as notifApi } from '../../services/api'
 const NAV = [
   { to: '/dashboard',        icon: LayoutDashboard, label: 'Command Center' },
   { to: '/leads',            icon: Users,           label: 'Leads' },
-  { to: '/lead-engine',     icon: Zap,             label: 'Lead Engine' },
   { to: '/monitor',          icon: Radio,           label: 'Live Calls',     live: true },
   { to: '/pipeline',         icon: Columns,         label: 'Pipeline' },
   { to: '/campaigns',        icon: Briefcase,       label: 'Campaigns' },
@@ -31,22 +30,25 @@ const NAV = [
   { to: '/dialer',           icon: Phone,           label: 'Dialer' },
   { to: '/calculator',       icon: Calculator,      label: 'Calculator' },
   { to: '/compliance',       icon: Shield,          label: 'Compliance' },
-  { to: '/academy',          icon: BookOpen,        label: 'Academy' },
-  { to: '/wealth',           icon: Compass,         label: 'Wealth Playbook' },
-  { to: '/marketplace',      icon: Store,           label: 'Marketplace' },
   { to: '/aria',             icon: MessageSquare,   label: 'Aria AI' },
   // ── Acquisition ───────────────────────────────────────────────────────────
   { to: '/virtual-dfd',      icon: Map,             label: 'AI Driving for Dollars' },
   { to: '/dfd',              icon: Car,             label: 'Driving for Dollars' },
-  { to: '/direct-mail',      icon: Mail,            label: 'Direct Mail' },
-  // ── Disposition ───────────────────────────────────────────────────────────
-  { to: '/listings',         icon: Home,            label: 'Listings' },
-  // ── Content ───────────────────────────────────────────────────────────────
-  { to: '/property-marketing', icon: Film,          label: 'Property Marketing' },
-  { to: '/content-studio',   icon: Video,           label: 'Content Studio' },
-  { to: '/social-dashboard', icon: Share2,          label: 'Social Dashboard' },
-  // ── Virtual Tours ─────────────────────────────────────────────────────────
-  { to: '/virtual-tours',    icon: Camera,          label: 'Virtual Tours' },
+  // ── DEACTIVATED (Coming Soon) ───────────────────────────────────────────────
+  // Removed from active navigation per product decision. Routes + page components are
+  // INTACT in App.jsx and all backend code/data is untouched - uncomment any line to
+  // reactivate. "Lead Engine" here is the standalone lead-sourcing module (NOT the
+  // active lead pipeline / CRM records).
+  // { to: '/lead-engine',        icon: Zap,           label: 'Lead Engine' },
+  // { to: '/academy',            icon: BookOpen,      label: 'Academy' },
+  // { to: '/wealth',             icon: Compass,       label: 'Wealth Playbook' },
+  // { to: '/marketplace',        icon: Store,         label: 'Marketplace' },
+  // { to: '/direct-mail',        icon: Mail,          label: 'Direct Mail' },
+  // { to: '/listings',           icon: Home,          label: 'Listings' },
+  // { to: '/property-marketing', icon: Film,          label: 'Property Marketing' },
+  // { to: '/content-studio',     icon: Video,         label: 'Content Studio' },
+  // { to: '/social-dashboard',   icon: Share2,        label: 'Social Dashboard' },
+  // { to: '/virtual-tours',      icon: Camera,        label: 'Virtual Tours' },
 ]
 
 // ─── Notifications dropdown ───────────────────────────────────────────────────

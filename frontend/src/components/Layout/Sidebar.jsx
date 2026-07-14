@@ -28,8 +28,10 @@ const NAV = [
   { label: 'Calculator',     icon: Calculator,       to: '/calculator' },
   // Compliance moved into Settings → Compliance tab. Route + page kept; uncomment to restore in sidebar.
   // { label: 'Compliance',     icon: Shield,           to: '/compliance' },
-  { label: 'Academy',        icon: GraduationCap,    to: '/academy' },
-  { label: 'Marketplace',    icon: Store,            to: '/marketplace' },
+  // Deactivated (Coming Soon) - route + page kept. NOTE: this Sidebar is not currently
+  // mounted (Layout renders CommandRail); commented here for consistency on reactivation.
+  // { label: 'Academy',        icon: GraduationCap,    to: '/academy' },
+  // { label: 'Marketplace',    icon: Store,            to: '/marketplace' },
   { label: 'Settings',       icon: Settings,         to: '/settings' },
   // ── Intelligence ──────────────────────────────────────────────────────────
   { label: 'COO Center',     icon: Gauge,            to: '/coo' },
@@ -48,7 +50,8 @@ const NAV = [
   // { label: 'Direct Mail',    icon: Mail,             to: '/direct-mail' },
   { label: 'Profit Calc',    icon: DollarSign,       to: '/profit-calculator' },
   // ── Disposition Engine ────────────────────────────────────────────────────
-  { label: 'Listings',       icon: Home,             to: '/listings' },
+  // Deactivated (Coming Soon) - route + page kept.
+  // { label: 'Listings',       icon: Home,             to: '/listings' },
   // ── Content + Social ──────────────────────────────────────────────────────
   // Hidden from sidebar for now (route + page code kept). Uncomment to restore.
   // { label: 'Content Studio', icon: Video,            to: '/content-studio' },
