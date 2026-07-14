@@ -638,4 +638,33 @@ router.post('/read/:leadId', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/sms/status - Twilio delivery-status callback for OUTBOUND messages.
+// Twilio posts here as a message moves through queued -> sent -> delivered (or
+// undelivered/failed). We update sms_messages.status by the Twilio SID so the record
+// reflects REAL carrier delivery, not just "handed to Twilio". No auth (Twilio webhook);
+// validated by X-Twilio-Signature when TWILIO_AUTH_TOKEN is set.
+router.post('/status', async (req, res) => {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (authToken) {
+    const sig = req.get('X-Twilio-Signature');
+    const url = `https://${req.get('host')}${req.originalUrl}`;
+    if (!twilio.validateRequest(authToken, sig, url, req.body || {})) {
+      console.warn('[SMS] Rejected status callback - invalid Twilio signature');
+      return res.sendStatus(403);
+    }
+  }
+  res.sendStatus(200); // ack immediately
+
+  try {
+    const sid    = req.body?.MessageSid || req.body?.SmsSid;
+    const status = req.body?.MessageStatus || req.body?.SmsStatus;
+    if (!sid || !status) return;
+    // telnyx_message_id is the column the sender stores the Twilio SID in (legacy name).
+    await supabase.from('sms_messages').update({ status }).eq('telnyx_message_id', sid);
+    console.log(`[SMS] delivery status ${sid} -> ${status}`);
+  } catch (e) {
+    console.error('[SMS] status callback error:', e.message);
+  }
+});
+
 module.exports = router;

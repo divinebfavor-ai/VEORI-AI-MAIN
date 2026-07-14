@@ -338,7 +338,7 @@ async function handleCallEnded(call, event) {
         .select('*', { count: 'exact', head: true })
         .eq('lead_id', callRec.lead_id);
       if ((existingDeals || 0) === 0 && lead) {
-        await supabase.from('deals').insert({
+        const { data: newDeal } = await supabase.from('deals').insert({
           user_id:          callRec.user_id,
           lead_id:          callRec.lead_id,
           property_address: lead.property_address,
@@ -353,8 +353,22 @@ async function handleCallEnded(call, event) {
           estimated_equity: lead.estimated_equity,
           seller_primary_tag: lead.primary_tag,
           created_at:       new Date().toISOString(),
-        });
+        }).select().single();
         console.log(`[Vapi] Auto-created deal for lead ${callRec.lead_id} - outcome: ${outcome}`);
+
+        // Qualifying call (verbal yes -> under_contract): auto-generate the seller PSA +
+        // e-signature package. Flag-gated (CONTRACT_AUTO_AFTER_CALL, off by default) and
+        // best-effort, so a contract hiccup never breaks call logging. The seller signs via
+        // the generated signing link.
+        if (outcome === 'verbal_yes' && newDeal && process.env.CONTRACT_AUTO_AFTER_CALL === 'true') {
+          try {
+            const contractService = require('../services/contractService');
+            const pkg = await contractService.createSigningPackage({ ...newDeal, leads: lead }, 'psa', { userId: callRec.user_id });
+            console.log(`[Vapi] Auto-generated PSA for deal ${newDeal.id} - signing link ${pkg.primary_signing_url || 'created'}`);
+          } catch (ce) {
+            console.error('[Vapi] Auto-contract generation failed (non-fatal):', ce.message);
+          }
+        }
       }
     } catch (e) {
       console.error('[Vapi] Auto-deal creation failed:', e.message);

@@ -15,6 +15,9 @@ const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const SMS_FROM     = process.env.TWILIO_PHONE_NUMBER;
 const MSG_SERVICE_SID = process.env.TWILIO_MESSAGING_SERVICE_SID; // A2P 10DLC registered sender (MGxxxx)
+// Twilio posts delivery status (queued/sent/delivered/undelivered/failed) here so
+// sms_messages.status reflects real carrier delivery, not just "handed to Twilio".
+const SMS_STATUS_CALLBACK = process.env.PUBLIC_BASE ? `${process.env.PUBLIC_BASE}/api/sms/status` : null;
 
 const twilioClient = (TWILIO_SID && TWILIO_TOKEN) ? twilio(TWILIO_SID, TWILIO_TOKEN) : null;
 
@@ -68,7 +71,7 @@ async function sendSMS(to, text, userId = null) {
     sender = MSG_SERVICE_SID ? { messagingServiceSid: MSG_SERVICE_SID } : { from: SMS_FROM };
   }
 
-  const msg = await twilioClient.messages.create({ ...sender, to, body: text });
+  const msg = await twilioClient.messages.create({ ...sender, to, body: text, ...(SMS_STATUS_CALLBACK ? { statusCallback: SMS_STATUS_CALLBACK } : {}) });
   return msg.sid;
 }
 
@@ -104,7 +107,7 @@ async function sendSMSDirect({ to, body, userId = null, leadId = null, senderOve
   else if (senderOverride?.kind === 'number') sender = { from: senderOverride.value };
   else sender = MSG_SERVICE_SID ? { messagingServiceSid: MSG_SERVICE_SID } : { from: SMS_FROM };
 
-  const msg = await twilioClient.messages.create({ ...sender, to, body });
+  const msg = await twilioClient.messages.create({ ...sender, to, body, ...(SMS_STATUS_CALLBACK ? { statusCallback: SMS_STATUS_CALLBACK } : {}) });
   const msgId = msg.sid;
 
   // Log identically to the metered paths (telnyx_message_id reused for Twilio SID).
