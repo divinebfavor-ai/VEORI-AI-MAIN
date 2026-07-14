@@ -213,8 +213,10 @@ function openingLine(ctx = {}) {
   const aiName = ctx.operator?.ai_caller_name || 'Alex';
   const company = ctx.operator?.company_name || 'a local real estate group';
   const firstName = ctx.lead?.first_name || 'there';
-  const line = `Hi ${firstName}, this is ${aiName} with ${company}. ` +
-    `I know I'm catching you out of the blue - do you have a quick minute?`;
+  // MANDATORY AI DISCLOSURE + recording notice - spoken at the very start of EVERY call,
+  // deterministically, regardless of operator settings. Do not remove or gate this.
+  const line = `Hi ${firstName}, this is ${aiName}, an AI assistant with ${company}. ` +
+    `Quick heads up, this call may be recorded. I know I'm catching you out of the blue - do you have a quick minute?`;
 
   // Seed the session so the opener is in Claude's context as the first assistant
   // turn. callId may be absent here (twiml builds it); seed lazily in nextTurn if
