@@ -277,6 +277,12 @@ async function advance(userId, { adapterFactory = realAdapter } = {}) {
         return { ok: true, step: STEPS.CAMPAIGN_PENDING, campaignStatus: status, waiting: true };
       }
       await patchUser(userId, { a2p_registration_step: STEPS.ACTIVE });
+      // Approved: switch bundled -> split billing (flag-gated, best-effort, idempotent).
+      // Lazy require avoids a registration<->billing module cycle.
+      if (process.env.A2P_SPLIT_BILLING_ENABLED === 'true') {
+        try { await require('./a2pSplitBillingService').applySplitOnApproval(userId); }
+        catch (e) { console.error('[A2P] split billing on approval failed (non-fatal):', e.message); }
+      }
       return { ok: true, step: STEPS.ACTIVE, done: true, messagingServiceSid: u.a2p_messaging_service_sid };
     }
 
