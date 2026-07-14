@@ -9,6 +9,7 @@ import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import Aria from './pages/Aria'
+import GettingStarted from './pages/GettingStarted'
 import Dashboard from './pages/Dashboard'
 import Leads from './pages/Leads'
 import Campaigns from './pages/Campaigns'
@@ -114,6 +115,7 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/aria" element={<Aria />} />
+      <Route path="/getting-started" element={<GettingStarted />} />
       <Route path="/sign/:token" element={<ContractSigning />} />
       <Route path="/upload/:token" element={<PropertyPhotoUpload />} />
       <Route path="/oauth/callback" element={<OAuthCallback />} />
