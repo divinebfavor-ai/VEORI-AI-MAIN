@@ -396,10 +396,21 @@ setInterval(() => {
 if (String(process.env.LEARNING_LOOP || 'on') !== 'off') {
   const { distillAllActiveOperators } = require('./services/learningLoopService');
   const LEARNING_SWEEP_MS = Number(process.env.LEARNING_SWEEP_MS) || 24 * 60 * 60 * 1000;
+  // Same nightly cycle, two phases: (1) verify matured judge decisions against real
+  // outcomes (deterministic - calls/deals/replies), (2) distill lessons from verified
+  // material. Verification runs FIRST so distillation always sees the freshest truth.
+  const learningTick = async () => {
+    try {
+      const { verifyDecisionOutcomes } = require('./services/decisionLearningService');
+      const v = await verifyDecisionOutcomes({});
+      if (v.verified) console.log(`[LearningLoop] verified ${v.verified} decisions (${v.correct} correct, ${v.incorrect} incorrect, ${v.held} human-held)`);
+    } catch (err) { console.warn('[LearningLoop] decision verification failed:', err.message); }
+    await distillAllActiveOperators();
+  };
   setTimeout(() => {
-    distillAllActiveOperators().catch(err => console.warn('[LearningLoop] initial distillation failed:', err.message));
+    learningTick().catch(err => console.warn('[LearningLoop] initial cycle failed:', err.message));
     setInterval(() => {
-      distillAllActiveOperators().catch(err => console.warn('[LearningLoop] nightly distillation failed:', err.message));
+      learningTick().catch(err => console.warn('[LearningLoop] nightly cycle failed:', err.message));
     }, LEARNING_SWEEP_MS);
   }, 10 * 60 * 1000);
 }

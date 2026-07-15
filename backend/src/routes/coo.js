@@ -116,6 +116,15 @@ router.get('/briefing', async (req, res, next) => {
       briefing.what_to_do_now.operator_mode = operatorMode.annotateActions(queue, opMode);
     } catch { /* shaping guard - leave queue untouched */ }
 
+    // SECTION F - AI self-evaluation. This operator's verified decision accuracy
+    // (continue/escalate/close-out judged against real outcomes) so the briefing
+    // reports how well the AI itself is performing. Best-effort, additive.
+    try {
+      const { decisionAccuracyReport } = require('../services/decisionLearningService');
+      const acc = await decisionAccuracyReport({ userId: uid });
+      if (Object.keys(acc).length) briefing.ai_performance = acc;
+    } catch { /* learning tables not migrated - non-blocking */ }
+
     // Best-effort audit log (Rule 6). Never blocks the response.
     try {
       await supabase.from('coo_briefings').insert({

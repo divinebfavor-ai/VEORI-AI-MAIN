@@ -168,6 +168,30 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/deals/:id/strategies - Deal Strategy Engine: evaluates every feasible exit
+// path (assignment, double close, novation, subject-to, seller finance, lease option)
+// deterministically from the deal + lead financials and recommends the strongest, with
+// stated assumptions and risks. Read-only, tenant-fenced.
+router.get('/:id/strategies', async (req, res, next) => {
+  try {
+    const { data: deal, error } = await supabase.from('deals')
+      .select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (error || !deal) return res.status(404).json({ success: false, error: 'Deal not found' });
+
+    let lead = {};
+    if (deal.lead_id) {
+      const { data: l } = await supabase.from('leads')
+        .select('estimated_arv, estimated_value, repair_estimate, agreed_price, offer_price, seller_counter, mortgage_balance, monthly_payment, is_behind_on_payments, lead_temperature, property_state')
+        .eq('id', deal.lead_id).eq('user_id', req.user.id).single();
+      lead = l || {};
+    }
+
+    const strategyEngine = require('../services/dealStrategyService');
+    const result = strategyEngine.evaluateStrategies(strategyEngine.financialsFromDeal(deal, lead));
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+});
+
 // PUT /api/deals/:id
 router.put('/:id', async (req, res, next) => {
   try {
@@ -192,6 +216,38 @@ router.put('/:id', async (req, res, next) => {
         message: `Deal stage changed from ${existing.status || 'new'} to ${updates.status}`,
         metadata: { from: existing.status, to: updates.status },
       });
+
+      // Prediction ledger (learning loop, all best-effort): going under contract logs a
+      // "deal_closes" prediction with the current probability score; a terminal status
+      // verifies it against the real outcome and records the deal outcome for
+      // distillation. This is what makes forecast accuracy measurable over time.
+      try {
+        const { logPrediction, verifyPrediction } = require('../services/learningLoopService');
+        const WIN  = ['closed', 'sold', 'assigned', 'completed'];
+        const LOSS = ['lost', 'dead', 'cancelled', 'fell_through'];
+        const to = String(updates.status).toLowerCase();
+        if (to === 'under_contract') {
+          const { data: prob } = await supabase.from('deal_probability_scores')
+            .select('score').eq('lead_id', existing.lead_id).limit(1).maybeSingle();
+          logPrediction({
+            userId: req.user.id, subjectType: 'deal', subjectId: req.params.id,
+            prediction: 'deal_closes',
+            probability: prob?.score != null ? prob.score / 100 : null,
+            reasoning: `Deal moved under contract from ${existing.status || 'new'}`,
+          }).catch(() => {});
+        } else if (WIN.includes(to) || LOSS.includes(to)) {
+          const won = WIN.includes(to);
+          verifyPrediction({ subjectType: 'deal', subjectId: req.params.id, prediction: 'deal_closes', outcome: won }).catch(() => {});
+          const { recordDealOutcome } = require('../services/aiLearningService');
+          recordDealOutcome({
+            dealId: req.params.id,
+            outcome: won ? 'closed' : 'fell_through',
+            reason: `status -> ${to}`,
+            state: data.property_state,
+            assignmentFee: data.assignment_fee,
+          }).catch(() => {});
+        }
+      } catch (e) { console.warn('[Deal] prediction ledger skipped:', e.message); }
     }
     if (updates.title_company_id && updates.title_company_id !== existing.title_company_id) {
       activityMessages.push({

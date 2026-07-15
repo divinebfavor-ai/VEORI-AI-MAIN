@@ -33,8 +33,14 @@ function hasMotivationSignal(pmi) {
 }
 
 // LLM judgment over the full conversation. `llm` injectable for tests.
-async function judge({ history, latestBody, pmi }, { llm = callAnthropic } = {}) {
+async function judge({ history, latestBody, pmi, userId = null }, { llm = callAnthropic } = {}) {
   const convo = (history || []).map(m => `${m.role === 'inbound' ? 'SELLER' : 'AI'}: ${m.body}`).join('\n');
+
+  // Calibration feedback: this operator's VERIFIED decision track record (empty until
+  // enough outcomes are verified - see decisionLearningService). Best-effort.
+  let calibration = '';
+  try { calibration = await require('./decisionLearningService').getCalibrationBlock(userId); } catch (_) {}
+
   const prompt = `You are an expert real estate acquisitions manager deciding the single best next step in a live SMS conversation with a property owner.
 
 Conversation so far:
@@ -53,7 +59,7 @@ of messages or a single score.
   indefinitely.
 
 Background motivation score (context only, NOT the deciding rule): ${pmi && pmi.score != null ? pmi.score : 'n/a'}.
-
+${calibration}
 Reply with ONLY JSON: {"action":"continue_sms|escalate_call|close_out","reasoning":"<1-2 sentences citing the specific signals>"}`;
 
   const msg = await llm({ model: JUDGE_MODEL, max_tokens: 300, messages: [{ role: 'user', content: prompt }] }, { label: 'sms-escalation-judge' });
@@ -66,11 +72,11 @@ Reply with ONLY JSON: {"action":"continue_sms|escalate_call|close_out","reasonin
 }
 
 // Background PMI + judgment + human-review flag. `scorer`/`llm` injectable for tests.
-async function evaluate({ history, latestBody, sellerContext, dealBlock = '' }, { llm, scorer } = {}) {
+async function evaluate({ history, latestBody, sellerContext, dealBlock = '', userId = null }, { llm, scorer } = {}) {
   const raw = await scorer(history || [], latestBody, sellerContext, dealBlock);
   const pmi = typeof raw === 'number' ? { score: raw } : (raw || { score: 50 });
   const signals = Array.isArray(pmi.signals) ? pmi.signals : (pmi.reason ? [pmi.reason] : []);
-  const decision = await judge({ history, latestBody, pmi }, { llm });
+  const decision = await judge({ history, latestBody, pmi, userId }, { llm });
   const needs_human_review = decision.action === 'escalate_call' && !hasMotivationSignal({ score: pmi.score, signals });
   return {
     pmi_score: Number(pmi.score) || 0,
@@ -96,7 +102,7 @@ async function decideAndExecute({ lead, userId, from, body, history, sellerConte
   const scorer = deps.scorer || sms.scoreReply;
   const execute = deps.execute !== false;
 
-  const d = await evaluate({ history, latestBody: body, sellerContext, dealBlock }, { llm: deps.llm, scorer });
+  const d = await evaluate({ history, latestBody: body, sellerContext, dealBlock, userId }, { llm: deps.llm, scorer });
 
   // Background PMI stays on the lead (unchanged from before).
   await supabase.from('leads').update({ motivation_score: d.pmi_score }).eq('id', lead.id).then(() => {}, () => {});

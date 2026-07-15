@@ -163,4 +163,68 @@ async function decisionAccuracyReport({ userId = null } = {}) {
   return report;
 }
 
-module.exports = { VERIFY_AFTER_DAYS, judgeOutcome, verifyDecisionOutcomes, decisionAccuracyReport };
+// ── Calibration feedback: verified accuracy -> the judge's next decision ──────
+// A compact, evidence-only block injected into the judge prompt so it learns from its
+// own VERIFIED track record ("your escalations below PMI 40 connected 20% of the
+// time"). Data-gated: silent ('') until enough decisions are verified, so early noise
+// never steers live behavior. Cached per operator (the judge runs per inbound message).
+
+const MIN_VERIFIED_FOR_CALIBRATION = Number(process.env.DECISION_CALIBRATION_MIN_VERIFIED || 10);
+const CALIBRATION_TTL_MS = 10 * 60 * 1000;
+const calibrationCache = new Map(); // userId -> { block, at }
+
+function pct(n, d) { return d ? Math.round((n / d) * 100) : null; }
+
+// Pure: builds the block from verified decision rows. Exported for tests.
+function buildCalibrationBlock(rows = []) {
+  const judged = rows.filter(r => r.outcome_correct === true || r.outcome_correct === false);
+  if (judged.length < MIN_VERIFIED_FOR_CALIBRATION) return '';
+
+  const lines = [];
+  const esc = judged.filter(r => r.action === 'escalate_call');
+  if (esc.length >= 5) {
+    const lo = esc.filter(r => (r.pmi_score ?? 50) < 40);
+    const hi = esc.filter(r => (r.pmi_score ?? 50) >= 40);
+    const loOk = pct(lo.filter(r => r.outcome_correct).length, lo.length);
+    const hiOk = pct(hi.filter(r => r.outcome_correct).length, hi.length);
+    if (lo.length >= 3 && loOk != null) lines.push(`- Your escalations with motivation score BELOW 40 worked out ${loOk}% of the time (${lo.length} verified). ${loOk < 40 ? 'Lean toward continuing the text conversation at low scores unless the signals are unmistakable.' : ''}`);
+    if (hi.length >= 3 && hiOk != null) lines.push(`- Your escalations with motivation score 40+ worked out ${hiOk}% of the time (${hi.length} verified).`);
+  }
+  const clo = judged.filter(r => r.action === 'close_out');
+  if (clo.length >= 5) {
+    const revived = clo.filter(r => r.outcome === 'lead_revived_after_close' || r.outcome === 'closed_but_deal_happened').length;
+    const rate = pct(revived, clo.length);
+    if (rate != null && rate >= 20) lines.push(`- ${rate}% of the leads you closed out later revived (${clo.length} verified). Close out less aggressively when any live signal remains.`);
+  }
+  const cont = judged.filter(r => r.action === 'continue_sms');
+  if (cont.length >= 5) {
+    const silent = pct(cont.filter(r => r.outcome === 'went_silent').length, cont.length);
+    if (silent != null && silent >= 60) lines.push(`- ${silent}% of your continue-texting decisions went silent (${cont.length} verified). When momentum is real, escalating sooner has outperformed waiting.`);
+  }
+  if (!lines.length) return '';
+  return `\nYOUR VERIFIED TRACK RECORD (from real outcomes of your past decisions - weigh it, it is evidence, not a rule):\n${lines.join('\n')}`;
+}
+
+// Cached fetch + build. Best-effort: any failure returns ''.
+async function getCalibrationBlock(userId) {
+  if (!userId) return '';
+  const hit = calibrationCache.get(userId);
+  if (hit && Date.now() - hit.at < CALIBRATION_TTL_MS) return hit.block;
+  try {
+    const { data } = await supabase.from('sms_decisions')
+      .select('action, outcome, outcome_correct, pmi_score')
+      .eq('user_id', userId)
+      .not('verified_at', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    const block = buildCalibrationBlock(data || []);
+    calibrationCache.set(userId, { block, at: Date.now() });
+    return block;
+  } catch (_) { return ''; }
+}
+
+module.exports = {
+  VERIFY_AFTER_DAYS, MIN_VERIFIED_FOR_CALIBRATION,
+  judgeOutcome, verifyDecisionOutcomes, decisionAccuracyReport,
+  buildCalibrationBlock, getCalibrationBlock,
+};

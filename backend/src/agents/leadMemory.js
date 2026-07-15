@@ -92,7 +92,7 @@ async function getLeadCanonical(userId, leadId) {
 
   // Fetch each section independently, all tenant-scoped. Parallel for latency;
   // any single failure degrades that section to [] (see safeRows).
-  const [memory, conversations, activity, predictionRows] = await Promise.all([
+  const [memory, conversations, activity, predictionRows, decisions, insights] = await Promise.all([
     safeRows(() => supabase
       .from('conversation_memory').select('*')
       .eq('lead_id', leadId).eq('user_id', userId)
@@ -113,6 +113,21 @@ async function getLeadCanonical(userId, leadId) {
       .eq('lead_id', leadId).eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(1)),
+    // Judgment history: what the AI decided for this lead and - once verified - whether
+    // each decision was right. Institutional memory of decision quality, per lead.
+    safeRows(() => supabase
+      .from('sms_decisions').select('action, reasoning, pmi_score, outcome, outcome_correct, created_at')
+      .eq('lead_id', leadId).eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(RECENT_MEMORY_LIMIT)),
+    // Distilled conversation insights (objections raised, language that worked) captured
+    // by the learning loop after scored conversations. Lead ownership already verified
+    // above (ownedLead fail-closed), so contact_id scoping is tenant-safe.
+    safeRows(() => supabase
+      .from('conversation_insights').select('phase, objections_raised, successful_language, sentiment_start, sentiment_end, outcome, created_at')
+      .eq('contact_id', leadId)
+      .order('created_at', { ascending: false })
+      .limit(RECENT_MEMORY_LIMIT)),
   ]);
 
   // Roll up the memory into fast-to-read stats so an agent doesn't re-derive them.
@@ -130,17 +145,24 @@ async function getLeadCanonical(userId, leadId) {
     lead.last_contacted_at ||
     null;
 
+  // Merge insight-captured objections/wins into the rolled-up stats.
+  const insightObjections = [...new Set(insights.flatMap(i => Array.isArray(i.objections_raised) ? i.objections_raised : []))];
+  const successfulLanguage = [...new Set(insights.flatMap(i => Array.isArray(i.successful_language) ? i.successful_language : []))].slice(0, 10);
+
   return {
     lead,
     memory,
     conversations,
     activity,
     prediction: predictionRows[0] || null,
+    decisions,
+    insights,
     stats: {
       interactionCount: memory.length,
       lastContactAt,
-      knownObjections,
+      knownObjections: [...new Set([...knownObjections, ...insightObjections])].slice(0, 20),
       knownMotivators,
+      successfulLanguage,
     },
   };
 }
@@ -155,7 +177,7 @@ async function getLeadCanonical(userId, leadId) {
  */
 function toPromptContext(canonical) {
   if (!canonical || !canonical.lead) return '';
-  const { lead, memory, prediction, stats } = canonical;
+  const { lead, memory, prediction, stats, decisions = [] } = canonical;
   const lines = ['=== LEAD MEMORY (shared across all agents) ==='];
   lines.push(`Lead: ${lead.name || lead.owner_name || 'unknown'} | ${lead.property_address || ''} ${lead.property_state || ''}`.trim());
   lines.push(`Interactions on record: ${stats.interactionCount}${stats.lastContactAt ? ` | last contact ${new Date(stats.lastContactAt).toLocaleDateString()}` : ''}`);
@@ -164,6 +186,12 @@ function toPromptContext(canonical) {
   }
   if (stats.knownMotivators.length) lines.push(`Known motivators: ${stats.knownMotivators.join('; ')}`);
   if (stats.knownObjections.length) lines.push(`Known objections: ${stats.knownObjections.join('; ')}`);
+  if (stats.successfulLanguage?.length) lines.push(`Language that worked before: ${stats.successfulLanguage.slice(0, 5).join('; ')}`);
+  if (decisions.length) {
+    const verdicts = decisions.slice(0, 3).map(d =>
+      `${d.action}${d.outcome_correct === true ? ' (verified right)' : d.outcome_correct === false ? ` (verified wrong - ${d.outcome})` : ''}`);
+    lines.push(`Prior AI decisions on this lead (newest first): ${verdicts.join('; ')}`);
+  }
   if (memory.length) {
     lines.push('Recent interactions (newest first):');
     memory.slice(0, 5).forEach((m, i) => {
