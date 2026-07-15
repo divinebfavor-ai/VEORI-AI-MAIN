@@ -24,3 +24,11 @@ CREATE INDEX IF NOT EXISTS idx_sms_decisions_lead ON sms_decisions(lead_id, crea
 -- human sanity-checks before the call is placed (this flags, it does not auto-block).
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS needs_human_review  BOOLEAN DEFAULT false;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS human_review_reason TEXT;
+
+-- ─── Outcome verification (learning loop) ─────────────────────────────────────
+-- Each judged decision is later verified against what ACTUALLY happened (calls,
+-- deals, replies) so decision accuracy is measurable and tunable over time.
+ALTER TABLE sms_decisions ADD COLUMN IF NOT EXISTS outcome         TEXT;
+ALTER TABLE sms_decisions ADD COLUMN IF NOT EXISTS outcome_correct BOOLEAN;
+ALTER TABLE sms_decisions ADD COLUMN IF NOT EXISTS verified_at     TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_sms_decisions_unverified ON sms_decisions(created_at) WHERE verified_at IS NULL;

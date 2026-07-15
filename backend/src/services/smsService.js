@@ -263,7 +263,14 @@ async function sendOpeningSMS(lead, userId) {
 // (A - unified memory). Omitted/null → identical behavior to before.
 async function scoreReply(conversationHistory, newMessage, sellerContext = null, dealBlock = '') {
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_KEY) return 50;
+  // Resilience: without the OpenAI key this used to silently return a constant 50,
+  // which neutered the escalation judge's PMI sanity check. Fall back to the same
+  // Anthropic stack the voice brain uses before ever degrading to the constant.
+  if (!OPENAI_KEY) {
+    if (process.env.ANTHROPIC_API_KEY) return scoreReplyAnthropic(conversationHistory, newMessage, sellerContext, dealBlock);
+    console.warn('[SMS] No scoring key configured (OpenAI or Anthropic) - PMI degraded to constant 50');
+    return { score: 50, reason: 'No scoring model configured', next_action: 'continue_sms' };
+  }
 
   try {
     let contextBlock = '';
@@ -308,6 +315,43 @@ Reply with ONLY a JSON object: {"score": <0-100>, "reason": "<one sentence>", "n
   }
 }
 
+// Anthropic fallback for the PMI scorer - identical prompt + JSON contract, so the
+// judge's background sanity check keeps working even when the OpenAI key is absent.
+async function scoreReplyAnthropic(conversationHistory, newMessage, sellerContext, dealBlock = '') {
+  try {
+    let contextBlock = '';
+    try {
+      const { buildSMSContextBlock } = require('./dataMotService');
+      contextBlock = buildSMSContextBlock(sellerContext);
+    } catch (_) { contextBlock = ''; }
+    if (dealBlock) contextBlock += dealBlock;
+
+    const { callAnthropic } = require('./aiService');
+    const msg = await callAnthropic({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 150,
+      messages: [{ role: 'user', content: `You are an expert real estate acquisitions analyst. Score the seller's motivation to sell their property from 0 to 100 based on this SMS conversation.
+
+0-40 = Not interested / hostile / just looking
+40-60 = Warm / curious / might be open
+60-100 = Hot / motivated / wants to sell soon
+${contextBlock}
+
+Previous messages:
+${conversationHistory.map(m => `${m.role}: ${m.body}`).join('\n')}
+
+New message from seller: "${newMessage}"
+
+Reply with ONLY a JSON object: {"score": <0-100>, "reason": "<one sentence>", "next_action": "follow_up_7_days" | "continue_sms" | "call_now"}` }],
+    }, { label: 'sms-score-fallback' });
+    const text = (msg?.content?.[0]?.text || '').trim();
+    return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+  } catch (e) {
+    console.error('[SMS] Anthropic score fallback error:', e.message);
+    return { score: 50, reason: 'Unable to score', next_action: 'continue_sms' };
+  }
+}
+
 // ─── Continue SMS conversation (score 40-60) ─────────────────────────────────
 
 async function continueConversation(lead, sellerMessage, conversationHistory, sellerContext = null, dealBlock = '') {
@@ -331,7 +375,17 @@ async function continueConversation(lead, sellerMessage, conversationHistory, se
     // Concrete wholesale knowledge + authority bounds - the same domain grounding the
     // voice brain gets, so texts handle objections/motivations with real substance.
     const wk = require('../data/wholesaleKnowledge');
-    const knowledge = wk.buildKnowledgeBlock(lead) + wk.buildNegotiationBoundsBlock(lead);
+    let knowledge = wk.buildKnowledgeBlock(lead) + wk.buildNegotiationBoundsBlock(lead);
+
+    // Cross-channel learning: the operator's distilled, outcome-verified call lessons
+    // apply to texting too. Best-effort - '' when none/uncached, behavior unchanged.
+    try {
+      const { primeLessonCache, getLessonBlockSync } = require('./learningLoopService');
+      if (lead.user_id) {
+        await primeLessonCache(lead.user_id).catch(() => {});
+        knowledge += getLessonBlockSync(lead.user_id) || '';
+      }
+    } catch (_) { /* lessons unavailable - proceed without */ }
 
     const res = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-4o-mini',

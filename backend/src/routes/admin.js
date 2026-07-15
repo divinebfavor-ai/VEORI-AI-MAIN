@@ -294,6 +294,37 @@ router.get('/accounts/:userId/a2p/status', async (req, res) => {
   }
 });
 
+// ─── Decision learning (manual, admin-triggered) ─────────────────────────────
+
+// POST /api/admin/learning/verify-decisions  { userId?: uuid }
+// Verify matured SMS-judge decisions against real outcomes (calls/deals/replies).
+// Deterministic, idempotent. Manual trigger - no cron.
+router.post('/learning/verify-decisions', async (req, res) => {
+  try {
+    const decisionLearning = require('../services/decisionLearningService');
+    const result = await decisionLearning.verifyDecisionOutcomes({ userId: req.body?.userId || null });
+    audit.log({ userId: req.user.id, action: audit.ACTIONS.ADMIN_ACCESS, req,
+      metadata: { action: 'verify_decisions', ...result } });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('[Admin] verify-decisions error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to verify decisions' });
+  }
+});
+
+// GET /api/admin/learning/decision-accuracy?userId=
+// Per-action accuracy + PMI calibration over verified decisions (self-evaluation).
+router.get('/learning/decision-accuracy', async (req, res) => {
+  try {
+    const decisionLearning = require('../services/decisionLearningService');
+    const report = await decisionLearning.decisionAccuracyReport({ userId: req.query.userId || null });
+    res.json({ success: true, data: report });
+  } catch (err) {
+    console.error('[Admin] decision-accuracy error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to build accuracy report' });
+  }
+});
+
 // GET /api/admin/engagement/review — accounts currently awaiting founder review.
 router.get('/engagement/review', async (req, res) => {
   try {
