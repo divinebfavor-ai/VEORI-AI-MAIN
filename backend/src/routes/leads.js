@@ -119,6 +119,48 @@ function pickCanonical(group) {
   })[0];
 }
 
+// GET /api/leads/needs-review - leads the AI flagged for HUMAN review (escalation held
+// because judgment and the background motivation score disagreed, or the seller asked
+// for terms outside the agent's negotiation authority). Registered before `/:id`.
+router.get('/needs-review', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('id, first_name, last_name, phone, property_address, property_city, property_state, motivation_score, status, human_review_reason, updated_at')
+      .eq('user_id', req.user.id)
+      .eq('needs_human_review', true)
+      .order('updated_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.json({ success: true, total: (data || []).length, leads: data || [] });
+  } catch (err) { next(err); }
+});
+
+// POST /api/leads/:id/resolve-review - a human reviewed the flagged lead; clear the flag
+// so normal automation resumes. The reason is preserved in notes for the audit trail.
+router.post('/:id/resolve-review', async (req, res, next) => {
+  try {
+    const { data: lead, error } = await supabase
+      .from('leads')
+      .select('id, notes, human_review_reason')
+      .eq('id', req.params.id).eq('user_id', req.user.id).single();
+    if (error || !lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+    const stamp = `[${new Date().toISOString().slice(0, 10)}] Human review resolved: ${lead.human_review_reason || 'no reason recorded'}`;
+    const { error: upErr } = await supabase
+      .from('leads')
+      .update({
+        needs_human_review: false,
+        human_review_reason: null,
+        notes: lead.notes ? `${lead.notes}\n${stamp}` : stamp,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', req.params.id).eq('user_id', req.user.id);
+    if (upErr) throw upErr;
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
 // GET /api/leads/duplicates - surface duplicate groups for THIS operator. Read-only.
 // Groups by normalized phone first; phone-less leads fall back to name+address. Only
 // groups with 2+ members are returned. Each group names its canonical survivor and the

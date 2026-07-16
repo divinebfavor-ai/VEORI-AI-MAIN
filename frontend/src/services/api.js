@@ -98,6 +98,8 @@ export const leads = {
   resetStaleCallingStatus: ()     => api.post('/api/leads/reset-stale-calling'),
   findDuplicates:     ()          => api.get('/api/leads/duplicates'),
   mergeDuplicates:    (payload)   => api.post('/api/leads/merge', payload),
+  getNeedsReview:     ()          => api.get('/api/leads/needs-review'),
+  resolveReview:      (id)        => api.post(`/api/leads/${id}/resolve-review`),
 }
 
 // ─── Calls ────────────────────────────────────────────────────────────────────

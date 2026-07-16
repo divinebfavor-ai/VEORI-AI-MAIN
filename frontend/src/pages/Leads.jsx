@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users, Camera, Image, Copy, GitMerge } from 'lucide-react'
+import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users, Camera, Image, Copy, GitMerge, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -821,6 +821,9 @@ export default function Leads() {
   const [searchFocused, setSearchFocused] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
   const [showDupes, setShowDupes]     = useState(false)
+  // Leads the AI flagged for human review (held escalations / out-of-bounds requests).
+  const [reviewLeads, setReviewLeads] = useState([])
+  const [resolvingId, setResolvingId] = useState(null)
   const fileRef  = useRef()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -839,7 +842,25 @@ export default function Leads() {
     finally { setLoading(false) }
   }
 
+  const loadReviewQueue = () => {
+    leads.getNeedsReview()
+      .then(r => setReviewLeads(r.data?.leads || []))
+      .catch(() => setReviewLeads([]))
+  }
+
+  const resolveReview = async (id) => {
+    setResolvingId(id)
+    try {
+      await leads.resolveReview(id)
+      setReviewLeads(prev => prev.filter(l => l.id !== id))
+      toast.success('Review resolved - automation resumes for this lead')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not resolve review')
+    } finally { setResolvingId(null) }
+  }
+
   useEffect(() => {
+    loadReviewQueue()
     load().then(allLoaded => {
       // Auto-open lead profile when navigated from Live Monitor (?highlight=id)
       const highlightId = searchParams.get('highlight')
@@ -977,6 +998,40 @@ export default function Leads() {
             </Button>
           </div>
         </div>
+
+        {/* ── Needs human review - AI held an action for your judgment ─────── */}
+        {reviewLeads.length > 0 && (
+          <div style={{ marginBottom: 14, border: '1px solid rgba(255,149,0,0.35)', background: 'rgba(255,149,0,0.07)', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <AlertTriangle size={14} color="#FF9500" />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>
+                {reviewLeads.length} lead{reviewLeads.length === 1 ? '' : 's'} need{reviewLeads.length === 1 ? 's' : ''} your review
+              </span>
+              <span style={{ fontSize: 11.5, color: 'var(--t4)' }}>The AI held an action instead of acting on its own - review and resolve to resume.</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {reviewLeads.slice(0, 5).map(l => (
+                <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontSize: 12 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <span
+                      onClick={() => { const full = allLeads.find(x => x.id === l.id); if (full) selectLead(full) }}
+                      style={{ color: 'var(--t1)', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      {`${l.first_name || ''} ${l.last_name || ''}`.trim() || l.phone || 'Unnamed lead'}
+                    </span>
+                    <span style={{ color: 'var(--t4)', marginLeft: 8 }}>{l.human_review_reason || 'Flagged for review'}</span>
+                  </div>
+                  <Button variant="secondary" size="sm" loading={resolvingId === l.id} onClick={() => resolveReview(l.id)}>
+                    Resolve
+                  </Button>
+                </div>
+              ))}
+              {reviewLeads.length > 5 && (
+                <span style={{ fontSize: 11.5, color: 'var(--t4)' }}>+{reviewLeads.length - 5} more flagged</span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Filter bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
