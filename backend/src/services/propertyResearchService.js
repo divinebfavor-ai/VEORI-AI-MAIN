@@ -56,6 +56,18 @@ async function fetchAndPersist(lead) {
   const address = fullAddress(lead);
   if (!address || !process.env.RENTCAST_API_KEY) return null;
 
+  // Credit cushion: cap billable provider lookups per operator per day. The 7-day
+  // per-lead cache means real usage rarely approaches the ceiling; when it IS hit,
+  // agents proceed without fresh data (fail-soft) rather than draining shared credits.
+  if (lead.user_id) {
+    const { checkAndConsume } = require('./usageLimitService');
+    const quota = await checkAndConsume(lead.user_id, 'property_research');
+    if (!quota.allowed) {
+      console.warn(`[Research] daily lookup limit reached for operator ${lead.user_id} (${quota.limit}/day) - proceeding without fresh data`);
+      return null;
+    }
+  }
+
   const { lookupPropertyValue } = require('./compsService');
   const result = await lookupPropertyValue(address);
   if (!result || !result.found) return null;
