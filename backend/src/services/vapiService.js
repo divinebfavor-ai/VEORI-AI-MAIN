@@ -1443,6 +1443,10 @@ function toE164(phone) {
 // Flip in any direction is a Railway env change only - no code edit, no redeploy
 // of new code required.
 async function initiateCall({ lead, phoneNumber, callId, operator = {}, useCaseOverride = null, campaign = {} }) {
+  // Pre-warm live property research (comps/value/ARV) while the phone rings, so the
+  // brain's first turn gets an instant cache hit. Non-blocking, fail-soft.
+  try { require('./propertyResearchService').warmResearch(lead); } catch (_) {}
+
   // DEFAULT ENGINE = the in-house streaming path (Twilio Media Streams ↔ Deepgram ↔
   // Claude ↔ ElevenLabs). With VOICE_ENGINE unset, calls now go through Twilio and
   // NEVER through Vapi - this is what stops the Vapi wallet/credit error. To roll

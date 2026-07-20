@@ -312,11 +312,24 @@ async function nextTurn(args = {}) {
     const pmiLine = lead.motivation_score != null
       ? `\n\nCURRENT MOTIVATION (PMI) SCORE for this seller: ${lead.motivation_score}/100 (from all prior calls + texts). Calibrate your pace to it - high score: move toward the number and next step; low score: build trust before asking for anything.`
       : '';
+
+    // Live property research (real comps/value/ARV for THIS property). Pre-warmed at
+    // call initiation, so this is normally an instant cache hit; a bounded wait keeps
+    // a cold fetch from ever causing dead air - the turn proceeds without data and the
+    // still-running fetch serves the next turn. Best-effort: '' on anything.
+    let researchBlock = '';
+    try {
+      const pr = require('./propertyResearchService');
+      const research = await pr.getResearch(lead, { timeoutMs: pr.LIVE_TURN_TIMEOUT_MS });
+      researchBlock = pr.buildResearchBlock(research);
+    } catch (_) { /* proceed without research */ }
+
     const system = withEndDirective(
       basePrompt
       + wk.buildKnowledgeBlock(lead)
       + wk.buildCallComplianceBlock(lead)
       + wk.buildNegotiationBoundsBlock(lead)
+      + researchBlock
       + pmiLine
     );
 

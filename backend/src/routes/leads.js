@@ -807,11 +807,21 @@ router.get('/:id/research', async (req, res, next) => {
   try {
     const { data: lead } = await supabase.from('leads').select('*').eq('id', req.params.id).eq('user_id', req.user.id).single();
     if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+    // REAL market data first (RentCast comps/AVM via propertyResearchService - also
+    // self-heals estimated_arv/value on the lead from actual sales). The LLM analysis
+    // is a clearly-labeled fallback for when no market data is available; it no longer
+    // overwrites ARV with a guess.
+    try {
+      const pr = require('../services/propertyResearchService');
+      const research = await pr.getResearch(lead);
+      if (research && research.found) {
+        return res.json({ success: true, data: { ...research, data_source: 'market_data' } });
+      }
+    } catch (_) { /* fall through to AI analysis */ }
+
     const analysis = await aiService.analyzePropertyOffer({ address: lead.property_address, city: lead.property_city, state: lead.property_state, estimatedValue: lead.estimated_value });
-    if (analysis) {
-      await supabase.from('leads').update({ estimated_arv: analysis.estimated_arv }).eq('id', req.params.id);
-    }
-    res.json({ success: true, data: analysis });
+    res.json({ success: true, data: analysis ? { ...analysis, data_source: 'ai_estimate' } : null });
   } catch (err) { next(err); }
 });
 

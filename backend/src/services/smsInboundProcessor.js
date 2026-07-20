@@ -108,6 +108,10 @@ async function processInboundSMS(data) {
   // Judgment-based next action (continue_sms | escalate_call | close_out) with the PMI
   // score kept as a background sanity check + full decision logging. Replaces the old
   // fixed score-threshold escalation. Deal-awareness (dealBlock) is threaded through.
+  // Pre-warm live property research while the judge deliberates, so a continue-SMS
+  // reply (or an escalated call) has real comps ready. Non-blocking, fail-soft.
+  try { require('./propertyResearchService').warmResearch(lead); } catch (_) {}
+
   const escalationJudge = require('./smsEscalationJudge');
   const decision = await escalationJudge.decideAndExecute({
     lead, userId, from, body, history: formattedHistory, sellerContext, dealBlock, inboundMsgId: inboundMsgId || null,

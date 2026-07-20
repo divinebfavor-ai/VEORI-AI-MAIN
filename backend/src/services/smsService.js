@@ -387,6 +387,14 @@ async function continueConversation(lead, sellerMessage, conversationHistory, se
       }
     } catch (_) { /* lessons unavailable - proceed without */ }
 
+    // Live property research: real comps/value for THIS property so price texts cite
+    // market data, not vibes. Bounded wait; on timeout the fetch lands for next reply.
+    try {
+      const pr = require('./propertyResearchService');
+      const research = await pr.getResearch(lead, { timeoutMs: pr.LIVE_TURN_TIMEOUT_MS });
+      knowledge += pr.buildResearchBlock(research);
+    } catch (_) { /* proceed without research */ }
+
     const res = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-4o-mini',
       messages: [
