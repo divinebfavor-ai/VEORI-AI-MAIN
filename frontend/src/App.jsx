@@ -74,6 +74,7 @@ import Sequences    from './pages/Sequences'
 import Appointments from './pages/Appointments'
 import MissedCalls  from './pages/MissedCalls'
 import SmsTemplates from './pages/SmsTemplates'
+import VeoriIntelligence from './pages/VeoriIntelligence'
 
 const ADMIN_EMAILS = ['divineqflash@gmail.com']
 
@@ -190,6 +191,8 @@ export default function App() {
         <Route path="/appointments"  element={<Appointments />} />
         <Route path="/missed-calls"  element={<MissedCalls />} />
         <Route path="/sms-templates" element={<SmsTemplates />} />
+        <Route path="/intelligence/lead/:id" element={<VeoriIntelligence />} />
+        <Route path="/intelligence/lead"     element={<VeoriIntelligence />} />
       </Route>
 
       {/* Public tour viewer - no auth */}

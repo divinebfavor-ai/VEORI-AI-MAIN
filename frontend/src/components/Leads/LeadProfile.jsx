@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   X, Phone, MapPin, Copy, Check, Flame, Ban, Calendar, Plus,
   MessageSquare, PhoneCall, Image as ImageIcon, FileText, Activity, UserCheck,
-  Brain, TrendingUp, AlertTriangle,
+  Brain, TrendingUp, AlertTriangle, Zap,
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import toast from 'react-hot-toast'
@@ -70,6 +71,7 @@ const EVENT_STYLE = {
 }
 
 export default function LeadProfile({ lead, onClose, onUpdate }) {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('Timeline')
   const [notes, setNotes] = useState(lead?.notes || '')
   const [savingNotes, setSavingNotes] = useState(false)
@@ -260,7 +262,14 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-4 flex-wrap">
+            <Button
+              size="sm"
+              onClick={() => { onClose(); navigate(`/intelligence/lead/${lead.id}`) }}
+              style={{ background: 'linear-gradient(135deg,#00C37A,#00965E)', color: '#000', border: 'none', fontWeight: 800, letterSpacing: '0.02em' }}
+            >
+              <Zap size={12} /> Watch AI Work
+            </Button>
             <Button size="sm" variant="secondary" onClick={() => {}}>
               <Plus size={13} /> Campaign
             </Button>
