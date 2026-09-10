@@ -65,40 +65,36 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_referral_payments_idempotency_key
 
 
 -- ───────────────────────────────────────────────────────────────────────────
--- 3. increment_calls_used() — RPC MISSING, ALREADY CALLED
+-- 3. Atomic counters
 --
--- src/services/campaignManager.js:275 calls this RPC and, on error, falls back
--- to a read-modify-write. Because the function does not exist, EVERY dial takes
--- the racy fallback: N concurrent dials all read the same calls_used and all
--- write used+1, so the counter advances by one no matter how many calls were
--- placed. A user can dial far past a paid monthly limit.
+-- CORRECTION (applied 2026-09-10, after running this against production):
+-- An earlier draft of this migration also created
+--   increment_calls_used(uuid, integer)
+-- on the belief that no such function existed, because grepping every .sql file
+-- in the repo found none. That was WRONG. A function
+--   increment_calls_used(uuid) RETURNS void
+-- already existed in the database — created by hand outside version control, so
+-- no file in the repo mentions it — and it was ALREADY atomic
+-- (UPDATE users SET calls_used = COALESCE(calls_used,0) + 1 WHERE id = ...).
 --
--- A single UPDATE ... RETURNING is atomic under Postgres row locking, so
--- concurrent callers serialise correctly.
+-- Adding a second overload made the call AMBIGUOUS: campaignManager.js invokes
+-- it as rpc('increment_calls_used', { p_user_id }) with a single argument, which
+-- Postgres could then resolve to either overload, so it failed with
+-- "function is not unique" and fell through to the racy read-modify-write —
+-- introducing the exact bug the change was meant to remove.
+--
+-- The overload has been dropped in production. Do NOT recreate it. The
+-- pre-existing one-argument function is correct and is deliberately left alone.
+--
+-- Lesson for future migrations: grep of the repo is NOT proof of what exists in
+-- the database. Verify against the live catalog (pg_proc / information_schema)
+-- before declaring an object missing.
 -- ───────────────────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.increment_calls_used(
-  p_user_id UUID,
-  p_amount  INTEGER DEFAULT 1
-)
-RETURNS INTEGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  new_value INTEGER;
-BEGIN
-  UPDATE public.users
-     SET calls_used = COALESCE(calls_used, 0) + p_amount
-   WHERE id = p_user_id
-  RETURNING calls_used INTO new_value;
+DROP FUNCTION IF EXISTS public.increment_calls_used(uuid, integer);
 
-  RETURN new_value;   -- NULL when no such user
-END;
-$$;
-
--- Generic atomic counter for the other meters that share the same race
--- (ai_messages_used, outreach credits, and anything added later).
+-- Generic atomic counter for the meters that DO still race
+-- (ai_messages_used, outreach credits, and anything added later). Its
+-- three-argument signature is unique, so it cannot collide with anything.
 CREATE OR REPLACE FUNCTION public.increment_user_counter(
   p_user_id UUID,
   p_column  TEXT,
