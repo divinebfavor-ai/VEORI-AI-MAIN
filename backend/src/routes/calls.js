@@ -61,14 +61,17 @@ async function logTcpa(userId, leadId, phone, action, reason) {
 router.get('/', async (req, res, next) => {
   try {
     const { lead_id, status, campaign_id, direction, limit = 50, offset = 0, date_from, date_to } = req.query;
-    // Clamp like /api/leads does. Unclamped, `?limit=100000` pulled every row -
-    // and because this projection was `*`, that included every full call
-    // TRANSCRIPT, which is unbounded TEXT. One request could exhaust memory.
-    // `transcript` and `recording_url` are excluded from the LIST projection;
-    // they are still returned by GET /api/calls/:id for a single call.
+    // Clamp the page size. Unclamped, `?limit=100000` pulled every row for the
+    // user - and since each row carries an unbounded TEXT transcript, a single
+    // request could exhaust process memory. The clamp is the actual fix.
+    //
+    // `transcript` is deliberately KEPT in this projection: the lead drawer's
+    // call-history tab (frontend Leads.jsx) and LiveMonitor both read it from
+    // this list endpoint, so dropping it here would silently break transcript
+    // display in both. Bounded at 100 rows, the payload is fine.
     const safeLimit  = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const safeOffset = Math.max(Number(offset) || 0, 0);
-    let q = supabase.from('calls').select('id, user_id, lead_id, phone_number_id, direction, status, outcome, duration_seconds, motivation_score, seller_personality, ai_summary, offer_made, operator_took_over, started_at, ended_at, created_at, leads(first_name, last_name, phone, property_address), phone_numbers(number, friendly_name)', { count: 'exact' })
+    let q = supabase.from('calls').select('*, leads(first_name, last_name, phone, property_address), phone_numbers(number, friendly_name)', { count: 'exact' })
       .eq('user_id', req.user.id).order('created_at', { ascending: false })
       .range(safeOffset, safeOffset + safeLimit - 1);
     if (lead_id)  q = q.eq('lead_id', lead_id);
