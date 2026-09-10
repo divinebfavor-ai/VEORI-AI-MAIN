@@ -8,6 +8,7 @@ const {
 const { getSellerContextForSMS } = require('../services/dataMotService');
 const queueService = require('../services/queueService');
 const { captureInboundMMS } = require('../services/mmsCaptureService');
+const { logTcpa } = require('../services/tcpaLog');
 
 const router = express.Router();
 
@@ -24,11 +25,41 @@ function isOptIn(text) {
 
 // ─── Handle opt-out: add to DNC, log, send confirmation ──────────────────────
 async function handleOptOut(from, lead, userId, toNumber) {
-  // 1. Add to dnc_records (upsert - safe if already exists)
-  await supabase.from('dnc_records').upsert(
-    { phone: from, added_by: userId || null, reason: 'SMS opt-out (STOP keyword)' },
-    { onConflict: 'phone' }
-  );
+  // 1. Add to dnc_records.
+  //
+  // THIS WAS SILENTLY FAILING ON EVERY OPT-OUT. The previous call wrote
+  // `added_by`, which is not a column on this table (it is `user_id`), and used
+  // `onConflict: 'phone'`, which names a unique constraint that does not exist -
+  // `phone` carries only a plain, non-unique index. supabase-js RETURNS an error
+  // object rather than throwing, and the result was never inspected, so both
+  // failures were invisible. That is why dnc_records held zero rows: no STOP
+  // reply had ever actually suppressed a number.
+  //
+  // Now: correct column, an explicit existence check instead of a constraint
+  // that isn't there, and the error is surfaced. A failure here is a compliance
+  // event, so it is logged loudly - but it must not break the confirmation reply
+  // the consumer is owed, so it does not throw.
+  try {
+    let q = supabase.from('dnc_records').select('id').eq('phone', from).limit(1);
+    q = userId ? q.eq('user_id', userId) : q.is('user_id', null);
+    const { data: existing } = await q;
+
+    if (!existing || existing.length === 0) {
+      const { error: dncErr } = await supabase.from('dnc_records').insert({
+        phone: from,
+        user_id: userId || null,
+        reason: 'SMS opt-out (STOP keyword)',
+        source: 'sms_stop',
+      });
+      if (dncErr) {
+        console.error('[SMS][COMPLIANCE] FAILED to record opt-out for', from, '-', dncErr.message);
+      } else {
+        console.log('[SMS] Opt-out recorded in dnc_records for', from);
+      }
+    }
+  } catch (e) {
+    console.error('[SMS][COMPLIANCE] FAILED to record opt-out for', from, '-', e.message);
+  }
 
   // 2. Mark lead as DNC
   if (lead) {
@@ -37,15 +68,14 @@ async function handleOptOut(from, lead, userId, toNumber) {
       .eq('id', lead.id);
   }
 
-  // 3. Log to tcpa_log
-  await supabase.from('tcpa_log').insert({
-    user_id:  userId || null,
-    lead_id:  lead?.id || null,
-    phone:    from,
-    action:   'sms_opt_out',
-    notes:    'Lead replied with opt-out keyword - added to DNC, all future SMS blocked',
-    created_at: new Date().toISOString(),
-  }).then(null, () => {});
+  // 3. Log to tcpa_log via the shared writer. The previous inline insert omitted
+  // phone_number and called_at_utc, which are NOT NULL, so it failed the
+  // constraint on every call - and `.then(null, () => {})` swallowed it.
+  await logTcpa({
+    userId, lead: lead || { phone: from }, withinHours: true, dncResult: 'blocked',
+    consent: 'revoked', action: 'sms_opt_out',
+    note: 'Lead replied with opt-out keyword - added to DNC, all future SMS blocked',
+  });
 
   // 4. Send required confirmation reply (CTIA mandates this)
   await sendSMS(from, 'You have been unsubscribed and will receive no further messages from us.')
@@ -56,7 +86,22 @@ async function handleOptOut(from, lead, userId, toNumber) {
 
 // ─── Handle opt-in: remove from DNC ─────────────────────────────────────────
 async function handleOptIn(from, lead, userId) {
-  await supabase.from('dnc_records').delete().eq('phone', from);
+  // SCOPED. This was `delete().eq('phone', from)` with no operator scope, so one
+  // person replying START to ONE operator deleted that number from EVERY
+  // operator's suppression list - including operators who had never contacted
+  // them and whose STOP request was still in force. That silently converted a
+  // valid opt-out into permission to text again, which is the exact failure the
+  // TCPA penalises.
+  //
+  // Consent is per-sender: a consumer opting back in to one business says nothing
+  // about any other. So we clear only THIS operator's suppression, and only when
+  // we know which operator the message was for. Rows with a NULL user_id are
+  // treated as platform-wide suppressions and are never cleared here.
+  if (!userId) {
+    console.warn(`[SMS] opt-in from ${from} with no resolvable operator - suppression left in place`);
+  } else {
+    await supabase.from('dnc_records').delete().eq('phone', from).eq('user_id', userId);
+  }
 
   if (lead) {
     await supabase.from('leads')
@@ -64,16 +109,15 @@ async function handleOptIn(from, lead, userId) {
       .eq('id', lead.id);
   }
 
-  await supabase.from('tcpa_log').insert({
-    user_id:  userId || null,
-    lead_id:  lead?.id || null,
-    phone:    from,
-    action:   'sms_opt_in',
-    notes:    'Lead replied START - removed from DNC',
-    created_at: new Date().toISOString(),
-  }).then(null, () => {});
+  await logTcpa({
+    userId, lead: lead || { phone: from }, withinHours: true, dncResult: 'pass',
+    consent: 'opted_in', action: 'sms_opt_in',
+    note: userId
+      ? 'Lead replied START - suppression cleared for this operator only'
+      : 'Lead replied START - no operator resolved, suppression left in place',
+  });
 
-  console.log(`[SMS] Opt-in processed - ${from} removed from DNC`);
+  console.log(`[SMS] Opt-in processed - ${from}`);
 }
 
 // POST /api/sms/webhook - Twilio sends inbound SMS here (form-encoded)

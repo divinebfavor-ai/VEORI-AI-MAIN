@@ -2,6 +2,8 @@ const supabase = require('../config/supabase');
 const emailService = require('./emailService');
 const { SEQUENCE_DEFINITIONS } = require('./sequenceEngine');
 const { scheduleSequenceStep } = require('./queueService');
+const { isWithinTcpaWindow, msUntilNextWindow } = require('./tcpaWindow');
+const { logTcpa } = require('./tcpaLog');
 
 // ─── Process a follow-up job ──────────────────────────────────────────────────
 async function processFollowUp({ followUpId, dealId, contactId, contactType, type, template }) {
@@ -49,6 +51,50 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
     const userId = fu?.user_id || lead.user_id;
     if (!userId) throw new Error('No operator (user_id) for scheduled call');
 
+    // ─── TCPA GATE ────────────────────────────────────────────────────────────
+    // This path previously went straight from lead lookup to dialling with NO
+    // suppression check and NO quiet-hours check - the only dial path in the
+    // product without them. It is driven both by BullMQ and by a
+    // Redis-independent sweep that drains overdue rows, and the server runs in
+    // UTC, so a backlog clearing at 03:00 UTC would dial at 22:00 US Eastern.
+    // These are the same guards campaignManager applies, in the same order.
+
+    // 1. Internal suppression. Fails CLOSED: if we cannot confirm the number is
+    //    clear, we do not dial it.
+    let suppressed = false;
+    try {
+      const { data: dnc } = await supabase
+        .from('dnc_records').select('id').eq('phone', lead.phone).maybeSingle();
+      suppressed = !!dnc || lead.is_on_dnc === true;
+    } catch (e) {
+      console.error('[FollowUp][TCPA] DNC lookup failed - refusing to dial:', e.message);
+      suppressed = true;
+    }
+    if (suppressed) {
+      console.log(`[FollowUp] ${lead.phone} is suppressed - cancelling scheduled call`);
+      await supabase.from('follow_ups')
+        .update({ status: 'cancelled', bullmq_job_id: null }).eq('id', followUpId);
+      await logTcpa({ userId, lead, withinHours: false, dncResult: 'blocked',
+        note: 'blocked_dnc: suppressed at scheduled-call time' });
+      return { skipped: true, reason: 'dnc' };
+    }
+
+    // 2. Quiet hours in the LEAD's local time (DST-safe; unknown state falls back
+    //    to Eastern, the most conservative choice). Outside the window we DEFER
+    //    rather than drop, so the callback the seller asked for still happens -
+    //    at a lawful hour.
+    if (!isWithinTcpaWindow(lead.property_state)) {
+      const waitMs = msUntilNextWindow(lead.property_state);
+      const nextAt = new Date(Date.now() + waitMs).toISOString();
+      console.log(`[FollowUp] ${lead.phone} outside 8am-9pm local (${lead.property_state || 'Eastern'}) - deferring to ${nextAt}`);
+      await supabase.from('follow_ups')
+        .update({ scheduled_for: nextAt, status: 'pending', bullmq_job_id: null })
+        .eq('id', followUpId);
+      await logTcpa({ userId, lead, withinHours: false, dncResult: 'pass',
+        note: `deferred_quiet_hours: rescheduled to ${nextAt}` });
+      return { deferred: true, until: nextAt };
+    }
+
     // Full operator row - carries AI persona (voice, tone, scripts, use case).
     const { data: operator } = await supabase.from('users').select('*').eq('id', userId).single();
 
@@ -70,6 +116,14 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
       status: 'initiated',
       started_at: new Date().toISOString(),
     }]);
+
+    // Record the compliant attempt BEFORE dialling, so the audit trail exists
+    // even if the call itself then fails.
+    await logTcpa({
+      userId, lead, callId, withinHours: true, dncResult: 'pass',
+      action: 'scheduled_call_out',
+      note: 'scheduled callback placed inside 8am-9pm local window',
+    });
 
     const callResult = await vapiService.initiateCall({
       lead,
