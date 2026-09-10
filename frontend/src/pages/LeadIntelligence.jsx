@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-const API = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app').replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
 
 const SENTIMENT_CONFIG = {
   Motivated: { color: '#00C37A', bg: 'rgba(0,195,122,0.12)', icon: '🔥' },

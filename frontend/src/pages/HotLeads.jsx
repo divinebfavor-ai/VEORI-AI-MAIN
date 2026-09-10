@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react'
 
-const API = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app').replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
 function authHeader() {
   const token = localStorage.getItem('token') || localStorage.getItem('authToken') || ''
   return token ? { Authorization: `Bearer ${token}` } : {}

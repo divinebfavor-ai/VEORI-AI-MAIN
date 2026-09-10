@@ -268,7 +268,7 @@ export default function LeadProfile({ lead, onClose, onUpdate }) {
               onClick={() => { onClose(); navigate(`/intelligence/lead/${lead.id}`) }}
               style={{ background: 'linear-gradient(135deg,#00C37A,#00965E)', color: '#000', border: 'none', fontWeight: 800, letterSpacing: '0.02em' }}
             >
-              <Zap size={12} /> Watch AI Work
+              <Zap size={12} /> AI Activity
             </Button>
             <Button size="sm" variant="secondary" onClick={() => {}}>
               <Plus size={13} /> Campaign

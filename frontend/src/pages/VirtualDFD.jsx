@@ -6,7 +6,7 @@
  */
 import React, { useState, useEffect } from 'react'
 
-const API = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app').replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
 function authHeader() {
   const t = localStorage.getItem('veori_token') || localStorage.getItem('token') || localStorage.getItem('authToken') || ''
   return t ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }

@@ -11,7 +11,7 @@ import {
   Target, Flame, Shield, DollarSign, MapPin, User, Radio,
 } from 'lucide-react'
 
-const API = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app').replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
 
 function auth() {
   const t = localStorage.getItem('veori_token') || localStorage.getItem('token') || ''

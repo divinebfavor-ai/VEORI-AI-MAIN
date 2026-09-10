@@ -500,7 +500,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
               fontFamily: 'inherit',
             }}
           >
-            <Brain size={13} /> Watch the AI Work
+            <Brain size={13} /> AI Activity
           </button>
         </div>
 

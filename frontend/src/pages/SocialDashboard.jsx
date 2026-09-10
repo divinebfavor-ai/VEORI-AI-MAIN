@@ -6,7 +6,7 @@ import {
   Facebook, Youtube, Instagram, Twitter,
 } from 'lucide-react'
 
-const API = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app').replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
 
 function authHeaders() {
   const token = localStorage.getItem('token') || localStorage.getItem('authToken') || ''

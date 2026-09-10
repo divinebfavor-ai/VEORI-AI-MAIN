@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Film, Zap, Download, Share2, RefreshCw, ChevronDown, Check, Play, Loader2, Copy, CheckCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const API = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app').replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
 
 function authHeaders() {
   const token = localStorage.getItem('veori_token')

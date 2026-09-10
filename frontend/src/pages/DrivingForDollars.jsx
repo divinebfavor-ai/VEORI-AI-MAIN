@@ -25,7 +25,7 @@ const makeIcon = (color) => new L.DivIcon({
 const PIN_COLORS = { vacant: '#EF4444', distressed: '#F59E0B', good: '#00C37A', unknown: '#94A3B8' }
 const CONDITIONS = ['vacant', 'distressed', 'good', 'unknown']
 
-const API = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app').replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
 function authHeader() {
   const t = localStorage.getItem('veori_token') || localStorage.getItem('token') || localStorage.getItem('authToken') || ''
   return t ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }

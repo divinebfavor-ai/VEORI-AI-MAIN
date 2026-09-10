@@ -3,7 +3,7 @@
  */
 import React, { useState, useEffect } from 'react'
 
-const API = import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app/api'
+const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app').replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
 const FRONTEND = import.meta.env.VITE_FRONTEND_URL || 'https://veori.net'
 function authHeader() {
   const t = localStorage.getItem('token') || localStorage.getItem('authToken') || ''
