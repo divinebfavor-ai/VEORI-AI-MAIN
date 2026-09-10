@@ -27,10 +27,54 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'https://veori.net';
 // This is the URI registered in Google Cloud Console, Facebook App, etc.
 const CALLBACK_URL = process.env.OAUTH_CALLBACK_URL || 'https://veori.net/api/social-connections/callback';
 
+// ─── OAuth state integrity ───────────────────────────────────────────────────
+// SECURITY: the `state` parameter used to be plaintext JSON, and the callback
+// trusted the userId it found inside. An attacker could walk the OAuth flow with
+// their OWN social account while substituting a VICTIM's id into state, binding
+// their page and token to the victim's connection row - every post the victim
+// made would then publish to the attacker's account (and vice versa).
+//
+// State is now a short-lived signed JWT. It cannot be edited without JWT_SECRET,
+// it expires, and `purpose` stops a token minted elsewhere in the app from being
+// replayed here.
+const crypto = require('crypto');   // jwt is already required at the top of this file
+const JWT_SECRET = process.env.JWT_SECRET;
+const STATE_TTL  = '10m';
+
+function signState(payload) {
+  return jwt.sign({ ...payload, purpose: 'social_oauth' }, JWT_SECRET, { expiresIn: STATE_TTL });
+}
+
+function verifyState(raw) {
+  try {
+    const decoded = jwt.verify(decodeURIComponent(raw), JWT_SECRET);
+    if (decoded.purpose !== 'social_oauth') return null;
+    return decoded;
+  } catch {
+    return null;   // tampered, expired, or not ours
+  }
+}
+
+// Real PKCE. The previous URL sent a hardcoded literal `code_challenge=challenge`
+// with `method=plain`, which is identical for every user and therefore provides
+// no protection at all. We now derive an S256 challenge from a random verifier.
+//
+// TRADE-OFF, stated plainly: the verifier is carried inside the SIGNED state
+// rather than a server-side store, because this service has no session storage.
+// That is weaker than holding it server-side (it does travel through the
+// browser), but it is signed, single-purpose and expires in 10 minutes - and it
+// is a strict improvement on a constant that was shared by every user. The
+// client secret used at token exchange remains the primary protection.
+function makePkce() {
+  const verifier  = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  return { verifier, challenge };
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function buildAuthUrl(platform, statePayload) {
-  const state = encodeURIComponent(JSON.stringify(statePayload));
+function buildAuthUrl(platform, statePayload, pkce) {
+  const state = encodeURIComponent(signState(statePayload));
   const cb    = encodeURIComponent(CALLBACK_URL);
 
   switch (platform) {
@@ -45,7 +89,7 @@ function buildAuthUrl(platform, statePayload) {
 
     case 'twitter':
       if (!process.env.TWITTER_CLIENT_ID) return null;
-      return `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${process.env.TWITTER_CLIENT_ID}&redirect_uri=${cb}&scope=tweet.read+tweet.write+users.read+offline.access&state=${state}&code_challenge=challenge&code_challenge_method=plain`;
+      return `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${process.env.TWITTER_CLIENT_ID}&redirect_uri=${cb}&scope=tweet.read+tweet.write+users.read+offline.access&state=${state}&code_challenge=${pkce.challenge}&code_challenge_method=S256`;
 
     case 'youtube':
       if (!process.env.GOOGLE_CLIENT_ID) return null;
@@ -60,7 +104,8 @@ function buildAuthUrl(platform, statePayload) {
   }
 }
 
-async function exchangeCodeForToken(platform, code) {
+// codeVerifier is the PKCE verifier carried back in the signed state (Twitter only).
+async function exchangeCodeForToken(platform, code, codeVerifier) {
   const cb = CALLBACK_URL;
 
   if (platform === 'facebook' || platform === 'instagram') {
@@ -89,7 +134,8 @@ async function exchangeCodeForToken(platform, code) {
     const r = await fetch('https://api.twitter.com/2/oauth2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${creds}` },
-      body: new URLSearchParams({ code, grant_type: 'authorization_code', redirect_uri: cb, code_verifier: 'challenge' }),
+      // Must be the verifier matching the S256 challenge sent at authorize time.
+      body: new URLSearchParams({ code, grant_type: 'authorization_code', redirect_uri: cb, code_verifier: codeVerifier || '' }),
     });
     const d = await r.json();
     if (!d.access_token) return null;
@@ -191,9 +237,11 @@ router.get('/auth-url/:platform', auth, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Unsupported platform' });
     }
 
-    // Encode user identity in state - callback uses this to store token for the right user
-    const statePayload = { platform, userId: req.user.id, ts: Date.now() };
-    const url = buildAuthUrl(platform, statePayload);
+    // The identity comes from the authenticated session, never from the client,
+    // and is sealed into a signed state the callback verifies before use.
+    const pkce = makePkce();
+    const statePayload = { platform, userId: req.user.id, cv: pkce.verifier, ts: Date.now() };
+    const url = buildAuthUrl(platform, statePayload, pkce);
 
     if (!url) {
       return res.status(503).json({
@@ -220,21 +268,21 @@ router.get('/callback', async (req, res) => {
     return res.redirect(`${FRONTEND_URL}/oauth/callback?error=${encodeURIComponent(oauthError)}`);
   }
 
-  let statePayload;
-  try {
-    statePayload = JSON.parse(decodeURIComponent(state));
-  } catch {
+  // Signature-verified: a caller can no longer name which account this
+  // connection binds to. A tampered or expired state is rejected outright.
+  const statePayload = verifyState(state);
+  if (!statePayload) {
     return res.redirect(`${FRONTEND_URL}/oauth/callback?error=invalid_state`);
   }
 
-  const { platform, userId } = statePayload;
+  const { platform, userId, cv } = statePayload;
 
   if (!code || !platform || !userId) {
     return res.redirect(`${FRONTEND_URL}/oauth/callback?error=missing_params`);
   }
 
   try {
-    const tokenData = await exchangeCodeForToken(platform, code);
+    const tokenData = await exchangeCodeForToken(platform, code, cv);
     if (!tokenData) {
       return res.redirect(`${FRONTEND_URL}/oauth/callback?error=token_exchange_failed&platform=${platform}`);
     }

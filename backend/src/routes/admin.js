@@ -28,6 +28,26 @@ router.use(auth, (req, res, next) => {
   next();
 });
 
+// GET /api/admin/errors - what is actually failing in production, right now.
+// Sits behind the admin guard applied above because the payload names failing
+// routes and user ids. Reads from the in-memory ring buffer, so it reflects the
+// CURRENT process only and resets on deploy - it is a live triage view, not a
+// historical store. Set SENTRY_DSN for retained history.
+router.get('/errors', (req, res) => {
+  try {
+    const { errorSummary } = require('../services/observability');
+    const summary = errorSummary();
+    res.json({
+      success: true,
+      note: 'In-memory, current process only. Resets on restart/deploy.',
+      ai_capacity: (() => { try { return require('../services/aiService').aiCapacity(); } catch { return null; } })(),
+      ...summary,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error summary unavailable' });
+  }
+});
+
 // GET /api/admin/stats
 router.get('/stats', async (req, res) => {
   try {

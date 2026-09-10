@@ -31,6 +31,18 @@ function errorHandler(err, req, res, next) {
   // Always log full error on server
   console.error(`[Error] ${req.method} ${req.path} ${status}:`, isProd ? message : err.stack);
 
+  // Central capture: structured log + in-memory buffer + Sentry when configured.
+  // Only real faults are captured - 4xx are expected client mistakes and would
+  // otherwise drown the signal. Wrapped so a logging failure can never turn a
+  // handled error into an unhandled one.
+  if (status >= 500) {
+    try {
+      require('../services/observability').captureError(err, {
+        status, method: req.method, path: req.path, userId: req.user?.id,
+      });
+    } catch { /* observability must never break the error path */ }
+  }
+
   // In production: only send safe, human-readable messages - never stack traces
   const clientMessage = isProd
     ? (isSafeError(message) ? message : 'Something went wrong. Please try again.')

@@ -5,11 +5,19 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ─── Global crash guards - keep the process alive on unhandled errors ─────────
+// These also feed the error tracker, so a crash-level fault is recorded rather
+// than only printed. Required lazily inside each handler: these run before the
+// module graph is loaded, and a failure here must never prevent boot.
 process.on('uncaughtException', (err) => {
   console.error('[FATAL] uncaughtException - keeping process alive:', err.message, err.stack);
+  try { require('./services/observability').captureError(err, { path: 'uncaughtException', status: 500 }); } catch {}
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[FATAL] unhandledRejection - keeping process alive:', reason);
+  try {
+    const err = reason instanceof Error ? reason : new Error(String(reason));
+    require('./services/observability').captureError(err, { path: 'unhandledRejection', status: 500 });
+  } catch {}
 });
 
 const http    = require('http');
@@ -477,6 +485,18 @@ app.use(errorHandler);
 
 // ─── HTTP Server ──────────────────────────────────────────────────────────────
 const server = http.createServer(app);
+
+// Railway sends SIGTERM on every deploy. Without this the process was killed
+// outright and in-flight requests were cut mid-work - including a dial partway
+// through initiation. Now we stop accepting connections, drain what is running,
+// and only force-exit if something is still hanging after the grace window.
+try {
+  require('./services/observability').installGracefulShutdown(server, {
+    timeoutMs: Number(process.env.SHUTDOWN_GRACE_MS || 15000),
+  });
+} catch (e) {
+  console.warn('[index] graceful shutdown not installed:', e.message);
+}
 
 // ─── Real-time streaming voice engine (VOICE_ENGINE=stream) ───────────────────
 // ADDITIVE: attaches a WebSocket handler for /api/v2/voice/media-stream to the
