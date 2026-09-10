@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users, Camera, Image, Copy, GitMerge, AlertTriangle } from 'lucide-react'
+import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users, Camera, Image, Copy, GitMerge, AlertTriangle, Brain } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -490,6 +490,18 @@ function LeadPanel({ lead, onClose, onNavigate }) {
           <Button variant="secondary" size="sm" style={{ width: '100%' }} loading={sendingPhotoReq} onClick={sendPhotoRequest} disabled={!!lead.is_on_dnc}>
             <Camera size={12} /> Request Property Photos
           </Button>
+          <button
+            onClick={() => onNavigate && onNavigate(`/intelligence/lead/${lead.id}`)}
+            style={{
+              width: '100%', border: 'none', borderRadius: 8, cursor: 'pointer',
+              background: 'linear-gradient(135deg,#00C37A,#00965E)', color: '#04140C',
+              fontSize: 12, fontWeight: 800, letterSpacing: '0.02em', padding: '9px 12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              fontFamily: 'inherit',
+            }}
+          >
+            <Brain size={13} /> Watch the AI Work
+          </button>
         </div>
 
         {/* Tabs */}

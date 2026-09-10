@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const aiService = require('../services/aiService');
 const { tagLead, tagLeadsBulk, getOpeningSMS } = require('../services/leadTaggingService');
 const predictionEngine = require('../services/predictionEngine');
+const { sanitizeSearchTerm } = require('../utils/searchFilter');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -33,7 +34,9 @@ router.get('/', async (req, res, next) => {
     if (score_max) q = q.lte('motivation_score', Number(score_max));
     if (date_from) q = q.gte('created_at', date_from);
     if (search) {
-      q = q.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%,property_address.ilike.%${search}%`);
+      // Sanitised: raw input here could inject extra PostgREST predicates.
+      const s = sanitizeSearchTerm(search);
+      if (s) q = q.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,phone.ilike.%${s}%,property_address.ilike.%${s}%`);
     }
 
     const { data, error, count } = await q;
@@ -1102,5 +1105,224 @@ router.get('/:id/photos', async (req, res, next) => {
     res.json({ success: true, photos: data || [] });
   } catch (err) { next(err); }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/leads/:id/intelligence - the PMI breakdown + agent chain that powers
+// the "watch the AI work" viewer.
+//
+// HONESTY CONTRACT: every step in the returned chain corresponds to a row that
+// actually exists (an sms_messages row, a calls row, a deal_activity row, or the
+// lead's own created_at). Nothing is inferred, back-dated, or invented - if the
+// AI never texted this lead, no text step appears. A derived "analysis" step is
+// emitted only when the call row genuinely carries analysis output.
+//
+// PMI sub-scores are DERIVED, not stored, so each one ships a `basis` string
+// naming what it was computed from, and `confidence` drops to 'none' when there
+// is no evidence - the UI must show that rather than imply a real measurement.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/:id/intelligence', async (req, res, next) => {
+  try {
+    const leadId = req.params.id;
+    const uid    = req.user.id;
+
+    const { data: lead, error: leadErr } = await supabase
+      .from('leads').select('*').eq('id', leadId).eq('user_id', uid).single();
+    if (leadErr || !lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+    // Every lane best-effort - one failing source must not 500 the whole view.
+    const [callsRes, smsRes, activityRes] = await Promise.allSettled([
+      supabase.from('calls')
+        .select('id, direction, status, outcome, duration_seconds, motivation_score, seller_personality, key_signals, objections, ai_summary, offer_made, seller_response, operator_took_over, started_at, ended_at, created_at')
+        .eq('lead_id', leadId).eq('user_id', uid)
+        .order('started_at', { ascending: true }).limit(200),
+      supabase.from('sms_messages')
+        .select('id, direction, body, status, sent_at, created_at')
+        .eq('lead_id', leadId).eq('user_id', uid)
+        .order('sent_at', { ascending: true }).limit(500),
+      supabase.from('deal_activity')
+        .select('id, actor_type, activity_type, message, metadata, created_at')
+        .eq('lead_id', leadId).eq('user_id', uid)
+        .order('created_at', { ascending: true }).limit(200),
+    ]);
+
+    const val   = r => (r.status === 'fulfilled' ? (r.value?.data || []) : []);
+    const calls = val(callsRes), sms = val(smsRes), activity = val(activityRes);
+
+    res.json({
+      success: true,
+      data: {
+        lead,
+        pmi:        _computePMI(lead, calls, sms),
+        agentChain: _buildAgentChain(lead, calls, sms, activity),
+        nextAction: _nextAction(lead, calls),
+        counts: { calls: calls.length, sms: sms.length, activity: activity.length },
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// ─── PMI derivation ──────────────────────────────────────────────────────────
+// Each sub-score returns { value, basis, confidence }. `confidence:'none'` means
+// we had no evidence and `value` is null - the UI renders that as "—", never 0,
+// so an operator is never shown a fabricated measurement.
+const _DISTRESS_KW = ['foreclosure','behind','late payment','divorce','bankruptcy','probate',
+  'lien','back taxes','eviction','job loss','medical','repair','damage','vacant','inherited'];
+const _URGENCY_KW  = ['asap','quickly','fast','soon','immediately','this week','this month',
+  'deadline','need to move','right away','cash offer','close fast'];
+
+function _scoreFromKeywords(haystack, keywords) {
+  const hits = keywords.filter(k => haystack.includes(k));
+  return { hits, count: hits.length };
+}
+
+function _computePMI(lead, calls, sms) {
+  const scored = calls.filter(c => c.motivation_score != null);
+  const latest = scored.length ? scored[scored.length - 1].motivation_score : null;
+
+  // Corpus = everything the seller/AI actually said, lowercased.
+  const corpus = [
+    ...calls.flatMap(c => [...(c.key_signals || []), ...(c.objections || []), c.ai_summary || '']),
+    ...sms.filter(m => m.direction === 'inbound').map(m => m.body || ''),
+  ].join(' ').toLowerCase();
+  const hasCorpus = corpus.trim().length > 0;
+
+  const d = _scoreFromKeywords(corpus, _DISTRESS_KW);
+  const u = _scoreFromKeywords(corpus, _URGENCY_KW);
+
+  const inbound   = sms.filter(m => m.direction === 'inbound').length;
+  const answered  = calls.filter(c => (c.duration_seconds || 0) > 30).length;
+  const totalTalk = calls.reduce((s, c) => s + (c.duration_seconds || 0), 0);
+  const hasEngagementEvidence = sms.length > 0 || calls.length > 0;
+
+  const equity = lead.estimated_equity, value = lead.estimated_value;
+  const hasEquityData = equity != null && value != null && Number(value) > 0;
+
+  const clamp = n => Math.max(0, Math.min(100, Math.round(n)));
+
+  return {
+    overall: latest != null
+      ? { value: latest, basis: `Latest AI call score across ${scored.length} scored call(s)`, confidence: 'measured' }
+      : { value: null, basis: 'No call has been scored yet', confidence: 'none' },
+
+    distress: hasCorpus
+      ? { value: clamp(d.count * 18 + (latest != null ? latest * 0.3 : 0)),
+          basis: d.count ? `${d.count} distress signal(s): ${d.hits.slice(0, 4).join(', ')}` : 'No distress keywords found in conversation',
+          confidence: d.count ? 'derived' : 'low' }
+      : { value: null, basis: 'No conversation text yet', confidence: 'none' },
+
+    urgency: hasCorpus
+      ? { value: clamp(u.count * 20 + (calls.some(c => ['appointment','verbal_yes','offer_made'].includes(c.outcome)) ? 30 : 0)),
+          basis: u.count ? `${u.count} urgency signal(s): ${u.hits.slice(0, 4).join(', ')}` : 'No urgency keywords found in conversation',
+          confidence: u.count ? 'derived' : 'low' }
+      : { value: null, basis: 'No conversation text yet', confidence: 'none' },
+
+    engagement: hasEngagementEvidence
+      ? { value: clamp(inbound * 15 + answered * 20 + Math.min(30, totalTalk / 20)),
+          basis: `${inbound} inbound text(s), ${answered} answered call(s), ${Math.round(totalTalk / 60)} min talk time`,
+          confidence: 'measured' }
+      : { value: null, basis: 'No contact attempted yet', confidence: 'none' },
+
+    equity: hasEquityData
+      ? { value: clamp((Number(equity) / Number(value)) * 100),
+          basis: `$${Number(equity).toLocaleString()} equity on $${Number(value).toLocaleString()} value`,
+          confidence: 'measured' }
+      : { value: null, basis: 'Property value or equity not on file', confidence: 'none' },
+  };
+}
+
+// ─── Agent chain ─────────────────────────────────────────────────────────────
+// Built ONLY from rows that exist. Sorted oldest-first so it reads as a story.
+function _buildAgentChain(lead, calls, sms, activity) {
+  const chain = [];
+
+  chain.push({
+    id: `lead-${lead.id}`, agent: 'Acquisition Agent', action: 'Lead entered the system',
+    detail: [lead.property_address, lead.source ? `Source: ${lead.source}` : null].filter(Boolean).join(' · ') || 'Lead created',
+    status: 'completed', at: lead.created_at, icon: 'import',
+  });
+
+  for (const m of sms) {
+    const out = m.direction === 'outbound';
+    chain.push({
+      id: `sms-${m.id}`, agent: out ? 'Outreach Agent' : 'Seller',
+      action: out ? 'Text sent' : 'Seller replied',
+      detail: m.body || '', status: m.status === 'failed' ? 'failed' : 'completed',
+      at: m.sent_at || m.created_at, icon: out ? 'sms' : 'reply',
+    });
+  }
+
+  for (const c of calls) {
+    const live = ['initiated','ringing','in-progress'].includes(c.status);
+    const mins = c.duration_seconds ? `${Math.floor(c.duration_seconds / 60)}m ${c.duration_seconds % 60}s` : null;
+    chain.push({
+      id: `call-${c.id}`, agent: c.operator_took_over ? 'Operator (took over)' : 'Voice Call Agent',
+      action: `${c.direction === 'inbound' ? 'Inbound' : 'Outbound'} call`,
+      detail: [mins, c.outcome ? c.outcome.replace(/_/g, ' ') : null].filter(Boolean).join(' · ')
+              || (live ? 'Live now' : `Status: ${c.status}`),
+      status: live ? 'active' : c.status === 'failed' ? 'failed' : 'completed',
+      at: c.started_at || c.created_at, transcript: c.transcript || null,
+      recording: c.recording_url || null, icon: 'call',
+    });
+
+    // Derived analysis step - emitted ONLY when the row really carries analysis.
+    const hasAnalysis = c.motivation_score != null || c.ai_summary
+      || (c.key_signals || []).length || (c.objections || []).length;
+    if (hasAnalysis) {
+      chain.push({
+        id: `analysis-${c.id}`, agent: 'Analysis Agent', action: 'Call analyzed',
+        detail: [
+          c.motivation_score != null ? `Motivation ${c.motivation_score}/100` : null,
+          c.seller_personality ? `Personality: ${c.seller_personality}` : null,
+          c.ai_summary,
+        ].filter(Boolean).join(' · '),
+        status: 'completed', at: c.ended_at || c.started_at,
+        signals: c.key_signals || [], objections: c.objections || [],
+        offer: c.offer_made != null ? Number(c.offer_made) : null,
+        icon: 'analysis',
+      });
+    }
+  }
+
+  for (const a of activity) {
+    chain.push({
+      id: `act-${a.id}`,
+      agent: a.actor_type === 'ai' ? 'AI Agent' : (a.actor_type || 'System'),
+      action: (a.activity_type || 'activity').replace(/_/g, ' '),
+      detail: a.message || '', status: 'completed', at: a.created_at,
+      meta: a.metadata || null, icon: 'activity',
+    });
+  }
+
+  return chain.sort((x, y) => new Date(x.at || 0) - new Date(y.at || 0));
+}
+
+// ─── Next action ─────────────────────────────────────────────────────────────
+// Reports the lead's real state. Never claims an action was scheduled unless the
+// underlying row says so.
+function _nextAction(lead, calls) {
+  if (lead.is_on_dnc || lead.status === 'dnc') {
+    return { action: 'No action — lead is on DNC', detail: 'Contact is suppressed for compliance.', urgency: 'none' };
+  }
+  const last = calls.length ? calls[calls.length - 1] : null;
+  if (last && ['initiated','ringing','in-progress'].includes(last.status)) {
+    return { action: 'Call in progress', detail: 'The AI voice agent is on the phone with this seller now.', urgency: 'live' };
+  }
+  if (!last) {
+    return { action: 'No contact attempted yet', detail: 'Add this lead to a campaign to start outreach.', urgency: 'high' };
+  }
+  const byOutcome = {
+    verbal_yes:         { action: 'Send purchase agreement', detail: 'Seller gave a verbal yes on the last call.', urgency: 'critical' },
+    offer_made:         { action: 'Follow up on the offer',  detail: last.offer_made != null ? `Offer of $${Number(last.offer_made).toLocaleString()} is outstanding.` : 'An offer is outstanding.', urgency: 'critical' },
+    appointment:        { action: 'Appointment is set',      detail: 'Confirm attendance ahead of the meeting.', urgency: 'medium' },
+    callback_requested: { action: 'Seller asked for a callback', detail: 'Schedule the return call.', urgency: 'high' },
+    not_interested:     { action: 'Seller declined',         detail: 'Long-term nurture is appropriate.', urgency: 'low' },
+    voicemail:          { action: 'Voicemail left',          detail: 'No answer on the last attempt.', urgency: 'medium' },
+  };
+  if (byOutcome[last.outcome]) return byOutcome[last.outcome];
+
+  const score = last.motivation_score;
+  if (score != null && score >= 70) return { action: 'Hot lead — prioritise contact', detail: `Last call scored ${score}/100.`, urgency: 'high' };
+  return { action: 'Continue outreach', detail: last.outcome ? `Last outcome: ${last.outcome.replace(/_/g, ' ')}.` : 'Awaiting a completed call.', urgency: 'medium' };
+}
 
 module.exports = router;

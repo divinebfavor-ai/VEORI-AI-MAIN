@@ -19,7 +19,12 @@ router.post('/generate-caption', async (req, res) => {
 
     let listing = null;
     if (listing_id) {
-      const { data } = await supabase.from('listings').select('*').eq('id', listing_id).single();
+      // user_id scope is REQUIRED: the client is authenticated but listing_id is
+      // caller-supplied, and the service-role key bypasses RLS - without this a
+      // user could pass another operator's listing_id and read back their
+      // address, asking price and ARV in the generated caption.
+      const { data } = await supabase.from('listings').select('*')
+        .eq('id', listing_id).eq('user_id', req.user.id).single();
       listing = data;
     }
 
@@ -107,6 +112,7 @@ router.post('/generate-video', async (req, res) => {
       .from('listings')
       .select('*')
       .eq('id', listing_id)
+      .eq('user_id', req.user.id)   // scope: caller-supplied id, RLS is bypassed
       .single();
 
     // If Shotstack API key available, use it

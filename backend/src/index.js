@@ -18,7 +18,9 @@ const cors    = require('cors');
 const helmet  = require('helmet');
 const morgan  = require('morgan');
 const rateLimit = require('express-rate-limit');
+const jwt     = require('jsonwebtoken');
 
+const supabaseClient = require('./config/supabase');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 // ─── Route imports ────────────────────────────────────────────────────────────
@@ -123,12 +125,36 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 // General API limit - 600 req per 15 min per IP (unauthenticated)
 // Authenticated users get a separate higher limit applied per-route
+// SECURITY: these two limiters used to branch on the mere PRESENCE of an
+// Authorization header, so sending `Authorization: Bearer anything` skipped the
+// anonymous limiter entirely - and the authenticated limiter was keyed on the
+// caller-chosen token prefix, so rotating that string reset the counter. Public
+// endpoints were effectively unlimited. Both now branch on a CRYPTOGRAPHICALLY
+// VERIFIED user id, which an attacker cannot forge or rotate.
+// The result is memoised on the request so we verify at most once per request.
+const _JWT_SECRET = process.env.JWT_SECRET;
+function verifiedUserId(req) {
+  if (req._rlUserId !== undefined) return req._rlUserId;
+  let id = null;
+  const h = req.headers.authorization || '';
+  if (h.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(h.slice(7), _JWT_SECRET);
+      // A 2FA-pending token is not a real session - it must not buy the higher
+      // authenticated rate limit.
+      if (decoded && decoded.type !== '2fa_pending') id = decoded.id || null;
+    } catch { /* invalid or expired - treated as anonymous */ }
+  }
+  req._rlUserId = id;
+  return id;
+}
+
 app.use('/api/', rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 600,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => !!req.headers.authorization, // authenticated users skip this limit
+  skip: (req) => !!verifiedUserId(req), // only a VERIFIED session skips this limit
   message: { success: false, error: 'Too many requests. Please wait a moment and try again.' },
 }));
 
@@ -138,12 +164,10 @@ app.use('/api/', rateLimit({
   max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => !req.headers.authorization, // only applies to authenticated requests
-  keyGenerator: (req) => {
-    // Rate limit per user token, not per IP - so office networks don't share a limit
-    const token = (req.headers.authorization || '').replace('Bearer ', '').slice(0, 32);
-    return token || req.ip;
-  },
+  skip: (req) => !verifiedUserId(req), // only applies to verified sessions
+  // Keyed on the verified user id - not a caller-controlled string - so the
+  // counter cannot be reset by changing the token.
+  keyGenerator: (req) => verifiedUserId(req) || req.ip,
   message: { success: false, error: 'You\'re moving fast! Give it a second and try again.' },
 }));
 
@@ -188,8 +212,34 @@ app.get('/health', (_req, res) =>
     // false, callbacks still fire via the Redis-independent 2-min sweep, just not
     // to-the-second. Surfaced so the operator can confirm the fast path is live.
     redis: !!process.env.REDIS_URL,
+    // AI slot pressure - lets the operator see saturation before users feel it.
+    ai_capacity: (() => { try { return require('./services/aiService').aiCapacity(); } catch { return null; } })(),
   })
 );
+
+// ─── /ready - readiness probe that actually touches the database ──────────────
+// /health above is a LIVENESS probe: it answers "is this process up?" and checks
+// only that env vars are present, so it stays 200 during a total database outage.
+// That is correct for liveness (restarting the container would not fix a DB
+// outage) but useless for knowing whether the service can actually serve.
+// /ready performs a real, cheap, time-boxed query and returns 503 when the
+// database is unreachable, so a load balancer can drain this instance instead of
+// sending it traffic it cannot serve.
+app.get('/ready', async (_req, res) => {
+  const started = Date.now();
+  try {
+    const probe = supabaseClient
+      .from('users').select('id', { count: 'exact', head: true }).limit(1);
+    // Time-box it: a hung DB must fail the probe fast rather than pile up.
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('database probe timed out')), 3000));
+    const { error } = await Promise.race([probe, timeout]);
+    if (error) throw error;
+    return res.json({ ready: true, db: 'up', latency_ms: Date.now() - started });
+  } catch (err) {
+    return res.status(503).json({ ready: false, db: 'down', error: err.message, latency_ms: Date.now() - started });
+  }
+});
 
 app.get('/', (_req, res) =>
   res.json({ success: true, message: 'VEORI AI API 🚀 - Built to Achieve.' })

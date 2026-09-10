@@ -226,11 +226,27 @@ router.get('/earnings', auth, async (req, res) => {
 
 // ─── POST /api/referrals/apply ────────────────────────────────────────────────
 // Called during registration to link a referred user to referrer
-router.post('/apply', async (req, res) => {
+// SECURITY: this route used to be UNAUTHENTICATED and took `user_id` from the
+// request body, so anyone could re-point any account's `referred_by` at their
+// own code and harvest the commission on that account's next charge. It now
+// requires a session and can only ever attribute the CALLER's own account.
+// Primary attribution now happens server-side in POST /api/auth/register; this
+// remains only as a fallback for an already-signed-in user, and is write-once.
+router.post('/apply', auth, async (req, res) => {
   try {
-    const { referral_code, user_id } = req.body;
-    if (!referral_code || !user_id) {
-      return res.status(400).json({ success: false, error: 'referral_code and user_id required' });
+    const { referral_code } = req.body;
+    const user_id = req.user.id;          // never from the body
+    if (!referral_code) {
+      return res.status(400).json({ success: false, error: 'referral_code required' });
+    }
+
+    // Write-once: an existing attribution can never be overwritten, so a later
+    // caller cannot steal a referral that already belongs to someone else.
+    const { data: me } = await supabase
+      .from('users').select('id, referred_by').eq('id', user_id).single();
+    if (!me) return res.status(404).json({ success: false, error: 'User not found' });
+    if (me.referred_by) {
+      return res.status(409).json({ success: false, error: 'A referral is already attributed to this account' });
     }
 
     // Find referrer by code
@@ -248,11 +264,13 @@ router.post('/apply', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Cannot refer yourself' });
     }
 
-    // Link referred user to referrer
+    // Link referred user to referrer. The extra is-null guard closes the race
+    // between the read above and this write.
     await supabase
       .from('users')
       .update({ referred_by: referrer.id })
-      .eq('id', user_id);
+      .eq('id', user_id)
+      .is('referred_by', null);
 
     console.log(`[Referrals] User ${user_id} referred by ${referrer.id} (code: ${referral_code})`);
 

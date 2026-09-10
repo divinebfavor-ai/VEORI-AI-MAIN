@@ -58,15 +58,12 @@ export default function Register() {
     }
     setLoading(true)
     try {
-      const result = await register(form)
-      // Apply referral code if present
-      if (refCode && result?.user?.id) {
-        fetch(`${API_ROUTES}/referrals/apply`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ referral_code: refCode, user_id: result.user.id }),
-        }).catch(() => {})
-      }
+      // The referral code now rides along with registration and is attributed
+      // server-side at insert time. The old follow-up POST to /referrals/apply
+      // was doubly broken: it read `result.user.id` (register resolves to the
+      // user object itself, so that was always undefined and the call never
+      // fired), and the endpoint it targeted accepted any user_id from anyone.
+      await register({ ...form, referral_code: refCode || undefined })
       toast.success('Account created!')
       const pendingPlan = localStorage.getItem('pending_plan')
       if (pendingPlan) {

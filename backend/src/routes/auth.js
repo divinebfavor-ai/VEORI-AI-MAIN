@@ -147,6 +147,20 @@ router.post('/register', async (req, res, next) => {
     const geo    = getGeoFromRequest(req);
     const source = req.body.source || req.headers['x-signup-source'] || null;
 
+    // Referral attribution happens HERE, at insert time, rather than through a
+    // separate call afterwards. Doing it server-side means the referred_by link
+    // is set exactly once, by us, for the account we are creating - there is no
+    // window in which a caller can name which user gets attributed.
+    let referredBy = null;
+    const rawCode = typeof req.body.referral_code === 'string' ? req.body.referral_code.trim() : '';
+    if (rawCode) {
+      const { data: referrer } = await supabase
+        .from('users').select('id').eq('referral_code', rawCode.toUpperCase()).single();
+      // A referrer that does not exist is ignored rather than fatal - a bad code
+      // in a shared link must never block someone from creating an account.
+      if (referrer) referredBy = referrer.id;
+    }
+
     const { data, error } = await supabase
       .from('users')
       .insert([{
@@ -157,6 +171,7 @@ router.post('/register', async (req, res, next) => {
         plan: 'hustle',
         ...geo,
         signup_source: source,
+        referred_by:   referredBy,
         last_seen_at:  new Date().toISOString(),
       }])
       .select('id, email, full_name, company_name, plan, calls_limit, calls_used')

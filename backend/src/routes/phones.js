@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const axios    = require('axios');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
+const { isSubscriptionActive } = require('../services/subscriptionStatus');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -748,11 +749,11 @@ router.post('/provision-pool', async (req, res, next) => {
   try {
     const { data: user } = await supabase
       .from('users')
-      .select('subscription_plan, subscription_status')
+      .select('subscription_plan, subscription_status, subscription_expires_at')
       .eq('id', req.user.id)
       .single();
 
-    if (!user?.subscription_plan || user.subscription_status !== 'active') {
+    if (!isSubscriptionActive(user)) {
       return res.status(400).json({ success: false, error: 'Active subscription required to provision number pool' });
     }
 

@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const vapiService = require('../services/vapiService');
 const phoneRotation = require('../services/phoneRotation');
 const campaignManager = require('../services/campaignManager');
+const { isSubscriptionActive } = require('../services/subscriptionStatus');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -60,9 +61,16 @@ async function logTcpa(userId, leadId, phone, action, reason) {
 router.get('/', async (req, res, next) => {
   try {
     const { lead_id, status, campaign_id, direction, limit = 50, offset = 0, date_from, date_to } = req.query;
-    let q = supabase.from('calls').select('*, leads(first_name, last_name, phone, property_address), phone_numbers(number, friendly_name)', { count: 'exact' })
+    // Clamp like /api/leads does. Unclamped, `?limit=100000` pulled every row -
+    // and because this projection was `*`, that included every full call
+    // TRANSCRIPT, which is unbounded TEXT. One request could exhaust memory.
+    // `transcript` and `recording_url` are excluded from the LIST projection;
+    // they are still returned by GET /api/calls/:id for a single call.
+    const safeLimit  = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const safeOffset = Math.max(Number(offset) || 0, 0);
+    let q = supabase.from('calls').select('id, user_id, lead_id, phone_number_id, direction, status, outcome, duration_seconds, motivation_score, seller_personality, ai_summary, offer_made, operator_took_over, started_at, ended_at, created_at, leads(first_name, last_name, phone, property_address), phone_numbers(number, friendly_name)', { count: 'exact' })
       .eq('user_id', req.user.id).order('created_at', { ascending: false })
-      .range(Number(offset), Number(offset) + Number(limit) - 1);
+      .range(safeOffset, safeOffset + safeLimit - 1);
     if (lead_id)  q = q.eq('lead_id', lead_id);
     if (status)   q = q.eq('status', status);
     if (direction) q = q.eq('direction', direction);
@@ -113,7 +121,7 @@ router.post('/initiate', async (req, res, next) => {
     if (!lead_id) return res.status(400).json({ success: false, error: 'lead_id required' });
 
     // Check call quota for this operator
-    const { data: opUser } = await supabase.from('users').select('calls_used, calls_limit, subscription_status, subscription_plan, monthly_dial_limit, trial_ends_at, free_calls_today, free_calls_date, overage_enabled, overage_dials_used, last_usage_warning_pct').eq('id', req.user.id).single();
+    const { data: opUser } = await supabase.from('users').select('calls_used, calls_limit, subscription_status, subscription_plan, subscription_expires_at, monthly_dial_limit, trial_ends_at, free_calls_today, free_calls_date, overage_enabled, overage_dials_used, last_usage_warning_pct').eq('id', req.user.id).single();
 
     // Usage-pipeline signals computed in the quota gate below and attached to the response.
     let usagePercent = null;   // 0-100+ of the monthly dial meter (subscribed plans only)
@@ -124,7 +132,10 @@ router.post('/initiate', async (req, res, next) => {
       const isTrialExpired = opUser.subscription_status === 'trial' && opUser.trial_ends_at && new Date(opUser.trial_ends_at) < new Date();
       if (isTrialExpired) return res.status(403).json({ success: false, error: 'Your trial has ended. Upgrade your plan to keep calling.' });
 
-      const isSubscribed = opUser.subscription_status === 'active' && opUser.subscription_plan;
+      // Checks subscription_expires_at as well as status, so a lapsed renewal
+      // actually drops the account to the free tier instead of granting
+      // permanent access off one historical payment.
+      const isSubscribed = isSubscriptionActive(opUser);
 
       if (!isSubscribed) {
         // Free tier: 10 calls per day
@@ -287,10 +298,23 @@ router.post('/initiate', async (req, res, next) => {
 
     // Increment the right meter. Over-limit dials (overage allowance) are tracked
     // separately so the plan meter stays an honest count of in-plan usage.
-    if (isOverLimit) {
-      supabase.from('users').update({ overage_dials_used: (opUser?.overage_dials_used || 0) + 1 }).eq('id', req.user.id).then(null, () => {});
-    } else {
-      supabase.from('users').update({ calls_used: (opUser?.calls_used || 0) + 1 }).eq('id', req.user.id).then(null, () => {});
+    // Atomic increment via RPC. The previous form read the counter earlier in
+    // the handler and wrote `read_value + 1` here, so N concurrent dials all
+    // read the same number and all wrote the same result - the meter advanced by
+    // one no matter how many calls were actually placed, letting a user dial far
+    // past a paid limit. The RPC does UPDATE ... SET x = x + 1 RETURNING, which
+    // serialises under row locking. The read-modify-write remains ONLY as a
+    // fallback for the window before the migration is applied.
+    {
+      const column = isOverLimit ? 'overage_dials_used' : 'calls_used';
+      const previous = isOverLimit ? (opUser?.overage_dials_used || 0) : (opUser?.calls_used || 0);
+      supabase.rpc('increment_user_counter', { p_user_id: req.user.id, p_column: column, p_amount: 1 })
+        .then(({ error }) => {
+          if (!error) return;
+          console.warn(`[calls] atomic ${column} increment unavailable, using fallback:`, error.message);
+          return supabase.from('users').update({ [column]: previous + 1 }).eq('id', req.user.id);
+        })
+        .then(null, () => {});
     }
 
     // TCPA audit log - call was initiated within compliant hours, not on DNC

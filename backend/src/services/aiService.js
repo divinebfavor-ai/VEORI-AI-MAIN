@@ -20,21 +20,61 @@ function getAnthropicClient() {
 // Redis in the platform-scale sprint.
 let _active = 0;
 const _waitQueue = [];
-const MAX_CONCURRENT = Number(process.env.AI_MAX_CONCURRENT) || 3;
+// Raised from 3 → 12. At 3, the whole PROCESS could only run three Claude calls
+// at once, so the 4th concurrent operator parked in the queue - a hard platform
+// ceiling around 10-20 simultaneous AI users. 429/529 from Anthropic is already
+// retried with backoff below, so a higher ceiling degrades gracefully.
+const MAX_CONCURRENT  = Number(process.env.AI_MAX_CONCURRENT) || 12;
+// The queue used to be UNBOUNDED and UNTIMED: a waiter could hang forever,
+// holding its HTTP request (and its socket) open until the client gave up. Now
+// it is bounded and every waiter has a deadline, so load sheds as a fast 503
+// instead of silently accumulating stuck requests.
+const MAX_QUEUE       = Number(process.env.AI_MAX_QUEUE) || 200;
+const SLOT_TIMEOUT_MS = Number(process.env.AI_SLOT_TIMEOUT_MS) || 45000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+function _saturated(msg) {
+  const e = new Error(msg);
+  e.status = 503;
+  e.code = 'AI_CAPACITY';
+  return e;
+}
+
 function acquireSlot() {
-  return new Promise((resolve) => {
-    if (_active < MAX_CONCURRENT) { _active++; resolve(); }
-    else { _waitQueue.push(resolve); }
+  return new Promise((resolve, reject) => {
+    if (_active < MAX_CONCURRENT) { _active++; return resolve(); }
+    if (_waitQueue.length >= MAX_QUEUE) {
+      return reject(_saturated('AI capacity is saturated - please retry shortly'));
+    }
+    const entry = { resolve, settled: false, timer: null };
+    entry.timer = setTimeout(() => {
+      if (entry.settled) return;
+      entry.settled = true;
+      const i = _waitQueue.indexOf(entry);
+      if (i !== -1) _waitQueue.splice(i, 1);
+      reject(_saturated(`Timed out after ${SLOT_TIMEOUT_MS}ms waiting for an AI slot`));
+    }, SLOT_TIMEOUT_MS);
+    _waitQueue.push(entry);
   });
 }
+
 function releaseSlot() {
   _active = Math.max(0, _active - 1);
-  if (_waitQueue.length > 0 && _active < MAX_CONCURRENT) {
+  // Drain past any waiter that already timed out, so a slot is never handed to
+  // a dead promise while live callers keep waiting.
+  while (_waitQueue.length > 0 && _active < MAX_CONCURRENT) {
+    const entry = _waitQueue.shift();
+    if (entry.settled) continue;
+    entry.settled = true;
+    clearTimeout(entry.timer);
     _active++;
-    _waitQueue.shift()();
+    entry.resolve();
   }
+}
+
+// Exposed for /health and /ready so saturation is visible before it hurts.
+function aiCapacity() {
+  return { active: _active, queued: _waitQueue.length, max: MAX_CONCURRENT, maxQueue: MAX_QUEUE };
 }
 
 // ─── Core wrapper - retry + concurrency ───────────────────────────────────────
@@ -474,4 +514,4 @@ Be direct and actionable. This is read by a busy real estate operator.`;
   }
 }
 
-module.exports = { analyzeCallTranscript, scoreMotivation, analyzePropertyOffer, getCoachingSuggestions, generateFollowUpEmail, operatorAssistant, ariaChatbot, generateDailyReport, staggeredParallel, callAnthropic };
+module.exports = { analyzeCallTranscript, scoreMotivation, analyzePropertyOffer, getCoachingSuggestions, generateFollowUpEmail, operatorAssistant, ariaChatbot, generateDailyReport, staggeredParallel, callAnthropic, aiCapacity };

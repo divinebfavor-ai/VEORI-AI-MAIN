@@ -14,6 +14,7 @@
 const router   = require('express').Router();
 const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
+const { sanitizeSearchTerm } = require('../utils/searchFilter');
 const {
   runLeadEngine,
   runSource,
@@ -270,7 +271,9 @@ router.get('/search', auth, async (req, res) => {
     if (min_score) query = query.gte('sourcing_score', parseInt(min_score));
     if (max_score) query = query.lte('sourcing_score', parseInt(max_score));
     if (q) {
-      query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,property_address.ilike.%${q}%,property_city.ilike.%${q}%`);
+      // Sanitised: raw input here could inject extra PostgREST predicates.
+      const s = sanitizeSearchTerm(q);
+      if (s) query = query.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,property_address.ilike.%${s}%,property_city.ilike.%${s}%`);
     }
 
     const { data, error, count } = await query;

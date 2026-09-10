@@ -10,7 +10,20 @@ const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 const { sendEmail } = require('../services/emailService');
 
-const ADMIN_EMAIL = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',')[0].trim();
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',').map(e => e.trim());
+const ADMIN_EMAIL  = ADMIN_EMAILS[0];
+
+// Both the list and the status-update route are documented above as admin-only,
+// but they were shipped with plain `auth` and no admin check. That meant ANY
+// signed-in customer could read every other customer's feedback (including their
+// email address and complaint text) and change the status of any report. This
+// guard enforces the intent that was already written down.
+function requireAdmin(req, res, next) {
+  if (!ADMIN_EMAILS.includes(req.user?.email)) {
+    return res.status(403).json({ error: 'Admin access only.' });
+  }
+  next();
+}
 
 const VALID_TYPES    = ['bug', 'feature', 'complaint', 'other'];
 const VALID_STATUSES = ['open', 'in_progress', 'resolved', 'dismissed'];
@@ -65,14 +78,16 @@ router.post('/', auth, async (req, res) => {
 
 // ─── GET /api/feedback ────────────────────────────────────────────────────────
 // Admin only - returns all reports sorted newest first
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, requireAdmin, async (req, res) => {
   try {
     const { status, type, limit = 100, offset = 0 } = req.query;
+    const safeLimit  = Math.min(Math.max(Number(limit) || 100, 1), 200);
+    const safeOffset = Math.max(Number(offset) || 0, 0);
 
     let query = supabase.from('feedback')
       .select('*')
       .order('created_at', { ascending: false })
-      .range(Number(offset), Number(offset) + Number(limit) - 1);
+      .range(safeOffset, safeOffset + safeLimit - 1);
 
     if (status && VALID_STATUSES.includes(status)) query = query.eq('status', status);
     if (type   && VALID_TYPES.includes(type))      query = query.eq('type', type);
@@ -87,7 +102,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // ─── PATCH /api/feedback/:id ──────────────────────────────────────────────────
-router.patch('/:id', auth, async (req, res) => {
+router.patch('/:id', auth, requireAdmin, async (req, res) => {
   try {
     const { status } = req.body;
     if (!VALID_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status.' });

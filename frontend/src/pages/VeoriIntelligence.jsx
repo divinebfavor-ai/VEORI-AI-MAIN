@@ -32,51 +32,85 @@ const C = {
 }
 
 // ─── PMI ring chart ────────────────────────────────────────────────────────────
+// `score` may be null when nothing has been measured yet - we render an em-dash
+// rather than a zero, so an operator is never shown a number we did not compute.
 function ScoreRing({ score, size = 96 }) {
   const r = (size / 2) - 8
   const circ = 2 * Math.PI * r
-  const color = score >= 70 ? C.green : score >= 40 ? C.amber : C.red
+  const known = score != null
+  const color = !known ? 'rgba(255,255,255,0.2)' : score >= 70 ? C.green : score >= 40 ? C.amber : C.red
   return (
     <svg width={size} height={size}>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={7} />
-      <circle
-        cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={7}
-        strokeLinecap="round"
-        strokeDasharray={`${(score / 100) * circ} ${circ}`}
-        strokeDashoffset={0}
-        transform={`rotate(-90 ${size/2} ${size/2})`}
-        style={{ transition: 'stroke-dasharray 1.2s cubic-bezier(.4,0,.2,1)' }}
-      />
+      {known && (
+        <circle
+          cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={7}
+          strokeLinecap="round"
+          strokeDasharray={`${(score / 100) * circ} ${circ}`}
+          strokeDashoffset={0}
+          transform={`rotate(-90 ${size/2} ${size/2})`}
+          style={{ transition: 'stroke-dasharray 1.2s cubic-bezier(.4,0,.2,1)' }}
+        />
+      )}
       <text x={size/2} y={size/2 + 2} textAnchor="middle" dominantBaseline="middle"
         fill={color} fontSize={size < 64 ? 16 : 22} fontWeight={900} fontFamily="Inter,sans-serif">
-        {score ?? '?'}
+        {known ? score : '—'}
       </text>
     </svg>
   )
 }
 
 // ─── PMI sub-score bar ─────────────────────────────────────────────────────────
-function PMIBar({ label, value, color, icon: Icon, delay = 0 }) {
+// Takes the { value, basis, confidence } shape the API returns. A null value
+// renders as "—" with the reason shown underneath, never as a fabricated 0, and
+// a derived score is visibly labelled so it is not mistaken for a measurement.
+const CONF_LABEL = {
+  measured: { text: 'measured', color: 'rgba(255,255,255,0.35)' },
+  derived:  { text: 'derived',  color: 'rgba(255,255,255,0.3)'  },
+  low:      { text: 'weak signal', color: 'rgba(255,255,255,0.25)' },
+  none:     { text: 'no data',  color: 'rgba(255,255,255,0.22)' },
+}
+
+function PMIBar({ label, metric, color, icon: Icon, delay = 0 }) {
+  const value = metric?.value ?? null
   const [width, setWidth] = useState(0)
-  useEffect(() => { const t = setTimeout(() => setWidth(value), 120 + delay); return () => clearTimeout(t) }, [value, delay])
+  useEffect(() => {
+    const t = setTimeout(() => setWidth(value ?? 0), 120 + delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+
+  const conf = CONF_LABEL[metric?.confidence] || CONF_LABEL.none
+  const known = value != null
+  const barColor = known ? color : 'rgba(255,255,255,0.15)'
+
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {Icon && <Icon size={13} style={{ color }} />}
+          {Icon && <Icon size={13} style={{ color: barColor }} />}
           <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.05em' }}>{label}</span>
         </div>
-        <span style={{ fontSize: 13, fontWeight: 800, color, fontFamily: 'monospace' }}>{value}</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <span style={{ fontSize: 9, color: conf.color, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{conf.text}</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: barColor, fontFamily: 'monospace' }}>
+            {known ? value : '—'}
+          </span>
+        </div>
       </div>
       <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 100, overflow: 'hidden' }}>
         <div style={{
           height: '100%', borderRadius: 100,
-          background: `linear-gradient(90deg, ${color}aa, ${color})`,
+          background: known ? `linear-gradient(90deg, ${color}aa, ${color})` : 'transparent',
           width: `${width}%`,
           transition: 'width 1s cubic-bezier(.4,0,.2,1)',
-          boxShadow: `0 0 8px ${color}55`,
+          boxShadow: known ? `0 0 8px ${color}55` : 'none',
         }} />
       </div>
+      {metric?.basis && (
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', marginTop: 5, lineHeight: 1.45 }}>
+          {metric.basis}
+        </div>
+      )}
     </div>
   )
 }
@@ -356,9 +390,10 @@ export default function VeoriIntelligence() {
     </div>
   )
 
-  const { lead, pmi, agentChain, nextAction, totalCalls } = data
+  const { lead, pmi, agentChain, nextAction, counts } = data
   const name = `${lead.first_name} ${lead.last_name}`
-  const isHot = pmi.overall >= 70
+  const overall = pmi.overall?.value ?? null
+  const isHot = overall != null && overall >= 70
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: '#fff', fontFamily: 'Inter, sans-serif' }}>
@@ -424,23 +459,28 @@ export default function VeoriIntelligence() {
               <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>PMI Intelligence</span>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-              <ScoreRing score={pmi.overall} size={100} />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+              <ScoreRing score={overall} size={100} />
+              {pmi.overall?.basis && (
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 8, textAlign: 'center', lineHeight: 1.45 }}>
+                  {pmi.overall.basis}
+                </div>
+              )}
             </div>
 
-            <PMIBar label="Distress"   value={pmi.distress}   color={C.red}    icon={Flame}      delay={0}   />
-            <PMIBar label="Urgency"    value={pmi.urgency}    color={C.amber}  icon={Zap}        delay={150} />
-            <PMIBar label="Engagement" value={pmi.engagement} color={C.blue}   icon={Activity}   delay={300} />
-            <PMIBar label="Equity"     value={pmi.equity}     color={C.green}  icon={DollarSign} delay={450} />
+            <PMIBar label="Distress"   metric={pmi.distress}   color={C.red}    icon={Flame}      delay={0}   />
+            <PMIBar label="Urgency"    metric={pmi.urgency}    color={C.amber}  icon={Zap}        delay={150} />
+            <PMIBar label="Engagement" metric={pmi.engagement} color={C.blue}   icon={Activity}   delay={300} />
+            <PMIBar label="Equity"     metric={pmi.equity}     color={C.green}  icon={DollarSign} delay={450} />
           </div>
 
           {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
             {[
-              { label: 'Total Calls',    value: totalCalls,  color: C.purple },
-              { label: 'Agent Steps',    value: agentChain.length, color: C.blue },
-              { label: 'Est. Value',     value: lead.estimated_value ? `$${Number(lead.estimated_value).toLocaleString()}` : '-', color: C.green },
-              { label: 'Est. Equity',    value: lead.estimated_equity ? `$${Number(lead.estimated_equity).toLocaleString()}` : '-', color: C.amber },
+              { label: 'Calls',          value: counts?.calls ?? 0,  color: C.purple },
+              { label: 'Texts',          value: counts?.sms ?? 0,    color: C.blue },
+              { label: 'Est. Value',     value: lead.estimated_value ? `$${Number(lead.estimated_value).toLocaleString()}` : '—', color: C.green },
+              { label: 'Est. Equity',    value: lead.estimated_equity ? `$${Number(lead.estimated_equity).toLocaleString()}` : '—', color: C.amber },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>

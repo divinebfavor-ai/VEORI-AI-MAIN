@@ -4,6 +4,7 @@ const vapiService = require('./vapiService');
 const phoneRotation = require('./phoneRotation');
 const { v4: uuidv4 } = require('uuid');
 const { isWithinTcpaWindow } = require('./tcpaWindow');
+const { isSubscriptionActive } = require('./subscriptionStatus');
 
 // In-memory active campaigns (in production use Redis)
 const activeCampaigns = new Map();
@@ -351,13 +352,13 @@ async function checkMonthlyCap(userId) {
   try {
     const { data: u } = await supabase
       .from('users')
-      .select('calls_used, monthly_dial_limit, subscription_status, dials_reset_date, overage_enabled')
+      .select('calls_used, monthly_dial_limit, subscription_status, subscription_plan, subscription_expires_at, dials_reset_date, overage_enabled')
       .eq('id', userId)
       .single();
     if (!u) return { reached: false, used: 0, limit: 0 };
 
     const limit = u.monthly_dial_limit || 0;
-    if (u.subscription_status !== 'active' || limit <= 0) {
+    if (!isSubscriptionActive(u) || limit <= 0) {
       return { reached: false, used: u.calls_used || 0, limit };
     }
 

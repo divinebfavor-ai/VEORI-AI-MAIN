@@ -79,7 +79,11 @@ router.post('/', async (req, res) => {
     // Link to listing
     if (listing_id) {
       const publicUrl = `${process.env.FRONTEND_URL || 'https://veori.net'}/tour/${data.tour_token}`;
-      await supabase.from('listings').update({ tour_url: publicUrl }).eq('id', listing_id);
+      // Scope the write to the caller: listing_id comes from the request body,
+      // so without this any user could overwrite another operator's tour_url
+      // with a URL they control.
+      await supabase.from('listings').update({ tour_url: publicUrl })
+        .eq('id', listing_id).eq('user_id', req.user.id);
     }
 
     res.json({ success: true, tour: data, public_url: `${process.env.FRONTEND_URL || 'https://veori.net'}/tour/${data.tour_token}` });
