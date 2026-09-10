@@ -46,17 +46,25 @@ async function defaultPaymentMethod(stripe, customerId) {
   return (list && list.data && list.data[0] && list.data[0].id) || null;
 }
 
-async function chargeOnce(stripe, { customerId, paymentMethod, dollars, description, kind, userId }) {
-  return stripe.paymentIntents.create({
-    amount:         Math.round(dollars * 100),
-    currency:       'usd',
-    customer:       customerId,
-    payment_method: paymentMethod,
-    off_session:    true,
-    confirm:        true,
-    description,
-    metadata:       { kind, user_id: userId },
-  });
+async function chargeOnce(stripe, { customerId, paymentMethod, dollars, description, kind, userId, idempotencyKey }) {
+  return stripe.paymentIntents.create(
+    {
+      amount:         Math.round(dollars * 100),
+      currency:       'usd',
+      customer:       customerId,
+      payment_method: paymentMethod,
+      off_session:    true,
+      confirm:        true,
+      description,
+      metadata:       { kind, user_id: userId },
+    },
+    // Stripe-enforced deduplication. Without this, a retry or a concurrent call
+    // placed a SECOND real charge on a live card - and these are large
+    // (the platform fee is $65 per 1,000 of plan volume, i.e. $3,250 on a 50k
+    // plan). The key is deterministic per user+charge-kind+activation, so any
+    // repeat of the same logical charge collapses onto the first.
+    idempotencyKey ? { idempotencyKey } : undefined
+  );
 }
 
 /**
@@ -84,22 +92,54 @@ async function applySplitOnApproval(userId, { stripeFactory = realStripe, now = 
 
   const { platformFee, usageCost } = computeCharges(u);
 
+  // CLAIM BEFORE CHARGING. The 'already on split' guard above was read at the
+  // top of this function but the flag was only written at the BOTTOM, after both
+  // charges - so two concurrent invocations both passed the guard and both
+  // charged the card. This conditional update is atomic: exactly one caller can
+  // move the row out of its current mode, and `.select()` tells us whether we
+  // were that caller.
+  const { data: claimed, error: claimErr } = await supabase
+    .from('users')
+    .update({ a2p_billing_mode: 'split', a2p_split_activated_at: now.toISOString() })
+    .eq('id', userId)
+    .neq('a2p_billing_mode', 'split')
+    .select('id');
+  if (claimErr) throw claimErr;
+  if (!claimed || claimed.length === 0) {
+    return { ok: false, skipped: true, reason: 'already on split billing (claimed concurrently)' };
+  }
+
+  // Deterministic per user + charge kind + activation month, so a retry inside
+  // Stripe's idempotency window collapses onto the original charge rather than
+  // creating a second one.
+  const cycle = now.toISOString().slice(0, 7);   // YYYY-MM
+  const keyFor = (kind) => `veori:a2p:${kind}:${userId}:${cycle}`;
+
   // Two SEPARATE charges - never combined.
   let platformChargeId = null, usageChargeId = null;
-  if (platformFee > 0) {
-    const pi = await chargeOnce(stripe, { customerId: u.stripe_customer_id, paymentMethod: pm, dollars: platformFee,
-      description: 'Veori platform fee', kind: 'platform_fee', userId });
-    platformChargeId = pi.id;
-  }
-  if (usageCost > 0) {
-    const pi = await chargeOnce(stripe, { customerId: u.stripe_customer_id, paymentMethod: pm, dollars: usageCost,
-      description: 'Twilio usage (passthrough)', kind: 'twilio_usage', userId });
-    usageChargeId = pi.id;
+  try {
+    if (platformFee > 0) {
+      const pi = await chargeOnce(stripe, { customerId: u.stripe_customer_id, paymentMethod: pm, dollars: platformFee,
+        description: 'Veori platform fee', kind: 'platform_fee', userId, idempotencyKey: keyFor('platform_fee') });
+      platformChargeId = pi.id;
+    }
+    if (usageCost > 0) {
+      const pi = await chargeOnce(stripe, { customerId: u.stripe_customer_id, paymentMethod: pm, dollars: usageCost,
+        description: 'Twilio usage (passthrough)', kind: 'twilio_usage', userId, idempotencyKey: keyFor('twilio_usage') });
+      usageChargeId = pi.id;
+    }
+  } catch (chargeErr) {
+    // Release the claim so a genuine retry can run. Without this, a declined
+    // card would leave the account marked as split-billed but never charged -
+    // silently free service. Any charge that DID succeed before the failure is
+    // protected from duplication by its idempotency key on the retry.
+    await supabase.from('users')
+      .update({ a2p_billing_mode: u.a2p_billing_mode, a2p_split_activated_at: null })
+      .eq('id', userId);
+    throw chargeErr;
   }
 
   await supabase.from('users').update({
-    a2p_billing_mode:       'split',
-    a2p_split_activated_at: now.toISOString(),
     a2p_platform_charge_id: platformChargeId,
     a2p_usage_charge_id:    usageChargeId,
   }).eq('id', userId);

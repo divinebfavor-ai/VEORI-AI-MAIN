@@ -483,6 +483,41 @@ app.use('/api/appointments',  appointmentsRouter);
 app.use(notFound);
 app.use(errorHandler);
 
+// ─── Startup security-config audit ────────────────────────────────────────────
+// Webhook verification now FAILS CLOSED in production. That is the correct
+// posture - an unverified inbound webhook is a forged seller reply, a forged
+// call status or a forged email event - but a missing secret would otherwise
+// show up only as a mysterious 503 later. This prints the exact problem at boot,
+// so it is visible in the deploy log the moment it happens.
+if (process.env.NODE_ENV === 'production') {
+  const webhookSecrets = [
+    ['TWILIO_AUTH_TOKEN',     'inbound SMS + call status webhooks will return 503'],
+    ['RESEND_WEBHOOK_SECRET', 'email delivery/engagement webhooks will return 503'],
+    ['EMAIL_INBOUND_SECRET',  'inbound email webhook will return 503'],
+  ];
+  const missing = webhookSecrets.filter(([k]) => !process.env[k]);
+  const allowUnverified = String(process.env.ALLOW_UNVERIFIED_WEBHOOKS || '') === 'true';
+  if (missing.length) {
+    console.error('┌─ SECURITY CONFIG WARNING ───────────────────────────────────');
+    console.error('│ These webhook secrets are NOT set in production:');
+    for (const [k, effect] of missing) console.error(`│   • ${k} - ${effect}`);
+    if (allowUnverified) {
+      console.error('│');
+      console.error('│ ALLOW_UNVERIFIED_WEBHOOKS=true is set, so these endpoints are');
+      console.error('│ ACCEPTING UNVERIFIED EVENTS. Anyone who knows the URL can forge');
+      console.error('│ them. Set the secrets above and remove this override.');
+    } else {
+      console.error('│');
+      console.error('│ Those endpoints now REJECT unverified events (503) rather than');
+      console.error('│ trusting them. Set the secrets in the Railway service variables.');
+      console.error('│ To temporarily restore delivery: ALLOW_UNVERIFIED_WEBHOOKS=true');
+    }
+    console.error('└─────────────────────────────────────────────────────────────');
+  } else {
+    console.log('[startup] All webhook verification secrets present.');
+  }
+}
+
 // ─── HTTP Server ──────────────────────────────────────────────────────────────
 const server = http.createServer(app);
 

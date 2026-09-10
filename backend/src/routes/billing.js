@@ -94,12 +94,25 @@ async function createStripeCheckout({ email, name, plan, planConfig }) {
 }
 
 // ─── POST /api/billing/checkout ───────────────────────────────────────────────
-router.post('/checkout', async (req, res) => {
+// AUTH REQUIRED. This route was unauthenticated and took the customer identity
+// from the request body, so anyone could open checkout sessions against any
+// email - and the Stripe webhook creates a passwordless account by email match,
+// so a forged session could provision an account for an address the caller does
+// not control.
+//
+// Safe to gate: the entire product pays through Flutterwave (/api/fw-billing).
+// Verified that no frontend code calls /api/billing or /api/stripe at all, and
+// the billing page itself sits behind RequireAuth, so no live payment flow
+// passes through here.
+router.post('/checkout', auth, async (req, res) => {
   try {
-    const { name, email, plan = 'starter' } = req.body;
+    const { plan = 'starter' } = req.body;
+    // Identity comes from the verified session, never from the request body.
+    const email = req.user?.email;
+    const name  = req.body.name || req.user?.full_name || email;
 
-    if (!email || !name) {
-      return res.status(400).json({ error: 'Name and email are required.' });
+    if (!email) {
+      return res.status(401).json({ error: 'A signed-in account is required to start checkout.' });
     }
 
     const planConfig = PLANS[plan];
@@ -123,13 +136,14 @@ router.post('/checkout', async (req, res) => {
   }
 });
 
-// Alias used in some frontend calls - identical logic, just a different path
-router.post('/create-checkout-session', async (req, res) => {
+// Alias for the same flow - identical logic and the same auth requirement.
+router.post('/create-checkout-session', auth, async (req, res) => {
   try {
     const plan = req.body.plan || req.body.planName?.toLowerCase() || 'starter';
-    const { name, email } = req.body;
+    const email = req.user?.email;
+    const name  = req.body.name || req.user?.full_name || email;
 
-    if (!email || !name) return res.status(400).json({ error: 'Name and email are required.' });
+    if (!email) return res.status(401).json({ error: 'A signed-in account is required to start checkout.' });
     const planConfig = PLANS[plan];
     if (!planConfig) return res.status(400).json({ error: `Unknown plan: ${plan}` });
 

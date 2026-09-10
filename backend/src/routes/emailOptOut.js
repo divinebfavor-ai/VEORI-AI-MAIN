@@ -13,6 +13,11 @@
 
 const express = require('express');
 const supabase = require('../config/supabase');
+
+// Temporary escape hatch for the fail-closed webhook checks below. Secure by
+// default; set to 'true' only to unblock live traffic while the corresponding
+// webhook secret is being configured.
+const ALLOW_UNVERIFIED = String(process.env.ALLOW_UNVERIFIED_WEBHOOKS || '') === 'true';
 const {
   resolveOptOutToken,
   suppressEmail,
@@ -162,8 +167,17 @@ router.post('/webhook', captureRaw, async (req, res) => {
         console.warn('[ResendWebhook] signature verification failed - rejecting');
         return res.status(401).json({ ok: false });
       }
+    } else if (process.env.NODE_ENV === 'production' && !ALLOW_UNVERIFIED) {
+      // FAIL CLOSED in production: without the secret we cannot tell a real
+      // Resend event from a forged one, and these events flip suppression and
+      // engagement state on real contacts.
+      // Escape hatch: set ALLOW_UNVERIFIED_WEBHOOKS=true to restore the old
+      // permissive behaviour if this ever blocks live traffic before the secret
+      // is configured. That is a temporary measure, not a resting state.
+      console.error('[ResendWebhook] REJECTED - RESEND_WEBHOOK_SECRET is not set in production');
+      return res.status(503).json({ ok: false, error: 'Webhook verification not configured' });
     } else {
-      console.warn('[ResendWebhook] RESEND_WEBHOOK_SECRET not set - accepting unverified event');
+      console.warn('[ResendWebhook] RESEND_WEBHOOK_SECRET not set - accepting unverified event (non-production only)');
     }
 
     const evt   = req.body || {};
@@ -254,8 +268,14 @@ router.post('/inbound', express.json({ type: '*/*' }), async (req, res) => {
         return res.status(401).json({ ok: false });
       }
       trustedForwarder = true;
+    } else if (process.env.NODE_ENV === 'production' && !ALLOW_UNVERIFIED) {
+      // FAIL CLOSED in production - an unverified inbound email can be forged to
+      // impersonate a seller replying. ALLOW_UNVERIFIED_WEBHOOKS=true is the
+      // temporary escape hatch if this blocks live mail before the secret is set.
+      console.error('[EmailInbound] REJECTED - EMAIL_INBOUND_SECRET is not set in production');
+      return res.status(503).json({ ok: false, error: 'Inbound verification not configured' });
     } else {
-      console.warn('[EmailInbound] EMAIL_INBOUND_SECRET not set - accepting unverified event');
+      console.warn('[EmailInbound] EMAIL_INBOUND_SECRET not set - accepting unverified event (non-production only)');
     }
 
     const body = req.body || {};

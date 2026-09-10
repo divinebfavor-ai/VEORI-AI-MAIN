@@ -853,7 +853,9 @@ router.post('/cancel', auth, async (req, res) => {
   try {
     const { data: user } = await supabase
       .from('users')
-      .select('fw_subscription_id')
+      // subscription_expires_at is needed below to tell the customer the real
+      // date their access runs to.
+      .select('fw_subscription_id, subscription_expires_at')
       .eq('id', req.user.id)
       .single();
 
@@ -866,7 +868,18 @@ router.post('/cancel', auth, async (req, res) => {
       status: 'cancelled',
     });
 
-    res.json({ success: true, message: 'Subscription cancelled. You keep access until the end of your billing period.' });
+    // Access now genuinely continues to the paid-through date (enforced in
+    // services/subscriptionStatus.js), so state the real date rather than an
+    // unqualified promise. If no paid-through date was recorded we say so
+    // plainly instead of implying access the gates will not actually grant.
+    const paidThrough = user?.subscription_expires_at || null;
+    res.json({
+      success: true,
+      access_until: paidThrough,
+      message: paidThrough
+        ? `Subscription cancelled. You keep full access until ${new Date(paidThrough).toDateString()}.`
+        : 'Subscription cancelled. Contact support if you believe you have time remaining on this billing period.',
+    });
   } catch (err) {
     console.error('[FW] cancel error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to cancel subscription' });

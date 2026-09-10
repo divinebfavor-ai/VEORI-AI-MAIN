@@ -533,7 +533,10 @@ router.get('/leaderboard', auth, async (req, res) => {
 });
 
 // ─── GET /api/referrals/payout-settings ──────────────────────────────────────
-router.get('/payout-settings', auth, async (req, res) => {
+// `next` must be in the signature: the catch below calls next(err), and without
+// it a DB failure threw ReferenceError: next is not defined - turning a handled
+// error into an unhandled one.
+router.get('/payout-settings', auth, async (req, res, next) => {
   try {
     const { data } = await supabase
       .from('users')

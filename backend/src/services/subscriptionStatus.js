@@ -21,18 +21,40 @@ const GRACE_MS   = GRACE_DAYS * 24 * 60 * 60 * 1000;
 // The column list every caller must SELECT for these helpers to work.
 const SUBSCRIPTION_FIELDS = 'subscription_status, subscription_plan, subscription_expires_at';
 
+function _expiryMs(user) {
+  const raw = user.subscription_expires_at;
+  if (!raw) return null;
+  const t = new Date(raw).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
 function isSubscriptionActive(user) {
   if (!user) return false;
-  if (user.subscription_status !== 'active') return false;
   if (!user.subscription_plan) return false;
 
-  const raw = user.subscription_expires_at;
-  if (!raw) return true;                       // legacy row - see note above
+  const status = user.subscription_status;
+  const expiresAt = _expiryMs(user);
 
-  const expiresAt = new Date(raw).getTime();
-  if (Number.isNaN(expiresAt)) return true;    // unparseable - do not lock out
+  if (status === 'active') {
+    if (expiresAt === null) return true;       // legacy/unparseable - see note above
+    return Date.now() <= expiresAt + GRACE_MS;
+  }
 
-  return Date.now() <= expiresAt + GRACE_MS;
+  // CANCELLED: the cancel endpoint tells the customer "you keep access until the
+  // end of your billing period", but every gate tested `status === 'active'`, so
+  // cancelling revoked access instantly - the customer lost service for a month
+  // they had already paid for, which is a chargeback waiting to happen. They keep
+  // what they paid for, up to the paid-through date.
+  //
+  // No grace window here, unlike 'active': a lapsed renewal is an accident worth
+  // absorbing, whereas a cancellation is deliberate and should end on time. If no
+  // paid-through date was ever recorded we cannot prove entitlement, so access ends.
+  if (status === 'cancelled') {
+    if (expiresAt === null) return false;
+    return Date.now() <= expiresAt;
+  }
+
+  return false;
 }
 
 // True when the paid period has ended but we are still inside the grace window.

@@ -78,8 +78,10 @@ async function handleOptIn(from, lead, userId) {
 
 // POST /api/sms/webhook - Twilio sends inbound SMS here (form-encoded)
 router.post('/webhook', async (req, res) => {
-  // Verify the request really came from Twilio.
-  // Fails OPEN until TWILIO_AUTH_TOKEN is set, so live SMS isn't broken before config.
+  // Verify the request really came from Twilio. Fails CLOSED in production: an
+  // unverified inbound SMS is a forged seller reply, which this pipeline will
+  // score, act on and escalate to a real outbound dial. Non-production still
+  // passes through so local development is not blocked.
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   if (authToken) {
     const sig = req.get('X-Twilio-Signature');
@@ -89,6 +91,9 @@ router.post('/webhook', async (req, res) => {
       console.warn('[SMS] Rejected webhook - invalid Twilio signature');
       return res.sendStatus(403);
     }
+  } else if (process.env.NODE_ENV === 'production') {
+    console.error('[SMS] REJECTED webhook - TWILIO_AUTH_TOKEN is not set in production; cannot verify signature');
+    return res.sendStatus(503);
   }
 
   res.sendStatus(200); // Acknowledge immediately

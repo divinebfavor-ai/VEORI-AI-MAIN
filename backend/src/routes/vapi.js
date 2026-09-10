@@ -779,10 +779,30 @@ router.post('/assistant', requireAuth, async (req, res, next) => {
 
     const reply = await aiService.operatorAssistant(message, conversation_history, context);
 
-    // Increment usage
-    await supabase.from('users').update({ ai_messages_used: (user?.ai_messages_used || 0) + 1 }).eq('id', req.user.id);
+    // Atomic increment. This previously wrote `value_read_earlier + 1`, so N
+    // concurrent requests all read the same number and all wrote the same
+    // result - the meter advanced by one regardless of how many messages were
+    // actually sent, letting a user run well past their paid limit. The RPC does
+    // UPDATE ... SET x = x + 1 RETURNING, which serialises under row locking and
+    // hands back the true post-increment value.
+    let usedAfter = null;
+    const { data: rpcUsed, error: incErr } = await supabase.rpc('increment_user_counter', {
+      p_user_id: req.user.id, p_column: 'ai_messages_used', p_amount: 1,
+    });
+    if (incErr) {
+      console.warn('[aria] atomic ai_messages_used increment failed, using fallback:', incErr.message);
+      await supabase.from('users').update({ ai_messages_used: (user?.ai_messages_used || 0) + 1 }).eq('id', req.user.id);
+      usedAfter = (user?.ai_messages_used || 0) + 1;
+    } else {
+      usedAfter = rpcUsed;
+    }
 
-    res.json({ success: true, reply, messages_remaining: (user?.ai_messages_limit || 200) - ((user?.ai_messages_used || 0) + 1) });
+    const limit = user?.ai_messages_limit || 200;
+    res.json({
+      success: true,
+      reply,
+      messages_remaining: Math.max(0, limit - (usedAfter ?? (user?.ai_messages_used || 0) + 1)),
+    });
   } catch (err) { next(err); }
 });
 
