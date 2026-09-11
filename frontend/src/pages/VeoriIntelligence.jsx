@@ -1,6 +1,16 @@
 /**
- * VEORI Intelligence — Advanced per-lead AI viewer
- * "Sit and watch it work" — real data, real agent chain, real PMI breakdown
+ * AI Activity — per-lead view of what the AI has actually done.
+ *
+ * STYLING: every colour comes from the platform design tokens in index.css
+ * (--app-bg, --card-bg, --border, --t1..--t4, --green, --gold, --red, --amber).
+ * An earlier version hardcoded its own navy palette, which did not match any
+ * other page and broke light mode entirely — tokens are the only correct source.
+ *
+ * ROBUSTNESS: this page previously crashed into the app-wide ErrorBoundary
+ * ("Something went wrong / Reload App") whenever any part of the payload was
+ * missing, because the render destructured the response and then walked into it
+ * unguarded. Every field is now defaulted and every list is checked before use,
+ * so a partial response degrades to an empty state instead of taking the app down.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
@@ -8,240 +18,241 @@ import {
   ArrowLeft, Brain, Zap, Phone, MessageSquare, FileText, Calendar,
   RefreshCw, ChevronDown, ChevronUp, ExternalLink, AlertTriangle,
   Clock, CheckCircle2, Circle, Loader2, Activity, TrendingUp,
-  Target, Flame, Shield, DollarSign, MapPin, User, Radio,
+  Target, Flame, DollarSign, MapPin, User, Radio, Search,
 } from 'lucide-react'
 
-const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app').replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
+const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app')
+  .replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
 
-function auth() {
+function authHeaders() {
   const t = localStorage.getItem('veori_token') || localStorage.getItem('token') || ''
   return t ? { Authorization: `Bearer ${t}` } : {}
 }
 
-// ─── Colour tokens ─────────────────────────────────────────────────────────────
-const C = {
-  green:  '#00C37A',
-  blue:   '#4D9EFF',
-  amber:  '#F59E0B',
-  red:    '#EF4444',
-  purple: '#8B5CF6',
-  cyan:   '#06B6D4',
-  bg:     '#04090F',
-  card:   '#080F1A',
-  border: 'rgba(255,255,255,0.07)',
+// Semantic accents, taken from the platform tokens so they stay in step with the
+// rest of the product in both themes.
+const ACCENT = {
+  green: 'var(--green)',
+  gold:  'var(--gold)',
+  red:   'var(--red)',
+  amber: 'var(--amber)',
+  blue:  '#4D9EFF',
 }
 
-// ─── PMI ring chart ────────────────────────────────────────────────────────────
-// `score` may be null when nothing has been measured yet - we render an em-dash
-// rather than a zero, so an operator is never shown a number we did not compute.
+// ─── Score ring ───────────────────────────────────────────────────────────────
+// A null score renders an em-dash, never a fabricated zero.
 function ScoreRing({ score, size = 96 }) {
   const r = (size / 2) - 8
   const circ = 2 * Math.PI * r
-  const known = score != null
-  const color = !known ? 'rgba(255,255,255,0.2)' : score >= 70 ? C.green : score >= 40 ? C.amber : C.red
+  const known = score != null && !Number.isNaN(Number(score))
+  const v = known ? Math.max(0, Math.min(100, Number(score))) : 0
+  const color = !known ? 'var(--t4)' : v >= 70 ? ACCENT.green : v >= 40 ? ACCENT.amber : ACCENT.red
   return (
-    <svg width={size} height={size}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={7} />
+    <svg width={size} height={size} aria-hidden="true">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-bg-3)" strokeWidth={7} />
       {known && (
         <circle
-          cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={7}
+          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={7}
           strokeLinecap="round"
-          strokeDasharray={`${(score / 100) * circ} ${circ}`}
-          strokeDashoffset={0}
-          transform={`rotate(-90 ${size/2} ${size/2})`}
-          style={{ transition: 'stroke-dasharray 1.2s cubic-bezier(.4,0,.2,1)' }}
+          strokeDasharray={`${(v / 100) * circ} ${circ}`}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ transition: 'stroke-dasharray 1s var(--ease-smooth)' }}
         />
       )}
-      <text x={size/2} y={size/2 + 2} textAnchor="middle" dominantBaseline="middle"
-        fill={color} fontSize={size < 64 ? 16 : 22} fontWeight={900} fontFamily="Inter,sans-serif">
-        {known ? score : '—'}
+      <text
+        x={size / 2} y={size / 2} textAnchor="middle" dominantBaseline="central"
+        fill={color} fontSize={size < 56 ? 15 : 22} fontWeight={800}
+        style={{ fontVariantNumeric: 'tabular-nums' }}
+      >
+        {known ? v : '—'}
       </text>
     </svg>
   )
 }
 
-// ─── PMI sub-score bar ─────────────────────────────────────────────────────────
-// Takes the { value, basis, confidence } shape the API returns. A null value
-// renders as "—" with the reason shown underneath, never as a fabricated 0, and
-// a derived score is visibly labelled so it is not mistaken for a measurement.
-const CONF_LABEL = {
-  measured: { text: 'measured', color: 'rgba(255,255,255,0.35)' },
-  derived:  { text: 'derived',  color: 'rgba(255,255,255,0.3)'  },
-  low:      { text: 'weak signal', color: 'rgba(255,255,255,0.25)' },
-  none:     { text: 'no data',  color: 'rgba(255,255,255,0.22)' },
-}
+// ─── PMI bar ──────────────────────────────────────────────────────────────────
+const CONF_TEXT = { measured: 'measured', derived: 'derived', low: 'weak signal', none: 'no data' }
 
 function PMIBar({ label, metric, color, icon: Icon, delay = 0 }) {
-  const value = metric?.value ?? null
+  const value = metric && metric.value != null ? Number(metric.value) : null
+  const known = value != null && !Number.isNaN(value)
   const [width, setWidth] = useState(0)
-  useEffect(() => {
-    const t = setTimeout(() => setWidth(value ?? 0), 120 + delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
 
-  const conf = CONF_LABEL[metric?.confidence] || CONF_LABEL.none
-  const known = value != null
-  const barColor = known ? color : 'rgba(255,255,255,0.15)'
+  useEffect(() => {
+    const t = setTimeout(() => setWidth(known ? Math.max(0, Math.min(100, value)) : 0), 100 + delay)
+    return () => clearTimeout(t)
+  }, [value, known, delay])
+
+  const barColor = known ? color : 'var(--t4)'
 
   return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {Icon && <Icon size={13} style={{ color: barColor }} />}
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.05em' }}>{label}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <span style={{ fontSize: 9, color: conf.color, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{conf.text}</span>
-          <span style={{ fontSize: 13, fontWeight: 800, color: barColor, fontFamily: 'monospace' }}>
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          {Icon && <Icon size={12} style={{ color: barColor, flexShrink: 0 }} />}
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t2)' }}>{label}</span>
+        </span>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 9, color: 'var(--t4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            {CONF_TEXT[metric?.confidence] || CONF_TEXT.none}
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: barColor, fontVariantNumeric: 'tabular-nums' }}>
             {known ? value : '—'}
           </span>
-        </div>
+        </span>
       </div>
-      <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 100, overflow: 'hidden' }}>
+      <div style={{ height: 5, background: 'var(--surface-bg-2)', borderRadius: 100, overflow: 'hidden' }}>
         <div style={{
-          height: '100%', borderRadius: 100,
-          background: known ? `linear-gradient(90deg, ${color}aa, ${color})` : 'transparent',
-          width: `${width}%`,
-          transition: 'width 1s cubic-bezier(.4,0,.2,1)',
-          boxShadow: known ? `0 0 8px ${color}55` : 'none',
+          height: '100%', width: `${width}%`, borderRadius: 100,
+          background: known ? color : 'transparent',
+          transition: 'width 0.9s var(--ease-smooth)',
         }} />
       </div>
       {metric?.basis && (
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', marginTop: 5, lineHeight: 1.45 }}>
-          {metric.basis}
-        </div>
+        <div style={{ fontSize: 10, color: 'var(--t4)', marginTop: 5, lineHeight: 1.5 }}>{metric.basis}</div>
       )}
     </div>
   )
 }
 
-// ─── Agent step icons ─────────────────────────────────────────────────────────
+// ─── Agent chain ──────────────────────────────────────────────────────────────
 const AGENT_ICONS = {
-  import:   { Icon: User,         color: C.cyan   },
-  sms:      { Icon: MessageSquare,color: C.blue   },
-  reply:    { Icon: MessageSquare,color: C.green  },
-  call:     { Icon: Phone,        color: C.purple },
-  analysis: { Icon: Brain,        color: C.amber  },
-  contract: { Icon: FileText,     color: C.green  },
-  calendar: { Icon: Calendar,     color: C.cyan   },
-  followup: { Icon: RefreshCw,    color: C.blue   },
-  nurture:  { Icon: Clock,        color: 'rgba(255,255,255,0.3)' },
+  import:   { Icon: User,          color: ACCENT.blue  },
+  sms:      { Icon: MessageSquare, color: ACCENT.blue  },
+  reply:    { Icon: MessageSquare, color: ACCENT.green },
+  call:     { Icon: Phone,         color: ACCENT.gold  },
+  analysis: { Icon: Brain,         color: ACCENT.amber },
+  contract: { Icon: FileText,      color: ACCENT.green },
+  calendar: { Icon: Calendar,      color: ACCENT.blue  },
+  followup: { Icon: RefreshCw,     color: ACCENT.blue  },
+  nurture:  { Icon: Clock,         color: 'var(--t4)'  },
+  activity: { Icon: Activity,      color: 'var(--t3)'  },
 }
 
-function agentIcon(icon) {
-  return AGENT_ICONS[icon] || { Icon: Activity, color: C.blue }
-}
-
-function statusDot(status) {
-  if (status === 'active')    return { color: C.green,  Icon: Radio,          pulse: true  }
-  if (status === 'completed') return { color: C.green,  Icon: CheckCircle2,   pulse: false }
-  if (status === 'failed')    return { color: C.red,    Icon: AlertTriangle,  pulse: false }
-  return                             { color: C.amber,  Icon: Circle,         pulse: false }
+function statusMeta(status) {
+  if (status === 'active')    return { color: ACCENT.green, Icon: Radio,         pulse: true }
+  if (status === 'failed')    return { color: ACCENT.red,   Icon: AlertTriangle, pulse: false }
+  if (status === 'completed') return { color: ACCENT.green, Icon: CheckCircle2,  pulse: false }
+  return { color: 'var(--t4)', Icon: Circle, pulse: false }
 }
 
 function timeStr(iso) {
   if (!iso) return ''
   const d = new Date(iso)
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  if (Number.isNaN(d.getTime())) return ''
+  return `${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`
 }
 
-// ─── Agent chain step ─────────────────────────────────────────────────────────
 function AgentStep({ step, isLast }) {
   const [open, setOpen] = useState(false)
-  const { Icon: AIcon, color: aColor } = agentIcon(step.icon)
-  const { color: sColor, Icon: SIcon, pulse } = statusDot(step.status)
-  const hasDetail = step.transcript || (step.signals?.length > 0) || (step.objections?.length > 0)
+  const { Icon: AIcon, color: aColor } = AGENT_ICONS[step?.icon] || AGENT_ICONS.activity
+  const { color: sColor, Icon: SIcon, pulse } = statusMeta(step?.status)
+
+  const signals    = Array.isArray(step?.signals) ? step.signals : []
+  const objections = Array.isArray(step?.objections) ? step.objections : []
+  const hasDetail  = !!step?.transcript || signals.length > 0 || objections.length > 0
+  const isLive     = step?.status === 'active'
 
   return (
-    <div style={{ display: 'flex', gap: 14, position: 'relative' }}>
-      {/* Rail */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 36 }}>
+    <div style={{ display: 'flex', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 32, flexShrink: 0 }}>
         <div style={{
-          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-          background: `${aColor}18`,
-          border: `1.5px solid ${aColor}40`,
+          width: 32, height: 32, borderRadius: '50%', flexShrink: 0, position: 'relative',
+          background: 'var(--surface-bg-2)', border: `1px solid ${isLive ? ACCENT.green : 'var(--border)'}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative', zIndex: 1,
         }}>
-          <AIcon size={15} style={{ color: aColor }} />
+          <AIcon size={14} style={{ color: aColor }} />
           {pulse && (
-            <div style={{
-              position: 'absolute', inset: -4, borderRadius: '50%',
-              border: `2px solid ${C.green}`, animation: 'ping 1.2s infinite',
-              opacity: 0.6,
+            <span style={{
+              position: 'absolute', inset: -3, borderRadius: '50%',
+              border: `2px solid ${ACCENT.green}`, animation: 'veoriPing 1.4s ease-out infinite',
             }} />
           )}
         </div>
-        {!isLast && <div style={{ width: 1.5, flex: 1, background: 'rgba(255,255,255,0.06)', marginTop: 2, minHeight: 20 }} />}
+        {!isLast && <div style={{ width: 1, flex: 1, minHeight: 18, background: 'var(--border)', marginTop: 4 }} />}
       </div>
 
-      {/* Card */}
-      <div style={{ flex: 1, marginBottom: 16, minWidth: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, marginBottom: 12 }}>
         <div
           onClick={() => hasDetail && setOpen(o => !o)}
           style={{
-            background: step.status === 'active' ? `${C.green}0a` : C.card,
-            border: `1px solid ${step.status === 'active' ? C.green + '40' : C.border}`,
-            borderRadius: 10, padding: '12px 14px',
+            background: 'var(--card-bg)',
+            border: `1px solid ${isLive ? ACCENT.green : 'var(--card-border)'}`,
+            borderRadius: 10, padding: '11px 13px',
             cursor: hasDetail ? 'pointer' : 'default',
-            transition: 'border-color 0.2s',
           }}
         >
-          {/* Header row */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: aColor, background: `${aColor}18`, padding: '2px 7px', borderRadius: 100, letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
-                  {step.agent}
+                <span style={{
+                  fontSize: 10, fontWeight: 700, color: aColor, background: 'var(--surface-bg-2)',
+                  padding: '2px 7px', borderRadius: 100, whiteSpace: 'nowrap',
+                }}>
+                  {step?.agent || 'System'}
                 </span>
-                {step.status === 'active' && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: `${C.green}18`, padding: '2px 7px', borderRadius: 100, letterSpacing: '0.05em' }}>
-                    ● LIVE
-                  </span>
-                )}
-                {step.score != null && (
-                  <span style={{ fontSize: 10, color: C.amber, fontWeight: 700 }}>PMI {step.score}</span>
+                {isLive && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: ACCENT.green }}>● LIVE</span>
                 )}
               </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{step.action}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>{step.detail}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', marginBottom: 3 }}>
+                {step?.action || 'Activity'}
+              </div>
+              {step?.detail && (
+                <div style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.55, wordBreak: 'break-word' }}>
+                  {step.detail}
+                </div>
+              )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
               <SIcon size={13} style={{ color: sColor }} />
-              {hasDetail && (open ? <ChevronUp size={12} style={{ color: 'rgba(255,255,255,0.3)' }} /> : <ChevronDown size={12} style={{ color: 'rgba(255,255,255,0.3)' }} />)}
-            </div>
+              {hasDetail && (open
+                ? <ChevronUp size={12} style={{ color: 'var(--t4)' }} />
+                : <ChevronDown size={12} style={{ color: 'var(--t4)' }} />)}
+            </span>
           </div>
 
-          {step.at && (
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 6 }}>{timeStr(step.at)}</div>
+          {step?.at && (
+            <div style={{ fontSize: 10, color: 'var(--t4)', marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
+              {timeStr(step.at)}
+            </div>
           )}
 
-          {/* Expandable */}
           {open && hasDetail && (
-            <div style={{ marginTop: 12, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-              {step.signals?.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              {signals.length > 0 && (
                 <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: C.green, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Key signals</div>
-                  {step.signals.map((s, i) => <div key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 2 }}>· {s}</div>)}
+                  <div style={{ fontSize: 10, fontWeight: 700, color: ACCENT.green, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                    Key signals
+                  </div>
+                  {signals.map((s, i) => (
+                    <div key={i} style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 2 }}>· {String(s)}</div>
+                  ))}
                 </div>
               )}
-              {step.objections?.length > 0 && (
+              {objections.length > 0 && (
                 <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: C.red, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Objections</div>
-                  {step.objections.map((o, i) => <div key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 2 }}>· {o}</div>)}
+                  <div style={{ fontSize: 10, fontWeight: 700, color: ACCENT.red, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                    Objections
+                  </div>
+                  {objections.map((o, i) => (
+                    <div key={i} style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 2 }}>· {String(o)}</div>
+                  ))}
                 </div>
               )}
-              {step.transcript && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: C.purple, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Transcript</div>
+              {step?.transcript && (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: ACCENT.gold, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>
+                    Transcript
+                  </div>
                   <div style={{
-                    maxHeight: 220, overflowY: 'auto', fontSize: 12, color: 'rgba(255,255,255,0.55)',
-                    lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                    background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '10px 12px',
+                    maxHeight: 220, overflowY: 'auto', fontSize: 12, lineHeight: 1.65,
+                    color: 'var(--t2)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    background: 'var(--surface-bg-2)', borderRadius: 8, padding: '10px 12px',
                   }}>
                     {step.transcript}
                   </div>
-                </div>
+                </>
               )}
             </div>
           )}
@@ -251,84 +262,95 @@ function AgentStep({ step, isLast }) {
   )
 }
 
-// ─── Next-action pill ─────────────────────────────────────────────────────────
-function NextActionBanner({ next }) {
-  const urgencyStyle = {
-    live:     { bg: `${C.green}18`, border: C.green,  color: C.green,  label: '● LIVE'    },
-    critical: { bg: `${C.red}18`,   border: C.red,    color: C.red,    label: '⚡ CRITICAL' },
-    high:     { bg: `${C.amber}18`, border: C.amber,  color: C.amber,  label: '▲ HIGH'    },
-    medium:   { bg: `${C.blue}18`,  border: C.blue,   color: C.blue,   label: '→ MEDIUM'  },
-    low:      { bg: 'rgba(255,255,255,0.04)', border: C.border, color: 'rgba(255,255,255,0.4)', label: '· LOW' },
-  }
-  const s = urgencyStyle[next.urgency] || urgencyStyle.low
+// ─── Next action ──────────────────────────────────────────────────────────────
+const URGENCY = {
+  live:     { color: ACCENT.green, label: '● LIVE' },
+  critical: { color: ACCENT.red,   label: 'CRITICAL' },
+  high:     { color: ACCENT.amber, label: 'HIGH' },
+  medium:   { color: ACCENT.blue,  label: 'MEDIUM' },
+  low:      { color: 'var(--t3)',  label: 'LOW' },
+  none:     { color: 'var(--t4)',  label: 'NONE' },
+}
+
+function NextAction({ next }) {
+  if (!next) return null
+  const u = URGENCY[next.urgency] || URGENCY.low
   return (
-    <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: '14px 18px', marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <Target size={14} style={{ color: s.color }} />
-        <span style={{ fontSize: 10, fontWeight: 700, color: s.color, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Next Action</span>
-        <span style={{ fontSize: 10, fontWeight: 700, color: s.color, marginLeft: 'auto' }}>{s.label}</span>
+    <div style={{
+      background: 'var(--card-bg)', border: `1px solid ${u.color}`,
+      borderRadius: 12, padding: '13px 15px', marginBottom: 14,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+        <Target size={13} style={{ color: u.color }} />
+        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+          Next action
+        </span>
+        <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: u.color }}>{u.label}</span>
       </div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{next.action}</div>
-      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{next.detail}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', marginBottom: 3 }}>{next.action}</div>
+      {next.detail && <div style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.5 }}>{next.detail}</div>}
     </div>
   )
 }
 
-// ─── Live Activity Feed ───────────────────────────────────────────────────────
+// ─── Live platform feed ───────────────────────────────────────────────────────
 function LiveFeed() {
   const [events, setEvents] = useState([])
   const [connected, setConnected] = useState(false)
 
   const poll = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/calls?limit=12&offset=0`, { headers: auth() })
-      if (!r.ok) return
+      const r = await fetch(`${API}/calls?limit=12&offset=0`, { headers: authHeaders() })
+      if (!r.ok) { setConnected(false); return }
       const json = await r.json()
-      setEvents(json.data || [])
+      setEvents(Array.isArray(json?.data) ? json.data : [])
       setConnected(true)
     } catch { setConnected(false) }
   }, [])
 
   useEffect(() => {
     poll()
-    const t = setInterval(poll, 8000)
+    const t = setInterval(poll, 10000)
     return () => clearInterval(t)
   }, [poll])
 
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px', height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <Radio size={14} style={{ color: C.green }} />
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Live Platform Activity</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: connected ? C.green : C.amber, boxShadow: connected ? `0 0 6px ${C.green}` : 'none' }} />
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{connected ? 'streaming' : 'connecting...'}</span>
-        </div>
+    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 14, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+        <Radio size={13} style={{ color: connected ? ACCENT.green : 'var(--t4)' }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+          Platform activity
+        </span>
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--t4)' }}>
+          {connected ? 'live' : '—'}
+        </span>
       </div>
+
       {events.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '32px 0', color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>
-          Waiting for AI activity…
+        <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--t4)', fontSize: 12 }}>
+          No recent calls.
         </div>
       ) : events.map((ev, i) => {
-        const label = (ev.outcome || ev.status || '').replace(/_/g, ' ')
-        const name  = ev.lead_name || (ev.leads ? `${ev.leads.first_name || ''} ${ev.leads.last_name || ''}`.trim() : '') || 'Lead'
-        const addr  = ev.property_address || ev.leads?.property_address || ''
+        const name = ev?.lead_name
+          || (ev?.leads ? `${ev.leads.first_name || ''} ${ev.leads.last_name || ''}`.trim() : '')
+          || 'Lead'
+        const label = String(ev?.outcome || ev?.status || '').replace(/_/g, ' ')
         return (
-          <div key={ev.id || i} style={{
-            display: 'flex', gap: 10, alignItems: 'flex-start',
-            padding: '8px 0', borderBottom: i < events.length - 1 ? `1px solid ${C.border}` : 'none',
+          <div key={ev?.id || i} style={{
+            display: 'flex', gap: 9, alignItems: 'flex-start', padding: '7px 0',
+            borderBottom: i < events.length - 1 ? '1px solid var(--border)' : 'none',
           }}>
-            <Phone size={12} style={{ color: C.purple, flexShrink: 0, marginTop: 2 }} />
+            <Phone size={11} style={{ color: ACCENT.gold, marginTop: 3, flexShrink: 0 }} />
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>
-                {name} {label ? `· ${label}` : ''}
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--t1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {name}{label ? ` · ${label}` : ''}
               </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {addr} {ev.motivation_score ? `· PMI ${ev.motivation_score}` : ''}
-              </div>
+              {ev?.motivation_score != null && (
+                <div style={{ fontSize: 11, color: 'var(--t4)' }}>Score {ev.motivation_score}</div>
+              )}
             </div>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>
-              {ev.started_at ? new Date(ev.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+            <span style={{ fontSize: 10, color: 'var(--t4)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+              {ev?.started_at ? new Date(ev.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
             </span>
           </div>
         )
@@ -337,281 +359,326 @@ function LiveFeed() {
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Shared chrome ────────────────────────────────────────────────────────────
+const KEYFRAMES = `@keyframes veoriPing{0%{transform:scale(1);opacity:.7}70%,100%{transform:scale(1.5);opacity:0}}
+@keyframes veoriSpin{to{transform:rotate(360deg)}}`
+
+function Shell({ children }) {
+  return (
+    <div style={{ minHeight: '100%', background: 'var(--app-bg)', color: 'var(--t1)' }}>
+      <style>{KEYFRAMES}</style>
+      {children}
+    </div>
+  )
+}
+
+function Centered({ children }) {
+  return (
+    <Shell>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '80px 24px', textAlign: 'center' }}>
+        {children}
+      </div>
+    </Shell>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function VeoriIntelligence() {
   const { id: leadId } = useParams()
-  const navigate       = useNavigate()
+  const navigate = useNavigate()
+
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const intervalRef = useRef(null)
+  const [busy, setBusy]       = useState(false)
+  const timerRef = useRef(null)
 
   const load = useCallback(async (silent = false) => {
-    if (!leadId) return
-    if (!silent) setLoading(true)
-    else setRefreshing(true)
+    if (!leadId) { setLoading(false); return }
+    silent ? setBusy(true) : setLoading(true)
     setError(null)
     try {
-      const r = await fetch(`${API}/leads/${leadId}/intelligence`, { headers: auth() })
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      const json = await r.json()
+      const r = await fetch(`${API}/leads/${leadId}/intelligence`, { headers: authHeaders() })
+      if (r.status === 401) throw new Error('Your session has expired. Please sign in again.')
+      if (r.status === 404) throw new Error('That lead no longer exists.')
+      if (!r.ok) throw new Error(`Server returned ${r.status}`)
+
+      // Guard the shape: a payload without `data` must not reach the renderer.
+      const json = await r.json().catch(() => null)
+      if (!json || typeof json !== 'object' || !json.data) {
+        throw new Error('The server sent an unexpected response.')
+      }
       setData(json.data)
     } catch (e) {
-      setError(e.message)
+      setError(e?.message || 'Something went wrong loading this lead.')
     } finally {
       setLoading(false)
-      setRefreshing(false)
+      setBusy(false)
     }
   }, [leadId])
 
   useEffect(() => {
     load()
-    intervalRef.current = setInterval(() => load(true), 15000)
-    return () => clearInterval(intervalRef.current)
-  }, [load])
+    if (leadId) {
+      timerRef.current = setInterval(() => load(true), 20000)
+      return () => clearInterval(timerRef.current)
+    }
+  }, [load, leadId])
 
-  if (!leadId) return (
-    <LeadSelector onSelect={id => navigate(`/intelligence/lead/${id}`)} />
-  )
+  if (!leadId) return <LeadPicker />
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-      <Loader2 size={36} style={{ color: C.green, animation: 'spin 1s linear infinite' }} />
-      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Loading intelligence…</div>
-    </div>
+    <Centered>
+      <Loader2 size={30} style={{ color: ACCENT.green, animation: 'veoriSpin 1s linear infinite' }} />
+      <div style={{ color: 'var(--t3)', fontSize: 14 }}>Loading AI activity…</div>
+    </Centered>
   )
 
   if (error) return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-      <AlertTriangle size={32} style={{ color: C.red }} />
-      <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>Couldn't load intelligence: {error}</div>
-      <button onClick={() => load()} style={{ background: C.green, color: '#000', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>Retry</button>
-    </div>
+    <Centered>
+      <AlertTriangle size={28} style={{ color: ACCENT.amber }} />
+      <div style={{ color: 'var(--t2)', fontSize: 14, maxWidth: 380 }}>{error}</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={() => load()} style={{
+          background: ACCENT.green, color: '#04140C', border: 'none', borderRadius: 8,
+          padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+        }}>Try again</button>
+        <button onClick={() => navigate('/leads')} style={{
+          background: 'var(--surface-bg-2)', color: 'var(--t2)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '9px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+        }}>Back to leads</button>
+      </div>
+    </Centered>
   )
 
-  const { lead, pmi, agentChain, nextAction, counts } = data
-  const name = `${lead.first_name} ${lead.last_name}`
+  // Every field defaulted — a partial payload renders an empty state, never a crash.
+  const lead       = data?.lead || {}
+  const pmi        = data?.pmi || {}
+  const chain      = Array.isArray(data?.agentChain) ? data.agentChain : []
+  const nextAction = data?.nextAction || null
+  const counts     = data?.counts || {}
+
   const overall = pmi.overall?.value ?? null
-  const isHot = overall != null && overall >= 70
+  const name    = `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Lead'
+  const isHot   = overall != null && overall >= 70
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, color: '#fff', fontFamily: 'Inter, sans-serif' }}>
-      <style>{`
-        @keyframes ping  { 0%,100% { transform:scale(1); opacity:0.6 } 50% { transform:scale(1.5); opacity:0 } }
-        @keyframes spin  { to { transform:rotate(360deg) } }
-        @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
-        ::-webkit-scrollbar { width:4px; height:4px }
-        ::-webkit-scrollbar-track { background:transparent }
-        ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:4px }
-      `}</style>
-
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <div style={{ background: '#06101C', borderBottom: `1px solid ${C.border}`, padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 50 }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: 0 }}>
+    <Shell>
+      <div style={{
+        borderBottom: '1px solid var(--border)', padding: '14px 22px',
+        display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+        position: 'sticky', top: 0, zIndex: 20, background: 'var(--app-bg)',
+      }}>
+        <button onClick={() => navigate(-1)} style={{
+          background: 'none', border: 'none', color: 'var(--t3)', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: 0, fontFamily: 'inherit',
+        }}>
           <ArrowLeft size={15} /> Back
         </button>
-        <div style={{ width: 1, height: 18, background: C.border }} />
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 16, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>{name}</span>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.02em' }}>{name}</span>
             {isHot && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: `${C.green}18`, padding: '2px 8px', borderRadius: 100 }}>
-                🔥 HOT LEAD
+              <span style={{ fontSize: 10, fontWeight: 700, color: ACCENT.green, background: 'var(--surface-bg-2)', padding: '2px 8px', borderRadius: 100 }}>
+                HOT
               </span>
             )}
             {lead.status && (
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{lead.status}</span>
+              <span style={{ fontSize: 10, color: 'var(--t4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{lead.status}</span>
             )}
           </div>
           {lead.property_address && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-              <MapPin size={11} style={{ color: 'rgba(255,255,255,0.3)' }} />
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{lead.property_address}</span>
+              <MapPin size={11} style={{ color: 'var(--t4)' }} />
+              <span style={{ fontSize: 12, color: 'var(--t3)' }}>{lead.property_address}</span>
             </div>
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            onClick={() => load(true)}
-            style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, color: 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}
-          >
-            <RefreshCw size={12} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-            Refresh
-          </button>
-          <Link to="/leads" style={{ fontSize: 12, color: C.blue, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-            All leads <ExternalLink size={11} />
-          </Link>
-        </div>
+        <button onClick={() => load(true)} style={{
+          background: 'none', border: '1px solid var(--border)', borderRadius: 8,
+          color: 'var(--t3)', cursor: 'pointer', padding: '6px 11px',
+          display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontFamily: 'inherit',
+        }}>
+          <RefreshCw size={12} style={{ animation: busy ? 'veoriSpin 1s linear infinite' : 'none' }} />
+          Refresh
+        </button>
+        <Link to="/leads" style={{ fontSize: 12, color: ACCENT.green, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+          All leads <ExternalLink size={11} />
+        </Link>
       </div>
 
-      {/* ── Main grid ───────────────────────────────────────────────────── */}
-      <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: '320px 1fr 300px', gap: 20, maxWidth: 1440, margin: '0 auto' }}>
-
-        {/* ── Col 1: PMI + next action ─────────────────────────────────── */}
+      <div style={{
+        padding: 22, display: 'grid', gap: 18,
+        gridTemplateColumns: 'minmax(260px, 300px) minmax(0, 1fr) minmax(240px, 280px)',
+        alignItems: 'start', maxWidth: 1500, margin: '0 auto',
+      }} className="veori-intel-grid">
+        {/* Left */}
         <div>
-          {/* PMI card */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
-              <Brain size={14} style={{ color: C.purple }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>PMI Intelligence</span>
+          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+              <Brain size={13} style={{ color: ACCENT.gold }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+                Motivation
+              </span>
             </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
-              <ScoreRing score={overall} size={100} />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
+              <ScoreRing score={overall} size={94} />
               {pmi.overall?.basis && (
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 8, textAlign: 'center', lineHeight: 1.45 }}>
+                <div style={{ fontSize: 10, color: 'var(--t4)', marginTop: 8, textAlign: 'center', lineHeight: 1.5 }}>
                   {pmi.overall.basis}
                 </div>
               )}
             </div>
-
-            <PMIBar label="Distress"   metric={pmi.distress}   color={C.red}    icon={Flame}      delay={0}   />
-            <PMIBar label="Urgency"    metric={pmi.urgency}    color={C.amber}  icon={Zap}        delay={150} />
-            <PMIBar label="Engagement" metric={pmi.engagement} color={C.blue}   icon={Activity}   delay={300} />
-            <PMIBar label="Equity"     metric={pmi.equity}     color={C.green}  icon={DollarSign} delay={450} />
+            <PMIBar label="Distress"   metric={pmi.distress}   color={ACCENT.red}   icon={Flame}      delay={0} />
+            <PMIBar label="Urgency"    metric={pmi.urgency}    color={ACCENT.amber} icon={Zap}        delay={100} />
+            <PMIBar label="Engagement" metric={pmi.engagement} color={ACCENT.blue}  icon={Activity}   delay={200} />
+            <PMIBar label="Equity"     metric={pmi.equity}     color={ACCENT.green} icon={DollarSign} delay={300} />
           </div>
 
-          {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 14 }}>
             {[
-              { label: 'Calls',          value: counts?.calls ?? 0,  color: C.purple },
-              { label: 'Texts',          value: counts?.sms ?? 0,    color: C.blue },
-              { label: 'Est. Value',     value: lead.estimated_value ? `$${Number(lead.estimated_value).toLocaleString()}` : '—', color: C.green },
-              { label: 'Est. Equity',    value: lead.estimated_equity ? `$${Number(lead.estimated_equity).toLocaleString()}` : '—', color: C.amber },
-            ].map(({ label, value, color }) => (
-              <div key={label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px' }}>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color }}>{value ?? '—'}</div>
+              { label: 'Calls', value: counts.calls ?? 0 },
+              { label: 'Texts', value: counts.sms ?? 0 },
+              { label: 'Value', value: lead.estimated_value ? `$${Number(lead.estimated_value).toLocaleString()}` : '—' },
+              { label: 'Equity', value: lead.estimated_equity ? `$${Number(lead.estimated_equity).toLocaleString()}` : '—' },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10, padding: '11px 13px' }}>
+                <div style={{ fontSize: 10, color: 'var(--t4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>{label}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
               </div>
             ))}
           </div>
 
-          {/* Next action */}
-          <NextActionBanner next={nextAction} />
-
-          {/* Lead quick-info */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Lead Profile</div>
-            {[
-              { label: 'Phone',    value: lead.phone },
-              { label: 'City',     value: [lead.property_city, lead.property_state].filter(Boolean).join(', ') },
-              { label: 'Type',     value: lead.property_type },
-              { label: 'Niche',    value: lead.tags?.join(', ') || lead.source },
-              { label: 'ARV',      value: lead.estimated_arv ? `$${Number(lead.estimated_arv).toLocaleString()}` : null },
-            ].filter(r => r.value).map(({ label, value }) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: `1px solid ${C.border}` }}>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</span>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{value}</span>
-              </div>
-            ))}
-          </div>
+          <NextAction next={nextAction} />
         </div>
 
-        {/* ── Col 2: Agent chain ───────────────────────────────────────── */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <TrendingUp size={14} style={{ color: C.cyan }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                AI Agent Chain
-              </span>
-            </div>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginLeft: 4 }}>
-              {agentChain.length} steps · auto-refreshes every 15s
+        {/* Middle */}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            <TrendingUp size={13} style={{ color: ACCENT.green }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+              What the AI has done
             </span>
-            {refreshing && <Loader2 size={12} style={{ color: C.green, animation: 'spin 1s linear infinite', marginLeft: 'auto' }} />}
+            <span style={{ fontSize: 11, color: 'var(--t4)' }}>{chain.length} step{chain.length === 1 ? '' : 's'}</span>
+            {busy && <Loader2 size={11} style={{ color: ACCENT.green, animation: 'veoriSpin 1s linear infinite' }} />}
           </div>
 
-          {agentChain.length === 0 ? (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>
-              No AI activity yet for this lead.
-              <br /><br />
-              <span style={{ fontSize: 12 }}>Add this lead to a campaign to start the agent chain.</span>
+          {chain.length === 0 ? (
+            <div style={{
+              background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 14,
+              padding: '44px 24px', textAlign: 'center',
+            }}>
+              <Activity size={22} style={{ color: 'var(--t4)', marginBottom: 10 }} />
+              <div style={{ color: 'var(--t2)', fontSize: 14, fontWeight: 600, marginBottom: 5 }}>No activity yet</div>
+              <div style={{ color: 'var(--t4)', fontSize: 12, lineHeight: 1.6, maxWidth: 340, margin: '0 auto' }}>
+                Nothing has been sent to or received from this seller. Add them to a campaign
+                and every text, call and AI decision will appear here.
+              </div>
             </div>
-          ) : (
-            agentChain.map((step, i) => (
-              <AgentStep key={step.id} step={step} isLast={i === agentChain.length - 1} />
-            ))
-          )}
+          ) : chain.map((step, i) => (
+            <AgentStep key={step?.id || i} step={step} isLast={i === chain.length - 1} />
+          ))}
         </div>
 
-        {/* ── Col 3: Live platform feed ─────────────────────────────────── */}
-        <div>
-          <LiveFeed />
-        </div>
+        {/* Right */}
+        <div><LiveFeed /></div>
       </div>
-    </div>
+
+      <style>{`
+        @media (max-width: 1100px) {
+          .veori-intel-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </Shell>
   )
 }
 
-// ─── Lead selector (when no :id in URL) ──────────────────────────────────────
-function LeadSelector({ onSelect }) {
-  const [leads, setLeads] = useState([])
-  const [search, setSearch] = useState('')
+// ─── Lead picker (no :id in the URL) ─────────────────────────────────────────
+function LeadPicker() {
+  const [leads, setLeads]     = useState([])
+  const [q, setQ]             = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
-    fetch(`${API}/leads?limit=100`, { headers: auth() })
-      .then(r => r.json())
-      .then(d => setLeads(d.data || []))
-      .catch(() => {})
+    let cancelled = false
+    fetch(`${API}/leads?limit=100`, { headers: authHeaders() })
+      .then(r => {
+        if (r.status === 401) throw new Error('Your session has expired. Please sign in again.')
+        if (!r.ok) throw new Error(`Server returned ${r.status}`)
+        return r.json()
+      })
+      .then(d => { if (!cancelled) setLeads(Array.isArray(d?.data) ? d.data : []) })
+      .catch(e => { if (!cancelled) setError(e?.message || 'Could not load leads.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [])
 
   const filtered = leads.filter(l =>
-    `${l.first_name} ${l.last_name} ${l.property_address}`.toLowerCase().includes(search.toLowerCase())
+    `${l?.first_name || ''} ${l?.last_name || ''} ${l?.property_address || ''}`
+      .toLowerCase().includes(q.toLowerCase())
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, padding: 32, fontFamily: 'Inter,sans-serif' }}>
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <Brain size={20} style={{ color: C.green }} />
-          <h1 style={{ fontSize: 22, fontWeight: 900, color: '#fff', margin: 0 }}>VEORI Intelligence</h1>
+    <Shell>
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '30px 22px 60px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 6 }}>
+          <Brain size={19} style={{ color: ACCENT.green }} />
+          <h1 style={{ fontSize: 21, fontWeight: 800, color: 'var(--t1)', margin: 0, letterSpacing: '-0.02em' }}>AI Activity</h1>
         </div>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 28 }}>
-          Select a lead to watch the AI agent chain in real time.
+        <p style={{ color: 'var(--t3)', fontSize: 14, marginBottom: 22, marginTop: 0 }}>
+          Pick a seller to see every text, call and decision the AI has made.
         </p>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search leads…"
-          style={{
-            width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10,
-            color: '#fff', padding: '12px 16px', fontSize: 14, fontFamily: 'Inter,sans-serif',
-            outline: 'none', marginBottom: 16, boxSizing: 'border-box',
-          }}
-        />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.slice(0, 30).map(l => (
+
+        <div style={{ position: 'relative', marginBottom: 14 }}>
+          <Search size={14} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--t4)' }} />
+          <input
+            value={q} onChange={e => setQ(e.target.value)} placeholder="Search leads…"
+            style={{
+              width: '100%', boxSizing: 'border-box', background: 'var(--input-bg)',
+              border: '1px solid var(--input-border)', borderRadius: 10, color: 'var(--input-text)',
+              padding: '11px 14px 11px 34px', fontSize: 14, outline: 'none', fontFamily: 'inherit',
+            }}
+          />
+        </div>
+
+        {loading && (
+          <div style={{ textAlign: 'center', padding: 36, color: 'var(--t4)', fontSize: 13 }}>Loading leads…</div>
+        )}
+        {error && !loading && (
+          <div style={{ textAlign: 'center', padding: 30, color: 'var(--t3)', fontSize: 13 }}>{error}</div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {!loading && !error && filtered.slice(0, 40).map(l => (
             <button
               key={l.id}
               onClick={() => navigate(`/intelligence/lead/${l.id}`)}
               style={{
-                background: C.card, border: `1px solid ${C.border}`, borderRadius: 10,
-                padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                cursor: 'pointer', color: '#fff', textAlign: 'left', transition: 'border-color 0.15s',
+                background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 10,
+                padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = C.green + '60'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
             >
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{l.first_name} {l.last_name}</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{l.property_address}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {l.motivation_score != null && (
-                  <ScoreRing score={l.motivation_score} size={42} />
-                )}
-                <ChevronDown size={14} style={{ color: 'rgba(255,255,255,0.3)', transform: 'rotate(-90deg)' }} />
-              </div>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontWeight: 600, fontSize: 14, color: 'var(--t1)' }}>
+                  {`${l.first_name || ''} ${l.last_name || ''}`.trim() || 'Unnamed lead'}
+                </span>
+                <span style={{ display: 'block', fontSize: 12, color: 'var(--t4)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {l.property_address || '—'}
+                </span>
+              </span>
+              <ScoreRing score={l.motivation_score} size={40} />
             </button>
           ))}
-          {filtered.length === 0 && <div style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: 32 }}>No leads found</div>}
+          {!loading && !error && filtered.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 36, color: 'var(--t4)', fontSize: 13 }}>No leads found.</div>
+          )}
         </div>
       </div>
-    </div>
+    </Shell>
   )
 }
