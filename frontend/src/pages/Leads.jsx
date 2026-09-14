@@ -46,7 +46,7 @@ function CallCard({ call: c }) {
   const outcomeLabel = (c.outcome || '').replace(/_/g, ' ') || 'no answer'
   const outcomeColor = {
     appointment: '#00C37A', verbal_yes: '#00C37A', offer_made: '#00C37A',
-    callback_requested: '#4D9EFF', voicemail: '#FF9500', no_answer: '#FF9500',
+    callback_requested: '#C9A84C', voicemail: '#FF9500', no_answer: '#FF9500',
     not_home: '#FF9500', not_interested: '#FF4444',
   }[c.outcome] || 'var(--t4)'
 
@@ -157,7 +157,7 @@ function CallCard({ call: c }) {
                   <div key={i} style={{ display: 'flex', gap: 8 }}>
                     <span style={{
                       fontSize: 9, fontWeight: 700, flexShrink: 0, width: 36, marginTop: 2,
-                      color: isAlex ? '#00C37A' : '#4D9EFF', letterSpacing: '0.06em',
+                      color: isAlex ? '#00C37A' : '#C9A84C', letterSpacing: '0.06em',
                     }}>{isAlex ? 'ALEX' : 'SELL'}</span>
                     <p style={{ margin: 0, fontSize: 11, color: 'var(--t2)', lineHeight: 1.5 }}>
                       {line.replace(/^(alex|agent|seller):\s*/i, '')}
