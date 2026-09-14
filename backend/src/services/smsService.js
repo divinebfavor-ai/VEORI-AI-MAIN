@@ -197,7 +197,7 @@ async function sendOpeningSMS(lead, userId) {
 
   // DNC gate - never send to opted-out numbers
   if (lead.is_on_dnc) {
-    await supabase.from('tcpa_log').insert({
+    await require('./tcpaLog').logTcpaCompat({
       user_id:  userId,
       lead_id:  lead.id,
       phone,
@@ -447,7 +447,7 @@ async function sendReply(toPhone, body, userId, leadId) {
       .maybeSingle();
 
     if (dncCheck) {
-      await supabase.from('tcpa_log').insert({
+      await require('./tcpaLog').logTcpaCompat({
         user_id:  userId,
         lead_id:  leadId,
         phone:    toPhone,

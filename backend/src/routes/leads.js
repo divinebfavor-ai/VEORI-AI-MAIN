@@ -767,9 +767,11 @@ router.post('/bulk', async (req, res, next) => {
 // PUT /api/leads/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['first_name','last_name','email','phone','property_address','property_city','property_state','property_zip','property_type','estimated_value','estimated_equity','estimated_arv','source','status','motivation_score','notes','tags','pipeline_stage'];
+    const allowed = ['first_name','last_name','email','phone','property_address','property_city','property_state','property_zip','property_type','estimated_value','estimated_equity','estimated_arv','source','status','motivation_score','notes','tags','pipeline_stage','ai_instructions'];
     const updates = { updated_at: new Date().toISOString() };
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    // Injected verbatim into the voice AI prompt (vapiService leadStyle) - bound it.
+    if (typeof updates.ai_instructions === 'string') updates.ai_instructions = updates.ai_instructions.slice(0, 2000);
     const { data, error } = await supabase.from('leads').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
     if (error) throw error;
     res.json({ success: true, data });
@@ -1132,7 +1134,7 @@ router.get('/:id/intelligence', async (req, res, next) => {
     // Every lane best-effort - one failing source must not 500 the whole view.
     const [callsRes, smsRes, activityRes] = await Promise.allSettled([
       supabase.from('calls')
-        .select('id, direction, status, outcome, duration_seconds, motivation_score, seller_personality, key_signals, objections, ai_summary, offer_made, seller_response, operator_took_over, started_at, ended_at, created_at')
+        .select('id, direction, status, outcome, duration_seconds, transcript, recording_url, motivation_score, seller_personality, key_signals, objections, ai_summary, offer_made, seller_response, operator_took_over, started_at, ended_at, created_at')
         .eq('lead_id', leadId).eq('user_id', uid)
         .order('started_at', { ascending: true }).limit(200),
       supabase.from('sms_messages')
@@ -1156,6 +1158,7 @@ router.get('/:id/intelligence', async (req, res, next) => {
         agentChain: _buildAgentChain(lead, calls, sms, activity),
         nextAction: _nextAction(lead, calls),
         counts: { calls: calls.length, sms: sms.length, activity: activity.length },
+        contact: _contactWindow(lead),
       },
     });
   } catch (err) { next(err); }
@@ -1165,6 +1168,24 @@ router.get('/:id/intelligence', async (req, res, next) => {
 // Each sub-score returns { value, basis, confidence }. `confidence:'none'` means
 // we had no evidence and `value` is null - the UI renders that as "—", never 0,
 // so an operator is never shown a fabricated measurement.
+// Seller's time zone and whether now is inside the 8am-9pm TCPA window, so an
+// operator texting or calling from the profile sees it before acting.
+function _contactWindow(lead) {
+  try {
+    const tcpa = require('../services/tcpaWindow');
+    const state = lead.property_state || null;
+    const within = tcpa.isWithinTcpaWindow(state);
+    return {
+      state,
+      timezone: tcpa.tzForState(state),
+      within_hours: within,
+      next_window_in_ms: within ? 0 : tcpa.msUntilNextWindow(state),
+    };
+  } catch {
+    return null;
+  }
+}
+
 const _DISTRESS_KW = ['foreclosure','behind','late payment','divorce','bankruptcy','probate',
   'lien','back taxes','eviction','job loss','medical','repair','damage','vacant','inherited'];
 const _URGENCY_KW  = ['asap','quickly','fast','soon','immediately','this week','this month',

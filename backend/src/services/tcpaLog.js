@@ -79,4 +79,26 @@ async function logTcpa({
   return { ok: true };
 }
 
-module.exports = { logTcpa };
+// Adapter for older call sites that still build loose {phone, action, notes} rows.
+// Those rows omitted the NOT NULL phone_number / called_at_utc columns, so every
+// insert failed silently. Routing them through logTcpa makes each one land.
+async function logTcpaCompat(input) {
+  const rows = Array.isArray(input) ? input : [input];
+  const results = [];
+  for (const r of rows) {
+    if (!r || typeof r !== 'object') continue;
+    results.push(await logTcpa({
+      userId: r.user_id || null,
+      lead: { id: r.lead_id || null, phone: r.phone_number || r.phone || null, property_state: r.property_state || null },
+      callId: r.call_id || null,
+      withinHours: r.within_calling_hours === true,
+      dncResult: r.dnc_result || (/dnc|blocked|opt_out/i.test(String(r.action || '')) ? 'blocked' : 'unknown'),
+      consent: r.consent_status || null,
+      action: r.action || null,
+      note: r.notes || r.local_time || '',
+    }));
+  }
+  return { data: results, error: null };
+}
+
+module.exports = { logTcpa, logTcpaCompat };

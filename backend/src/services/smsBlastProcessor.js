@@ -59,7 +59,7 @@ async function processBlastSMS(data) {
       .eq('phone', to)
       .maybeSingle();
     if (dncHit) {
-      await supabase.from('tcpa_log').insert({
+      await require('./tcpaLog').logTcpaCompat({
         user_id:    userId || null,
         lead_id:    leadId || null,
         phone:      to,
@@ -102,7 +102,7 @@ async function processBlastSMS(data) {
         // BullMQ no-op against this still-active job (same jobId == dedup == lost msg).
         const sendDay = new Date(Date.now() + delay).toISOString().slice(0, 10);
         await enqueueSMS({ leadId, campaignId, userId, to, body, smsFirstLeadId, delay, jobIdSuffix: `-qh-${sendDay}` });
-        await supabase.from('tcpa_log').insert({
+        await require('./tcpaLog').logTcpaCompat({
           user_id:    userId || null,
           lead_id:    leadId || null,
           phone:      to,
