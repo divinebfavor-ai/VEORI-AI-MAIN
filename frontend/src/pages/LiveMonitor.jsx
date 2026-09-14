@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Radio, Headphones, Mic, X, Volume2, VolumeX, PhoneCall, PhoneOff, PhoneIncoming, Clock, CheckCircle, AlertCircle, ChevronRight, Search, Plus, UserCircle, Trash2 } from 'lucide-react'
+import { Radio, Headphones, Mic, MicOff, X, Volume2, VolumeX, PhoneCall, PhoneOff, PhoneIncoming, Clock, CheckCircle, AlertCircle, ChevronRight, Search, Plus, UserCircle, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { calls as callsApi, leads as leadsApi } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
@@ -445,7 +445,7 @@ function LiveCallCard({ call, isListening, isPending, volume, takeover, onListen
           </div>
         )}
 
-        {/* Takeover */}
+        {/* Mute AI. /calls/takeover only silences the AI; no path carries the operator's voice to the seller yet. */}
         {!isListening && (
           <button
             onClick={takeover ? onReturn : onTakeover}
@@ -457,7 +457,7 @@ function LiveCallCard({ call, isListening, isPending, volume, takeover, onListen
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
             }}
           >
-            <Mic size={12} /> {takeover ? 'Return' : 'Join'}
+            <MicOff size={12} /> {takeover ? 'Unmute AI' : 'Mute AI'}
           </button>
         )}
 
@@ -927,15 +927,15 @@ export default function LiveMonitor() {
     try {
       await callsApi.callTakeover(call.id || call.vapi_call_id)
       setTakeovers(t => ({ ...t, [call.id]: true }))
-      toast.success('You are now live on this call')
-    } catch { toast.error('Takeover failed') }
+      toast.success('AI muted. Your voice is not connected to this call.')
+    } catch { toast.error('Could not mute the AI') }
   }
 
   const handleReturn = async (call) => {
     try {
       await callsApi.returnToAI(call.id || call.vapi_call_id)
       setTakeovers(t => { const n = { ...t }; delete n[call.id]; return n })
-      toast.success('Returned to AI')
+      toast.success('AI unmuted')
     } catch { toast.error('Failed') }
   }
 

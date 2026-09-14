@@ -7,11 +7,15 @@
  * took, the full text thread, every call with its audio and transcript, photos and
  * aerial imagery, signed documents, the deal, notes, and the AI instructions.
  *
- * What the team can do from here: text the seller, start an AI call, take over a
- * live call and hand it back, end a call, drop a voicemail, request photos, skip
+ * What the team can do from here: text the seller, start an AI call, mute and
+ * unmute the AI on a live call, end a call, drop a voicemail, request photos, skip
  * trace, mark DNC, clear a human-review flag, write notes, and tell the AI how to
  * handle this seller (lead.ai_instructions is read by the live voice engine before
  * every call: voiceBrainService -> getScriptByLeadTag -> buildAlexPrompt).
+ *
+ * Mute is labelled as mute on purpose: /calls/takeover only silences the AI
+ * (mediaStreamServer.muteAgent) and no path carries the operator's voice to the
+ * seller yet, so calling it "take over" would promise a conversation that is silence.
  *
  * Deliberately NOT here: a "pause AI" switch. deals.ai_paused is saved and logged
  * but no outreach path reads it, so a toggle would claim control it does not have.
@@ -27,7 +31,7 @@ import {
   RefreshCw, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, Clock, CheckCircle2,
   Circle, Loader2, Activity, TrendingUp, Target, Flame, DollarSign, MapPin, User,
   Radio, Search, Send, Mic, Camera, Ban, Copy, Check, Home, ShieldCheck, Image as ImageIcon,
-  Headphones, StickyNote, Briefcase, UserCheck,
+  StickyNote, Briefcase, UserCheck, MicOff,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -523,7 +527,7 @@ function CallCard({ call, onTakeover, onReturn, onEnd, busy, coaching }) {
             <Badge variant="gray">{call.direction === 'inbound' ? 'Inbound' : 'Outbound'}</Badge>
             {live && <Badge variant="green" dot>Live now</Badge>}
             {call.outcome && <Badge variant={['verbal_yes', 'appointment', 'offer_made'].includes(call.outcome) ? 'green' : call.outcome === 'not_interested' ? 'red' : 'gold'}>{words(call.outcome)}</Badge>}
-            {call.operator_took_over && <Badge variant="amber">Operator took over</Badge>}
+            {call.operator_took_over && <Badge variant="amber">AI muted by operator</Badge>}
           </div>
           <div style={{ fontSize: 12, color: 'var(--t3)', fontVariantNumeric: 'tabular-nums' }}>
             {dateTime(call.started_at || call.created_at)}{duration(call.duration_seconds) ? ` · ${duration(call.duration_seconds)}` : ''}{!live && call.status ? ` · ${words(call.status)}` : ''}
@@ -540,9 +544,9 @@ function CallCard({ call, onTakeover, onReturn, onEnd, busy, coaching }) {
       {live && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
           {call.operator_took_over ? (
-            <Button variant="secondary" size="sm" loading={busy} onClick={() => onReturn(call)}><Brain size={12} /> Hand back to AI</Button>
+            <Button variant="secondary" size="sm" loading={busy} onClick={() => onReturn(call)}><Brain size={12} /> Unmute AI</Button>
           ) : (
-            <Button variant="primary" size="sm" loading={busy} onClick={() => onTakeover(call)}><Headphones size={12} /> Take over call</Button>
+            <Button variant="secondary" size="sm" loading={busy} onClick={() => onTakeover(call)}><MicOff size={12} /> Mute AI</Button>
           )}
           <Button variant="danger" size="sm" disabled={busy} onClick={() => onEnd(call)}><PhoneOff size={12} /> End call</Button>
           <Link to="/monitor" style={{ fontSize: 12, color: C.green, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4, alignSelf: 'center' }}>
@@ -925,7 +929,7 @@ export default function VeoriIntelligence() {
     try {
       const res = await apiFetch('/calls/takeover', { method: 'POST', body: { call_id: call.id } })
       setCoaching(prev => ({ ...prev, [call.id]: res.coaching || null }))
-      toast.success('You have taken over the call')
+      toast.success('AI muted. Your voice is not connected to this call.')
       await loadLive()
     } catch (e) { toast.error(e.message) } finally { setBusyCall(null) }
   }
@@ -933,7 +937,7 @@ export default function VeoriIntelligence() {
     setBusyCall(call.id)
     try {
       await apiFetch('/calls/return-to-ai', { method: 'POST', body: { call_id: call.id } })
-      toast.success('The AI is back in control of the call')
+      toast.success('AI unmuted')
       await loadLive()
     } catch (e) { toast.error(e.message) } finally { setBusyCall(null) }
   }
@@ -1029,11 +1033,11 @@ export default function VeoriIntelligence() {
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: C.green }} />
               </span>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', flex: 1, minWidth: 200 }}>
-                {liveCall.operator_took_over ? 'You are on a live call with this seller.' : 'The AI is on a live call with this seller right now.'}
+                {liveCall.operator_took_over ? 'The AI is muted on this call. The seller cannot hear you. Unmute the AI or end the call.' : 'The AI is on a live call with this seller right now.'}
               </span>
               {liveCall.operator_took_over
-                ? <Button variant="secondary" size="sm" loading={busyCall === liveCall.id} onClick={() => handBack(liveCall)}><Brain size={12} /> Hand back to AI</Button>
-                : <Button variant="primary" size="sm" loading={busyCall === liveCall.id} onClick={() => takeover(liveCall)}><Headphones size={12} /> Take over</Button>}
+                ? <Button variant="secondary" size="sm" loading={busyCall === liveCall.id} onClick={() => handBack(liveCall)}><Brain size={12} /> Unmute AI</Button>
+                : <Button variant="secondary" size="sm" loading={busyCall === liveCall.id} onClick={() => takeover(liveCall)}><MicOff size={12} /> Mute AI</Button>}
               <Button variant="danger" size="sm" disabled={busyCall === liveCall.id} onClick={() => endCall(liveCall)}><PhoneOff size={12} /> End call</Button>
             </div>
           )}

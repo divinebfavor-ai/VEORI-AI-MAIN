@@ -536,7 +536,9 @@ router.post('/takeover', async (req, res, next) => {
       ? await require('../services/aiService').getCoachingSuggestions(call.transcript)
       : { suggestions: [], objection_responses: [], offer_recommendation: null };
 
-    res.json({ success: true, message: 'Takeover active - you are live', coaching });
+    // muteAgent only silences the AI; nothing carries the operator's voice to the
+    // seller yet, so the response must not claim the operator is live on the call.
+    res.json({ success: true, message: 'AI muted - your voice is not connected to the call', coaching });
   } catch (err) { next(err); }
 });
 
@@ -552,7 +554,7 @@ router.post('/return-to-ai', async (req, res, next) => {
       await vapiService.unmuteAssistant(call.vapi_call_id);
     }
     await supabase.from('calls').update({ operator_took_over: false }).eq('id', call_id);
-    res.json({ success: true, message: 'AI back in control' });
+    res.json({ success: true, message: 'AI unmuted' });
   } catch (err) { next(err); }
 });
 
