@@ -286,9 +286,15 @@ router.post('/initiate', async (req, res, next) => {
     } catch (vapiErr) {
       // Mark the call record as failed so it shows correctly in the UI
       await supabase.from('calls').update({ status: 'failed', ended_at: new Date().toISOString() }).eq('id', callId);
-      const vapiMsg = vapiErr.response?.data?.message || vapiErr.response?.data?.error || vapiErr.message || 'VAPI call failed';
-      console.error(`[Call] VAPI initiate failed for lead ${lead_id}:`, vapiMsg);
-      return res.status(502).json({ success: false, error: vapiMsg });
+      const rawMsg = vapiErr.response?.data?.message || vapiErr.response?.data?.error || vapiErr.message || 'Call could not be started';
+      // Twilio 20003 "Authenticate" means the provider account itself rejected the
+      // request (e.g. suspended or closed). Say so plainly instead of a one-word error.
+      const providerAccountDown = vapiErr.code === 20003 || vapiErr.status === 401 || /^authenticate$/i.test(String(rawMsg).trim());
+      const operatorMsg = providerAccountDown
+        ? 'Your calling provider (Twilio) rejected the account. Calls and texts cannot be sent until the Twilio account is active again.'
+        : rawMsg;
+      console.error(`[Call] initiate failed for lead ${lead_id}:`, rawMsg, vapiErr.code ? `(code ${vapiErr.code})` : '');
+      return res.status(502).json({ success: false, error: operatorMsg, provider_code: vapiErr.code || null });
     }
 
     // Update call with Vapi ID. Sid write is unconditional; the status bump is

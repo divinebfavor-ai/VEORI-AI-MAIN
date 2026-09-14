@@ -917,7 +917,14 @@ export default function VeoriIntelligence() {
   const startCall = () => { if (outsideHoursOk('Calling')) run('call', () => apiFetch('/calls/initiate', { method: 'POST', body: { lead_id: lead.id } }), 'AI call started') }
   const voicemail = () => { if (outsideHoursOk('A voicemail')) run('vm', () => apiFetch(`/leads/${lead.id}/voicemail`, { method: 'POST', body: { template: 'first_contact' } }), 'Voicemail sent') }
   const requestPhotos = () => run('photos', async () => { await apiFetch(`/leads/${lead.id}/send-photo-request`, { method: 'POST' }); await loadStatic() }, 'Photo request sent')
-  const skipTrace = () => run('trace', () => apiFetch(`/leads/${lead.id}/skip-trace`, { method: 'POST' }), 'Skip trace started')
+  // The route answers success:true even when skip tracing did not run; the real
+  // outcome is in data.success / data.message, so read that instead.
+  const skipTrace = () => run('trace', async () => {
+    const res = await apiFetch(`/leads/${lead.id}/skip-trace`, { method: 'POST' })
+    if (res.data && res.data.success === false) throw new Error(res.data.message || 'Skip trace could not run.')
+    const found = (res.data?.phones?.length || 0) + (res.data?.emails?.length || 0)
+    toast.success(found ? `Skip trace found ${found} contact detail${found === 1 ? '' : 's'}` : 'Skip trace finished. No new contact details found.')
+  }, null)
   const markDnc = () => {
     if (!window.confirm(`Add ${name} to the Do Not Call list? The AI will stop all texts and calls to this number.`)) return
     run('dnc', () => apiFetch(`/leads/${lead.id}/dnc`, { method: 'POST', body: { reason: 'Marked from lead profile' } }), 'Added to Do Not Call list')
