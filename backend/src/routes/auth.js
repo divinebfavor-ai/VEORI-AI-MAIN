@@ -288,7 +288,10 @@ router.get('/me', requireAuth, async (req, res, next) => {
       .eq('id', req.user.id)
       .single();
     if (error) throw error;
-    res.json({ success: true, user: data });
+    let team = null;
+    try { team = await require('../services/teamService').contextForActor(req.user.id); }
+    catch (e) { console.warn('[Auth] /me team context failed:', e.message); }
+    res.json({ success: true, user: { ...data, team } });
   } catch (err) { next(err); }
 });
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import postLoginPath from '../utils/postLoginPath'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
@@ -70,7 +71,7 @@ export default function Register() {
         localStorage.removeItem('pending_plan')
         navigate(`/billing?plan=${pendingPlan}`)
       } else {
-        navigate('/dashboard')
+        navigate(postLoginPath())
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Registration failed')

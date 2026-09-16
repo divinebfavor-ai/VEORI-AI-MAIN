@@ -486,6 +486,7 @@ app.use('/api/v1', rateLimit({
 }));
 app.use('/api/v1', require('./routes/publicApi'));
 app.use('/api/developer', require('./routes/developer'));
+app.use('/api/team', require('./routes/team'));
 app.use('/api/esign', require('./routes/esign'));
 
 // Webhook retry sweep. Each delivery is claimed before sending, so overlapping

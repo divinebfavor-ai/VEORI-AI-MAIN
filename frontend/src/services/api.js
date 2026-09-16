@@ -32,6 +32,14 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // 403 from a team role rule - say plainly why, once per message burst.
+    if (status === 403 && error.response?.data?.code === 'TEAM_ROLE_FORBIDDEN') {
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast.error(error.response.data.error || 'Your team role does not allow this', { id: 'team-role-forbidden' })
+      })
+      return Promise.reject(error)
+    }
+
     // 429 - too many requests: wait and retry automatically (up to 3 times)
     const config = error.config
     if (status === 429 && config && !config._retryCount) {
@@ -161,6 +169,15 @@ export const phones = {
 }
 
 // ─── Deals ───────────────────────────────────────────────────────────────────
+export const team = {
+  get:        ()               => api.get('/api/team'),
+  invite:     (email, role)    => api.post('/api/team/invites', { email, role }),
+  accept:     (token)          => api.post('/api/team/accept', { token }),
+  changeRole: (id, role)       => api.patch(`/api/team/members/${id}`, { role }),
+  remove:     (id)             => api.delete(`/api/team/members/${id}`),
+  leave:      ()               => api.post('/api/team/leave'),
+}
+
 export const developer = {
   meta:            ()          => api.get('/api/developer/meta'),
   listKeys:        ()          => api.get('/api/developer/api-keys'),

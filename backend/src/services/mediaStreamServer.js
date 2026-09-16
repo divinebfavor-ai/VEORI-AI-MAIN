@@ -600,6 +600,11 @@ async function handleListenUpgrade(url, req, socket, head, listenWss) {
     const jwt = require('jsonwebtoken');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     userId = decoded?.id || decoded?.user_id || decoded?.sub;
+    // Team members listen to calls in the owner's workspace.
+    if (userId && decoded?.id) {
+      const ctx = await require('./teamService').resolveContext(decoded);
+      userId = ctx.id;
+    }
   } catch (_) {
     try { socket.destroy(); } catch (_) { /* noop */ }
     return;

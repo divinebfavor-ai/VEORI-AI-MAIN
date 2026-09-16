@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import postLoginPath from '../utils/postLoginPath'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Eye, EyeOff, Shield, RotateCcw } from 'lucide-react'
@@ -51,7 +52,7 @@ export default function Login() {
       try {
         const user = JSON.parse(atob(gu.replace(/-/g, '+').replace(/_/g, '/')))
         completeLogin(gt, user)
-        navigate('/dashboard', { replace: true })
+        navigate(postLoginPath(), { replace: true })
       } catch {
         toast.error('Google sign-in failed. Please try again.')
       }
@@ -91,7 +92,7 @@ export default function Login() {
           : 'your email'
         toast.success(`Verification code sent to ${methodLabel}`)
       } else {
-        navigate('/dashboard')
+        navigate(postLoginPath())
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Invalid credentials')
@@ -107,7 +108,7 @@ export default function Login() {
     try {
       const res = await twoFA.verify(twoFAPending.temp_token, twoFACode.replace(/\s/g, ''))
       completeLogin(res.data.token, res.data.user)
-      navigate('/dashboard')
+      navigate(postLoginPath())
     } catch (err) {
       toast.error(err.response?.data?.error || 'Invalid code. Please try again.')
       setTwoFACode('')
