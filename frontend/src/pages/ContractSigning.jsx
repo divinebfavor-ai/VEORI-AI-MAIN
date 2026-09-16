@@ -77,6 +77,13 @@ export default function ContractSigning() {
     <div style={shell}>
       <div style={{ ...card, maxWidth: 960 }}>
         <div style={{ marginBottom: 20 }}>
+          {(session?.brand?.logo_url || session?.brand?.brand_name) && (
+            <div style={{ marginBottom: 12 }}>
+              {session.brand.logo_url
+                ? <img src={session.brand.logo_url} alt={session.brand.brand_name || 'Logo'} style={{ height: 32, maxWidth: 180, objectFit: 'contain' }} />
+                : <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--t1)' }}>{session.brand.brand_name}</p>}
+            </div>
+          )}
           <p style={eyebrow}>{session?.contract?.contract_type?.toUpperCase() || 'CONTRACT'}</p>
           <h1 style={title}>Review and Sign</h1>
           <p style={muted}>

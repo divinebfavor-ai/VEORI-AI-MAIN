@@ -91,6 +91,7 @@ router.get('/session/:token', async (req, res, next) => {
           signing_status: signer.contracts.signing_status,
           closing_date: signer.contracts.closing_date,
         },
+        brand: await require('../services/brandingService').getPublicBrand(signer.contracts.user_id).catch(() => null),
       },
     });
   } catch (err) { next(err); }

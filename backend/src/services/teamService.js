@@ -48,7 +48,7 @@ async function resolveContext(decoded) {
 const OPEN_TO_ALL = ['/api/auth', '/api/team', '/api/feedback', '/api/notifications'];
 const OWNER_ONLY = ['/api/billing', '/api/fw-billing', '/api/stripe', '/api/referrals', '/api/privacy'];
 const OWNER_OR_ADMIN = ['/api/developer'];
-const OWNER_OR_ADMIN_WRITES = ['/api/phones', '/api/operator'];
+const OWNER_OR_ADMIN_WRITES = ['/api/phones', '/api/operator', '/api/branding'];
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const starts = (url, list) => list.some(p => url === p || url.startsWith(`${p}/`) || url.startsWith(`${p}?`));

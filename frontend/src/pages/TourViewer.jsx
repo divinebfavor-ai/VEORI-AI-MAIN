@@ -10,6 +10,7 @@ const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.u
 export default function TourViewer() {
   const { token } = useParams()
   const [tour, setTour]       = useState(null)
+  const [brand, setBrand]     = useState(null)
   const [listing, setListing] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
@@ -20,7 +21,7 @@ export default function TourViewer() {
     fetch(`${API}/tour/${token}`)
       .then(r => r.json())
       .then(d => {
-        if (d.success) { setTour(d.tour); setListing(d.listing) }
+        if (d.success) { setTour(d.tour); setListing(d.listing); setBrand(d.brand || null) }
         else setError(d.error || 'Tour not found')
       })
       .catch(() => setError('Failed to load tour'))
@@ -68,8 +69,16 @@ export default function TourViewer() {
           {listing && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>{listing.address}, {listing.city}, {listing.state} {listing.zip}</div>}
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 2 }}>Powered by</div>
-          <div style={{ fontSize: 16, fontWeight: 900, color: '#00C37A' }}>VEORI AI</div>
+          {brand?.brand_name || brand?.logo_url ? (
+            brand.logo_url
+              ? <img src={brand.logo_url} alt={brand.brand_name || 'Logo'} style={{ height: 32, maxWidth: 160, objectFit: 'contain' }} />
+              : <div style={{ fontSize: 16, fontWeight: 900, color: '#00C37A' }}>{brand.brand_name}</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 2 }}>Powered by</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#00C37A' }}>VEORI AI</div>
+            </>
+          )}
         </div>
       </div>
 
@@ -149,11 +158,15 @@ export default function TourViewer() {
       {/* Footer */}
       <div style={{ background: '#0A1526', borderTop: '1px solid rgba(255,255,255,0.07)', padding: '20px 24px', textAlign: 'center' }}>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
-          Interested in this property? Contact us through VEORI AI.
+          Interested in this property? Contact {brand?.brand_name || 'us'}
+          {brand?.support_phone ? ` at ${brand.support_phone}` : ''}
+          {brand?.support_email ? `${brand?.support_phone ? ' or' : ' at'} ${brand.support_email}` : ''}.
         </div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.20)', marginTop: 8 }}>
-          Powered by VEORI AI · Built to Achieve.
-        </div>
+        {!brand?.hide_powered_by && (
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.20)', marginTop: 8 }}>
+            Powered by VEORI AI · Built to Achieve.
+          </div>
+        )}
       </div>
     </div>
   )

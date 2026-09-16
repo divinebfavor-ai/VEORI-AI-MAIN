@@ -62,11 +62,13 @@ async function sendEmail({ userId, leadId, dealId, to, subject, body, html: html
     let replyTo  = null;
     if (userId && supabase) {
       const { data: u } = await supabase.from('users').select('email_from_name, email_reply_to, full_name, company_name').eq('id', userId).single();
+      // White label: the workspace brand name is used when no explicit sender name is set.
+      const { data: b } = await supabase.from('brand_settings').select('brand_name, support_email').eq('user_id', userId).maybeSingle();
       if (u) {
         const name    = u.email_from_name || (u.full_name ? `${u.full_name}` : null) || 'Alex at Veori';
-        const company = u.company_name ? ` at ${u.company_name}` : '';
+        const company = b?.brand_name ? ` at ${b.brand_name}` : (u.company_name ? ` at ${u.company_name}` : '');
         fromName  = u.email_from_name || `${name}${company}`;
-        replyTo   = u.email_reply_to  || null;
+        replyTo   = u.email_reply_to  || b?.support_email || null;
       }
     }
     const defaultFrom = process.env.EMAIL_FROM || 'alex@veori.net';

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import postLoginPath from '../utils/postLoginPath'
+import useBrandStore from '../store/brandStore'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Eye, EyeOff, Shield, RotateCcw } from 'lucide-react'
@@ -23,6 +24,10 @@ function GoogleIcon() {
 
 // ─── Login Page ───────────────────────────────────────────────────────────────
 export default function Login() {
+  // On a verified custom domain, show that workspace's brand before sign-in.
+  const brand = useBrandStore(s => s.brand)
+  const loadBrand = useBrandStore(s => s.load)
+  useEffect(() => { loadBrand({ authenticated: false }) }, [loadBrand])
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
@@ -151,14 +156,18 @@ export default function Login() {
       {/* Logo */}
       <div style={{ textAlign: 'center', marginBottom: 32, position: 'relative', zIndex: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-          <VeoriLogo size={56} />
+          {brand?.logo_url
+            ? <img src={brand.logo_url} alt={brand.brand_name || 'Logo'} style={{ height: 56, maxWidth: 220, objectFit: 'contain' }} />
+            : !brand?.brand_name && <VeoriLogo size={56} />}
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 500, color: '#FFFFFF', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-          VEORI
+          {brand?.brand_name || 'VEORI'}
         </h1>
-        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-          Built to Achieve
-        </p>
+        {!brand?.hide_powered_by && (
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            {brand?.brand_name ? 'Powered by Veori' : 'Built to Achieve'}
+          </p>
+        )}
       </div>
 
       {/* Glass card */}

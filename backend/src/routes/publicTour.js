@@ -11,7 +11,7 @@ router.get('/:token', async (req, res) => {
   try {
     const { data: tour, error } = await supabase
       .from('virtual_tours')
-      .select('id, title, photos, tour_type, kuula_url, trolto_url, status, listing_id, created_at')
+      .select('id, user_id, title, photos, tour_type, kuula_url, trolto_url, status, listing_id, created_at')
       .eq('tour_token', req.params.token)
       .eq('is_public', true)
       .single();
@@ -29,7 +29,9 @@ router.get('/:token', async (req, res) => {
       listing = data;
     }
 
-    res.json({ success: true, tour, listing });
+    const brand = await require('../services/brandingService').getPublicBrand(tour.user_id).catch(() => null);
+    const { user_id: _owner, ...publicTour } = tour;
+    res.json({ success: true, tour: publicTour, listing, brand });
   } catch (err) {
     console.error('[PublicTour] get error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to load tour' });

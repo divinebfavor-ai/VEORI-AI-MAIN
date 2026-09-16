@@ -169,6 +169,16 @@ export const phones = {
 }
 
 // ─── Deals ───────────────────────────────────────────────────────────────────
+export const branding = {
+  get:          ()        => api.get('/api/branding'),
+  update:       (data)    => api.put('/api/branding', data),
+  uploadLogo:   (file)    => { const f = new FormData(); f.append('logo', file); return api.post('/api/branding/logo', f, { headers: { 'Content-Type': 'multipart/form-data' } }) },
+  removeLogo:   ()        => api.delete('/api/branding/logo'),
+  setDomain:    (domain)  => api.put('/api/branding/domain', { domain }),
+  verifyDomain: ()        => api.post('/api/branding/domain/verify'),
+  forDomain:    (domain)  => api.get('/api/branding/public', { params: { domain } }),
+}
+
 export const team = {
   get:        ()               => api.get('/api/team'),
   invite:     (email, role)    => api.post('/api/team/invites', { email, role }),

@@ -118,7 +118,10 @@ app.use(cors({
     // Allow server-to-server (no origin), Railway health checks
     if (!origin) return cb(null, true);
     if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error(`CORS: origin ${origin} not allowed`));
+    // White label: an operator's custom domain, once its DNS ownership is verified.
+    require('./services/brandingService').isVerifiedOrigin(origin)
+      .then(ok => (ok ? cb(null, true) : cb(new Error(`CORS: origin ${origin} not allowed`))))
+      .catch(() => cb(new Error(`CORS: origin ${origin} not allowed`)));
   },
   credentials:      true,
   methods:          ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -487,6 +490,7 @@ app.use('/api/v1', rateLimit({
 app.use('/api/v1', require('./routes/publicApi'));
 app.use('/api/developer', require('./routes/developer'));
 app.use('/api/team', require('./routes/team'));
+app.use('/api/branding', require('./routes/branding'));
 app.use('/api/esign', require('./routes/esign'));
 
 // Webhook retry sweep. Each delivery is claimed before sending, so overlapping

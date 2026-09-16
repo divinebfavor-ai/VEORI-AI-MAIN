@@ -12,6 +12,7 @@ const API = import.meta.env.VITE_API_URL || 'https://veori.net'
 export default function PropertyPhotoUpload() {
   const { token } = useParams()
   const [property, setProperty]   = useState(null)
+  const [brand, setBrand]         = useState(null)
   const [status,   setStatus]     = useState('loading') // loading | ready | uploading | success | error | expired
   const [files,    setFiles]       = useState([])
   const [previews, setPreviews]    = useState([])
@@ -23,7 +24,7 @@ export default function PropertyPhotoUpload() {
     fetch(`${API}/api/photo-upload/${token}`)
       .then(r => r.json())
       .then(d => {
-        if (d.success) { setProperty(d.property); setStatus('ready') }
+        if (d.success) { setProperty(d.property); setBrand(d.brand || null); setStatus('ready') }
         else setStatus('expired')
       })
       .catch(() => setStatus('error'))
@@ -120,7 +121,9 @@ export default function PropertyPhotoUpload() {
     <div style={s.page}>
       <div style={s.card}>
         <div style={s.header}>
-          <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', marginBottom: 6 }}>VEORI</div>
+          {brand?.logo_url
+            ? <img src={brand.logo_url} alt={brand.brand_name || 'Logo'} style={{ height: 36, maxWidth: 180, objectFit: 'contain', margin: '0 auto 6px', display: 'block' }} />
+            : <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', marginBottom: 6 }}>{brand?.brand_name || 'VEORI'}</div>}
         </div>
         <div style={{ ...s.body, textAlign: 'center' }}>
           <XCircle size={48} style={{ color: '#FF4444', margin: '0 auto 16px', display: 'block' }} />
@@ -137,7 +140,9 @@ export default function PropertyPhotoUpload() {
     <div style={s.page}>
       <div style={s.card}>
         <div style={s.header}>
-          <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', marginBottom: 6 }}>VEORI</div>
+          {brand?.logo_url
+            ? <img src={brand.logo_url} alt={brand.brand_name || 'Logo'} style={{ height: 36, maxWidth: 180, objectFit: 'contain', margin: '0 auto 6px', display: 'block' }} />
+            : <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', marginBottom: 6 }}>{brand?.brand_name || 'VEORI'}</div>}
         </div>
         <div style={{ ...s.body, textAlign: 'center' }}>
           <CheckCircle size={56} style={{ color: '#00C37A', margin: '0 auto 20px', display: 'block' }} />
@@ -167,7 +172,9 @@ export default function PropertyPhotoUpload() {
       <div style={s.card}>
         {/* Header */}
         <div style={s.header}>
-          <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', marginBottom: 4 }}>VEORI</div>
+          {brand?.logo_url
+            ? <img src={brand.logo_url} alt={brand.brand_name || 'Logo'} style={{ height: 36, maxWidth: 180, objectFit: 'contain', margin: '0 auto 4px', display: 'block' }} />
+            : <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em', marginBottom: 4 }}>{brand?.brand_name || 'VEORI'}</div>}
           <p style={{ fontSize: 11, color: '#00C37A', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>
             Property Photos
           </p>

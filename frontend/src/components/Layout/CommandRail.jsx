@@ -10,6 +10,7 @@ import {
   Car, Mail, Home, Video, Camera, Map, Share2, Film, Gift, Zap, Brain,
 } from 'lucide-react'
 import VeoriLogo from '../VeoriLogo'
+import useBrandStore from '../../store/brandStore'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
 import useAuthStore from '../../store/authStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -293,6 +294,7 @@ function NavItem({ to, icon: Icon, label, liveBadge, collapsed }) {
 }
 
 export default function CommandRail({ mobile = false }) {
+  const brand = useBrandStore(s => s.brand)
   const { calls: liveCalls } = useLiveCalls()
   const { theme, toggleTheme } = useThemeStore()
   const { user } = useAuthStore()
@@ -343,16 +345,22 @@ export default function CommandRail({ mobile = false }) {
       <div style={{ padding: collapsed ? '16px 0' : '20px 16px 16px', borderBottom: '1px solid var(--sidebar-border)', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', gap: 10 }}>
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-            <VeoriLogo size={34} />
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0 }}>Veori</p>
-              <p style={{ fontSize: 9, color: 'var(--t4)', letterSpacing: '0.10em', textTransform: 'uppercase', margin: 0 }}>
-                AI Platform
-              </p>
+            {brand?.logo_url
+              ? <img src={brand.logo_url} alt={brand.brand_name || 'Logo'} style={{ height: 34, maxWidth: 120, objectFit: 'contain', flexShrink: 0 }} />
+              : !brand?.brand_name && <VeoriLogo size={34} />}
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{brand?.brand_name || 'Veori'}</p>
+              {!brand?.hide_powered_by && (
+                <p style={{ fontSize: 9, color: 'var(--t4)', letterSpacing: '0.10em', textTransform: 'uppercase', margin: 0 }}>
+                  {brand?.brand_name ? 'Powered by Veori' : 'AI Platform'}
+                </p>
+              )}
             </div>
           </div>
         )}
-        {collapsed && <VeoriLogo size={30} />}
+        {collapsed && (brand?.logo_url
+          ? <img src={brand.logo_url} alt={brand.brand_name || 'Logo'} style={{ height: 30, maxWidth: 44, objectFit: 'contain' }} />
+          : <VeoriLogo size={30} />)}
         {!mobile && <button
           onClick={toggleCollapse}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}

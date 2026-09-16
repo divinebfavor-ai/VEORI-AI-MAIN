@@ -9,10 +9,17 @@ import AssistantChat from '../AI/AssistantChat'
 import FeedbackButton from '../FeedbackButton'
 import useThemeStore from '../../store/themeStore'
 import useIsMobile from '../../hooks/useIsMobile'
+import useBrandStore from '../../store/brandStore'
 
 export default function Layout() {
   const { init } = useThemeStore()
   useEffect(() => { init() }, [])
+
+  // White label: load the workspace brand once and use it for the tab title.
+  const brand = useBrandStore(s => s.brand)
+  const loadBrand = useBrandStore(s => s.load)
+  useEffect(() => { loadBrand({ authenticated: true }) }, [loadBrand])
+  useEffect(() => { if (brand?.brand_name) document.title = brand.brand_name }, [brand?.brand_name])
 
   // Phones: the 240px nav and 280px context panel left ~35px for the page. On a
   // narrow screen the nav becomes a slide-out drawer and the context panel is hidden,
@@ -42,7 +49,7 @@ export default function Layout() {
           >
             <Menu size={20} />
           </button>
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.02em' }}>Veori</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{brand?.brand_name || 'Veori'}</span>
         </div>
       ) : (
         <SystemStatusBar />

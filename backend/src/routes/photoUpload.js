@@ -70,6 +70,7 @@ router.get('/:token', async (req, res) => {
         seller:     `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || null,
         photo_count: count || 0,
       },
+      brand: await require('../services/brandingService').getPublicBrand(tokenRecord.user_id).catch(() => null),
     });
   } catch (err) {
     console.error('[PhotoUpload] GET error:', err.message);
