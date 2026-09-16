@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react'
+import React, { Suspense, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
+import RouteFallback from '../RouteFallback'
 import CommandRail from './CommandRail'
 import SystemStatusBar from './SystemStatusBar'
 import IntelPanel from './IntelPanel'
@@ -17,7 +18,9 @@ export default function Layout() {
       <div className="flex flex-1 overflow-hidden">
         <CommandRail />
         <main className="flex-1 overflow-y-auto min-w-0" style={{ background: 'transparent' }}>
-          <Outlet />
+          <Suspense fallback={<RouteFallback />}>
+            <Outlet />
+          </Suspense>
         </main>
         <IntelPanel />
       </div>
