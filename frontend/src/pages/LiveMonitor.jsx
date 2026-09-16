@@ -411,6 +411,8 @@ function LiveCallCard({ call, isListening, isPending, volume, takeover, onListen
         </div>
       </div>
 
+      <SentimentPill reading={call.live_sentiment} compact />
+
       {/* Waveform - only show when actually connected */}
       <div style={{ marginBottom: 14 }}>
         <Waveform active={isConnected} bars={18} color={isListening ? BLUE : subStatus.color} />
@@ -620,13 +622,38 @@ function AudioPlayer({ src }) {
   )
 }
 
+// ─── Live sentiment pill ──────────────────────────────────────────────────────
+// A rule-based read of what the seller is saying right now (see backend
+// services/liveSentiment.js). The AI analysis after the call sets the real score.
+const SENTIMENT_COLOR = { Motivated: GREEN, Neutral: 'var(--t3)', Hesitant: AMBER, Cold: '#C9A84C', Hostile: RED }
+function SentimentPill({ reading, compact = false }) {
+  if (!reading?.label) return null
+  const color = SENTIMENT_COLOR[reading.label] || 'var(--t3)'
+  const arrow = reading.trend === 'warming' ? '↑' : reading.trend === 'cooling' ? '↓' : '→'
+  return (
+    <div title="Live read of the seller's words. The final score comes from the AI analysis after the call."
+      style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: compact ? 10 : 14 }}>
+      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--t4)' }}>SELLER MOOD</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color, border: `1px solid ${color}`, borderRadius: 5, padding: '1px 7px' }}>
+        {reading.label} {arrow}
+      </span>
+      <span style={{ fontSize: 11, color: 'var(--t4)', fontVariantNumeric: 'tabular-nums' }}>{reading.score}/100</span>
+      {!compact && reading.signals?.length > 0 && (
+        <span style={{ fontSize: 11, color: 'var(--t4)' }}>heard: “{reading.signals.join('”, “')}”</span>
+      )}
+    </div>
+  )
+}
+
 // ─── Live transcript poller ────────────────────────────────────────────────────
 function useLiveTranscript(call) {
   const [liveTranscript, setLiveTranscript] = useState(call?.transcript || '')
+  const [liveSentiment, setLiveSentiment] = useState(call?.live_sentiment || null)
   const isLive = call && ['initiated','ringing','in-progress'].includes(call.status)
 
   useEffect(() => {
     setLiveTranscript(call?.transcript || '')
+    setLiveSentiment(call?.live_sentiment || null)
     if (!isLive || !call?.id) return
     const poll = async () => {
       try {
@@ -638,6 +665,7 @@ function useLiveTranscript(call) {
         if (r.ok) {
           const d = await r.json()
           setLiveTranscript(d.data?.transcript || '')
+          setLiveSentiment(d.data?.live_sentiment || null)
         }
       } catch { }
     }
@@ -646,13 +674,13 @@ function useLiveTranscript(call) {
     return () => clearInterval(t)
   }, [call?.id, isLive])
 
-  return liveTranscript
+  return { liveTranscript, liveSentiment }
 }
 
 // ─── Call Detail Panel ────────────────────────────────────────────────────────
 function CallDetailPanel({ call }) {
   const navigate = useNavigate()
-  const liveTranscript = useLiveTranscript(call)
+  const { liveTranscript, liveSentiment } = useLiveTranscript(call)
 
   // Transcript auto-scroll - but only when the operator is already at the bottom.
   // The old inline `ref={el => el.scrollTop = el.scrollHeight}` ran on EVERY render
@@ -732,6 +760,8 @@ function CallDetailPanel({ call }) {
           <p style={{ margin: 0, fontSize: 13, color: 'var(--t2)', lineHeight: 1.6 }}>{call.ai_summary}</p>
         </div>
       )}
+
+      <SentimentPill reading={liveSentiment} />
 
       {/* Live / completed transcript */}
       {(liveTranscript || isLive) && (

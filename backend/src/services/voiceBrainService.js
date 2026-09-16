@@ -277,6 +277,14 @@ async function nextTurn(args = {}) {
   if (typeof session.deadEnds !== 'number') session.deadEnds = 0; // sessions seeded by openingLine
   session.turns += 1;
 
+  // Live sentiment for the Live Monitor - rule-based, fire-and-forget, adds no latency.
+  if (heard && callId) {
+    require('./liveSentiment').recordSellerTurn({
+      callId, userId: args.call?.user_id || args.operatorId || operator.id || null,
+      leadId: lead.id || null, text: heard, turn: session.turns,
+    });
+  }
+
   // Seller explicitly opted out - close immediately and politely, no model call.
   const dncRequested = !!heardLower && DNC_REQUEST_CUES.some((c) => heardLower.includes(c));
   if (dncRequested) {
