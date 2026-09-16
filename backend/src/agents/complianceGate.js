@@ -73,20 +73,8 @@ function scanProtectedClass(text) {
  * messaging an opt-out because a table read hiccuped.
  */
 async function onInternalDnc(phone) {
-  if (!phone) return { onList: false, errored: false };
-  try {
-    const { data, error } = await supabase
-      .from('dnc_records').select('id').eq('phone', phone).maybeSingle();
-    if (error) {
-      if (error.code === 'PGRST205' || (error.message || '').includes('does not exist')) {
-        return { onList: false, errored: false }; // table not present yet
-      }
-      return { onList: true, errored: true }; // unknown error => fail closed
-    }
-    return { onList: !!data, errored: false };
-  } catch {
-    return { onList: true, errored: true }; // fail closed
-  }
+  // Shared lookup: E.164, limit(1) (duplicate rows can't hide a listing), fails closed.
+  return require('../services/dncCheck').checkInternalDnc(phone);
 }
 
 /**

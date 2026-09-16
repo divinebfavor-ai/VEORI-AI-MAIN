@@ -53,11 +53,7 @@ async function processBlastSMS(data) {
 
   // 1. DNC gate - hard stop, not an error (no retry, no dead-letter).
   if (supabase) {
-    const { data: dncHit } = await supabase
-      .from('dnc_records')
-      .select('id')
-      .eq('phone', to)
-      .maybeSingle();
+    const dncHit = await require('./dncCheck').isOnInternalDnc(to);
     if (dncHit) {
       await require('./tcpaLog').logTcpaCompat({
         user_id:    userId || null,

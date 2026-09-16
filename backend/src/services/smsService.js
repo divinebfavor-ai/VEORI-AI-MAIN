@@ -495,11 +495,7 @@ async function continueConversation(lead, sellerMessage, conversationHistory, se
 async function sendReply(toPhone, body, userId, leadId) {
   try {
     // DNC gate - check before every outbound SMS
-    const { data: dncCheck } = await supabase
-      .from('dnc_records')
-      .select('id')
-      .eq('phone', toPhone)
-      .maybeSingle();
+    const dncCheck = await require('./dncCheck').isOnInternalDnc(toPhone);
 
     if (dncCheck) {
       await require('./tcpaLog').logTcpaCompat({
@@ -564,8 +560,7 @@ async function escalateToCall(lead, userId) {
       console.warn(`[SMS] Escalation blocked - lead ${lead.id} is marked do_not_call`);
       return;
     }
-    const { data: dncHit } = await supabase
-      .from('dnc_records').select('id').eq('phone', lead.phone).limit(1).maybeSingle();
+    const dncHit = await require('./dncCheck').isOnInternalDnc(lead.phone);
     if (dncHit) {
       console.warn(`[SMS] Escalation blocked - ${lead.phone} is on the internal DNC list`);
       return;

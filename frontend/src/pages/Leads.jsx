@@ -948,8 +948,25 @@ export default function Leads() {
             return
           }
 
-          const res = await leads.bulkImportLeads(mapped, { smsConsent })
-          const { imported = 0, duplicates_skipped = 0, dnc_flagged = 0, failed = 0, opening_sms } = res.data || {}
+          // Upload in batches: one request per 1,000 rows keeps each body well under
+          // the server's 1 MB JSON limit and lets a 10,000+ row file go through.
+          const BATCH = 1000
+          const totals = { imported: 0, duplicates_skipped: 0, dnc_flagged: 0, failed: 0, invalid_phone: 0 }
+          let opening_sms
+          const batches = Math.ceil(mapped.length / BATCH)
+          const progressId = batches > 1 ? toast.loading(`Importing batch 1 of ${batches}...`) : null
+          try {
+            for (let b = 0; b < batches; b++) {
+              if (progressId) toast.loading(`Importing batch ${b + 1} of ${batches}...`, { id: progressId })
+              const res = await leads.bulkImportLeads(mapped.slice(b * BATCH, (b + 1) * BATCH), { smsConsent })
+              const d = res.data || {}
+              for (const k of Object.keys(totals)) totals[k] += Number(d[k]) || 0
+              opening_sms = d.opening_sms || opening_sms
+            }
+          } finally {
+            if (progressId) toast.dismiss(progressId)
+          }
+          const { imported, duplicates_skipped, dnc_flagged, failed, invalid_phone } = totals
 
           let msg = `${imported} leads imported`
           if (duplicates_skipped > 0) msg += ` · ${duplicates_skipped} duplicates skipped`
@@ -959,6 +976,7 @@ export default function Leads() {
             : ' · no texts sent (no consent confirmed)'
           toast.success(msg)
           if (failed > 0) toast.error(`${failed} rows could not be saved. Check the file and import them again.`)
+          if (invalid_phone > 0) toast.error(`${invalid_phone} rows skipped - phone is not a valid 10-digit US number.`, { duration: 8000 })
           load()
         } catch (err) {
           const msg = err?.response?.data?.error || err?.message || 'Import failed'

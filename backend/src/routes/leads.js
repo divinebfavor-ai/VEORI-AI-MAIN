@@ -528,8 +528,10 @@ router.get('/:id/prediction', async (req, res, next) => {
 // POST /api/leads - create single
 router.post('/', async (req, res, next) => {
   try {
-    const { first_name, last_name, phone, email, property_address, property_city, property_state, property_zip, property_type, estimated_value, estimated_equity, source, notes, tags } = req.body;
-    if (!phone) return res.status(400).json({ success: false, error: 'phone required' });
+    const { first_name, last_name, email, property_address, property_city, property_state, property_zip, property_type, estimated_value, estimated_equity, source, notes, tags } = req.body;
+    if (!req.body.phone) return res.status(400).json({ success: false, error: 'phone required' });
+    const phone = require('../utils/phone').toE164(req.body.phone);
+    if (!phone) return res.status(400).json({ success: false, error: 'phone must be a valid 10-digit US number' });
 
     // AUTOMATIC DEDUP - before inserting, check whether this operator already has this
     // person. The bulk import dedups on the unique index, but a single hand-add had no
@@ -561,9 +563,8 @@ router.post('/', async (req, res, next) => {
       console.warn('[Leads create] dedup scan skipped:', e.message);
     }
 
-    // DNC check
-    const { data: dnc } = await supabase.from('dnc_records').select('id').eq('phone', phone).single();
-    const is_on_dnc = !!dnc;
+    // DNC check (fails closed: a lookup error marks the lead do-not-contact)
+    const is_on_dnc = await require('../services/dncCheck').isOnInternalDnc(phone);
 
     const { data, error } = await supabase.from('leads').insert([{
       id: uuidv4(), user_id: req.user.id, first_name, last_name, phone, email,
@@ -635,17 +636,39 @@ router.post('/bulk', async (req, res, next) => {
       });
     }
 
-    // Get all DNC numbers
-    const phones = leads.map(l => l.phone).filter(Boolean);
-    const { data: dncData } = await supabase.from('dnc_records').select('phone').in('phone', phones);
-    const dncSet = new Set((dncData || []).map(d => d.phone));
+    // Phones are stored in E.164 so inbound texts and STOP requests (which arrive
+    // as +1XXXXXXXXXX) match the lead. Rows whose phone is not a valid US number are
+    // skipped and counted, not stored in a shape nothing can match.
+    const { toE164 } = require('../utils/phone');
+    let invalidPhones = 0;
+    const withPhones = [];
+    for (const l of leads) {
+      const raw = l?.phone || l?.['Phone'] || '';
+      const e164 = toE164(raw);
+      if (!e164) { invalidPhones += 1; continue; }
+      withPhones.push({ ...l, phone: e164 });
+    }
 
-    const records = leads.map(l => ({
+    // DNC numbers among them (E.164 on both sides), in chunks to bound the query.
+    const dncSet = new Set();
+    const phoneList = [...new Set(withPhones.map(l => l.phone))];
+    for (let i = 0; i < phoneList.length; i += 500) {
+      const { data: dncData, error: dncErr } = await supabase.from('dnc_records').select('phone').in('phone', phoneList.slice(i, i + 500));
+      if (dncErr) {
+        // Fail closed: if we can't check, treat this chunk as do-not-contact.
+        console.error('[Leads import] DNC lookup failed - marking chunk DNC:', dncErr.message);
+        phoneList.slice(i, i + 500).forEach(p => dncSet.add(p));
+      } else {
+        (dncData || []).forEach(d => dncSet.add(d.phone));
+      }
+    }
+
+    const records = withPhones.map(l => ({
       id: uuidv4(),
       user_id: req.user.id,
       first_name:       l.first_name || l['First Name'] || l.firstname || '',
       last_name:        l.last_name  || l['Last Name']  || l.lastname  || '',
-      phone:            l.phone      || l['Phone']      || '',
+      phone:            l.phone,
       email:            l.email      || l['Email']      || null,
       property_address: l.property_address || l['Property Address'] || l.address || '',
       property_city:    l.property_city    || l['City']    || '',
@@ -781,6 +804,7 @@ router.post('/bulk', async (req, res, next) => {
       dnc_flagged: unique.filter(r => r.is_on_dnc).length,
       duplicates_skipped: duplicates + preFiltered, // index-ignored + auto-filtered copies
       failed,
+      invalid_phone: invalidPhones,
       opening_sms: smsConsent ? 'queued_with_compliance_checks' : 'not_sent_no_consent',
       total_received: leads.length,
     });
@@ -793,6 +817,11 @@ router.put('/:id', async (req, res, next) => {
     const allowed = ['first_name','last_name','email','phone','property_address','property_city','property_state','property_zip','property_type','estimated_value','estimated_equity','estimated_arv','source','status','motivation_score','notes','tags','pipeline_stage','ai_instructions'];
     const updates = { updated_at: new Date().toISOString() };
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    if (updates.phone !== undefined) {
+      const e164 = require('../utils/phone').toE164(updates.phone);
+      if (!e164) return res.status(400).json({ success: false, error: 'phone must be a valid 10-digit US number' });
+      updates.phone = e164;
+    }
     // Injected verbatim into the voice AI prompt (vapiService leadStyle) - bound it.
     if (typeof updates.ai_instructions === 'string') updates.ai_instructions = updates.ai_instructions.slice(0, 2000);
     const { data, error } = await supabase.from('leads').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
@@ -856,11 +885,17 @@ router.get('/:id/research', async (req, res, next) => {
 // POST /api/leads/:id/dnc
 router.post('/:id/dnc', async (req, res, next) => {
   try {
-    const { data: lead } = await supabase.from('leads').select('phone').eq('id', req.params.id).eq('user_id', req.user.id).single();
+    const { data: lead } = await supabase.from('leads').select('id, phone, property_state').eq('id', req.params.id).eq('user_id', req.user.id).maybeSingle();
     if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
-    await supabase.from('dnc_records').upsert([{ id: uuidv4(), phone: lead.phone, added_by: req.user.id, reason: req.body.reason || 'manual' }]);
-    await supabase.from('leads').update({ is_on_dnc: true, status: 'dnc' }).eq('id', req.params.id);
-    res.json({ success: true, message: 'Added to DNC' });
+    if (!lead.phone) return res.status(400).json({ success: false, error: 'This lead has no phone number' });
+    // The old insert wrote added_by, which is not a column - it failed silently and
+    // the number was never suppressed. dncRecorder writes, flags, stops sequences, logs.
+    const reason = typeof req.body.reason === 'string' && req.body.reason.trim() ? req.body.reason.trim().slice(0, 300) : 'Added manually by operator';
+    const result = await require('../services/dncRecorder').recordDncRequest({
+      phone: lead.phone, userId: req.user.id, lead, reason, source: 'manual',
+    });
+    if (!result.recorded) return res.status(500).json({ success: false, error: 'Could not save to the DNC list. Try again.' });
+    res.json({ success: true, message: result.alreadyListed ? 'Already on the DNC list' : 'Added to DNC' });
   } catch (err) { next(err); }
 });
 
@@ -908,16 +943,19 @@ router.post('/:id/voicemail', async (req, res, next) => {
 router.post('/ingest', async (req, res, next) => {
   try {
     const {
-      name, phone, email, property_address, motivation_type,
+      name, email, property_address, motivation_type,
       price_range_min, price_range_max, timeline, contact_preference,
       lead_source, target_area, notes
     } = req.body;
 
-    if (!phone) return res.status(400).json({ success: false, error: 'phone required' });
+    if (!req.body.phone) return res.status(400).json({ success: false, error: 'phone required' });
+    const phone = require('../utils/phone').toE164(req.body.phone);
+    if (!phone) return res.status(400).json({ success: false, error: 'phone must be a valid 10-digit US number' });
 
-    // DNC check
-    const { data: dnc } = await supabase.from('dnc_records').select('id').eq('phone', phone).single();
-    if (dnc) return res.status(400).json({ success: false, error: 'This number is on the DNC list' });
+    // DNC check (fails closed)
+    if (await require('../services/dncCheck').isOnInternalDnc(phone)) {
+      return res.status(400).json({ success: false, error: 'This number is on the DNC list' });
+    }
 
     const nameParts = (name || '').split(' ');
     const first_name = nameParts[0] || '';

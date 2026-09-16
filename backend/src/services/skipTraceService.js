@@ -146,15 +146,18 @@ async function bulkSkipTrace(leads) {
 async function checkDNC(phoneNumber) {
   // In production: check against federal DNC registry via approved API
   // For now: check our local dnc_records table
-  const { data } = await supabase.from('dnc_records')
-    .select('id, reason, added_at')
-    .eq('phone', phoneNumber)
-    .maybeSingle();
+  // added_at is not a column; selecting it made this lookup fail and report "not on DNC".
+  const { toE164 } = require('../utils/phone');
+  const { data: rows, error } = await supabase.from('dnc_records')
+    .select('id, reason, created_at')
+    .eq('phone', toE164(phoneNumber) || phoneNumber)
+    .limit(1);
+  const data = error ? { reason: 'DNC lookup failed - treated as do-not-contact' } : (rows || [])[0];
 
   return {
     on_dnc: !!data,
     reason: data?.reason || null,
-    added_at: data?.added_at || null,
+    added_at: data?.created_at || null,
   };
 }
 

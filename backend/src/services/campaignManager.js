@@ -117,8 +117,7 @@ async function dialerTick(campaignId) {
 
     try {
       // DNC check (local suppression list)
-      const { data: dnc } = await supabase.from('dnc_records').select('id').eq('phone', lead.phone).single();
-      if (dnc) {
+      if (await require('./dncCheck').isOnInternalDnc(lead.phone)) {
         await supabase.from('leads').update({ is_on_dnc: true, status: 'dnc' }).eq('id', lead.id);
         session.consecutiveFailures = 0; // DNC skip is not a Vapi failure
         continue;

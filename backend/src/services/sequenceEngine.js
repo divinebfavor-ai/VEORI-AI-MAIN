@@ -280,8 +280,7 @@ async function executeSequenceStep(seq) {
     if (message && lead?.phone) {
       // DNC gate - hard stop. If the lead is on DNC, skip the SMS step entirely
       // (advance the sequence; do not retry). Mirrors smsBlastProcessor/sendReply.
-      const { data: dncHit } = await supabase
-        .from('dnc_records').select('id').eq('phone', lead.phone).maybeSingle();
+      const dncHit = await require('./dncCheck').isOnInternalDnc(lead.phone);
       if (dncHit) {
         console.warn(`[SEQUENCE SMS] ${lead.phone} on DNC - skipping step`);
       } else if (!isWithinTcpaWindow(lead.property_state)) {

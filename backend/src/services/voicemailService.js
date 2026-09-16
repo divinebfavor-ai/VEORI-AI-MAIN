@@ -90,8 +90,7 @@ async function dropVoicemail({ lead, operator = {}, templateKey = 'first_contact
   // Fail-safe: any DB error here does NOT block the drop (the FTC + lead.is_on_dnc
   // checks already gate it); a confirmed hit DOES block.
   try {
-    const { data: dncHit } = await supabase
-      .from('dnc_records').select('id').eq('phone', lead.phone).maybeSingle();
+    const dncHit = await require('./dncCheck').isOnInternalDnc(lead.phone);
     if (dncHit) {
       console.log(`[RVM] Internal DNC hit - skipping voicemail drop to ${lead.phone}`);
       return { skipped: true, reason: 'dnc' };

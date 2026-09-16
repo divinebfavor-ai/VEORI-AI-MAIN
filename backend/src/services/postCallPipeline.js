@@ -59,10 +59,7 @@ async function step(name, results, fn) {
 }
 
 async function isOnDnc(phone) {
-  if (!phone) return false;
-  const { data, error } = await supabase.from('dnc_records').select('id').eq('phone', phone).limit(1);
-  if (error) return true; // fail closed
-  return (data || []).length > 0;
+  return require('./dncCheck').isOnInternalDnc(phone);
 }
 
 // ── Steps ─────────────────────────────────────────────────────────────────────

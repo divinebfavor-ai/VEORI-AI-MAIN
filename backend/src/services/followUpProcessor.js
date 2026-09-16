@@ -63,9 +63,7 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
     //    clear, we do not dial it.
     let suppressed = false;
     try {
-      const { data: dnc } = await supabase
-        .from('dnc_records').select('id').eq('phone', lead.phone).maybeSingle();
-      suppressed = !!dnc || lead.is_on_dnc === true;
+      suppressed = (await require('./dncCheck').isOnInternalDnc(lead.phone)) || lead.is_on_dnc === true;
     } catch (e) {
       console.error('[FollowUp][TCPA] DNC lookup failed - refusing to dial:', e.message);
       suppressed = true;
