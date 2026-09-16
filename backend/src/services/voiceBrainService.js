@@ -78,6 +78,16 @@ const GOODBYE_CUES = [
   'do not call', "don't call", 'lose my number', 'hang up',
 ];
 
+// Explicit do-not-contact requests - a subset of goodbye cues plus 'quit calling'
+// (otherwise only a brush-off). Under the TCPA a verbal "stop calling me" revokes
+// consent, so these are RECORDED to dnc_records, not just used to hang up.
+// 'not interested' and 'hang up' deliberately stay out: they end this call but
+// are not a request to never be contacted again.
+const DNC_REQUEST_CUES = [
+  'stop calling', 'quit calling', 'take me off', 'remove me',
+  'do not call', "don't call", 'lose my number',
+];
+
 // ── Smart-ear dead-end detection (credit protection) ─────────────────────────
 // The model is told (withEndDirective) to wrap up a call that's going nowhere,
 // but a deterministic backstop guarantees we never keep burning a call that's
@@ -260,7 +270,22 @@ async function nextTurn(args = {}) {
   session.turns += 1;
 
   // Seller explicitly opted out - close immediately and politely, no model call.
-  if (heardLower && GOODBYE_CUES.some((c) => heardLower.includes(c))) {
+  const dncRequested = !!heardLower && DNC_REQUEST_CUES.some((c) => heardLower.includes(c));
+  if (dncRequested) {
+    // Fire-and-forget so the closer is spoken without waiting on the DB; the
+    // recorder never throws and logs any failure as a compliance event.
+    const leadPhone = lead.phone || null;
+    const ownerId = args.call?.user_id || args.operatorId || operator.id || null;
+    if (leadPhone) {
+      require('./dncRecorder').recordDncRequest({
+        phone: leadPhone, userId: ownerId, lead: lead.id ? lead : null, callId: callId || null,
+        reason: 'Verbal do-not-call request on AI call', source: 'voice_request',
+      });
+    } else {
+      console.error(`[voiceBrain][COMPLIANCE] do-not-call request on call ${callId} but no lead phone to record`);
+    }
+  }
+  if (heardLower && (dncRequested || GOODBYE_CUES.some((c) => heardLower.includes(c)))) {
     const closer = 'No problem at all - I appreciate your time. Have a great day.';
     session.messages.push({ role: 'user', content: heard });
     session.messages.push({ role: 'assistant', content: closer });

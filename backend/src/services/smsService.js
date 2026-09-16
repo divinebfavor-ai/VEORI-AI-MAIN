@@ -209,6 +209,61 @@ async function sendOpeningSMS(lead, userId) {
     return null;
   }
 
+  // Consent gate - the opening text is an automated marketing message, which the
+  // TCPA only allows with prior express written consent. No consent on record
+  // (leads.consent) means no text. Consent is set when the operator attests to it
+  // at import; it is never assumed.
+  if (lead.consent !== true) {
+    await require('./tcpaLog').logTcpa({
+      userId, lead, withinHours: true, dncResult: 'pass', consent: 'none',
+      action: 'sms_blocked_no_consent',
+      note: 'Opening SMS not sent - no prior express written consent on record',
+    });
+    return null;
+  }
+
+  // Compliance gate - quiet hours in the lead's local time, internal DNC and the
+  // federal DNC registry (see agents/complianceGate). A send that is blocked ONLY
+  // by quiet hours is deferred to the next 8 AM local through the SMS queue, whose
+  // processor re-checks DNC, quiet hours and credits when it fires. Every other
+  // hard stop means the text is not sent.
+  const { complianceGate } = require('../agents/complianceGate');
+  const gate = await complianceGate({ type: 'send_sms', lead, phone });
+  if (!gate.allowed) {
+    const codes = gate.hardStops.map(h => h.code);
+    const quietHoursOnly = codes.length > 0 && codes.every(c => c === 'TCPA_QUIET_HOURS');
+    if (quietHoursOnly) {
+      const { msUntilNextWindow } = require('./tcpaWindow');
+      const delay = msUntilNextWindow(lead.property_state || null);
+      const sendDay = new Date(Date.now() + delay).toISOString().slice(0, 10);
+      let jobId = null;
+      try {
+        jobId = await require('./queueService').enqueueSMS({
+          leadId: lead.id, userId, to: phone, body: getOpeningMessage(lead),
+          delay, jobIdSuffix: `-opening-qh-${sendDay}`,
+        });
+      } catch (e) {
+        console.error(`[SMS] Opening quiet-hours defer failed for lead ${lead.id}:`, e.message);
+      }
+      await require('./tcpaLog').logTcpa({
+        userId, lead, withinHours: false, dncResult: 'pass', consent: 'express_written',
+        action: jobId ? 'sms_deferred_quiet_hours' : 'sms_blocked_quiet_hours',
+        note: jobId
+          ? `Opening SMS outside 8 AM-9 PM local - queued for next window (${(delay / 3600000).toFixed(2)}h)`
+          : 'Opening SMS outside 8 AM-9 PM local and the queue is unavailable - not sent',
+      });
+      return null;
+    }
+    await require('./tcpaLog').logTcpa({
+      userId, lead, withinHours: !codes.includes('TCPA_QUIET_HOURS'),
+      dncResult: codes.some(c => c.includes('DNC')) ? 'blocked' : 'unknown',
+      consent: 'express_written', action: 'sms_blocked_compliance',
+      note: `Opening SMS blocked by compliance gate: ${codes.join(', ')}`,
+    });
+    console.warn(`[SMS] Opening blocked for lead ${lead.id}: ${codes.join(', ')}`);
+    return null;
+  }
+
   // Outreach credit gate - opening SMS is metered lead outreach.
   // 1 SMS = 1 credit; monthly allocation first, then top-up. Blocked when both
   // are exhausted. Compliance/transactional SMS go through sendSMS() directly

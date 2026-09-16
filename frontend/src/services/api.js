@@ -84,7 +84,7 @@ export const leads = {
   getLeadTimeline:  (id)     => api.get(`/api/leads/${id}/timeline`),
   getPrediction:    (id)     => api.get(`/api/leads/${id}/prediction`),
   createLead:       (data)   => api.post('/api/leads', data),
-  bulkImportLeads:  (leadsData) => api.post('/api/leads/bulk', { leads: leadsData }),
+  bulkImportLeads:  (leadsData, { smsConsent = false } = {}) => api.post('/api/leads/bulk', { leads: leadsData, sms_consent: smsConsent === true }),
   updateLead:       (id, data)  => api.put(`/api/leads/${id}`, data),
   skipTrace:        (id)        => api.post(`/api/leads/${id}/skip-trace`),
   dropVoicemail:    (id, tmpl)  => api.post(`/api/leads/${id}/voicemail`, { template: tmpl }),

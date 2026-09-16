@@ -425,5 +425,39 @@ mismatch. Rollback: `git revert 3763fef`.
 
 ---
 
+## Session 2026-09-16 — CRM spec audit, Phase 1 (compliance gates + code splitting)
+
+**Audit (20-feature CRM spec):** verified against live code and DB. Missing today:
+Dropbox Sign integration (built-in signing page only), mid-call sentiment, outbound
+webhooks, public REST API/keys, team/RBAC, white label, CRM connectors. Partial:
+agent, PMI escalation/nurture, predictions, kanban (two unsynced stage systems),
+timeline, follow-up, contracts (never delivered), buyer matching, import, list
+pulling, compliance, dashboard, market intel, mobile layout, onboarding. Twilio
+production account still inactive (401 / 20003) — no call or SMS can send.
+
+**Shipped:**
+1. **Import texts gated on consent.** `POST /api/leads/bulk` used to text every
+   imported lead with only a DNC check. Now it sends only when the operator ticks
+   the consent attestation (`sms_consent: true`), which is stored on each lead
+   (`consent`, `consent_source='operator_attestation_csv_import'`, `consent_at`).
+   `sendOpeningSMS` checks consent, then `agents/complianceGate` (quiet hours,
+   internal DNC, federal DNC); quiet-hours-only blocks are queued to the next 8 AM
+   local via `enqueueSMS`. Every outcome writes `tcpa_log`. Import also reloads the
+   exact inserted ids (was "newest N leads") and reports DB failures as `failed`
+   instead of counting them as duplicates.
+2. **Spoken opt-outs recorded.** `voiceBrainService` hung up on "stop calling me"
+   but never saved it. New `services/dncRecorder.js` writes `dnc_records`, sets
+   `leads.is_on_dnc`, and logs `tcpa_log`. "not interested"/"hang up" still end the
+   call without suppression.
+3. **Route code splitting.** All pages load via `React.lazy` (`utils/lazyWithRetry`
+   reloads once on a stale chunk after deploy). Main script 2.2 MB → 513 KB.
+4. Tests: `src/__tests__/outreachCompliance.test.js` (7 cases).
+
+**Not done / next:** A2P gating of the shared sender, federal DNC key
+(`FTC_DNC_API_KEY`), 1 MB JSON limit vs 10,000-row imports, stage-chain automation,
+contract delivery, buyer matching fixes.
+
+---
+
 *End of build log. If you add work, append to §3-style session notes and the
 §4 changelog so this file stays the single source of truth.*

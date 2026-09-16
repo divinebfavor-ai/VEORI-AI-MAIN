@@ -617,6 +617,14 @@ router.post('/bulk', async (req, res, next) => {
   try {
     const { leads } = req.body;
     if (!Array.isArray(leads) || !leads.length) return res.status(400).json({ success: false, error: 'leads array required' });
+    // Operator attestation that every lead in this file gave prior express written
+    // consent to receive texts. Strict boolean: anything else means no consent, and
+    // no opening texts are sent.
+    if (req.body.sms_consent !== undefined && typeof req.body.sms_consent !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'sms_consent must be true or false' });
+    }
+    const smsConsent = req.body.sms_consent === true;
+    const consentAt = smsConsent ? new Date().toISOString() : null;
 
     // Hard cap: one import request handles at most 10,000 rows. Larger files must be
     // split client-side - an unbounded array here means an unbounded DNC .in() query,
@@ -651,6 +659,7 @@ router.post('/bulk', async (req, res, next) => {
       source: l.source || l['Source'] || 'csv_import',
       is_on_dnc: dncSet.has(l.phone),
       status: dncSet.has(l.phone) ? 'dnc' : 'new',
+      ...(smsConsent ? { consent: true, consent_source: 'operator_attestation_csv_import', consent_at: consentAt } : {}),
     })).filter(r => r.phone);
 
     // Deduplicate within the batch AND against what the operator already has, using a
@@ -686,6 +695,8 @@ router.post('/bulk', async (req, res, next) => {
 
     let imported = 0;
     let duplicates = 0;
+    let failed = 0;
+    const insertedIds = [];
     const chunkSize = 500;
     for (let i = 0; i < unique.length; i += chunkSize) {
       const chunk = unique.slice(i, i + chunkSize);
@@ -700,24 +711,30 @@ router.post('/bulk', async (req, res, next) => {
         .select('id');
       if (!error) {
         const inserted = data?.length || 0;
+        (data || []).forEach(row => insertedIds.push(row.id));
         imported   += inserted;
         duplicates += chunk.length - inserted; // the rest already existed
       } else {
         // A real error (not a dedup conflict, which ignoreDuplicates swallows).
         // Do NOT fall back to a plain insert - that would re-create duplicates.
         // Surface it so the operator sees the import didn't fully land.
-        console.warn('[Leads import] Upsert error:', error.message);
-        duplicates += chunk.length;
+        console.error('[Leads import] Upsert error:', error.message);
+        failed += chunk.length;
       }
     }
 
-    // Auto-tag all imported leads async - don't block the response
-    const { data: newLeads } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('user_id', req.user.id)
-      .order('created_at', { ascending: false })
-      .limit(imported);
+    // Exactly the rows this import inserted - not "the newest N leads", which could
+    // pick up leads created by a concurrent import or hand-add.
+    const newLeads = [];
+    for (let i = 0; i < insertedIds.length; i += chunkSize) {
+      const { data: rows, error: readErr } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('user_id', req.user.id)
+        .in('id', insertedIds.slice(i, i + chunkSize));
+      if (readErr) console.error('[Leads import] reload of inserted leads failed:', readErr.message);
+      else newLeads.push(...(rows || []));
+    }
 
     if (newLeads?.length) {
       // Both async lanes catch their own failures - an import must never leave an
@@ -727,22 +744,28 @@ router.post('/bulk', async (req, res, next) => {
           .catch(err => console.error('[Leads import] bulk auto-tag error:', err.message));
       });
 
-      // Fire opening SMS to every lead that has a phone number
-      const { sendOpeningSMS } = require('../services/smsService');
-      const userId = req.user.id;
-      setImmediate(async () => {
-        try {
-          for (const lead of newLeads) {
-            if (lead.phone && !lead.is_on_dnc) {
-              await sendOpeningSMS(lead, userId).catch(() => {});
-              await new Promise(r => setTimeout(r, 300)); // 300ms between sends
+      // Opening texts only when the operator attested to consent for this file.
+      // sendOpeningSMS applies the consent, quiet-hours, DNC and credit gates per lead.
+      if (smsConsent) {
+        const { sendOpeningSMS } = require('../services/smsService');
+        const userId = req.user.id;
+        setImmediate(async () => {
+          let attempted = 0;
+          try {
+            for (const lead of newLeads) {
+              if (lead.phone && !lead.is_on_dnc) {
+                attempted += 1;
+                await sendOpeningSMS(lead, userId)
+                  .catch(err => console.error(`[Leads import] opening SMS error for lead ${lead.id}:`, err.message));
+                await new Promise(r => setTimeout(r, 300)); // 300ms between sends
+              }
             }
+            console.log(`[SMS] Opening-text gate run for ${attempted} imported leads`);
+          } catch (err) {
+            console.error('[Leads import] opening-SMS loop error:', err.message);
           }
-          console.log(`[SMS] Opening texts sent to ${newLeads.filter(l => l.phone).length} leads`);
-        } catch (err) {
-          console.error('[Leads import] opening-SMS loop error:', err.message);
-        }
-      });
+        });
+      }
     }
 
     // Auto-size the operator's toll-free number pool to their callable lead volume
@@ -759,6 +782,8 @@ router.post('/bulk', async (req, res, next) => {
       imported,
       dnc_flagged: unique.filter(r => r.is_on_dnc).length,
       duplicates_skipped: duplicates + preFiltered, // index-ignored + auto-filtered copies
+      failed,
+      opening_sms: smsConsent ? 'queued_with_compliance_checks' : 'not_sent_no_consent',
       total_received: leads.length,
     });
   } catch (err) { next(err); }

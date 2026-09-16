@@ -832,6 +832,9 @@ export default function Leads() {
   const [importing, setImporting] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
   const [showAddLead, setShowAddLead] = useState(false)
+  const [showImport, setShowImport]   = useState(false)
+  // Consent choice for the file being imported; read when the parse completes.
+  const smsConsentRef = useRef(false)
   const [showDupes, setShowDupes]     = useState(false)
   // Leads the AI flagged for human review (held escalations / out-of-bounds requests).
   const [reviewLeads, setReviewLeads] = useState([])
@@ -905,7 +908,10 @@ export default function Leads() {
 
   const handleFile = (e) => {
     const file = e.target.files?.[0]
+    // Clear the input so choosing the same file again still fires onChange.
+    e.target.value = ''
     if (!file) return
+    const smsConsent = smsConsentRef.current === true
     setImporting(true)
 
     // Normalize a value - trim whitespace, return empty string if falsy
@@ -942,13 +948,17 @@ export default function Leads() {
             return
           }
 
-          const res = await leads.bulkImportLeads(mapped)
-          const { imported = mapped.length, duplicates_skipped = 0, dnc_flagged = 0 } = res.data || {}
+          const res = await leads.bulkImportLeads(mapped, { smsConsent })
+          const { imported = 0, duplicates_skipped = 0, dnc_flagged = 0, failed = 0, opening_sms } = res.data || {}
 
           let msg = `${imported} leads imported`
           if (duplicates_skipped > 0) msg += ` · ${duplicates_skipped} duplicates skipped`
           if (dnc_flagged > 0) msg += ` · ${dnc_flagged} DNC flagged`
+          msg += opening_sms === 'queued_with_compliance_checks'
+            ? ' · opening texts will send within calling hours'
+            : ' · no texts sent (no consent confirmed)'
           toast.success(msg)
+          if (failed > 0) toast.error(`${failed} rows could not be saved. Check the file and import them again.`)
           load()
         } catch (err) {
           const msg = err?.response?.data?.error || err?.message || 'Import failed'
@@ -1002,7 +1012,7 @@ export default function Leads() {
             <Button variant="secondary" size="sm" onClick={() => setShowDupes(true)}>
               <Copy size={13} /> Find Duplicates
             </Button>
-            <Button variant="secondary" size="sm" loading={importing} onClick={() => fileRef.current?.click()}>
+            <Button variant="secondary" size="sm" loading={importing} onClick={() => setShowImport(true)}>
               <Upload size={13} /> Import CSV
             </Button>
             <Button variant="primary" size="sm" onClick={() => setShowAddLead(true)}>
@@ -1218,6 +1228,16 @@ export default function Leads() {
       )}
 
       {/* ── Add Lead Modal ────────────────────────────────────────────────────── */}
+      {showImport && (
+        <ImportCsvModal
+          onClose={() => setShowImport(false)}
+          onChoose={(consent) => {
+            smsConsentRef.current = consent
+            setShowImport(false)
+            fileRef.current?.click()
+          }}
+        />
+      )}
       {showAddLead && <AddLeadModal onClose={() => setShowAddLead(false)} onSaved={(lead) => { setShowAddLead(false); load().then(() => setSelected(lead)) }} />}
 
       {/* ── Duplicate Leads Modal ─────────────────────────────────────────────── */}
@@ -1368,6 +1388,43 @@ function DuplicatesModal({ onClose, onMerged }) {
 }
 
 // ─── Add Lead Modal ───────────────────────────────────────────────────────────
+function ImportCsvModal({ onClose, onChoose }) {
+  const [consent, setConsent] = useState(false)
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.60)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+      onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-labelledby="import-csv-title"
+        style={{ width: 480, maxWidth: '100%', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p id="import-csv-title" style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--t1)' }}>Import CSV</p>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t4)', padding: 0 }}>
+            <X size={16} />
+          </button>
+        </div>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--t3)', lineHeight: 1.5 }}>
+            Leads are saved and checked against your do-not-call list. Automated texts need the seller's prior written consent, so no texts go out unless you confirm it below.
+          </p>
+          <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: 12, borderRadius: 10, borderWidth: 1, borderStyle: 'solid', borderColor: consent ? '#00C37A' : 'var(--border)', background: 'var(--surface-bg)' }}>
+            <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ marginTop: 2, accentColor: '#00C37A' }} />
+            <span style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.5 }}>
+              Every lead in this file gave prior express written consent to receive texts. Send each one an opening text within their local calling hours.
+            </span>
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" size="sm" onClick={() => onChoose(consent)}>
+              <Upload size={13} /> Choose CSV file
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AddLeadModal({ onClose, onSaved }) {
   const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', email: '', property_address: '', property_city: '', property_state: '', property_zip: '' })
   const [saving, setSaving] = useState(false)
