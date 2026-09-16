@@ -570,13 +570,21 @@ async function escalateToCall(lead, userId) {
       console.warn(`[SMS] Escalation blocked - ${lead.phone} is on the internal DNC list`);
       return;
     }
+    // isOnFederalDnc resolves to { checked, onList }. The old truthiness test treated
+    // that object as "on the list", so every escalation was blocked.
     try {
       const { isOnFederalDnc } = require('./ftcDncService');
-      if (await isOnFederalDnc(lead.phone)) {
-        console.warn(`[SMS] Escalation blocked - ${lead.phone} is on the federal DNC registry`);
+      const fed = await isOnFederalDnc(lead.phone);
+      if (fed?.checked && fed.onList) {
+        console.warn(`[SMS] Escalation blocked - lead ${lead.id} is on the federal DNC registry`);
         return;
       }
     } catch (_) { /* federal check unavailable - internal gates above still applied */ }
+    const { isWithinTcpaWindow } = require('./tcpaWindow');
+    if (!isWithinTcpaWindow(lead.property_state)) {
+      console.warn(`[SMS] Escalation blocked - outside 8 AM-9 PM local for lead ${lead.id}`);
+      return;
+    }
 
     const vapiService  = require('./vapiService');
     const phoneRotation = require('./phoneRotation');

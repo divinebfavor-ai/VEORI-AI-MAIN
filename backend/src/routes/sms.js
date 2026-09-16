@@ -64,8 +64,9 @@ async function handleOptOut(from, lead, userId, toNumber) {
     console.error('[SMS][COMPLIANCE] FAILED to record opt-out for', from, '-', e.message);
   }
 
-  // 2. Mark lead as DNC
+  // 2. Mark lead as DNC and stop every automated sequence for it.
   if (lead) {
+    await require('../services/sequenceEngine').stopSequencesForLead(lead.id, 'lead opted out (STOP)');
     await supabase.from('leads')
       .update({ is_on_dnc: true, status: 'dnc' })
       .eq('id', lead.id);
@@ -209,6 +210,9 @@ router.post('/webhook', async (req, res) => {
       console.log(`[SMS] No lead found for ${from}`);
       return;
     }
+
+    // A reply means a person is talking to us: automated follow-up stops now.
+    await require('../services/sequenceEngine').stopSequencesForLead(lead.id, 'lead replied by text');
 
     // Log inbound message
     await supabase.from('sms_messages').insert({

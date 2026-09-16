@@ -28,7 +28,7 @@ const supabase = require('../config/supabase');
 // Sequence types that send cold email and should halt when the lead replies by
 // email. Intentionally explicit (not "all sequences") so an email reply never
 // silently kills an unrelated SMS or voicemail cadence.
-const EMAIL_SEQUENCE_TYPES = ['email_drip', 'not_interested', 'offer_considering'];
+const EMAIL_SEQUENCE_TYPES = ['email_drip', 'not_interested', 'offer_considering', 'nurture', 'auto_sourced'];
 
 // Normalize an inbound from-header to a bare lowercase address.
 //   "Jane Doe <jane@x.com>"  →  "jane@x.com"

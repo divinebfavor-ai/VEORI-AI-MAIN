@@ -48,6 +48,7 @@ async function recordDncRequest({ phone, userId = null, lead = null, callId = nu
   }
 
   if (lead?.id) {
+    await require('./sequenceEngine').stopSequencesForLead(lead.id, `do-not-contact request (${source})`);
     const { error: leadErr } = await supabase.from('leads')
       .update({ is_on_dnc: true, status: 'dnc', updated_at: new Date().toISOString() })
       .eq('id', lead.id);

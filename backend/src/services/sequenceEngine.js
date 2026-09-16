@@ -59,7 +59,68 @@ const SEQUENCE_DEFINITIONS = {
     { day: 5,  action: 'rvm', template: 'follow_up' },
     { day: 12, action: 'rvm', template: 'last_attempt' },
   ],
+  // Adaptive nurture - touches on day 3, 7, 14, 30, 60 and 90. A 'touch' step
+  // picks its channel for THIS lead when it runs, in the listed order: a text only
+  // with written consent on record, an email only with an address (with a one-click
+  // unsubscribe), a call only when a phone exists. Any reply stops the sequence.
+  nurture: [
+    { day: 3,  action: 'touch', channels: ['sms', 'email', 'call'], template: 'coldDrip1', optOut: true,
+      message: 'Hi {firstName}, this is {aiName} with {company}. Still open to an offer on {address}? No pressure either way.' },
+    { day: 7,  action: 'touch', channels: ['call', 'sms', 'email'], template: 'noAnswerFollowUp', optOut: true,
+      message: 'Hi {firstName}, {aiName} here. I tried to reach you about {address}. Is there a good time to talk?' },
+    { day: 14, action: 'touch', channels: ['email', 'sms', 'call'], template: 'coldDrip2', optOut: true,
+      message: 'Hi {firstName}, {aiName} with {company}. Checking in on {address} - has anything changed with your plans?' },
+    { day: 30, action: 'touch', channels: ['sms', 'email', 'call'], template: 'marketUpdate', optOut: true,
+      message: 'Hi {firstName}, {aiName} here. Prices around {address} have moved - happy to give you an updated cash number if useful.' },
+    { day: 60, action: 'touch', channels: ['call', 'email', 'sms'], template: 'coldDrip3', optOut: true,
+      message: 'Hi {firstName}, {aiName} with {company}. Still thinking about {address}? My offer stands whenever you are ready.' },
+    { day: 90, action: 'touch', channels: ['email', 'sms', 'call'], template: 'marketUpdate', optOut: true,
+      message: 'Hi {firstName}, {aiName} here - one last check-in about {address}. If the timing is ever right, just reply.' },
+  ],
 };
+// Lead Engine enrolls auto-sourced leads under this name; it follows the nurture cadence.
+SEQUENCE_DEFINITIONS.auto_sourced = SEQUENCE_DEFINITIONS.nurture;
+
+/**
+ * Pick the channel a step will actually use for this lead. Returns null when no
+ * channel is allowed (the step is skipped and the sequence moves on).
+ *   sms   - needs a phone AND written consent (automated marketing text, TCPA)
+ *   email - needs an email address AND a template
+ *   call  - needs a phone
+ *   rvm   - needs a phone (voicemailService applies its own DNC gates)
+ */
+function resolveStepAction(step, lead) {
+  if (!step || !lead) return null;
+  const can = {
+    sms:   !!lead.phone && lead.consent === true && !!step.message,
+    email: !!lead.email && !!step.template,
+    call:  !!lead.phone,
+    rvm:   !!lead.phone,
+  };
+  if (step.action === 'touch') return (step.channels || []).find(ch => can[ch]) || null;
+  if (step.action === 'sms') return can.sms ? 'sms' : (can.email ? 'email' : null);
+  return can[step.action] ? step.action : null;
+}
+
+/** Stop every active sequence for a lead (reply received, opt-out, deal started). */
+async function stopSequencesForLead(leadId, reason) {
+  if (!supabase || !leadId) return 0;
+  const { data, error } = await supabase.from('sequences')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('lead_id', leadId).eq('status', 'active')
+    .select('id, user_id, sequence_type');
+  if (error) {
+    console.error(`[SEQUENCE] stop failed for lead ${leadId}:`, error.message);
+    return 0;
+  }
+  if (data && data.length) {
+    await require('./aiCommandLog').logAiCommand({
+      userId: data[0].user_id, leadId, actionType: 'sequence_stopped', status: 'cancelled',
+      summary: `Stopped ${data.map(d => d.sequence_type).join(', ')} - ${reason}`,
+    });
+  }
+  return (data || []).length;
+}
 
 async function enrollLeadInSequence(userId, leadId, sequenceType) {
   const definition = SEQUENCE_DEFINITIONS[sequenceType];
@@ -121,6 +182,28 @@ async function executeSequenceStep(seq) {
 
   const lead = seq.leads;
   const user = seq.users;
+
+  // Claim this step: move next_action_at forward only if nobody else has. Two
+  // overlapping scans (or a slow one) can't send the same step twice. Deferrals
+  // below overwrite this lease with the real next time.
+  const lease = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  const { data: claimed, error: claimErr } = await supabase.from('sequences')
+    .update({ next_action_at: lease, updated_at: new Date().toISOString() })
+    .eq('id', seq.id).eq('status', 'active').eq('current_step', seq.current_step)
+    .eq('next_action_at', seq.next_action_at)
+    .select('id');
+  if (claimErr || !claimed || claimed.length === 0) return;
+
+  if (!lead || lead.is_on_dnc) {
+    await supabase.from('sequences').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', seq.id);
+    await require('./aiCommandLog').logAiCommand({
+      userId: seq.user_id, leadId: seq.lead_id, actionType: 'sequence_stopped', status: 'cancelled',
+      summary: `Stopped ${seq.sequence_type} - ${lead ? 'lead is on the do-not-contact list' : 'lead no longer exists'}`,
+    });
+    return;
+  }
+
+  const action = resolveStepAction(step, lead);
   const vars = {
     firstName: lead?.first_name || 'there',
     address: lead?.property_address || 'your property',
@@ -128,7 +211,12 @@ async function executeSequenceStep(seq) {
     company: user?.company_name || 'Veori AI',
   };
 
-  if (step.action === 'email' && lead?.email && step.template) {
+  if (!action) {
+    await require('./aiCommandLog').logAiCommand({
+      userId: seq.user_id, leadId: seq.lead_id, actionType: 'sequence_step', status: 'skipped',
+      summary: `${seq.sequence_type} step ${seq.current_step + 1}: no allowed channel (text needs consent, email needs an address)`,
+    });
+  } else if (action === 'email' && lead?.email && step.template) {
     const templateFn = emailService.templates[step.template];
     if (templateFn) {
       const rendered = templateFn({
@@ -185,7 +273,7 @@ async function executeSequenceStep(seq) {
         unsubscribeUrl,
       });
     }
-  } else if (step.action === 'sms') {
+  } else if (action === 'sms') {
     const message = step.message
       ? step.message.replace(/{(\w+)}/g, (_, k) => vars[k] || k)
       : '';
@@ -214,13 +302,17 @@ async function executeSequenceStep(seq) {
         console.log(`[SEQUENCE SMS] sent to lead ${seq.lead_id} (step ${seq.current_step})`);
       }
     }
-  } else if (step.action === 'call') {
-    // Reuse the proven escalation path: finds a healthy number, loads the operator,
-    // writes the calls row, and triggers the Vapi outbound. It self-logs + catches.
-    if (lead?.phone) {
-      await escalateToCall(lead, seq.user_id);
+  } else if (action === 'call') {
+    // Calls follow the same local 8 AM-9 PM window as texts: defer, don't skip.
+    if (!isWithinTcpaWindow(lead.property_state)) {
+      const deferUntil = new Date(Date.now() + msUntilNextWindow(lead.property_state)).toISOString();
+      await supabase.from('sequences').update({ next_action_at: deferUntil, updated_at: new Date().toISOString() }).eq('id', seq.id);
+      console.log(`[SEQUENCE CALL] deferred lead ${seq.lead_id} to ${deferUntil} (TCPA)`);
+      return;
     }
-  } else if (step.action === 'rvm') {
+    // escalateToCall applies DNC gates, picks a healthy number and places the call.
+    await escalateToCall(lead, seq.user_id);
+  } else if (action === 'rvm') {
     // Ringless voicemail drop (Feature B). Delegates to voicemailService.dropVoicemail,
     // which owns the federal-DNC + internal-DNC + phone-rotation gates. Here we add the
     // SAME TCPA defer behavior the SMS branch uses, so an automated drip touch lands
@@ -243,6 +335,13 @@ async function executeSequenceStep(seq) {
     }
   }
 
+  if (action) {
+    await require('./aiCommandLog').logAiCommand({
+      userId: seq.user_id, leadId: seq.lead_id, actionType: 'sequence_step', status: 'done',
+      summary: `${seq.sequence_type} step ${seq.current_step + 1} of ${definition.length}: ${action}`,
+    });
+  }
+
   // Advance to next step
   const nextStepIdx = seq.current_step + 1;
   if (nextStepIdx >= definition.length) {
@@ -259,4 +358,4 @@ async function executeSequenceStep(seq) {
   }
 }
 
-module.exports = { enrollLeadInSequence, processReadySequences, SEQUENCE_DEFINITIONS };
+module.exports = { enrollLeadInSequence, processReadySequences, executeSequenceStep, stopSequencesForLead, resolveStepAction, SEQUENCE_DEFINITIONS };
