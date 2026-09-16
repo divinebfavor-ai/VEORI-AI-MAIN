@@ -161,6 +161,19 @@ export const phones = {
 }
 
 // ─── Deals ───────────────────────────────────────────────────────────────────
+export const developer = {
+  meta:            ()          => api.get('/api/developer/meta'),
+  listKeys:        ()          => api.get('/api/developer/api-keys'),
+  createKey:       (data)      => api.post('/api/developer/api-keys', data),
+  revokeKey:       (id)        => api.delete(`/api/developer/api-keys/${id}`),
+  listWebhooks:    ()          => api.get('/api/developer/webhooks'),
+  createWebhook:   (data)      => api.post('/api/developer/webhooks', data),
+  updateWebhook:   (id, data)  => api.patch(`/api/developer/webhooks/${id}`, data),
+  deleteWebhook:   (id)        => api.delete(`/api/developer/webhooks/${id}`),
+  deliveries:      (id)        => api.get(`/api/developer/webhooks/${id}/deliveries`),
+  testWebhook:     (id)        => api.post(`/api/developer/webhooks/${id}/test`),
+}
+
 export const deals = {
   getDeals:          (params)       => api.get('/api/deals', { params }),
   getDeal:           (id)           => api.get(`/api/deals/${id}`),

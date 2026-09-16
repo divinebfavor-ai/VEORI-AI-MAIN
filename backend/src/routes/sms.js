@@ -73,6 +73,7 @@ async function handleOptOut(from, lead, userId, toNumber) {
       if (dncErr) {
         console.error('[SMS][COMPLIANCE] FAILED to record opt-out for', from, '-', dncErr.message);
       } else {
+        if (userId) require('../services/webhookService').emitEvent(userId, 'lead.opted_out', { lead_id: lead?.id || null, phone: from, source: 'sms_stop' });
         console.log('[SMS] Opt-out recorded in dnc_records for', from);
       }
     }
@@ -230,6 +231,8 @@ router.post('/webhook', async (req, res) => {
       console.log(`[SMS] No lead found for ${from}`);
       return;
     }
+
+    require('../services/webhookService').emitEvent(userId, 'sms.received', { lead_id: lead.id, from, body, message_sid: inboundMsgId || null });
 
     // A reply means a person is talking to us: automated follow-up stops now.
     await require('../services/sequenceEngine').stopSequencesForLead(lead.id, 'lead replied by text');
@@ -465,6 +468,9 @@ async function handleBuyerReply(from, toNumber, inboundMsgId, body) {
     }
     const assignedBuyer = buyers.find(b => b.id === offer.buyer_id) || buyer;
     const ownerId = offer.user_id;
+    require('../services/webhookService').emitEvent(ownerId, 'buyer.interested', {
+      deal_id: fit.id, buyer_id: assignedBuyer.id, buyer_name: assignedBuyer.name || null, reply: String(body).slice(0, 500),
+    });
 
     await require('../services/aiCommandLog').logAiCommand({
       userId: ownerId, dealId: fit.id, leadId: fit.lead_id || null, actionType: 'buyer_assigned_auto',

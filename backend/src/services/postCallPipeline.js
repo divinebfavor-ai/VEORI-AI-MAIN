@@ -111,6 +111,7 @@ async function ensureDeal({ callRec, lead, outcome }) {
       console.error('[PostCall] auto contract failed:', e.message);
     }
   }
+  require('./webhookService').emitEvent(callRec.user_id, 'deal.created', { deal, via: 'call', call_id: callRec.id });
   return `deal ${deal.id} created at ${stage}`;
 }
 
@@ -312,6 +313,13 @@ async function runPostCallActions({ callRec, outcome, aiAnalysis = {} }) {
     lead = data || lead;
   }
   const ctx = { callRec, lead, outcome, aiAnalysis, transcript: callRec.transcript || null };
+
+  require('./webhookService').emitEvent(callRec.user_id, 'call.completed', {
+    call_id: callRec.id, lead_id: lead?.id || callRec.lead_id || null, outcome,
+    duration_seconds: callRec.duration_seconds ?? null,
+    motivation_score: aiAnalysis?.motivation_score ?? null,
+    summary: aiAnalysis?.ai_summary ?? null,
+  });
   const results = [];
 
   await step('deal', results, () => ensureDeal(ctx));

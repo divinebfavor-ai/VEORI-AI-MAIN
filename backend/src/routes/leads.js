@@ -607,6 +607,7 @@ router.post('/', async (req, res, next) => {
         .catch(err => console.error('[Leads] ensureCallingCapacity error:', err.message));
     });
 
+    require('../services/webhookService').emitEvent(req.user.id, 'lead.created', { lead: data, via: 'app' });
     res.status(201).json({ success: true, data });
   } catch (err) { next(err); }
 });
@@ -758,6 +759,7 @@ router.post('/bulk', async (req, res, next) => {
     }
 
     if (newLeads?.length) {
+      require('../services/webhookService').emitEvents(req.user.id, 'lead.created', newLeads.map(l => ({ lead: l, via: 'csv_import' })));
       // Both async lanes catch their own failures - an import must never leave an
       // unhandled rejection behind just because tagging or SMS hiccupped.
       setImmediate(() => {
@@ -983,6 +985,7 @@ router.post('/ingest', async (req, res, next) => {
         .catch(err => console.error('[Leads] ensureCallingCapacity (ingest) error:', err.message));
     });
 
+    require('../services/webhookService').emitEvent(req.user.id, 'lead.created', { lead: seller, via: 'ingest' });
     res.status(201).json({ success: true, seller });
   } catch (err) { next(err); }
 });
@@ -1030,7 +1033,9 @@ router.post('/qualify', async (req, res, next) => {
         status: 'lead',
       }).select().single();
 
-      await supabase.from('leads').update({ status: 'interested', deal_id: deal?.id }).eq('id', lead_id);
+      // leads has no deal_id column; writing it made this whole update fail.
+      await supabase.from('leads').update({ status: 'interested' }).eq('id', lead_id);
+      if (deal) require('../services/webhookService').emitEvent(req.user.id, 'deal.created', { deal, via: 'qualification' });
 
       await require('../services/aiCommandLog').logAiCommand({
         userId: req.user.id, dealId: deal?.id, leadId: lead.id, actionType: 'escalated_to_pipeline',

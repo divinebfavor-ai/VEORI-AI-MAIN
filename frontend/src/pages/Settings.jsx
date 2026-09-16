@@ -8,6 +8,7 @@ import useAuthStore from '../store/authStore'
 import useThemeStore from '../store/themeStore'
 import { phones, operator as operatorApi, v2voices, auth, twoFA } from '../services/api'
 import Compliance from './Compliance'
+import DeveloperSettings from '../components/Settings/DeveloperSettings'
 
 const SOCIAL_PLATFORMS = [
   { id: 'facebook',  label: 'Facebook',  icon: '📘', color: '#1877F2', hint: 'Post to your Facebook page and groups' },
@@ -32,6 +33,7 @@ const TABS = [
   { id: 'banking',  label: 'Banking',       icon: CreditCard },
   { id: 'social',   label: 'Social Media',  icon: Share2 },
   { id: 'compliance', label: 'Compliance',  icon: FileCheck },
+  { id: 'developers', label: 'Developers',  icon: Key },
 ]
 
 function Section({ title, description, children }) {
@@ -1341,7 +1343,6 @@ export default function Settings() {
   const updateUser = useAuthStore(s => s.updateUser)
   const { theme, toggleTheme } = useThemeStore()
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'owner'
 
   // ── Subscription ─────────────────────────────────────────────────────────
   const [billingInfo, setBillingInfo] = useState(null)
@@ -1681,15 +1682,7 @@ export default function Settings() {
                 {label}
               </button>
             ))}
-            {isAdmin && (
-              <button onClick={() => setTab('api')}
-                className={`md:w-full flex-shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3 py-2.5 rounded-[6px] text-left text-[13px] transition-colors ${
-                  tab === 'api' ? 'bg-card border border-border-subtle text-white' : 'text-text-muted hover:text-text-secondary hover:bg-surface'
-                }`}>
-                <Key size={14} strokeWidth={1.5} />
-                API Keys
-              </button>
-            )}
+
           </nav>
         </div>
 
@@ -2312,27 +2305,7 @@ export default function Settings() {
             <Compliance />
           )}
 
-          {tab === 'api' && isAdmin && (
-            <Section title="API Keys" description="Connect external services (admin only)">
-              <div className="space-y-4">
-                {[
-                  { label: 'AI Calling Key',      hint: 'Managed by Veori' },
-                  { label: 'AI Engine Key',        hint: 'Managed by Veori' },
-                  { label: 'Voice Engine Key',     hint: 'Managed by Veori' },
-                  { label: 'E-Signature Key',      hint: 'Managed by Veori' },
-                ].map(({ label, hint }) => (
-                  <div key={label}>
-                    <Input label={label} type="password" placeholder="Configured by Veori" disabled />
-                    <p className="text-[11px] text-text-muted mt-1">{hint}</p>
-                  </div>
-                ))}
-                <div className="flex items-center gap-2 mt-4 px-3 py-3 bg-primary/5 border border-primary/20 rounded-[6px]">
-                  <CheckCircle size={14} className="text-primary flex-shrink-0" />
-                  <p className="text-[12px] text-text-secondary">All integrations are managed securely by Veori. No setup needed on your end.</p>
-                </div>
-              </div>
-            </Section>
-          )}
+          {tab === 'developers' && <DeveloperSettings />}
         </div>
       </div>
     </div>

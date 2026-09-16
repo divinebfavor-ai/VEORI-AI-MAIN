@@ -202,6 +202,8 @@ async function changeDealStage({ dealId, userId, stage, actor = 'operator', reas
     metadata: { from, to: stage, reason },
   }).catch(e => console.warn('[DealStage] activity log failed:', e.message));
 
+  require('./webhookService').emitEvent(userId, 'deal.stage_changed', { deal_id: deal.id, lead_id: deal.lead_id, from, to: stage, reason, actor });
+
   const automation = runStageAutomation({ deal, from, to: stage, userId })
     .catch(e => console.error('[DealStage] automation error:', e.message));
   if (awaitAutomation) await automation;

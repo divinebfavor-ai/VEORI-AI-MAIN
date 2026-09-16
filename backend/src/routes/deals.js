@@ -123,6 +123,7 @@ router.post('/', async (req, res, next) => {
       metadata: { status: data.status, offer_price: data.offer_price, mao: data.mao },
     }).catch(e => console.warn('[Deal] Activity log failed (non-fatal):', e.message));
 
+    require('../services/webhookService').emitEvent(req.user.id, 'deal.created', { deal: data, via: 'app' });
     res.status(201).json({ success: true, data, deal: data });
   } catch (err) { next(err); }
 });
@@ -678,6 +679,7 @@ router.post('/create', async (req, res, next) => {
       metadata: { status: data.status, deal_type: data.deal_type },
     }).catch(e => console.warn('[Deal] Activity log failed:', e.message));
 
+    require('../services/webhookService').emitEvent(req.user.id, 'deal.created', { deal: data, via: 'app' });
     res.status(201).json({ success: true, deal: data, data });
   } catch (err) { next(err); }
 });

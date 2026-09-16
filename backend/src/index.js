@@ -162,7 +162,9 @@ app.use('/api/', rateLimit({
   max: 600,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => !!verifiedUserId(req), // only a VERIFIED session skips this limit
+  // A VERIFIED session skips this limit. /api/v1 (API-key traffic) has its own
+  // limiters: one per IP before authentication, one per key after it.
+  skip: (req) => !!verifiedUserId(req) || req.originalUrl.startsWith('/api/v1/'),
   message: { success: false, error: 'Too many requests. Please wait a moment and try again.' },
 }));
 
@@ -471,6 +473,32 @@ if (String(process.env.LEARNING_LOOP || 'on') !== 'off') {
       learningTick().catch(err => console.warn('[LearningLoop] nightly cycle failed:', err.message));
     }, LEARNING_SWEEP_MS);
   }, 10 * 60 * 1000);
+}
+
+// ─── Public REST API v1 (API keys) + developer settings ──────────────────────
+// Unauthenticated/invalid-key attempts are limited per IP before the key check.
+app.use('/api/v1', rateLimit({
+  windowMs: 60 * 1000,
+  max: Math.max(1, parseInt(process.env.PUBLIC_API_IP_RATE_LIMIT_PER_MINUTE, 10) || 600),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'rate_limited', message: 'Too many requests from this address' } },
+}));
+app.use('/api/v1', require('./routes/publicApi'));
+app.use('/api/developer', require('./routes/developer'));
+
+// Webhook retry sweep. Each delivery is claimed before sending, so overlapping
+// sweeps (or a sweep racing an immediate send) never deliver the same row twice.
+{
+  const { processDueDeliveries } = require('./services/webhookService');
+  let sweeping = false;
+  setInterval(() => {
+    if (sweeping) return;
+    sweeping = true;
+    processDueDeliveries()
+      .catch(err => console.error('[Webhooks] sweep failed:', err.message))
+      .finally(() => { sweeping = false; });
+  }, 60 * 1000);
 }
 
 // ─── New Features (Features: Missed Call Text-Back, SMS Inbox, Appointments) ──

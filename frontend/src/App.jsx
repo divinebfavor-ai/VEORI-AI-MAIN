@@ -41,6 +41,7 @@ const BillingVerify          = lazyWithRetry(() => import('./pages/BillingVerify
 const Referrals              = lazyWithRetry(() => import('./pages/Referrals'))
 const Admin                  = lazyWithRetry(() => import('./pages/Admin'))
 const Terms                  = lazyWithRetry(() => import('./pages/Terms'))
+const ApiDocs                = lazyWithRetry(() => import('./pages/ApiDocs'))
 const Privacy                = lazyWithRetry(() => import('./pages/Privacy'))
 // ── Intelligence Features ──────────────────────────────────────────────────────
 const LeadIntelligence       = lazyWithRetry(() => import('./pages/LeadIntelligence'))
@@ -117,6 +118,7 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/terms" element={<Terms />} />
+        <Route path="/developers" element={<ApiDocs />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/refund-policy" element={<RefundPolicy />} />
         <Route path="/login" element={<Login />} />

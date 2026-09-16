@@ -688,6 +688,10 @@ async function notifySignatureProgress({ contract, signer, fullySigned }) {
       return;
     }
 
+    require('./webhookService').emitEvent(deal.user_id, 'contract.fully_signed', {
+      contract_id: contract.id, deal_id: deal.id, contract_type: contract.contract_type,
+      signers: (signers || []).map(r => ({ role: r.signer_role, name: r.printed_name || r.name, signed_at: r.signed_at })),
+    });
     const lines = (signers || []).map(r => `- ${r.printed_name || r.name} (${r.signer_role}) signed ${r.signed_at ? new Date(r.signed_at).toUTCString() : ''}`).join('\n');
     const recipients = new Set((signers || []).map(r => r.email).filter(Boolean));
     if (operatorEmail) recipients.add(operatorEmail);
@@ -705,6 +709,11 @@ async function send(deal, type, { phone, email, userId, sms = true } = {}) {
   const deliveries = await deliverSigningLinks({ deal, signing, userId, sms, overrides: { phone, email } });
   const counterpartyReached = deliveries.some(d => d.role !== signing.operator_role && d.status === 'sent');
   console.log(`[Contract] ${type.toUpperCase()} for deal ${deal.id}: ${deliveries.map(d => `${d.role}/${d.channel}=${d.status}`).join(', ')}`);
+  // Signing links are credentials for each signer; they are never put in webhook payloads.
+  require('./webhookService').emitEvent(userId || deal.user_id, 'contract.sent', {
+    contract_id: signing.contract.id, deal_id: deal.id, contract_type: signing.contract.contract_type,
+    deliveries: deliveries.map(d => ({ role: d.role, channel: d.channel, status: d.status })),
+  });
   return {
     status: counterpartyReached ? 'sent' : 'created_not_delivered',
     signing_url: signing.counterparty_signing_url,

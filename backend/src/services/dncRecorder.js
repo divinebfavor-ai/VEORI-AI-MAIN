@@ -55,6 +55,9 @@ async function recordDncRequest({ phone, userId = null, lead = null, callId = nu
     if (leadErr) console.error(`[DNC][COMPLIANCE] FAILED to flag lead ${lead.id} as DNC:`, leadErr.message);
   }
 
+  if (userId && result.recorded && !result.alreadyListed) {
+    require('./webhookService').emitEvent(userId, 'lead.opted_out', { lead_id: lead?.id || null, phone, source, reason });
+  }
   await logTcpa({
     userId, lead: lead || { phone }, callId, withinHours: true, dncResult: 'blocked',
     consent: 'revoked', action: `${source}_opt_out`, note: reason,

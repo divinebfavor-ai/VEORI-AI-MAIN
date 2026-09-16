@@ -170,6 +170,7 @@ async function processRecord(record, userId) {
       } catch (_) {}
     }
 
+    require('./webhookService').emitEvent(userId, 'lead.created', { lead, via: 'lead_engine' });
     return { status: 'imported', lead_id: lead.id, score };
   } catch (err) {
     console.error('[LeadEngine] processRecord error:', err.message);
