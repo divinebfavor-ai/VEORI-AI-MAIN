@@ -160,3 +160,15 @@ test('an already-listed number is not inserted twice', async () => {
   assert.strictEqual(db.writes.some(w => w.table === 'dnc_records' && w.op === 'insert'), false);
   assert.strictEqual(db.writes.find(w => w.table === 'leads')?.payload.is_on_dnc, true);
 });
+
+test('objecting to the recording ends the call and does not add the number to DNC', async () => {
+  reset();
+  const turn = await voiceBrain.nextTurn({
+    callId: 'call-4', speech: "I don't want to be recorded",
+    call: { user_id: 'user-1' }, lead: { ...baseLead }, operator: {},
+  });
+  await flush();
+  assert.strictEqual(turn.end, true);
+  assert.match(turn.reply, /recorded line/);
+  assert.strictEqual(db.writes.some(w => w.table === 'dnc_records'), false);
+});

@@ -12,15 +12,31 @@ const { logTcpa } = require('../services/tcpaLog');
 
 const router = express.Router();
 
-// CTIA standard opt-out keywords - exact match, case-insensitive
-const OPT_OUT_KEYWORDS  = ['STOP', 'UNSUBSCRIBE', 'CANCEL', 'QUIT', 'END'];
+// Opt-out. CTIA keywords as the whole message, plus plain-language requests: the
+// FCC's 2024 revocation rule requires honoring a request to stop made by any
+// reasonable means, not only the exact keyword. Over-matching a short reply is the
+// safe side of that rule.
+const OPT_OUT_KEYWORDS  = ['STOP', 'STOPALL', 'STOP ALL', 'UNSUBSCRIBE', 'CANCEL', 'QUIT', 'END', 'REVOKE', 'OPTOUT', 'OPT OUT', 'OPT-OUT', 'REMOVE'];
+const OPT_OUT_PHRASES   = [
+  /\bstop\s+(texting|messaging|contacting|calling|sending)\b/i,
+  /\b(do not|don'?t|dont|never)\s+(text|message|contact|call)\s+(me|this number)\b/i,
+  /\b(remove|take)\s+me\s+(off|from)\b/i,
+  /\b(unsubscribe|opt\s*-?\s*out)\b/i,
+  /\blose\s+my\s+number\b/i,
+  /\bleave\s+me\s+alone\b/i,
+  /\bno\s+more\s+(texts|messages)\b/i,
+  /^\s*stop\b/i,
+];
 // 'YES' is deliberately NOT an opt-in keyword: sellers and buyers answer questions
 // with "yes", and treating that as a re-subscribe swallowed the reply (it was never
 // scored, and a buyer's YES never reached deal assignment).
 const OPT_IN_KEYWORDS   = ['START', 'UNSTOP'];
 
 function isOptOut(text) {
-  return OPT_OUT_KEYWORDS.includes((text || '').trim().toUpperCase());
+  const t = String(text || '').trim();
+  if (!t) return false;
+  if (OPT_OUT_KEYWORDS.includes(t.replace(/[.!\s]+$/, '').toUpperCase())) return true;
+  return OPT_OUT_PHRASES.some(re => re.test(t));
 }
 function isOptIn(text) {
   return OPT_IN_KEYWORDS.includes((text || '').trim().toUpperCase());
@@ -43,7 +59,7 @@ async function handleOptOut(from, lead, userId, toNumber) {
   // event, so it is logged loudly - but it must not break the confirmation reply
   // the consumer is owed, so it does not throw.
   try {
-    let q = supabase.from('dnc_records').select('id').eq('phone', from).limit(1);
+    let q = supabase.from('dnc_records').select('id').eq('phone', from).is('revoked_at', null).limit(1);
     q = userId ? q.eq('user_id', userId) : q.is('user_id', null);
     const { data: existing } = await q;
 
@@ -104,7 +120,11 @@ async function handleOptIn(from, lead, userId) {
   if (!userId) {
     console.warn(`[SMS] opt-in from ${from} with no resolvable operator - suppression left in place`);
   } else {
-    await supabase.from('dnc_records').delete().eq('phone', from).eq('user_id', userId);
+    // Keep the opt-out record (it is the proof of when they opted out); mark it revoked.
+    const { error: revokeErr } = await supabase.from('dnc_records')
+      .update({ revoked_at: new Date().toISOString(), revoked_reason: 'Replied START' })
+      .eq('phone', from).eq('user_id', userId).is('revoked_at', null);
+    if (revokeErr) console.error('[SMS][COMPLIANCE] opt-in revoke failed:', revokeErr.message);
   }
 
   if (lead) {
@@ -663,3 +683,5 @@ router.post('/status', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.isOptOut = isOptOut;
+module.exports.isOptIn = isOptIn;

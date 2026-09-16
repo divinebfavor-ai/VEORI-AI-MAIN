@@ -27,6 +27,10 @@ const twilioClient = (TWILIO_SID && TWILIO_TOKEN) ? twilio(TWILIO_SID, TWILIO_TO
  * @param {string} text Message body
  * @returns {Promise<string|null>} Twilio message SID
  */
+function sharedSenderAllowed() {
+  return process.env.ALLOW_SHARED_SENDER_OUTREACH === 'true';
+}
+
 async function sendSMS(to, text, userId = null) {
   if (!twilioClient) {
     console.warn('[SMS] Twilio not configured (TWILIO_ACCOUNT_SID/AUTH_TOKEN missing) - skipping');
@@ -67,7 +71,16 @@ async function sendSMS(to, text, userId = null) {
   }
 
   // Fallback chain when the operator has neither a registered service nor a toll-free number yet.
+  // Operator messages (userId given) must go out under the operator's OWN registered
+  // sender: carriers require every business texting through 10DLC to be registered,
+  // and a verified toll-free number is approved for its owner's use case only. Only
+  // system messages with no operator (e.g. opt-out confirmations) use the platform
+  // sender. ALLOW_SHARED_SENDER_OUTREACH=true restores the old shared fallback.
   if (!sender) {
+    if (userId && !sharedSenderAllowed()) {
+      console.warn(`[SMS][A2P] Not sent - operator ${userId} has no approved A2P service or verified toll-free number`);
+      return null;
+    }
     sender = MSG_SERVICE_SID ? { messagingServiceSid: MSG_SERVICE_SID } : { from: SMS_FROM };
   }
 
@@ -105,6 +118,10 @@ async function sendSMSDirect({ to, body, userId = null, leadId = null, senderOve
   let sender;
   if (senderOverride?.kind === 'mgs')         sender = { messagingServiceSid: senderOverride.value };
   else if (senderOverride?.kind === 'number') sender = { from: senderOverride.value };
+  else if (userId && !sharedSenderAllowed()) {
+    console.warn(`[SMS][A2P] sendSMSDirect not sent - no registered sender chosen for operator ${userId}`);
+    return null;
+  }
   else sender = MSG_SERVICE_SID ? { messagingServiceSid: MSG_SERVICE_SID } : { from: SMS_FROM };
 
   const msg = await twilioClient.messages.create({ ...sender, to, body, ...(SMS_STATUS_CALLBACK ? { statusCallback: SMS_STATUS_CALLBACK } : {}) });
@@ -299,11 +316,12 @@ async function sendOpeningSMS(lead, userId) {
       to_number:  phone,
       body,
       telnyx_message_id: msgId,
-      status:     'sent',
+      // null msgId = not handed to the carrier (no registered sender / provider off).
+      status:     msgId ? 'sent' : 'not_sent',
       sent_at:    new Date().toISOString(),
     }).then(null, () => {});
 
-    console.log(`[SMS] Opening sent to ${phone} (lead: ${lead.id})`);
+    console.log(`[SMS] Opening ${msgId ? 'sent' : 'NOT sent'} for lead ${lead.id}`);
     return msgId;
   } catch (err) {
     console.error('[SMS] Send failed:', err.response?.data || err.message);
@@ -538,7 +556,7 @@ async function sendReply(toPhone, body, userId, leadId) {
       to_number:  toPhone,
       body,
       telnyx_message_id: msgId,
-      status:     'sent',
+      status:     msgId ? 'sent' : 'not_sent',
       sent_at:    new Date().toISOString(),
     }).then(null, () => {});
 

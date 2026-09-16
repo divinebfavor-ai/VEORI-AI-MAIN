@@ -83,6 +83,14 @@ const GOODBYE_CUES = [
 // consent, so these are RECORDED to dnc_records, not just used to hang up.
 // 'not interested' and 'hang up' deliberately stay out: they end this call but
 // are not a request to never be contacted again.
+// Objection to being recorded. The prompt tells the model to end the call; this is
+// the deterministic backstop so a recording never continues after someone declines.
+const RECORDING_OBJECTION_CUES = [
+  "don't record", 'do not record', 'dont record', 'stop recording', 'not consent to', "don't consent",
+  'do not consent', "didn't agree to be recorded", 'not ok with being recorded', "not okay with being recorded",
+  "don't want to be recorded", 'do not want to be recorded', 'turn off the recording',
+];
+
 const DNC_REQUEST_CUES = [
   'stop calling', 'quit calling', 'take me off', 'remove me',
   'do not call', "don't call", 'lose my number',
@@ -284,6 +292,19 @@ async function nextTurn(args = {}) {
     } else {
       console.error(`[voiceBrain][COMPLIANCE] do-not-call request on call ${callId} but no lead phone to record`);
     }
+  }
+  if (heardLower && RECORDING_OBJECTION_CUES.some((c) => heardLower.includes(c))) {
+    const closer = "Understood - I won't keep you on a recorded line. I'll let you go. Thanks for your time.";
+    session.messages.push({ role: 'user', content: heard });
+    session.messages.push({ role: 'assistant', content: closer });
+    await persistTranscript(callId, session.messages);
+    sessions.delete(callId);
+    require('./aiCommandLog').logAiCommand({
+      userId: args.call?.user_id || args.operatorId || operator.id || null, leadId: lead.id || null,
+      actionType: 'recording_declined', status: 'call_ended',
+      summary: 'Seller objected to being recorded - call ended',
+    });
+    return { reply: closer, end: true, emotion: 'warm' };
   }
   if (heardLower && (dncRequested || GOODBYE_CUES.some((c) => heardLower.includes(c)))) {
     const closer = 'No problem at all - I appreciate your time. Have a great day.';

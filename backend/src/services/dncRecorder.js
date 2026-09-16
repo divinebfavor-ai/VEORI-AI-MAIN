@@ -28,7 +28,7 @@ async function recordDncRequest({ phone, userId = null, lead = null, callId = nu
 
   let result = { recorded: false };
   try {
-    let q = supabase.from('dnc_records').select('id').eq('phone', phone).limit(1);
+    let q = supabase.from('dnc_records').select('id').eq('phone', phone).is('revoked_at', null).limit(1);
     q = userId ? q.eq('user_id', userId) : q.is('user_id', null);
     const { data: existing, error: readErr } = await q;
     if (readErr) throw new Error(readErr.message);

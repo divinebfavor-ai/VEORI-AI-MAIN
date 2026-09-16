@@ -120,20 +120,33 @@ async function processBlastSMS(data) {
     }
   }
 
-  // 2. Credit gate - defer (throw → retry) if exhausted; never silent-drop.
+  // 2. Sender - chosen BEFORE credits are reserved, so a message that can't be sent
+  //    (capped numbers retry later; no registered sender is dropped) never burns a
+  //    credit. Previously credits were reserved first and re-reserved on every retry.
+  const sender = await smsRotation.selectSmsNumber(userId);
+  if (sender?.kind === 'blocked') {
+    await require('./tcpaLog').logTcpaCompat({
+      user_id: userId || null, lead_id: leadId || null, phone: to,
+      action: 'sms_blocked_no_registered_sender',
+      notes: 'Not sent - operator has no approved A2P service or verified toll-free number',
+      created_at: new Date().toISOString(),
+    }).then(null, () => {});
+    await markSmsFirstLead(smsFirstLeadId, { status: 'blocked_no_sender' });
+    console.warn(`[SMSBlast] operator ${userId} has no registered sender - message dropped`);
+    return { skipped: 'no_registered_sender' };
+  }
+  if (!sender) {
+    const err = new Error('no SMS sender capacity (all numbers capped)');
+    err.deferred = true;
+    throw err;
+  }
+
+  // 3. Credit gate - defer (throw → retry) if exhausted; never silent-drop.
   const reservation = await outreachCredits.reserve(userId, 1);
   if (!reservation.allowed) {
     // Mark the row so the UI can show "waiting on credits", then throw to retry.
     await markSmsFirstLead(smsFirstLeadId, { status: 'deferred_no_credits' });
     const err = new Error(`outreach credits ${reservation.reason || 'exhausted'}`);
-    err.deferred = true;
-    throw err;
-  }
-
-  // 3. Rotation - pick a sender under its daily cap; null == defer.
-  const sender = await smsRotation.selectSmsNumber(userId);
-  if (!sender) {
-    const err = new Error('no SMS sender capacity (all numbers capped)');
     err.deferred = true;
     throw err;
   }

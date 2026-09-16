@@ -19,7 +19,8 @@ async function checkInternalDnc(phone) {
   if (!supabase) return { onList: true, errored: true };
   const normalized = toE164(phone) || String(phone).trim();
   try {
-    const { data, error } = await supabase.from('dnc_records').select('id').eq('phone', normalized).limit(1);
+    const { data, error } = await supabase.from('dnc_records').select('id')
+      .eq('phone', normalized).is('revoked_at', null).limit(1);
     if (error) {
       console.error('[DNC] lookup failed - treating as do-not-contact:', error.message);
       return { onList: true, errored: true };

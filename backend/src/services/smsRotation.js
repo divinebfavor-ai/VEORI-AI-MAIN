@@ -108,8 +108,13 @@ async function selectSmsNumber(userId) {
   // Operator HAS deliverable numbers but they're all capped for today → defer.
   if (deliverable.length > 0) return null;
 
-  // Operator has no provisioned numbers at all → fall back to env sender so the
-  // un-provisioned account can still send (matches smsService's fallback chain).
+  // Operator has no registered sender at all. Their marketing texts must not go out
+  // under the platform's sender (carrier registration is per business), so report
+  // that explicitly - the caller drops the message instead of retrying it forever.
+  // ALLOW_SHARED_SENDER_OUTREACH=true restores the old shared fallback.
+  if (process.env.ALLOW_SHARED_SENDER_OUTREACH !== 'true') {
+    return { kind: 'blocked', reason: 'no_registered_sender', value: null, numberId: null };
+  }
   if (ENV_MSG_SERVICE_SID) return { kind: 'mgs', value: ENV_MSG_SERVICE_SID, numberId: null };
   if (ENV_FROM)            return { kind: 'number', value: ENV_FROM, numberId: null };
   return null;

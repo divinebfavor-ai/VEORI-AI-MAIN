@@ -653,7 +653,7 @@ router.post('/bulk', async (req, res, next) => {
     const dncSet = new Set();
     const phoneList = [...new Set(withPhones.map(l => l.phone))];
     for (let i = 0; i < phoneList.length; i += 500) {
-      const { data: dncData, error: dncErr } = await supabase.from('dnc_records').select('phone').in('phone', phoneList.slice(i, i + 500));
+      const { data: dncData, error: dncErr } = await supabase.from('dnc_records').select('phone').in('phone', phoneList.slice(i, i + 500)).is('revoked_at', null);
       if (dncErr) {
         // Fail closed: if we can't check, treat this chunk as do-not-contact.
         console.error('[Leads import] DNC lookup failed - marking chunk DNC:', dncErr.message);

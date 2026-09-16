@@ -151,6 +151,7 @@ async function checkDNC(phoneNumber) {
   const { data: rows, error } = await supabase.from('dnc_records')
     .select('id, reason, created_at')
     .eq('phone', toE164(phoneNumber) || phoneNumber)
+    .is('revoked_at', null)
     .limit(1);
   const data = error ? { reason: 'DNC lookup failed - treated as do-not-contact' } : (rows || [])[0];
 
