@@ -8,7 +8,7 @@ import Input from '../components/ui/Input'
 import { buyers } from '../services/api'
 
 function BuyerModal({ onClose, onSave }) {
-  const [form, setForm] = useState({ name:'', phone:'', email:'', buy_box_states:'', max_price:'', notes:'' })
+  const [form, setForm] = useState({ name:'', phone:'', email:'', buy_box_states:'', property_cities:'', buy_box_zips:'', buy_box_types:'', min_price:'', max_price:'', notes:'' })
   const [saving, setSaving] = useState(false)
   const set = k => e => setForm(f => ({...f, [k]: e.target.value}))
 
@@ -16,16 +16,25 @@ function BuyerModal({ onClose, onSave }) {
     if (!form.name) { toast.error('Name required'); return }
     setSaving(true)
     try {
-      await buyers.createBuyer({ ...form, buy_box_states: form.buy_box_states.split(',').map(s=>s.trim()).filter(Boolean), max_price: form.max_price ? Number(form.max_price) : null })
+      const list = (v) => v.split(',').map(s => s.trim()).filter(Boolean)
+      await buyers.createBuyer({
+        ...form,
+        buy_box_states: list(form.buy_box_states),
+        property_cities: list(form.property_cities),
+        buy_box_zips: list(form.buy_box_zips),
+        buy_box_types: list(form.buy_box_types),
+        min_price: form.min_price === '' ? null : Number(form.min_price),
+        max_price: form.max_price === '' ? null : Number(form.max_price),
+      })
       toast.success('Buyer added')
       onSave()
-    } catch { toast.error('Failed to add buyer') }
+    } catch (err) { toast.error(err?.response?.data?.error || 'Failed to add buyer') }
     finally { setSaving(false) }
   }
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
-      <div className="bg-card border border-border-subtle rounded-xl w-full max-w-md p-8">
+      <div className="bg-card border border-border-subtle rounded-xl w-full max-w-md p-8 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-[18px] font-medium text-white">Add Buyer</h2>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors"><X size={18} /></button>
@@ -35,7 +44,14 @@ function BuyerModal({ onClose, onSave }) {
           <Input label="Phone" type="tel" placeholder="+1 (555) 000-0000" value={form.phone} onChange={set('phone')} />
           <Input label="Email" type="email" placeholder="buyer@company.com" value={form.email} onChange={set('email')} />
           <Input label="Buy Box States (comma separated)" placeholder="MI, OH, TN" value={form.buy_box_states} onChange={set('buy_box_states')} />
-          <Input label="Max Price" type="number" placeholder="250000" value={form.max_price} onChange={set('max_price')} />
+          <Input label="Cities (comma separated, optional)" placeholder="Detroit, Dearborn" value={form.property_cities} onChange={set('property_cities')} />
+          <Input label="Zip Codes (comma separated, optional)" placeholder="48201, 48124" value={form.buy_box_zips} onChange={set('buy_box_zips')} />
+          <Input label="Property Types (comma separated, optional)" placeholder="single family, duplex" value={form.buy_box_types} onChange={set('buy_box_types')} />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Min Price" type="number" placeholder="50000" value={form.min_price} onChange={set('min_price')} />
+            <Input label="Max Price" type="number" placeholder="250000" value={form.max_price} onChange={set('max_price')} />
+          </div>
+          <p className="text-[12px] text-text-muted">Leave a field empty to match any value. Deals are only texted to buyers whose buy box fits.</p>
           <div className="flex flex-col gap-1.5">
             <label className="label-caps">Notes</label>
             <textarea value={form.notes} onChange={set('notes')} rows={3}
@@ -98,6 +114,9 @@ export default function Buyers() {
             buy_box_states: v(r, 'buy_box_states', 'Buy Box States', 'states', 'States', 'Markets', 'Target States'),
             buy_box_types:  v(r, 'buy_box_types', 'Buy Box Types', 'property_types', 'Property Types', 'Asset Types'),
             max_price:      v(r, 'max_price', 'Max Price', 'max_purchase_price', 'Max Purchase Price', 'Budget', 'Price Cap'),
+            min_price:      v(r, 'min_price', 'Min Price', 'min_purchase_price', 'Min Purchase Price', 'Price Floor'),
+            property_cities: v(r, 'property_cities', 'Cities', 'cities', 'City', 'Target Cities', 'Buy Box Cities'),
+            buy_box_zips:   v(r, 'buy_box_zips', 'Zips', 'zips', 'Zip Codes', 'Zip', 'Target Zips'),
             notes:          v(r, 'notes', 'Notes', 'Comments'),
           })).filter(r => r.name || r.phone)
 
@@ -108,11 +127,16 @@ export default function Buyers() {
           }
 
           const res = await buyers.bulkAddBuyers(mapped)
-          const { imported = mapped.length, duplicates_skipped = 0 } = res.data || {}
+          const { imported = 0, duplicates_skipped = 0, invalid = 0, invalid_rows = [], failed = 0 } = res.data || {}
 
           let msg = `${imported} buyers imported`
           if (duplicates_skipped > 0) msg += ` · ${duplicates_skipped} duplicates skipped`
           toast.success(msg)
+          if (invalid > 0) {
+            const first = invalid_rows[0]
+            toast.error(`${invalid} rows skipped as invalid${first ? ` (row ${first.row}: ${first.errors.join(', ')})` : ''}`, { duration: 8000 })
+          }
+          if (failed > 0) toast.error(`${failed} rows could not be saved. Try the import again.`)
           load()
         } catch (err) {
           const msg = err?.response?.data?.error || err?.message || 'Import failed'

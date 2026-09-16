@@ -2,6 +2,7 @@ const express  = require('express');
 const { v4: uuidv4 } = require('uuid');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
+const { normalizeBuyer } = require('../utils/buyerFields');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -34,112 +35,92 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { name, phone, email, buy_box_states = [], buy_box_types = [], max_price, repair_tolerance = 'any', notes } = req.body;
-    if (!name) return res.status(400).json({ success: false, error: 'name required' });
-    const row = {
-      id: uuidv4(), user_id: req.user.id, name, phone, email, buy_box_states, buy_box_types, max_price, repair_tolerance, notes
-    };
-    // Upsert on the (user_id, phone) unique index (2026-06-19_buyer_dedup.sql): a
-    // re-add of an existing buyer for this operator updates in place instead of
-    // creating a duplicate. Email-only buyers (no phone) fall through to a plain
-    // insert since the partial index ignores blank phones.
-    const useUpsert = !!(phone && String(phone).trim());
-    const query = useUpsert
-      ? supabase.from('buyers').upsert(row, { onConflict: 'user_id,phone' })
-      : supabase.from('buyers').insert([row]);
+    const { row, errors } = normalizeBuyer({ repair_tolerance: 'any', ...req.body });
+    if (errors.length) return res.status(400).json({ success: false, error: errors.join('; ') });
+    const record = { ...row, user_id: req.user.id, source: row.source || 'manual' };
+    // One buyer per (user_id, phone): re-adding an existing buyer updates that row.
+    // The id is left to the database default so an update never rewrites the key.
+    const query = record.phone
+      ? supabase.from('buyers').upsert(record, { onConflict: 'user_id,phone' })
+      : supabase.from('buyers').insert([record]);
     const { data, error } = await query.select().single();
     if (error) throw error;
     res.status(201).json({ success: true, data });
   } catch (err) { next(err); }
 });
 
-// POST /api/buyers/bulk - CSV / list import. Flexible header mapping, phone-dedup,
-// chunked insert. Mirrors leads.js /bulk so a single CSV upload can seed a buyers
-// list (the buy side of the auto-disposition loop).
+// POST /api/buyers/bulk - CSV / list import. Flexible header mapping, phone dedup,
+// chunked upsert. Rows that fail validation are skipped and reported, not guessed.
+const MAX_BULK_BUYERS = 10000;
 router.post('/bulk', async (req, res, next) => {
   try {
     const { buyers } = req.body;
     if (!Array.isArray(buyers) || !buyers.length) return res.status(400).json({ success: false, error: 'buyers array required' });
+    if (buyers.length > MAX_BULK_BUYERS) {
+      return res.status(400).json({ success: false, error: `Too many rows (${buyers.length}). Max ${MAX_BULK_BUYERS} per import.` });
+    }
 
-    // Normalize one CSV-ish value across the common header spellings.
     const pick = (b, ...keys) => {
       for (const k of keys) {
-        const val = b[k] ?? b[k?.toLowerCase?.()] ?? b[k?.toUpperCase?.()];
-        if (val !== undefined && val !== null && String(val).trim()) return String(val).trim();
+        const val = b?.[k] ?? b?.[k?.toLowerCase?.()] ?? b?.[k?.toUpperCase?.()];
+        if (val !== undefined && val !== null && String(val).trim()) return Array.isArray(val) ? val : String(val).trim();
       }
-      return '';
-    };
-    // Accept either an array already, or a comma/pipe/semicolon-separated string.
-    const toArray = (v) => {
-      if (Array.isArray(v)) return v.map(s => String(s).trim().toUpperCase()).filter(Boolean);
-      if (!v) return [];
-      return String(v).split(/[,;|]/).map(s => s.trim().toUpperCase()).filter(Boolean);
-    };
-    const toNum = (v) => {
-      if (v === undefined || v === null || v === '') return null;
-      const n = Number(String(v).replace(/[$,\s]/g, ''));
-      return Number.isFinite(n) ? n : null;
+      return undefined;
     };
 
-    const mapped = buyers.map(b => ({
-      id:               uuidv4(),
-      user_id:          req.user.id,
-      name:             pick(b, 'name', 'Name', 'Full Name', 'FullName', 'buyer_name', 'Buyer Name', 'Company', 'Contact'),
-      phone:            pick(b, 'phone', 'Phone', 'phone_number', 'Phone Number', 'PhoneNumber', 'Mobile', 'Cell', 'Contact Phone'),
-      email:            pick(b, 'email', 'Email', 'Email Address', 'EmailAddress') || null,
-      buyer_type:       pick(b, 'buyer_type', 'Buyer Type', 'type', 'Type') || null,
-      buy_box_states:   toArray(b.buy_box_states ?? pick(b, 'buy_box_states', 'Buy Box States', 'States', 'state', 'State', 'Markets')),
-      buy_box_types:    toArray(b.buy_box_types  ?? pick(b, 'buy_box_types', 'Buy Box Types', 'Property Types', 'Types')),
-      max_price:        toNum(b.max_price ?? pick(b, 'max_price', 'Max Price', 'Max Purchase Price', 'MaxPrice', 'budget', 'Budget')),
-      repair_tolerance: pick(b, 'repair_tolerance', 'Repair Tolerance', 'rehab', 'Rehab') || 'any',
-      notes:            pick(b, 'notes', 'Notes', 'note', 'Note') || null,
-    }));
-
-    // Dedup by phone within the batch (keep first); rows with no phone keep all
-    // (a buyer can be email-only) but are de-duped by name to avoid obvious repeats.
-    const seenPhone = new Set();
-    const seenName  = new Set();
-    const unique = mapped.filter(r => {
-      if (r.phone) { if (seenPhone.has(r.phone)) return false; seenPhone.add(r.phone); return true; }
-      if (r.name)  { const key = r.name.toLowerCase(); if (seenName.has(key)) return false; seenName.add(key); return true; }
-      return false; // no phone AND no name - drop
+    const rejected = [];
+    const seen = new Set();
+    let duplicatesInFile = 0;
+    const rows = [];
+    buyers.forEach((b, i) => {
+      const input = {
+        name:             pick(b, 'name', 'Name', 'Full Name', 'FullName', 'buyer_name', 'Buyer Name', 'Company', 'Contact') || pick(b, 'phone', 'Phone'),
+        phone:            pick(b, 'phone', 'Phone', 'phone_number', 'Phone Number', 'PhoneNumber', 'Mobile', 'Cell', 'Contact Phone') ?? '',
+        email:            pick(b, 'email', 'Email', 'Email Address', 'EmailAddress') ?? '',
+        buyer_type:       pick(b, 'buyer_type', 'Buyer Type', 'type', 'Type') ?? '',
+        buy_box_states:   pick(b, 'buy_box_states', 'Buy Box States', 'States', 'state', 'State', 'Markets', 'Target States') ?? [],
+        buy_box_types:    pick(b, 'buy_box_types', 'Buy Box Types', 'Property Types', 'property_types', 'Types', 'Asset Types') ?? [],
+        property_cities:  pick(b, 'property_cities', 'Cities', 'cities', 'City', 'Target Cities', 'Buy Box Cities') ?? [],
+        buy_box_zips:     pick(b, 'buy_box_zips', 'Zips', 'zips', 'Zip Codes', 'Zip', 'Target Zips') ?? [],
+        max_price:        pick(b, 'max_price', 'Max Price', 'Max Purchase Price', 'MaxPrice', 'budget', 'Budget', 'Price Cap') ?? null,
+        min_price:        pick(b, 'min_price', 'Min Price', 'Min Purchase Price', 'MinPrice', 'Price Floor') ?? null,
+        repair_tolerance: pick(b, 'repair_tolerance', 'Repair Tolerance', 'rehab', 'Rehab') ?? 'any',
+        notes:            pick(b, 'notes', 'Notes', 'note', 'Note', 'Comments') ?? '',
+      };
+      const { row, errors } = normalizeBuyer(input);
+      if (errors.length) { rejected.push({ row: i + 1, errors }); return; }
+      const key = row.phone || `name:${row.name.toLowerCase()}`;
+      if (seen.has(key)) { duplicatesInFile += 1; return; }
+      seen.add(key);
+      rows.push({ ...row, user_id: req.user.id, source: 'import' });
     });
 
-    if (!unique.length) return res.status(400).json({ success: false, error: 'No valid buyers (need a name or phone)' });
-
-    // Skip buyers whose phone already exists for this operator (no unique constraint
-    // on the table, so we filter explicitly rather than rely on upsert).
-    const phones = unique.map(r => r.phone).filter(Boolean);
-    let existingPhones = new Set();
-    if (phones.length) {
-      const { data: existing } = await supabase
-        .from('buyers').select('phone').eq('user_id', req.user.id).in('phone', phones);
-      existingPhones = new Set((existing || []).map(e => e.phone));
-    }
-    const toInsert = unique.filter(r => !r.phone || !existingPhones.has(r.phone));
-
-    // Upsert against the (user_id, phone) unique index (2026-06-19_buyer_dedup.sql)
-    // with ignoreDuplicates so a cross-batch race that slips past the JS pre-check
-    // no longer 500s on a 23505 - the duplicate row is simply skipped at the DB. The
-    // in-memory + existing-phone passes above keep the common case cheap; this is the
-    // hard backstop. Rows with a blank phone are ignored by the partial index, so the
-    // conflict target is a no-op for them and they insert normally.
     let imported = 0;
+    let failed = 0;
     const chunkSize = 500;
-    for (let i = 0; i < toInsert.length; i += chunkSize) {
-      const chunk = toInsert.slice(i, i + chunkSize);
-      const { data, error } = await supabase
-        .from('buyers')
-        .upsert(chunk, { onConflict: 'user_id,phone', ignoreDuplicates: true })
-        .select('id');
-      if (!error) imported += data?.length || 0;
-      else console.warn('[Buyers import] upsert error:', error.message);
+    const withPhone = rows.filter(r => r.phone);
+    const withoutPhone = rows.filter(r => !r.phone);
+    for (let i = 0; i < withPhone.length; i += chunkSize) {
+      const chunk = withPhone.slice(i, i + chunkSize);
+      const { data, error } = await supabase.from('buyers')
+        .upsert(chunk, { onConflict: 'user_id,phone', ignoreDuplicates: true }).select('id');
+      if (error) { failed += chunk.length; console.error('[Buyers import] upsert error:', error.message); }
+      else imported += data?.length || 0;
+    }
+    for (let i = 0; i < withoutPhone.length; i += chunkSize) {
+      const chunk = withoutPhone.slice(i, i + chunkSize);
+      const { data, error } = await supabase.from('buyers').insert(chunk).select('id');
+      if (error) { failed += chunk.length; console.error('[Buyers import] insert error:', error.message); }
+      else imported += data?.length || 0;
     }
 
     res.status(201).json({
       success: true,
       imported,
-      duplicates_skipped: unique.length - toInsert.length,
+      duplicates_skipped: duplicatesInFile + Math.max(0, withPhone.length + withoutPhone.length - imported - failed),
+      invalid: rejected.length,
+      invalid_rows: rejected.slice(0, 20),
+      failed,
       total_received: buyers.length,
     });
   } catch (err) { next(err); }
@@ -147,11 +128,20 @@ router.post('/bulk', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['name','phone','email','buy_box_states','buy_box_types','max_price','min_price','property_cities','cash_only','proof_of_funds','proof_of_funds_verified','nca_signed','nca_signed_at','is_tire_kicker','repair_tolerance','is_active','notes','share_to_pool'];
-    const updates = {};
-    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
-    const { data, error } = await supabase.from('buyers').update(updates).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
-    if (error) throw error;
+    const { row: updates, errors } = normalizeBuyer(req.body, { partial: true });
+    if (errors.length) return res.status(400).json({ success: false, error: errors.join('; ') });
+    if (req.body.nca_signed_at !== undefined) updates.nca_signed_at = req.body.nca_signed_at || null;
+    if (!Object.keys(updates).length) return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    if (['buy_box_states', 'buy_box_types', 'property_cities', 'buy_box_zips', 'max_price', 'min_price'].some(k => k in updates)) {
+      updates.buybox_updated_at = new Date().toISOString();
+    }
+    const { data, error } = await supabase.from('buyers').update(updates)
+      .eq('id', req.params.id).eq('user_id', req.user.id).select().maybeSingle();
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ success: false, error: 'Another buyer already has this phone number' });
+      throw error;
+    }
+    if (!data) return res.status(404).json({ success: false, error: 'Buyer not found' });
     res.json({ success: true, data });
   } catch (err) { next(err); }
 });

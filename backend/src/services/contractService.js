@@ -47,16 +47,16 @@ function resolveContractStrategy(deal = {}, requestedType = 'psa') {
  */
 async function loadOperator(userId) {
   if (!userId) return {};
-  try {
-    const { data } = await supabase
-      .from('users')
-      .select('email, full_name, company_name, legal_name, entity_name, entity_type, buyer_name_on_contract, business_phone, business_email, re_license_number, re_license_state, earnest_money_default, inspection_period_default, closing_period_default, custom_contract_addendum')
-      .eq('id', userId)
-      .maybeSingle();
-    return data || {};
-  } catch {
+  // select('*'): several contract fields (entity_name, buyer_name_on_contract,
+  // re_license_*, *_default) are not columns in every database. Naming them made
+  // the whole query fail, which silently returned {} - no operator name or email
+  // on any contract. '*' returns whatever exists; missing fields stay undefined.
+  const { data, error } = await supabase.from('users').select('*').eq('id', userId).maybeSingle();
+  if (error) {
+    console.error(`[Contract] operator ${userId} lookup failed:`, error.message);
     return {};
   }
+  return data || {};
 }
 
 function buyerNameFor(op = {}) {

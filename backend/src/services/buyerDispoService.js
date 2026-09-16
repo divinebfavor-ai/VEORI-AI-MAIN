@@ -131,17 +131,32 @@ async function matchBuyers(deal) {
       tagged.push({ ...b, owner_user_id: b.user_id, from_pool: true });
     }
 
-    const dealType = (deal.property_type || '').trim().toLowerCase();
+    // deals has no property_type column; the type lives on the lead.
+    const dealType = (deal.property_type || deal.leads?.property_type || '').trim().toLowerCase();
+    const dealCity = (deal.property_city || '').trim().toLowerCase();
+    const dealZip  = String(deal.property_zip || '').trim().slice(0, 5);
 
     return tagged.filter(b => {
+      if (b.is_tire_kicker === true) return false;
       // State fit: empty buy_box_states == buys anywhere.
       const states = (b.buy_box_states || []).map(s => String(s).trim().toUpperCase());
       const stateFit = states.length === 0 || (state && states.includes(state));
       if (!stateFit) return false;
 
-      // Price fit: null max_price == no ceiling.
+      // City fit: empty property_cities == any city in their states.
+      const cities = (b.property_cities || []).map(c => String(c).trim().toLowerCase()).filter(Boolean);
+      if (cities.length && !(dealCity && cities.includes(dealCity))) return false;
+
+      // Zip fit: empty buy_box_zips == any zip.
+      const zips = (b.buy_box_zips || []).map(z => String(z).trim().slice(0, 5)).filter(Boolean);
+      if (zips.length && !(dealZip && zips.includes(dealZip))) return false;
+
+      // Price fit: null max_price == no ceiling; null min_price == no floor. The same
+      // 15% tolerance applies both ways. Unknown ask price never excludes a buyer.
       const priceFit = b.max_price == null || ask == null || Number(b.max_price) * PRICE_TOLERANCE >= ask;
       if (!priceFit) return false;
+      const floorFit = b.min_price == null || ask == null || ask * PRICE_TOLERANCE >= Number(b.min_price);
+      if (!floorFit) return false;
 
       // Type fit: empty buy_box_types == any type.
       const types = (b.buy_box_types || []).map(t => String(t).trim().toLowerCase());
@@ -191,7 +206,7 @@ function buildBuyerSMS(deal, buyer, { fitsBuyBox = true } = {}) {
 async function startBuyerBlast(dealId, userId) {
   if (!supabase || !dealId || !userId) return { campaignId: null, matched: 0, enqueued: 0 };
 
-  const { data: deal } = await supabase.from('deals').select('*').eq('id', dealId).single();
+  const { data: deal } = await supabase.from('deals').select('*, leads(property_type)').eq('id', dealId).eq('user_id', userId).maybeSingle();
   if (!deal) { console.warn(`[BuyerDispo] deal ${dealId} not found - no blast`); return { campaignId: null, matched: 0, enqueued: 0 }; }
 
   // 1. Match (fall back to all active buyers if no buy-box match).
@@ -229,9 +244,24 @@ async function startBuyerBlast(dealId, userId) {
     console.warn('[BuyerDispo] buyer_campaigns upsert failed:', e.message);
   }
 
-  // 3. Enqueue one SMS per recipient. campaignId+buyer.id == idempotent jobId.
+  // 3. One offer row per buyer per deal, then the text. A buyer already offered
+  //    this deal is not texted again (re-entering under_contract can't re-blast).
+  //    The offer row is what lets a later "YES" be tied to THIS deal.
+  const { data: priorOffers } = await supabase.from('buyer_deal_offers')
+    .select('buyer_id').eq('deal_id', dealId);
+  const alreadyOffered = new Set((priorOffers || []).map(o => o.buyer_id));
   let enqueued = 0;
   for (const buyer of recipients) {
+    if (alreadyOffered.has(buyer.id)) continue;
+    const { data: offer, error: offerErr } = await supabase.from('buyer_deal_offers').insert({
+      user_id: userId, buyer_id: buyer.id, deal_id: dealId, campaign_id: campaignId,
+      match_type: usedFallback ? 'fallback' : 'buy_box', status: 'queued',
+    }).select('id').single();
+    if (offerErr) {
+      // 23505 = a concurrent blast already offered this buyer.
+      if (offerErr.code !== '23505') console.warn(`[BuyerDispo] offer insert failed for buyer ${buyer.id}:`, offerErr.message);
+      continue;
+    }
     const body = buildBuyerSMS(deal, buyer, { fitsBuyBox: !usedFallback });
     try {
       const jobId = await queueService.enqueueSMS({
@@ -240,27 +270,69 @@ async function startBuyerBlast(dealId, userId) {
         userId,
         to:         buyer.phone,
         body,
-        // no smsFirstLeadId - buyers don't get sms_first_leads rows
       });
       if (jobId) enqueued += 1;
+      else await supabase.from('buyer_deal_offers').update({ status: 'send_failed', updated_at: new Date().toISOString() }).eq('id', offer.id);
     } catch (e) {
       console.warn(`[BuyerDispo] enqueue failed for buyer ${buyer.id}:`, e.message);
+      await supabase.from('buyer_deal_offers').update({ status: 'send_failed', updated_at: new Date().toISOString() }).eq('id', offer.id);
     }
   }
 
-  // 4. Bump the sent counter (additive - column added in the Phase-1 migration).
+  // 4. Counter (atomic).
   if (campaignId && enqueued) {
-    try {
-      const { data: row } = await supabase.from('buyer_campaigns').select('sms_sent').eq('id', campaignId).single();
-      const next = (row?.sms_sent || 0) + enqueued;
-      await supabase.from('buyer_campaigns').update({ sms_sent: next }).eq('id', campaignId);
-    } catch (e) {
-      console.warn('[BuyerDispo] sms_sent counter bump failed:', e.message);
-    }
+    const { error: incErr } = await supabase.rpc('increment_buyer_campaign', { p_campaign_id: campaignId, p_sent: enqueued });
+    if (incErr) console.warn('[BuyerDispo] sms_sent counter failed:', incErr.message);
   }
 
   console.log(`[BuyerDispo] deal ${dealId}: matched ${buyers.length}${usedFallback ? ' (fallback=all-active)' : ''}, enqueued ${enqueued} SMS`);
   return { campaignId, matched: usedFallback ? 0 : buyers.length, enqueued, usedFallback };
 }
 
-module.exports = { matchBuyers, buildBuyerSMS, startBuyerBlast, dealAskPrice };
+// ─── Buyer replies ────────────────────────────────────────────────────────────
+const PENDING_OFFER = ['queued', 'sent', 'interested'];
+
+/**
+ * Open offers for everyone with this phone (a buyer can sit in more than one
+ * operator's list via the shared pool). Only deals still under contract and
+ * unassigned count - anything else is no longer available to that buyer.
+ */
+async function findPendingOffers(phone) {
+  if (!supabase || !phone) return { buyers: [], offers: [] };
+  const { data: buyers } = await supabase.from('buyers').select('*').eq('phone', phone).limit(20);
+  const ids = (buyers || []).map(b => b.id);
+  if (!ids.length) return { buyers: [], offers: [] };
+  const since = new Date(Date.now() - 30 * 86400000).toISOString();
+  const { data: offers, error } = await supabase.from('buyer_deal_offers')
+    .select('*, deals(*, leads(*))')
+    .in('buyer_id', ids)
+    .in('status', PENDING_OFFER)
+    .gte('sent_at', since)
+    .order('sent_at', { ascending: false })
+    .limit(20);
+  if (error) { console.warn('[BuyerDispo] pending offer lookup failed:', error.message); return { buyers, offers: [] }; }
+  const open = (offers || []).filter(o => o.deals && o.deals.status === 'under_contract' && !o.deals.buyer_id);
+  return { buyers, offers: open };
+}
+
+/**
+ * Decide which offer a reply is about. One open offer -> that one. Several -> the
+ * one whose street address the buyer mentioned; otherwise ambiguous (ask, never guess).
+ * @returns {{ kind: 'none'|'single'|'ambiguous', offer?: object, options?: object[] }}
+ */
+function pickOfferForReply(offers, body) {
+  if (!offers || !offers.length) return { kind: 'none' };
+  if (offers.length === 1) return { kind: 'single', offer: offers[0] };
+  const text = String(body || '').toLowerCase();
+  const mentioned = offers.filter(o => {
+    const addr = String(o.deals?.property_address || '').toLowerCase().trim();
+    const m = addr.match(/^(\d+)\s+([a-z0-9]+)/);
+    if (!m) return false;
+    const [, num, street] = m;
+    return new RegExp(`\\b${num}\\b`).test(text) && text.includes(street);
+  });
+  if (mentioned.length === 1) return { kind: 'single', offer: mentioned[0] };
+  return { kind: 'ambiguous', options: offers.slice(0, 5) };
+}
+
+module.exports = { matchBuyers, buildBuyerSMS, startBuyerBlast, dealAskPrice, findPendingOffers, pickOfferForReply, PENDING_OFFER };

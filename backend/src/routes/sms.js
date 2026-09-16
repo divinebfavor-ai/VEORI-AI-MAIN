@@ -14,7 +14,10 @@ const router = express.Router();
 
 // CTIA standard opt-out keywords - exact match, case-insensitive
 const OPT_OUT_KEYWORDS  = ['STOP', 'UNSUBSCRIBE', 'CANCEL', 'QUIT', 'END'];
-const OPT_IN_KEYWORDS   = ['START', 'UNSTOP', 'YES'];
+// 'YES' is deliberately NOT an opt-in keyword: sellers and buyers answer questions
+// with "yes", and treating that as a re-subscribe swallowed the reply (it was never
+// scored, and a buyer's YES never reached deal assignment).
+const OPT_IN_KEYWORDS   = ['START', 'UNSTOP'];
 
 function isOptOut(text) {
   return OPT_OUT_KEYWORDS.includes((text || '').trim().toUpperCase());
@@ -198,17 +201,8 @@ router.post('/webhook', async (req, res) => {
     // it to buyer-interest handling: a "yes" auto-assigns the buyer + fires the
     // assignment contract. STOP/START above already handled opt-out for buyers too.
     if (!lead) {
-      const { data: buyer } = await supabase
-        .from('buyers')
-        .select('*')
-        .eq('phone', from)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (buyer) {
-        await handleBuyerReply(buyer, from, toNumber, inboundMsgId, body);
-        return;
-      }
+      const handled = await handleBuyerReply(from, toNumber, inboundMsgId, body);
+      if (handled) return;
     }
 
     if (!lead) {
@@ -353,224 +347,177 @@ async function captureBuyerBuyBox(buyer, body) {
   }
 }
 
-async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
-  const userId = buyer.user_id;
-  try {
-    // 1. Log the inbound message (buyer_id, no lead_id).
-    await supabase.from('sms_messages').insert({
-      user_id:     userId,
-      buyer_id:    buyer.id,
-      direction:   'inbound',
-      from_number: from,
-      to_number:   toNumber,
-      body,
-      telnyx_message_id: inboundMsgId,
-      status:      'received',
-      sent_at:     new Date().toISOString(),
-    }).then(null, () => {});
+// Returns true when `from` belongs to a buyer (the reply was handled here).
+async function handleBuyerReply(from, toNumber, inboundMsgId, body) {
+  const buyerDispo = require('../services/buyerDispoService');
+  const { buyers, offers } = await buyerDispo.findPendingOffers(from);
+  if (!buyers.length) return false;
 
-    // 1b. Buy-box capture - read what the buyer just told us and MERGE it onto their
-    // row so the profile lives in the system (the user's directive: "reviewed with the
-    // system, not just reading"). Runs on EVERY reply - a "no, too high at 250k" still
-    // teaches the ceiling. Best-effort + non-fatal: a capture failure must never block
-    // the YES→assign→contract→EMD flow below.
-    try {
-      await captureBuyerBuyBox(buyer, body);
-    } catch (e) {
-      console.warn('[SMS] buy-box capture failed (non-fatal):', e.message);
+  try {
+    const choice = buyerDispo.pickOfferForReply(offers, body);
+    // Attribute the message to the buyer row behind the most relevant open offer.
+    const primaryOffer = choice.offer || offers[0] || null;
+    const buyer = (primaryOffer && buyers.find(b => b.id === primaryOffer.buyer_id)) || buyers[0];
+    const userId = primaryOffer?.user_id || buyer.user_id;
+    const now = new Date().toISOString();
+
+    // 1. Save the inbound message on the buyer.
+    const { error: logErr } = await supabase.from('sms_messages').insert({
+      user_id: userId, buyer_id: buyer.id, direction: 'inbound', from_number: from, to_number: toNumber,
+      body, telnyx_message_id: inboundMsgId, status: 'received', sent_at: now,
+    });
+    if (logErr) console.error('[SMS] buyer reply log failed:', logErr.message);
+    if (primaryOffer?.campaign_id) {
+      await supabase.rpc('increment_buyer_campaign', { p_campaign_id: primaryOffer.campaign_id, p_replies: 1 })
+        .then(({ error }) => { if (error) console.warn('[SMS] reply counter failed:', error.message); });
     }
 
-    const interested = BUYER_YES.test(body) && !BUYER_NO.test(body);
-    console.log(`[SMS] Buyer reply from ${buyer.name || from} - interested=${interested}`);
+    // 1b. Learn buy-box facts from every reply ("too high at 250k" teaches the ceiling).
+    try { await captureBuyerBuyBox(buyer, body); }
+    catch (e) { console.warn('[SMS] buy-box capture failed (non-fatal):', e.message); }
+
+    const saidNo = BUYER_NO.test(body);
+    const interested = BUYER_YES.test(body) && !saidNo;
+    console.log(`[SMS] Buyer reply from buyer ${buyer.id} - interested=${interested} offers=${offers.length} pick=${choice.kind}`);
 
     if (!interested) {
-      // C - buyer brain: an explicit "no"/"too high"/"pass" teaches the buyer
-      // brain what this buyer rejects. The reply text is the pass reason. We don't
-      // know which deal it referenced (no deal_id on a buyer SMS), so this records
-      // a buyer-level pass (deal_id null) the next pitch can pre-empt. Best-effort.
-      if (BUYER_NO.test(body)) {
+      if (saidNo && choice.kind === 'single') {
+        const o = choice.offer;
+        await supabase.from('buyer_deal_offers')
+          .update({ status: 'passed', replied_at: now, reply_body: String(body).slice(0, 1000), updated_at: now })
+          .eq('id', o.id);
         try {
-          const { recordBuyerDealOutcome } = require('../services/dataMotService');
-          await recordBuyerDealOutcome({
-            buyerId: buyer.id, userId, outcome: 'passed',
-            reason:  String(body).slice(0, 120),
+          await require('../services/dataMotService').recordBuyerDealOutcome({
+            buyerId: o.buyer_id, dealId: o.deal_id, userId: o.user_id, outcome: 'passed',
+            reason: String(body).slice(0, 120), offeredPrice: buyerDispo.dealAskPrice(o.deals),
+            arv: o.deals.arv || null, propertyState: o.deals.property_state || null,
           });
-        } catch (_) { /* logging is non-critical */ }
+        } catch (_) { /* history is non-critical */ }
       }
-      return; // a "no"/neutral reply just gets logged
+      return true;
     }
 
-    // 2. Find this buyer's best-fit deal that's under_contract and unassigned.
-    const buyerDispo = require('../services/buyerDispoService');
-    const { data: openDeals } = await supabase
-      .from('deals')
-      .select('*, leads(*)')
-      .eq('user_id', userId)
-      .eq('status', 'under_contract')
-      .is('buyer_id', null)
-      .order('updated_at', { ascending: false })
-      .limit(50);
-
-    const fit = (openDeals || []).find(d => {
-      const states = (buyer.buy_box_states || []).map(s => String(s).trim().toUpperCase());
-      const stateOk = states.length === 0 || states.includes((d.property_state || '').trim().toUpperCase());
-      const ask = buyerDispo.dealAskPrice(d);
-      const priceOk = buyer.max_price == null || ask == null || Number(buyer.max_price) * 1.15 >= ask;
-      return stateOk && priceOk;
-    }) || (openDeals || [])[0];
-
-    if (!fit) {
-      console.log(`[SMS] Buyer ${buyer.id} said yes but no open under_contract deal to assign`);
-      return;
+    if (choice.kind === 'none') {
+      console.log(`[SMS] Buyer ${buyer.id} said yes but has no open offer - nothing assigned`);
+      return true;
     }
 
-    // 3. Assign the buyer (guard against a race - only if still unassigned).
-    const { data: claimed } = await supabase
-      .from('deals')
-      .update({ buyer_id: buyer.id, updated_at: new Date().toISOString() })
-      .eq('id', fit.id)
-      .eq('user_id', userId)
-      .is('buyer_id', null)
-      .select('id')
-      .maybeSingle();
+    if (choice.kind === 'ambiguous') {
+      // Several open deals and the buyer didn't say which: ask, never guess.
+      const ids = choice.options.map(o => o.id);
+      await supabase.from('buyer_deal_offers')
+        .update({ status: 'interested', replied_at: now, reply_body: String(body).slice(0, 1000), updated_at: now })
+        .in('id', ids).in('status', ['queued', 'sent']);
+      const list = choice.options.map((o, i) => `${i + 1}) ${[o.deals.property_address, o.deals.property_city].filter(Boolean).join(', ')}`).join('\n');
+      await sendReply(from, `Glad you're interested! I have a few deals out - which one? Reply with the street address:\n${list}`, userId, null)
+        .catch(e => console.warn('[SMS] which-deal reply failed:', e.message));
+      return true;
+    }
+
+    const offer = choice.offer;
+    const fit = offer.deals;
+
+    // 2. Assign - only if the deal is still unassigned (race-safe).
+    const { data: claimed } = await supabase.from('deals')
+      .update({ buyer_id: offer.buyer_id, updated_at: now })
+      .eq('id', fit.id).eq('user_id', offer.user_id).is('buyer_id', null)
+      .select('id').maybeSingle();
     if (!claimed) {
-      console.log(`[SMS] Deal ${fit.id} already assigned - skipping buyer ${buyer.id}`);
-      return;
+      await supabase.from('buyer_deal_offers').update({ status: 'not_selected', replied_at: now, reply_body: String(body).slice(0, 1000), updated_at: now }).eq('id', offer.id);
+      await sendReply(from, 'Thanks for jumping on it - that one was just taken. I\'ll send you the next deal that fits.', offer.user_id, null)
+        .catch(e => console.warn('[SMS] deal-taken reply failed:', e.message));
+      return true;
     }
+    await supabase.from('buyer_deal_offers')
+      .update({ status: 'assigned', replied_at: now, reply_body: String(body).slice(0, 1000), updated_at: now })
+      .eq('id', offer.id);
+    await supabase.from('buyer_deal_offers')
+      .update({ status: 'not_selected', updated_at: now })
+      .eq('deal_id', fit.id).neq('id', offer.id).in('status', ['queued', 'sent', 'interested']);
+    if (offer.campaign_id) {
+      await supabase.from('buyer_campaigns').update({ assigned_buyer_id: offer.buyer_id }).eq('id', offer.campaign_id);
+      await supabase.rpc('increment_buyer_campaign', { p_campaign_id: offer.campaign_id, p_interested: 1 })
+        .then(({ error }) => { if (error) console.warn('[SMS] interested counter failed:', error.message); });
+    }
+    const assignedBuyer = buyers.find(b => b.id === offer.buyer_id) || buyer;
+    const ownerId = offer.user_id;
 
     await require('../services/aiCommandLog').logAiCommand({
-      userId, dealId: fit.id, actionType: 'buyer_assigned_auto',
-      summary: `Buyer ${buyer.name || from} replied YES - auto-assigned to deal`,
+      userId: ownerId, dealId: fit.id, leadId: fit.lead_id || null, actionType: 'buyer_assigned_auto',
+      summary: `Buyer ${assignedBuyer.name || 'buyer'} replied YES - assigned to ${fit.property_address || 'deal'}`,
     });
-
-    // Stage 3b - tag the assigned buyer on the CHART (deal_activity is what the
-    // lead/deal timeline reads). This is the "who did this property go to" marker
-    // so the operator can always see, at a glance, the buyer the deal was assigned
-    // to. Best-effort, non-fatal.
     try {
-      const { logActivity } = require('../services/dealActivityService');
-      await logActivity({
-        userId,
-        dealId: fit.id,
-        leadId: fit.lead_id || null,
-        actorType: 'buyer',
-        activityType: 'buyer_assigned',
-        message: `Property assigned to buyer ${buyer.name || from}`,
-        metadata: {
-          buyer_id:   buyer.id,
-          buyer_name: buyer.name || null,
-          buyer_phone: from,
-          via:        'sms_reply_yes',
-        },
+      await require('../services/dealActivityService').logActivity({
+        userId: ownerId, dealId: fit.id, leadId: fit.lead_id || null, actorType: 'buyer',
+        activityType: 'buyer_assigned', message: `Property assigned to buyer ${assignedBuyer.name || from}`,
+        metadata: { buyer_id: assignedBuyer.id, buyer_name: assignedBuyer.name || null, via: 'sms_reply_yes', offer_id: offer.id },
       });
-    } catch (e) {
-      console.warn('[SMS] buyer-assigned activity log failed (non-fatal):', e.message);
-    }
+    } catch (e) { console.warn('[SMS] buyer-assigned activity log failed (non-fatal):', e.message); }
 
-    // C - buyer brain: record this as a WON outcome so the next pitch to this
-    // buyer knows they bought, at what price, and what type. Best-effort.
+    // Buyer history: interested, not "won" - the buyer has not closed yet.
     try {
-      const { recordBuyerDealOutcome } = require('../services/dataMotService');
-      await recordBuyerDealOutcome({
-        buyerId:       buyer.id,
-        dealId:        fit.id,
-        userId,
-        outcome:       'won',
-        offeredPrice:  buyerDispo.dealAskPrice(fit),
-        arv:           fit.arv || null,
-        propertyType:  fit.property_type || null,
-        propertyState: fit.property_state || null,
+      await require('../services/dataMotService').recordBuyerDealOutcome({
+        buyerId: assignedBuyer.id, dealId: fit.id, userId: ownerId, outcome: 'interested',
+        offeredPrice: buyerDispo.dealAskPrice(fit), arv: fit.arv || null, propertyState: fit.property_state || null,
       });
-    } catch (_) { /* logging is non-critical */ }
+    } catch (_) { /* history is non-critical */ }
 
-    // 4. Generate + send the assignment contract. `send` builds the signing
-    //    package; deal must carry the joined buyer/lead for generateAssignment.
+    // 3. Assignment contract - emailed by contractService; texted here.
     try {
       const contractService = require('../services/contractService');
-      const dealForContract = { ...fit, buyers: buyer, leads: fit.leads || {} };
-      // sms:false - this handler texts the buyer their link itself (below).
-      const result = await contractService.send(dealForContract, 'assignment', {
-        phone: buyer.phone, email: buyer.email, userId, sms: false,
+      const result = await contractService.send({ ...fit, buyers: assignedBuyer, leads: fit.leads || {} }, 'assignment', {
+        userId: ownerId, sms: false,
       });
       await supabase.from('deals')
-        .update({ contract_status: 'assignment_sent', updated_at: new Date().toISOString() })
-        .eq('id', fit.id).then(null, () => {});
+        .update({ contract_status: result.status === 'sent' ? 'assignment_sent' : 'assignment_created', updated_at: new Date().toISOString() })
+        .eq('id', fit.id);
       await require('../services/aiCommandLog').logAiCommand({
-        userId, dealId: fit.id, actionType: 'assignment_contract_sent',
-        summary: `Assignment contract sent to ${buyer.name || from}`,
+        userId: ownerId, dealId: fit.id, actionType: 'assignment_contract_sent', status: result.status,
+        summary: `Assignment contract for ${assignedBuyer.name || 'buyer'}: ${result.deliveries.map(d => `${d.role} ${d.channel} ${d.status}`).join('; ')}`,
       });
-
-      // Stage 3b - chart timeline entry for the assignment contract going out to
-      // the tagged buyer (every doc sent to a buyer is visible on the deal chart).
-      try {
-        const { logActivity } = require('../services/dealActivityService');
-        await logActivity({
-          userId,
-          dealId: fit.id,
-          leadId: fit.lead_id || null,
-          actorType: 'system',
-          activityType: 'assignment_contract_sent',
-          message: `Assignment contract sent to buyer ${buyer.name || from}`,
-          metadata: {
-            buyer_id:    buyer.id,
-            buyer_name:  buyer.name || null,
-            signing_url: result?.signing_url || null,
-            contract_id: result?.contract_id || null,
-          },
-        });
-      } catch (e) {
-        console.warn('[SMS] assignment-sent activity log failed (non-fatal):', e.message);
+      await require('../services/dealActivityService').logActivity({
+        userId: ownerId, dealId: fit.id, leadId: fit.lead_id || null, actorType: 'system',
+        activityType: 'assignment_contract_sent', message: `Assignment contract sent to buyer ${assignedBuyer.name || from}`,
+        metadata: { buyer_id: assignedBuyer.id, contract_id: result.contract_id, deliveries: result.deliveries },
+      }).catch(() => {});
+      if (result.signing_url) {
+        await sendReply(from, `Great - here's the assignment contract to sign: ${result.signing_url}`, ownerId, null)
+          .catch(e => console.warn('[SMS] contract link reply failed:', e.message));
       }
-      // Send the buyer the signing link via SMS.
-      if (result?.signing_url) {
-        await sendReply(from, `Great - here's the assignment contract to sign: ${result.signing_url}`, userId, null)
-          .catch(() => {});
-      }
-      console.log(`[SMS] Assignment contract auto-sent for deal ${fit.id} → buyer ${buyer.id}`);
     } catch (e) {
       console.error('[SMS] Assignment contract auto-send failed:', e.message);
     }
 
-    // 5. EMD auto-request - the buyer just committed (YES → assigned → contract).
-    //    Mark the deal's EMD as REQUESTED and ask for the deposit. Receipt is
-    //    confirmed manually later via POST /api/deals/:id/emd/confirm. Best-effort,
-    //    non-fatal: a failure here must never undo the assignment/contract above.
+    // 4. Earnest money request - amount from the deal, else the operator's default.
+    //    With neither set, nothing is invented: the step is logged as skipped.
     try {
-      const emdAmount = fit.emd_amount != null
-        ? Number(fit.emd_amount)
-        : (fit.earnest_money != null ? Number(fit.earnest_money) : 1000);
-      await supabase.from('deals').update({
-        emd_status:       'requested',
-        emd_amount:       emdAmount,
-        emd_requested_at: new Date().toISOString(),
-        updated_at:       new Date().toISOString(),
-      }).eq('id', fit.id).eq('user_id', userId).then(null, () => {});
-
-      try {
-        const { logActivity } = require('../services/dealActivityService');
-        await logActivity({
-          userId,
-          dealId: fit.id,
-          leadId: fit.lead_id || null,
-          actorType: 'system',
-          activityType: 'emd_requested',
-          message: `Earnest money deposit requested ($${emdAmount.toLocaleString()}) from buyer ${buyer.name || from}`,
-          metadata: { buyer_id: buyer.id, emd_amount: emdAmount },
+      const { data: op } = await supabase.from('users').select('*').eq('id', ownerId).maybeSingle();
+      const raw = fit.emd_amount ?? op?.earnest_money_default;
+      const emdAmount = raw != null && Number(raw) > 0 ? Number(raw) : null;
+      if (!emdAmount) {
+        await require('../services/aiCommandLog').logAiCommand({
+          userId: ownerId, dealId: fit.id, actionType: 'emd_request', status: 'skipped',
+          summary: 'No earnest money amount on the deal or in settings - deposit not requested',
         });
-      } catch (_) { /* timeline log is non-critical */ }
-
-      // Follow the signing link with the EMD ask so the buyer knows the next step.
-      await sendReply(
-        from,
-        `To lock this in, the next step is a $${emdAmount.toLocaleString()} earnest money deposit. I'll send the wiring details shortly.`,
-        userId, null,
-      ).catch(() => {});
-      console.log(`[SMS] EMD requested ($${emdAmount}) for deal ${fit.id} → buyer ${buyer.id}`);
+      } else {
+        await supabase.from('deals').update({
+          emd_status: 'requested', emd_amount: emdAmount, emd_requested_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        }).eq('id', fit.id).eq('user_id', ownerId);
+        await require('../services/dealActivityService').logActivity({
+          userId: ownerId, dealId: fit.id, leadId: fit.lead_id || null, actorType: 'system', activityType: 'emd_requested',
+          message: `Earnest money deposit requested ($${emdAmount.toLocaleString()}) from buyer ${assignedBuyer.name || from}`,
+          metadata: { buyer_id: assignedBuyer.id, emd_amount: emdAmount },
+        }).catch(() => {});
+        await sendReply(from, `To lock this in, the next step is a $${emdAmount.toLocaleString()} earnest money deposit. I'll send the wiring details shortly.`, ownerId, null)
+          .catch(e => console.warn('[SMS] EMD reply failed:', e.message));
+      }
     } catch (e) {
-      console.warn('[SMS] EMD auto-request failed (non-fatal):', e.message);
+      console.warn('[SMS] EMD request failed (non-fatal):', e.message);
     }
+    return true;
   } catch (err) {
     console.error('[SMS] handleBuyerReply error:', err.message);
+    return true;
   }
 }
 
