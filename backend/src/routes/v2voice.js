@@ -185,6 +185,17 @@ function mapOutcomeToStage(outcome) {
 // and writes the same calls columns. Keyed by the Twilio Call SID (vapi_call_id).
 // Best-effort and idempotent-ish: only scores rows that have a transcript and
 // haven't already been scored (motivation_score still null).
+// Deal / follow-up / callback / memory / missed-call text for a finished call.
+// Runs once per call (postCallPipeline claims the row). Never throws.
+async function runPostCall(args) {
+  try {
+    const { ran, results } = await require('../services/postCallPipeline').runPostCallActions(args);
+    if (ran) console.log(`[v2voice] post-call call=${args.callRec.id}: ` + results.map(r => `${r.step}=${r.status}`).join(' '));
+  } catch (e) {
+    console.error('[v2voice] post-call pipeline error:', e.message);
+  }
+}
+
 async function scoreTwilioCall(callSid) {
   if (!callSid) return;
   try {
@@ -201,6 +212,9 @@ async function scoreTwilioCall(callSid) {
     // Already scored - don't re-spend tokens or overwrite a prior analysis.
     if (callRec.motivation_score != null) {
       console.log(`[v2voice] scoreTwilioCall: sid=${callSid} already scored - skipping`);
+      // Post-call actions claim the call themselves, so this is a no-op when they
+      // already ran; it recovers the case where scoring finished but they didn't.
+      await runPostCall({ callRec, outcome: callRec.outcome || 'answered', aiAnalysis: {} });
       return;
     }
 
@@ -223,6 +237,7 @@ async function scoreTwilioCall(callSid) {
           .eq('status', 'calling')
           .then(null, e => console.warn('[v2voice] lead un-stick failed:', e.message));
       }
+      await runPostCall({ callRec, outcome: callRec.outcome || 'no_answer', aiAnalysis: {} });
       return;
     }
 
@@ -269,6 +284,8 @@ async function scoreTwilioCall(callSid) {
       const { error: leadErr } = await supabase.from('leads').update(leadUpdate).eq('id', callRec.lead_id);
       if (leadErr) console.warn(`[v2voice] lead advance failed lead=${callRec.lead_id}:`, leadErr.message);
     }
+
+    await runPostCall({ callRec: { ...callRec, outcome, transcript }, outcome, aiAnalysis });
 
     // CAPTURE: feed this verified outcome into the learning loop so the next
     // call is smarter than this one. Best-effort; never blocks scoring.
@@ -576,7 +593,7 @@ router.post('/status', async (req, res) => {
       // Terminal without a conversation - un-stick the lead from 'calling' so the
       // pipeline board advances (guarded: never clobbers a richer status).
       const { data: rec } = await supabase.from('calls')
-        .select('lead_id').eq('vapi_call_id', callSid).maybeSingle();
+        .select('*, leads(*)').eq('vapi_call_id', callSid).maybeSingle();
       if (rec?.lead_id) {
         await supabase.from('leads')
           .update({
@@ -588,6 +605,11 @@ router.post('/status', async (req, res) => {
           .eq('id', rec.lead_id)
           .eq('status', 'calling')
           .then(null, e => console.warn('[v2voice] lead un-stick failed:', e.message));
+      }
+      // Unanswered calls still get their follow-up (sequence, missed-call text for
+      // consented leads, direct mail). Failed/canceled dials were never a contact.
+      if (rec && ['no-answer', 'busy'].includes(callStatus)) {
+        await runPostCall({ callRec: rec, outcome: 'no_answer', aiAnalysis: {} });
       }
     }
   } catch (e) {

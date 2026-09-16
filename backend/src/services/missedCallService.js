@@ -17,6 +17,18 @@ const SMS_FROM = process.env.TWILIO_PHONE_NUMBER; // for DB logging only; actual
 
 const MISSED_OUTCOMES = ['no_answer', 'not_home', 'voicemail'];
 
+// Internal DNC + quiet hours via the shared compliance gate. Returns the blocking
+// codes as a string, or null when the text may go out. Fails closed on error.
+async function complianceBlock(phone, lead) {
+  try {
+    const { complianceGate } = require('../agents/complianceGate');
+    const gate = await complianceGate({ type: 'send_sms', phone, lead: lead || {} }, { skipFederalDnc: true });
+    return gate.allowed ? null : gate.hardStops.map(h => h.code).join(', ');
+  } catch (e) {
+    return `compliance check error: ${e.message}`;
+  }
+}
+
 /**
  * Entry point - called from vapi.js handleCallEnded
  * callRec: the calls row from the database
@@ -41,15 +53,16 @@ async function handleMissedCall(callRec, lead) {
   if (!operator) return;
   if (operator.missed_call_textback_enabled === false) return;
 
-  // Check DNC before scheduling
-  const { data: dncCheck } = await supabase
-    .from('dnc_records')
-    .select('id')
-    .eq('phone', callerPhone)
-    .maybeSingle();
+  // Someone who called US can be texted back. A lead WE called and missed has not
+  // asked to hear from us, so an automated text needs their written consent.
+  if ((callRec.direction || 'outbound') !== 'inbound' && lead?.consent !== true) {
+    console.log(`[MissedCall] Not texting lead ${lead?.id || 'unknown'} - outbound call and no consent on record`);
+    return;
+  }
 
-  if (dncCheck) {
-    console.log(`[MissedCall] Blocked - ${callerPhone} is on DNC`);
+  const blocked = await complianceBlock(callerPhone, lead);
+  if (blocked) {
+    console.log(`[MissedCall] Blocked before scheduling for lead ${lead?.id || 'unknown'}: ${blocked}`);
     return;
   }
 
@@ -79,22 +92,17 @@ async function handleMissedCall(callRec, lead) {
 
 async function sendMissedCallSMS(callRec, lead, callerPhone, smsBody, operatorName) {
 
-  // Re-check DNC at send time (lead may have opted out since scheduling)
-  const { data: dncRecheck } = await supabase
-    .from('dnc_records')
-    .select('id')
-    .eq('phone', callerPhone)
-    .maybeSingle();
-
-  if (dncRecheck) {
-    console.log(`[MissedCall] Blocked at send time - ${callerPhone} is on DNC`);
+  // Re-check at send time (the lead may have opted out, or hours may have closed).
+  const blocked = await complianceBlock(callerPhone, lead);
+  if (blocked) {
+    console.log(`[MissedCall] Blocked at send time for lead ${lead?.id || 'unknown'}: ${blocked}`);
     return;
   }
 
   // Send via Twilio
   let telnyxMessageId = null;
   try {
-    telnyxMessageId = await sendSMS(callerPhone, smsBody);
+    telnyxMessageId = await sendSMS(callerPhone, smsBody, callRec.user_id);
     console.log(`[MissedCall] Auto-SMS sent to ${callerPhone} - msgId: ${telnyxMessageId}`);
   } catch (err) {
     console.error('[MissedCall] Twilio send error:', err.message);
