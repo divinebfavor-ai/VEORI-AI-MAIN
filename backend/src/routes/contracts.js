@@ -129,35 +129,10 @@ router.post('/handle_sign_submission/:token', async (req, res, next) => {
         message: `${result.signer.signer_role} signed contract`,
         metadata: { contract_id: result.contract.id, fully_signed: result.fully_signed },
       });
+    }
 
-      if (result.fully_signed) {
-        const { error: signedErr } = await supabase
-          .from('deals')
-          .update({ contract_status: 'signed', updated_at: new Date().toISOString() })
-          .eq('id', contract.deal_id)
-          .eq('user_id', contract.user_id);
-        if (signedErr) console.error(`[Contracts] marking deal ${contract.deal_id} signed failed:`, signedErr.message);
-
-        // A fully signed PURCHASE contract (psa, with the seller) puts the deal under
-        // contract, which starts buyer outreach and the title hand-off. A signed
-        // assignment (with the buyer) must not restart buyer outreach. Only a deal
-        // that hasn't reached under_contract is moved - never pulled back.
-        if (contract.contract_type === 'psa') try {
-          const { changeDealStage, STAGE_KEYS } = require('../services/dealStageService');
-          const { data: dealRow } = await supabase.from('deals').select('status')
-            .eq('id', contract.deal_id).eq('user_id', contract.user_id).maybeSingle();
-          const idx = STAGE_KEYS.indexOf(dealRow?.status);
-          const contractIdx = STAGE_KEYS.indexOf('under_contract');
-          if (dealRow && dealRow.status !== 'lost' && (idx === -1 || idx < contractIdx)) {
-            await changeDealStage({
-              dealId: contract.deal_id, userId: contract.user_id, stage: 'under_contract',
-              actor: 'system', reason: 'contract fully signed',
-            });
-          }
-        } catch (e) {
-          console.error(`[Contracts] moving deal ${contract.deal_id} under contract failed:`, e.message);
-        }
-      }
+    if (result.fully_signed) {
+      await contractService.onContractFullySigned(result.contract.id);
     }
 
     res.json({ success: true, data: result });

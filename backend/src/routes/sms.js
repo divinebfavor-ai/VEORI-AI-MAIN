@@ -513,6 +513,9 @@ async function handleBuyerReply(from, toNumber, inboundMsgId, body) {
       if (result.signing_url) {
         await sendReply(from, `Great - here's the assignment contract to sign: ${result.signing_url}`, ownerId, null)
           .catch(e => console.warn('[SMS] contract link reply failed:', e.message));
+      } else if (result.provider === 'dropbox_sign' && result.status === 'sent') {
+        await sendReply(from, 'Great - I just emailed you the assignment contract to sign.', ownerId, null)
+          .catch(e => console.warn('[SMS] contract email notice failed:', e.message));
       }
     } catch (e) {
       console.error('[SMS] Assignment contract auto-send failed:', e.message);

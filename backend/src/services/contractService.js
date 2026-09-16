@@ -704,20 +704,80 @@ async function notifySignatureProgress({ contract, signer, fullySigned }) {
   }
 }
 
+/**
+ * Send the package through Dropbox Sign when it is configured and every signer has
+ * an email (Dropbox Sign delivers by email). Returns deliveries, or null to fall
+ * back to Veori's own signing links (with the reason recorded).
+ */
+async function sendViaDropboxSign({ deal, signing, userId, overrides }) {
+  const dropbox = require('./dropboxSignService');
+  if (!dropbox.isEnabled()) return { deliveries: null, reason: null };
+  const signers = (signing.signers || []).map(s => ({
+    ...s,
+    email: (s.signer_role !== signing.operator_role && overrides.email) || s.email,
+  }));
+  const missing = signers.filter(s => !s.email);
+  if (missing.length) {
+    return { deliveries: null, reason: `Dropbox Sign needs an email for every signer (missing: ${missing.map(m => m.signer_role).join(', ')})` };
+  }
+  // Outside party signs first, then the operator countersigns.
+  const ordered = [...signers].sort((a, b) => (a.signer_role === signing.operator_role) - (b.signer_role === signing.operator_role));
+  const address = [deal.property_address, deal.property_city, deal.property_state].filter(Boolean).join(', ') || 'the property';
+  const isAssignment = signing.contract.contract_type === 'assignment';
+  try {
+    const pdf = await renderPdf({ content: signing.contract.content, doc_title: isAssignment ? 'Assignment Agreement' : 'Purchase & Sale Agreement' });
+    const { requestId, signatures } = await dropbox.sendSignatureRequest({
+      title: `${isAssignment ? 'Assignment Agreement' : 'Purchase Agreement'} - ${address}`,
+      subject: `${isAssignment ? 'Assignment contract' : 'Contract'} for ${address}`,
+      message: `Please review and sign the ${isAssignment ? 'assignment contract' : 'purchase agreement'} for ${address}.`,
+      pdf, filename: `${isAssignment ? 'assignment' : 'purchase-agreement'}-${deal.id}.pdf`,
+      signers: ordered.map(s => ({ name: s.name, email: s.email })),
+      metadata: { contract_id: signing.contract.id, deal_id: deal.id },
+    });
+    const { error: cErr } = await supabase.from('contracts')
+      .update({ provider: 'dropbox_sign', provider_request_id: requestId, signing_url: null, updated_at: new Date().toISOString() })
+      .eq('id', signing.contract.id);
+    if (cErr) console.error('[Contract] saving Dropbox Sign request id failed:', cErr.message);
+    for (const sig of signatures) {
+      const signer = ordered[Number(sig.order)] || ordered.find(s => s.email?.toLowerCase() === String(sig.signer_email_address || '').toLowerCase());
+      if (!signer) continue;
+      await supabase.from('contract_signers').update({ provider_signature_id: sig.signature_id, email: signer.email }).eq('id', signer.id);
+    }
+    return {
+      deliveries: ordered.map(s => ({ role: s.signer_role, name: s.name, channel: 'dropbox_sign', status: 'sent' })),
+      reason: null,
+    };
+  } catch (e) {
+    const detail = e.response?.data?.error?.error_msg || e.message;
+    console.error('[Contract] Dropbox Sign send failed, using Veori signing links:', detail);
+    return { deliveries: null, reason: `Dropbox Sign failed: ${detail}` };
+  }
+}
+
 async function send(deal, type, { phone, email, userId, sms = true } = {}) {
   const signing = await createSigningPackage(deal, type, { userId });
-  const deliveries = await deliverSigningLinks({ deal, signing, userId, sms, overrides: { phone, email } });
-  const counterpartyReached = deliveries.some(d => d.role !== signing.operator_role && d.status === 'sent');
+  const viaProvider = await sendViaDropboxSign({ deal, signing, userId, overrides: { phone, email } });
+  let deliveries;
+  if (viaProvider.deliveries) {
+    deliveries = viaProvider.deliveries;
+  } else {
+    deliveries = await deliverSigningLinks({ deal, signing, userId, sms, overrides: { phone, email } });
+    if (viaProvider.reason) deliveries.push({ role: 'system', name: 'Dropbox Sign', channel: 'dropbox_sign', status: 'skipped', detail: viaProvider.reason });
+  }
+  const counterpartyReached = deliveries.some(d => d.role !== signing.operator_role && d.role !== 'system' && d.status === 'sent');
   console.log(`[Contract] ${type.toUpperCase()} for deal ${deal.id}: ${deliveries.map(d => `${d.role}/${d.channel}=${d.status}`).join(', ')}`);
   // Signing links are credentials for each signer; they are never put in webhook payloads.
   require('./webhookService').emitEvent(userId || deal.user_id, 'contract.sent', {
     contract_id: signing.contract.id, deal_id: deal.id, contract_type: signing.contract.contract_type,
     deliveries: deliveries.map(d => ({ role: d.role, channel: d.channel, status: d.status })),
   });
+  const provider = viaProvider.deliveries ? 'dropbox_sign' : 'builtin';
   return {
     status: counterpartyReached ? 'sent' : 'created_not_delivered',
-    signing_url: signing.counterparty_signing_url,
-    operator_signing_url: signing.operator_signing_url,
+    provider,
+    // With Dropbox Sign, signing happens there (by email); Veori links would allow a second signature.
+    signing_url: provider === 'builtin' ? signing.counterparty_signing_url : null,
+    operator_signing_url: provider === 'builtin' ? signing.operator_signing_url : null,
     contract_id: signing.contract.id,
     deliveries,
   };
@@ -744,6 +804,9 @@ async function getSigningSession(token) {
 async function submitSignature(token, { printedName, signatureText }) {
   const signer = await getSigningSession(token);
   if (!signer) throw new ContractError(404, 'Signing session not found');
+  if (signer.contracts?.provider && signer.contracts.provider !== 'builtin') {
+    throw new ContractError(409, 'This contract is being signed through Dropbox Sign. Use the link in your email.');
+  }
   if (signer.status === 'signed') {
     return { signer, contract: signer.contracts, fully_signed: signer.contracts?.signing_status === 'fully_signed', already_signed: true };
   }
@@ -792,8 +855,87 @@ async function submitSignature(token, { printedName, signatureText }) {
   return { signer: updatedSigner, contract, fully_signed: fullySigned };
 }
 
+/**
+ * Everything that follows a contract becoming fully signed, for both signing paths:
+ * deal marked signed, a signed PURCHASE contract moves the deal under contract
+ * (buyer outreach + title), and signers/operator are notified. Idempotent.
+ */
+async function onContractFullySigned(contractId) {
+  const { data: contract } = await supabase.from('contracts')
+    .select('id, deal_id, user_id, contract_type').eq('id', contractId).maybeSingle();
+  if (!contract?.deal_id || !contract.user_id) return;
+  const { error: signedErr } = await supabase.from('deals')
+    .update({ contract_status: 'signed', updated_at: new Date().toISOString() })
+    .eq('id', contract.deal_id).eq('user_id', contract.user_id);
+  if (signedErr) console.error(`[Contracts] marking deal ${contract.deal_id} signed failed:`, signedErr.message);
+
+  // A signed assignment (with the buyer) must not restart buyer outreach, and a
+  // deal is never pulled back from a later stage.
+  if (contract.contract_type === 'psa') {
+    try {
+      const { changeDealStage, STAGE_KEYS } = require('./dealStageService');
+      const { data: dealRow } = await supabase.from('deals').select('status')
+        .eq('id', contract.deal_id).eq('user_id', contract.user_id).maybeSingle();
+      const idx = STAGE_KEYS.indexOf(dealRow?.status);
+      if (dealRow && dealRow.status !== 'lost' && (idx === -1 || idx < STAGE_KEYS.indexOf('under_contract'))) {
+        await changeDealStage({
+          dealId: contract.deal_id, userId: contract.user_id, stage: 'under_contract',
+          actor: 'system', reason: 'contract fully signed',
+        });
+      }
+    } catch (e) {
+      console.error(`[Contracts] moving deal ${contract.deal_id} under contract failed:`, e.message);
+    }
+  }
+}
+
+/**
+ * Apply a Dropbox Sign callback. signed: mark each signer Dropbox Sign reports as
+ * signed; all_signed: mark the contract fully signed and run onContractFullySigned.
+ * Safe to receive the same event more than once.
+ */
+async function applyProviderEvent({ requestId, eventType, signatures = [] }) {
+  const { data: contract } = await supabase.from('contracts')
+    .select('id, deal_id, user_id, signing_status').eq('provider_request_id', requestId).maybeSingle();
+  if (!contract) return { handled: false, reason: 'unknown signature request' };
+
+  const now = new Date().toISOString();
+  for (const sig of signatures) {
+    if (sig.status_code !== 'signed' || !sig.signature_id) continue;
+    const signedAt = sig.signed_at ? new Date(Number(sig.signed_at) * 1000).toISOString() : now;
+    const { data: updated } = await supabase.from('contract_signers')
+      .update({ status: 'signed', signed_at: signedAt, printed_name: sig.signer_name || null })
+      .eq('contract_id', contract.id).eq('provider_signature_id', sig.signature_id).neq('status', 'signed')
+      .select('signer_role, name');
+    if ((updated || []).length && contract.deal_id) {
+      await require('./dealActivityService').logActivity({
+        userId: contract.user_id, dealId: contract.deal_id, activityType: 'contract_signed',
+        message: `${updated[0].signer_role} signed contract (Dropbox Sign)`,
+        metadata: { contract_id: contract.id, provider: 'dropbox_sign' },
+      }).catch(() => {});
+    }
+  }
+
+  if (eventType === 'signature_request_all_signed' && contract.signing_status !== 'fully_signed') {
+    const { data: flipped } = await supabase.from('contracts')
+      .update({ signing_status: 'fully_signed', fully_signed_at: now, updated_at: now })
+      .eq('id', contract.id).neq('signing_status', 'fully_signed').select('id, deal_id, contract_type');
+    if ((flipped || []).length) {
+      const { data: signer } = await supabase.from('contract_signers').select('*').eq('contract_id', contract.id).limit(1);
+      await notifySignatureProgress({ contract: { ...flipped[0] }, signer: (signer || [])[0] || {}, fullySigned: true });
+      await onContractFullySigned(contract.id);
+    }
+  } else if (eventType === 'signature_request_signed' && contract.signing_status === 'sent') {
+    await supabase.from('contracts').update({ signing_status: 'partially_signed', updated_at: now })
+      .eq('id', contract.id).eq('signing_status', 'sent');
+  }
+  return { handled: true };
+}
+
 module.exports = {
   ContractError,
+  onContractFullySigned,
+  applyProviderEvent,
   deliverSigningLinks,
   generate,
   renderPdf,
