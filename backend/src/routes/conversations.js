@@ -45,14 +45,9 @@ router.post('/send-sms', async (req, res, next) => {
     }).select().single();
 
     // Log action
-    await supabase.from('ai_command_log').insert({
-      deal_id: deal_id || null,
-      contact_id,
-      contact_name: contact.name,
-      action_type: 'sms_sent',
-      message_sent: fullMessage.substring(0, 300),
-      outcome: 'sent',
-      operator_id: req.user.id,
+    await require('../services/aiCommandLog').logAiCommand({
+      userId: req.user.id, dealId: deal_id || null, actionType: 'sms_sent', status: 'sent',
+      summary: `To ${contact.name || 'contact'}: ${fullMessage.substring(0, 300)}`,
     });
 
     // Check if contact is requesting a call
@@ -145,13 +140,9 @@ router.post('/handle-reply', async (req, res, next) => {
       }
     }
 
-    await supabase.from('ai_command_log').insert({
-      deal_id: deal_id || null,
-      contact_id,
-      action_type: 'inbound_reply_received',
-      message_sent: message.substring(0, 300),
-      outcome: terms?.next_action || 'reply_logged',
-      operator_id: req.user.id,
+    await require('../services/aiCommandLog').logAiCommand({
+      userId: req.user.id, dealId: deal_id || null, actionType: 'inbound_reply_received',
+      status: terms?.next_action || 'reply_logged', summary: message.substring(0, 300),
     });
 
     res.json({ success: true, extracted_terms: terms });

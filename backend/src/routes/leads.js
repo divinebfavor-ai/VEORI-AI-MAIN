@@ -584,14 +584,12 @@ router.post('/', async (req, res, next) => {
           const { data: full } = await supabase.from('leads').select('*').eq('id', data.id).single();
           if (full) {
             const sms = getOpeningSMS(full);
-            // Log opening SMS to be sent (conversations service picks this up)
-            await supabase.from('ai_command_log').insert({
-              operator_id: req.user.id,
-              action_type: 'opening_sms',
-              contact_name: `${full.first_name} ${full.last_name}`,
-              message_sent: sms,
-              outcome: 'queued',
-            }).then(null, () => {});
+            // Record the drafted opening text. Nothing sends it automatically from
+            // here, so it is logged as drafted, not queued.
+            await require('../services/aiCommandLog').logAiCommand({
+              userId: req.user.id, leadId: full.id, actionType: 'opening_sms_drafted',
+              status: 'drafted', summary: sms,
+            });
           }
         }
       } catch (err) {
@@ -977,13 +975,9 @@ router.post('/qualify', async (req, res, next) => {
 
     // Store qualification conversation
     if (conversation_text) {
-      await supabase.from('ai_command_log').insert({
-        contact_id: lead_id,
-        contact_name: `${lead.first_name} ${lead.last_name}`.trim(),
-        action_type: 'lead_qualified',
-        message_sent: conversation_text.substring(0, 500),
-        outcome: result.recommended_action,
-        operator_id: req.user.id,
+      await require('../services/aiCommandLog').logAiCommand({
+        userId: req.user.id, leadId: lead.id, actionType: 'lead_qualified',
+        status: result.recommended_action || 'qualified', summary: conversation_text.substring(0, 500),
       });
     }
 
@@ -995,18 +989,14 @@ router.post('/qualify', async (req, res, next) => {
         lead_id: lead.id,
         property_address: lead.property_address,
         property_state: lead.property_state || null,
-        status: 'new',
+        status: 'lead',
       }).select().single();
 
       await supabase.from('leads').update({ status: 'interested', deal_id: deal?.id }).eq('id', lead_id);
 
-      await supabase.from('ai_command_log').insert({
-        deal_id: deal?.id,
-        contact_name: `${lead.first_name} ${lead.last_name}`.trim(),
-        action_type: 'escalated_to_pipeline',
-        message_sent: `Score: ${result.motivation_score}/100 - auto-escalated to deal pipeline`,
-        outcome: 'deal_created',
-        operator_id: req.user.id,
+      await require('../services/aiCommandLog').logAiCommand({
+        userId: req.user.id, dealId: deal?.id, leadId: lead.id, actionType: 'escalated_to_pipeline',
+        status: 'deal_created', summary: `Score: ${result.motivation_score}/100 - auto-escalated to deal pipeline`,
       });
     }
 

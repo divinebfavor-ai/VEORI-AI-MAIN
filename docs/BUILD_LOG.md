@@ -459,5 +459,32 @@ contract delivery, buyer matching fixes.
 
 ---
 
+## Session 2026-09-16 (cont.) — Deal stage automation + AI action log
+
+1. **One stage path.** New `services/dealStageService.js` (`changeDealStage`). Before:
+   the UI saved labels ('under contract') via PUT that triggered nothing; the
+   automation lived in `PATCH /deals/:id/stage`, which no screen called; contract
+   signing wrote `under_contract` directly. Now PUT (status), PATCH /stage and
+   fully signed PSA contracts all go through the service. Stage keys:
+   `lead, contacted, offer_sent, negotiating, under_contract, sent_to_title,
+   closing_prep, closed, lost` (frontend `constants/dealStages.js`, test keeps them in sync).
+   The write is conditional (`status <> stage`), so a re-save or two simultaneous
+   requests can't start buyer outreach twice. under_contract → buyer texts + title
+   package; closed → playbook + close ritual; closed/lost → outcome learning.
+   Signed *assignment* contracts don't restart buyer outreach. Production had 0 deals,
+   so no data migration.
+2. **Buyer fallback wording.** When no buy box matches, outreach texts all active
+   buyers (existing behaviour); those texts no longer claim "Fits your buy box".
+3. **ai_command_log never recorded anything.** All 12 writers used columns that don't
+   exist (`message_sent`, `outcome`, `operator_id`, `contact_id`, `contact_name`); table
+   had 0 rows. New `services/aiCommandLog.js` writes the real columns; readers alias
+   `summary`/`status` so API shapes are unchanged. Hand-added leads' opening text is
+   logged as `drafted` (nothing sends it). Qualification auto-escalation created deals
+   with status `new`; now `lead`.
+4. Pipeline "Add Deal" button called `toast.info` (not in react-hot-toast) and threw.
+5. Tests: `src/__tests__/dealStage.test.js` (8 cases). 32/32 pass.
+
+---
+
 *End of build log. If you add work, append to §3-style session notes and the
 §4 changelog so this file stays the single source of truth.*

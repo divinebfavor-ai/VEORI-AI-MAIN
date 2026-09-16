@@ -153,12 +153,9 @@ async function sendDealPackageToTitle(dealId, userId) {
     }).eq('id', dealId);
 
     // Log AI command
-    await supabase.from('ai_command_log').insert({
-      deal_id:      dealId,
-      action_type:  'title_package_sent',
-      message_sent: `Deal package emailed to ${titleCo.name} (${titleCo.email})`,
-      outcome:      'success',
-      operator_id:  userId,
+    await require('./aiCommandLog').logAiCommand({
+      userId, dealId, actionType: 'title_package_sent',
+      summary: `Deal package emailed to ${titleCo.name} (${titleCo.email})`,
     });
 
     console.log(`[Title] Deal package sent to ${titleCo.name} for deal ${dealId}`);
@@ -220,12 +217,9 @@ async function scheduleTitleFollowUps(dealId, userId) {
 
     await supabase.from('follow_ups').insert(tasks);
 
-    await supabase.from('ai_command_log').insert({
-      deal_id:      dealId,
-      action_type:  'title_followups_scheduled',
-      message_sent: `${tasks.length} title company follow-ups scheduled with ${titleCo?.name || 'title company'}`,
-      outcome:      'success',
-      operator_id:  userId,
+    await require('./aiCommandLog').logAiCommand({
+      userId, dealId, actionType: 'title_followups_scheduled',
+      summary: `${tasks.length} title company follow-ups scheduled with ${titleCo?.name || 'title company'}`,
     });
 
     console.log(`[Title] ${tasks.length} follow-ups scheduled for deal ${dealId}`);

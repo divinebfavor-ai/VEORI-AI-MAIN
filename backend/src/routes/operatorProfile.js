@@ -300,8 +300,8 @@ router.get('/activity', requireAuth, async (req, res, next) => {
   try {
     const { limit = 20, offset = 0 } = req.query;
     const { data, error } = await supabase.from('ai_command_log')
-      .select('log_id, action_type, contact_name, message_sent, outcome, created_at, deal_id')
-      .eq('operator_id', req.user.id)
+      .select('log_id, action_type, message_sent:summary, outcome:status, error_message, created_at, deal_id, lead_id')
+      .eq('user_id', req.user.id)
       .order('created_at', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
     if (error) throw error;

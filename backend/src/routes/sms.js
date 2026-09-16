@@ -438,13 +438,10 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       return;
     }
 
-    await supabase.from('ai_command_log').insert({
-      deal_id:     fit.id,
-      action_type: 'buyer_assigned_auto',
-      message_sent: `Buyer ${buyer.name || from} replied YES - auto-assigned to deal`,
-      outcome:     'success',
-      operator_id: userId,
-    }).then(null, () => {});
+    await require('../services/aiCommandLog').logAiCommand({
+      userId, dealId: fit.id, actionType: 'buyer_assigned_auto',
+      summary: `Buyer ${buyer.name || from} replied YES - auto-assigned to deal`,
+    });
 
     // Stage 3b - tag the assigned buyer on the CHART (deal_activity is what the
     // lead/deal timeline reads). This is the "who did this property go to" marker
@@ -497,13 +494,10 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
       await supabase.from('deals')
         .update({ contract_status: 'assignment_sent', updated_at: new Date().toISOString() })
         .eq('id', fit.id).then(null, () => {});
-      await supabase.from('ai_command_log').insert({
-        deal_id:     fit.id,
-        action_type: 'assignment_contract_sent',
-        message_sent: `Assignment contract sent to ${buyer.name || from} (${result?.signing_url || 'link created'})`,
-        outcome:     'success',
-        operator_id: userId,
-      }).then(null, () => {});
+      await require('../services/aiCommandLog').logAiCommand({
+        userId, dealId: fit.id, actionType: 'assignment_contract_sent',
+        summary: `Assignment contract sent to ${buyer.name || from}`,
+      });
 
       // Stage 3b - chart timeline entry for the assignment contract going out to
       // the tagged buyer (every doc sent to a buyer is visible on the deal chart).

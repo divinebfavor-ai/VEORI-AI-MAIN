@@ -21,7 +21,7 @@ async function processFollowUp({ followUpId, dealId, contactId, contactType, typ
 
     await logAiAction({
       dealId,
-      contactId,
+      leadId: contactType === 'lead' ? contactId : null,
       actionType: `follow_up_${type}_sent`,
       messageSent: `Follow-up ${type} sent via scheduled job`,
       outcome: 'sent',
@@ -139,8 +139,9 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
     }).eq('id', followUpId);
 
     await logAiAction({
+      userId: lead.user_id || null,
       dealId,
-      contactId: leadId,
+      leadId: lead.id,
       actionType: 'scheduled_call_initiated',
       messageSent: script?.substring(0, 200) || `Scheduled AI callback to ${lead.phone}`,
       outcome: callResult?.id ? 'call_started' : 'failed',
@@ -273,7 +274,8 @@ async function processSequenceStep({ sequenceId, stepIndex }) {
     const message = (step.message || '').replace(/{(\w+)}/g, (_, k) => vars[k] || k);
     await sendVapiSms(lead.phone, message);
     await logAiAction({
-      contactId: lead.id,
+      userId: seq.user_id,
+      leadId: lead.id,
       actionType: 'sms_sent',
       messageSent: message,
       outcome: 'sent',
@@ -323,15 +325,10 @@ async function sendVapiSms(phone, message) {
 }
 
 // ─── Log AI action ────────────────────────────────────────────────────────────
-async function logAiAction({ dealId, contactId, actionType, messageSent, outcome }) {
-  await supabase.from('ai_command_log').insert({
-    deal_id: dealId || null,
-    contact_id: contactId || null,
-    action_type: actionType,
-    message_sent: messageSent,
-    outcome,
-    created_at: new Date().toISOString(),
-  }).then(null, () => {});
+async function logAiAction({ userId = null, dealId, leadId = null, actionType, messageSent, outcome }) {
+  await require('./aiCommandLog').logAiCommand({
+    userId, dealId, leadId, actionType, summary: messageSent, status: outcome,
+  });
 }
 
 // ─── Send follow-up email ─────────────────────────────────────────────────────
