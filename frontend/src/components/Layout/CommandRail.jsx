@@ -292,7 +292,7 @@ function NavItem({ to, icon: Icon, label, liveBadge, collapsed }) {
   )
 }
 
-export default function CommandRail() {
+export default function CommandRail({ mobile = false }) {
   const { calls: liveCalls } = useLiveCalls()
   const { theme, toggleTheme } = useThemeStore()
   const { user } = useAuthStore()
@@ -300,13 +300,17 @@ export default function CommandRail() {
   const navigate = useNavigate()
   const [notifOpen, setNotifOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === '1')
+  const [collapsedPref, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('sidebar_collapsed') === '1' } catch { return false }
+  })
+  // In the phone drawer the rail is always full width with labels.
+  const collapsed = mobile ? false : collapsedPref
   const notifRef = useRef(null)
 
   const toggleCollapse = () => {
     setCollapsed(v => {
       const next = !v
-      localStorage.setItem('sidebar_collapsed', next ? '1' : '0')
+      try { localStorage.setItem('sidebar_collapsed', next ? '1' : '0') } catch { /* storage unavailable */ }
       return next
     })
   }
@@ -329,7 +333,7 @@ export default function CommandRail() {
 
   return (
     <div className="glass-sidebar" style={{
-      width: collapsed ? 60 : 240, flexShrink: 0,
+      width: mobile ? '100%' : (collapsed ? 60 : 240), flexShrink: 0,
       display: 'flex', flexDirection: 'column',
       height: '100%', position: 'relative', zIndex: 20,
       transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
@@ -349,7 +353,7 @@ export default function CommandRail() {
           </div>
         )}
         {collapsed && <VeoriLogo size={30} />}
-        <button
+        {!mobile && <button
           onClick={toggleCollapse}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           style={{
@@ -362,7 +366,7 @@ export default function CommandRail() {
           onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-bg)'; e.currentTarget.style.color = 'var(--t4)' }}
         >
           {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-        </button>
+        </button>}
       </div>
 
       {/* Nav */}

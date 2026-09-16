@@ -1662,19 +1662,19 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-8 max-w-[900px] mx-auto">
-      <div className="mb-8">
+    <div className="p-4 md:p-8 max-w-[900px] mx-auto">
+      <div className="mb-6 md:mb-8">
         <h1 className="text-[28px] font-medium text-text-primary">Settings</h1>
         <p className="text-[13px] text-text-muted mt-1">Manage your account, phone numbers, and integrations</p>
       </div>
 
-      <div className="flex gap-8">
-        {/* Sidebar tabs */}
-        <div className="w-[180px] flex-shrink-0">
-          <nav className="space-y-0.5">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8">
+        {/* Sidebar tabs - a horizontal scroller on phones */}
+        <div className="w-full md:w-[180px] md:flex-shrink-0">
+          <nav className="flex md:block gap-1 overflow-x-auto md:overflow-visible md:space-y-0.5 pb-1 md:pb-0">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => setTab(id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[6px] text-left text-[13px] transition-colors ${
+                className={`md:w-full flex-shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3 py-2.5 rounded-[6px] text-left text-[13px] transition-colors ${
                   tab === id ? 'bg-card border border-border-subtle text-white' : 'text-text-muted hover:text-text-secondary hover:bg-surface'
                 }`}>
                 <Icon size={14} strokeWidth={1.5} />
@@ -1683,7 +1683,7 @@ export default function Settings() {
             ))}
             {isAdmin && (
               <button onClick={() => setTab('api')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[6px] text-left text-[13px] transition-colors ${
+                className={`md:w-full flex-shrink-0 whitespace-nowrap flex items-center gap-2.5 px-3 py-2.5 rounded-[6px] text-left text-[13px] transition-colors ${
                   tab === 'api' ? 'bg-card border border-border-subtle text-white' : 'text-text-muted hover:text-text-secondary hover:bg-surface'
                 }`}>
                 <Key size={14} strokeWidth={1.5} />
@@ -1694,7 +1694,7 @@ export default function Settings() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 space-y-4">
+        <div className="flex-1 min-w-0 space-y-4">
 
           {tab === 'profile' && (
             <>

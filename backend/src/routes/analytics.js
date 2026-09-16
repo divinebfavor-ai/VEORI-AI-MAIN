@@ -191,9 +191,12 @@ router.get('/dashboard', async (req, res, next) => {
     );
     const buyersBlastedToday = buyersBlastedTodayRes.data?.reduce((sum, c) => sum + (c.buyers_called || 0), 0) || 0;
 
-    const { data: pipeline } = await supabase.from('leads').select('status').eq('user_id', uid);
+    // Grouped in the database: a plain select is capped at 1,000 rows by PostgREST,
+    // which under-counted every operator with more leads than that.
     const funnel = {};
-    (pipeline || []).forEach(l => { funnel[l.status] = (funnel[l.status] || 0) + 1; });
+    const { data: statusCounts, error: statusErr } = await supabase.rpc('lead_status_counts', { p_user_id: uid });
+    if (statusErr) console.error('[Analytics] lead_status_counts failed:', statusErr.message);
+    (statusCounts || []).forEach(r => { funnel[r.status] = Number(r.count) || 0; });
 
     const dealsById = new Map((dealsSnapshotRes.data || []).map((deal) => [deal.id, deal]));
     const dueFollowUps = (followUpsSnapshotRes.data || []).filter((item) => item.status === 'scheduled' && item.next_follow_up_at <= nowIso);

@@ -88,7 +88,17 @@ function statusBadge(s) {
   return m[s?.toLowerCase()] || 'gray'
 }
 
-const PIPELINE_STAGES = ['New','Calling','Contacted','Offer Made','Negotiating','Under Contract','Buyer Search','Closed']
+// Lead pipeline columns and the lead statuses each one counts (keys as stored in leads.status).
+const PIPELINE_STAGES = [
+  { label: 'New',            statuses: ['new'] },
+  { label: 'Calling',        statuses: ['calling'] },
+  { label: 'Contacted',      statuses: ['contacted'] },
+  { label: 'Interested',     statuses: ['interested', 'appointment_set'] },
+  { label: 'Offer Made',     statuses: ['offer_made'] },
+  { label: 'Under Contract', statuses: ['under_contract'] },
+  { label: 'Closed',         statuses: ['closed'] },
+  { label: 'Do Not Contact', statuses: ['dnc', 'closed_lost'] },
+]
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 function StatCard({ label, value, icon: Icon, accent, sub, loading }) {
@@ -403,11 +413,11 @@ export default function Dashboard() {
         return total > 0 ? (
           <div style={{ display: 'flex', gap: 3, height: 3, borderRadius: 2, overflow: 'hidden', marginBottom: 28 }}>
             {PIPELINE_STAGES.map((stage, i) => {
-              const count = pipelineMap[stage.toLowerCase()] || pipelineMap[stage] || 0
+              const count = stage.statuses.reduce((sum, st) => sum + (pipelineMap[st] || 0), 0)
               if (!count) return null
               const pct = ((count / total) * 100).toFixed(1)
               const colors = ['var(--border)','rgba(255,149,0,0.5)','rgba(255,149,0,0.5)','rgba(201,168,76,0.8)','rgba(255,149,0,0.6)','rgba(0,195,122,0.8)','rgba(0,195,122,0.5)','rgba(0,195,122,1)']
-              return <div key={stage} style={{ flex: `0 0 ${pct}%`, background: colors[i % colors.length], borderRadius: 2 }} title={`${stage}: ${count}`} />
+              return <div key={stage.label} style={{ flex: `0 0 ${pct}%`, background: colors[i % colors.length], borderRadius: 2 }} title={`${stage.label}: ${count}`} />
             })}
           </div>
         ) : null
@@ -591,18 +601,18 @@ export default function Dashboard() {
             Full pipeline <ArrowRight size={11} />
           </Link>
         </div>
-        <div style={{ padding: '20px 20px', display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
+        <div style={{ padding: '20px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))', gap: 8 }}>
           {PIPELINE_STAGES.map((stage, i) => {
-            const count = pipelineMap[stage.toLowerCase()] || pipelineMap[stage] || 0
+            const count = stage.statuses.reduce((sum, st) => sum + (pipelineMap[st] || 0), 0)
             return (
-              <Link key={stage} to={`/pipeline?stage=${stage.toLowerCase()}`} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+              <Link key={stage.label} to="/lead-pipeline" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
                 <div style={{ width: '100%', height: 2, borderRadius: 1, background: count > 0 ? 'rgba(0,195,122,0.4)' : 'var(--border)', overflow: 'hidden' }}>
                   <div style={{ height: '100%', background: '#00C37A', borderRadius: 1, width: `${Math.min(100, count * 25)}%`, transition: 'width 0.6s ease' }} />
                 </div>
                 <span style={{ fontSize: 24, fontWeight: 700, color: count > 0 ? 'var(--t1)' : 'var(--t4)', letterSpacing: '-0.03em', lineHeight: 1, fontFamily: 'Geist Mono, monospace' }}>
                   {count}
                 </span>
-                <span className="label-caps" style={{ textAlign: 'center', lineHeight: 1.3 }}>{stage}</span>
+                <span className="label-caps" style={{ textAlign: 'center', lineHeight: 1.3 }}>{stage.label}</span>
               </Link>
             )
           })}

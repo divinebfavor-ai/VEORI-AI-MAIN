@@ -417,10 +417,10 @@ export default function Analytics() {
   const segMax = Math.max(...segments.map(s => s.count || 0), 1)
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <div>
           <h1 className="text-[28px] font-semibold text-text-primary tracking-tight">Analytics</h1>
           <p className="text-[13px] text-text-muted mt-1">Executive performance overview</p>

@@ -1013,7 +1013,7 @@ export default function Leads() {
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div style={{ padding: '22px 24px 0', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.03em', marginBottom: 4 }}>
               Lead Intelligence
@@ -1025,7 +1025,7 @@ export default function Leads() {
               {liveCount > 0 && <> · <span style={{ color: '#00C37A' }}>{liveCount} live</span></>}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFile} />
             <Button variant="secondary" size="sm" onClick={() => setShowDupes(true)}>
               <Copy size={13} /> Find Duplicates

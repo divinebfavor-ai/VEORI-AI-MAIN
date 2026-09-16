@@ -48,7 +48,8 @@ export default function FeedbackButton() {
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   const trigger = {
-    position: 'fixed', bottom: 24, right: 24, zIndex: 900,
+    // Sits above the 48px AI assistant button (bottom-right, 24px) instead of on top of it.
+    position: 'fixed', bottom: 84, right: 24, zIndex: 900,
     background: 'rgba(10,18,32,0.92)', border: '1px solid rgba(0,195,122,0.30)',
     borderRadius: 40, padding: '9px 18px', color: 'rgba(255,255,255,0.75)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex',
