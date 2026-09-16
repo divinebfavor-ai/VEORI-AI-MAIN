@@ -488,8 +488,9 @@ async function handleBuyerReply(buyer, from, toNumber, inboundMsgId, body) {
     try {
       const contractService = require('../services/contractService');
       const dealForContract = { ...fit, buyers: buyer, leads: fit.leads || {} };
+      // sms:false - this handler texts the buyer their link itself (below).
       const result = await contractService.send(dealForContract, 'assignment', {
-        phone: buyer.phone, email: buyer.email, userId,
+        phone: buyer.phone, email: buyer.email, userId, sms: false,
       });
       await supabase.from('deals')
         .update({ contract_status: 'assignment_sent', updated_at: new Date().toISOString() })

@@ -33,7 +33,10 @@ router.post('/create_contract', requireAuth, async (req, res, next) => {
     });
 
     res.json({ success: true, data: { ...generated, ...signing } });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err instanceof contractService.ContractError) return res.status(err.status).json({ success: false, error: err.message });
+    next(err);
+  }
 });
 
 router.post('/start_signing_session', requireAuth, async (req, res, next) => {
@@ -57,15 +60,20 @@ router.post('/start_signing_session', requireAuth, async (req, res, next) => {
       leadId: deal.lead_id,
       activityType: 'signing_session_started',
       message: `${type.toUpperCase()} signing session started`,
-      metadata: { contract_id: signing.contract.id, signing_url: signing.primary_signing_url },
+      metadata: { contract_id: signing.contract.id },
     });
     res.json({ success: true, data: signing });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err instanceof contractService.ContractError) return res.status(err.status).json({ success: false, error: err.message });
+    next(err);
+  }
 });
 
 router.get('/session/:token', async (req, res, next) => {
   try {
-    const signer = await contractService.getSigningSession(req.params.token);
+    const token = String(req.params.token || '');
+    if (!/^[0-9a-f-]{36}$/i.test(token)) return res.status(404).json({ success: false, error: 'Signing session not found' });
+    const signer = await contractService.getSigningSession(token);
     if (!signer) return res.status(404).json({ success: false, error: 'Signing session not found' });
     res.json({
       success: true,
@@ -91,14 +99,21 @@ router.get('/session/:token', async (req, res, next) => {
 router.post('/handle_sign_submission/:token', async (req, res, next) => {
   try {
     const { printed_name, signature_text } = req.body;
-    if (!printed_name || !signature_text) {
+    if (typeof printed_name !== 'string' || typeof signature_text !== 'string' || !printed_name.trim() || !signature_text.trim()) {
       return res.status(400).json({ success: false, error: 'printed_name and signature_text required' });
+    }
+    if (printed_name.length > 200 || signature_text.length > 200) {
+      return res.status(400).json({ success: false, error: 'Name and signature must be 200 characters or fewer' });
+    }
+    if (!/^[0-9a-f-]{36}$/i.test(String(req.params.token || ''))) {
+      return res.status(404).json({ success: false, error: 'Signing session not found' });
     }
 
     const result = await contractService.submitSignature(req.params.token, {
-      printedName: printed_name,
-      signatureText: signature_text,
+      printedName: printed_name.trim(),
+      signatureText: signature_text.trim(),
     });
+    if (result.already_signed) return res.json({ success: true, data: result });
 
     const { data: contract } = await supabase
       .from('contracts')
@@ -146,7 +161,10 @@ router.post('/handle_sign_submission/:token', async (req, res, next) => {
     }
 
     res.json({ success: true, data: result });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err instanceof contractService.ContractError) return res.status(err.status).json({ success: false, error: err.message });
+    next(err);
+  }
 });
 
 router.get('/get_signed_contract/:id', requireAuth, async (req, res, next) => {

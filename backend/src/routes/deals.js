@@ -272,17 +272,24 @@ router.post('/:id/send-contract', async (req, res, next) => {
     if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
     const { data: dealWithBuyer } = await supabase.from('deals').select('*, leads(*), buyers(*)').eq('id', req.params.id).eq('user_id', req.user.id).single();
     const result = await contractService.send(dealWithBuyer || deal, type, { phone: recipient_phone, email: recipient_email, userId: req.user.id });
+    const delivered = result.status === 'sent';
     logActivity({
       userId: req.user.id,
       dealId: deal.id,
       leadId: deal.lead_id,
       activityType: 'contract_sent',
-      message: `${type.toUpperCase()} contract sent`,
-      metadata: { type, recipient_phone, recipient_email, signing_url: result.signing_url || null },
+      message: delivered
+        ? `${type.toUpperCase()} contract sent for signature`
+        : `${type.toUpperCase()} contract created - no signer could be reached (${result.deliveries.map(d => `${d.role} ${d.channel}: ${d.detail || d.status}`).join('; ')})`,
+      // Signing links are credentials for the signer; they are never written to logs.
+      metadata: { type, contract_id: result.contract_id, deliveries: result.deliveries },
     }).catch(e => console.warn('[Deal] Activity log failed:', e.message));
-    await supabase.from('deals').update({ contract_status: 'sent', updated_at: new Date().toISOString() }).eq('id', deal.id).eq('user_id', req.user.id);
+    await supabase.from('deals').update({ contract_status: delivered ? 'sent' : 'created', updated_at: new Date().toISOString() }).eq('id', deal.id).eq('user_id', req.user.id);
     res.json({ success: true, data: result });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err instanceof contractService.ContractError) return res.status(err.status).json({ success: false, error: err.message });
+    next(err);
+  }
 });
 
 // POST /api/deals/:id/send-to-title

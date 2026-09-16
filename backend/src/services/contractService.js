@@ -50,7 +50,7 @@ async function loadOperator(userId) {
   try {
     const { data } = await supabase
       .from('users')
-      .select('full_name, company_name, legal_name, entity_name, entity_type, buyer_name_on_contract, business_phone, business_email, re_license_number, re_license_state, earnest_money_default, inspection_period_default, closing_period_default, custom_contract_addendum')
+      .select('email, full_name, company_name, legal_name, entity_name, entity_type, buyer_name_on_contract, business_phone, business_email, re_license_number, re_license_state, earnest_money_default, inspection_period_default, closing_period_default, custom_contract_addendum')
       .eq('id', userId)
       .maybeSingle();
     return data || {};
@@ -508,7 +508,27 @@ function buildSigningUrl(token) {
   return `${getFrontendBaseUrl()}/sign/${token}`;
 }
 
+// Roles that belong to the operator (they countersign); every other role is the
+// outside party (seller on a PSA, buyer on an assignment).
+const OPERATOR_ROLES = { psa: 'buyer', assignment: 'assignor' };
+
+class ContractError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+
 async function createSigningPackage(deal, type, { userId }) {
+  // Re-sending replaces the signer rows, which would erase signatures already
+  // collected. Refuse once anyone has signed.
+  const { data: prior } = await supabase.from('contracts')
+    .select('id, signing_status')
+    .eq('user_id', userId).eq('deal_id', deal.id).eq('contract_type', normalizeType(type))
+    .maybeSingle();
+  if (prior && ['partially_signed', 'fully_signed'].includes(prior.signing_status)) {
+    throw new ContractError(409, prior.signing_status === 'fully_signed'
+      ? 'This contract is already fully signed.'
+      : 'Someone has already signed this contract. Sending it again would erase that signature.');
+  }
+
   const generated = await generate(deal, type, { userId });
   const contract = await upsertContractRecord({
     deal,
@@ -520,18 +540,28 @@ async function createSigningPackage(deal, type, { userId }) {
 
   const lead = deal.leads || {};
   const buyer = deal.buyers || {};
+  const op = await loadOperator(userId || deal.user_id);
+  const operatorSigner = {
+    name: buyerNameFor(op),
+    email: op.business_email || op.email || null,
+    phone: op.business_phone || null,
+  };
   const signers = generated.type === 'assignment'
     ? [
-        { role: 'assignor', name: deal.operator_name || 'Veori AI Acquisitions' },
+        { role: 'assignor', ...operatorSigner },
         { role: 'buyer', name: buyer.name || 'Buyer', email: buyer.email, phone: buyer.phone },
       ]
     : [
         { role: 'seller', name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Seller', email: lead.email, phone: lead.phone },
-        { role: 'buyer', name: deal.operator_name || 'Veori AI Acquisitions' },
+        { role: 'buyer', ...operatorSigner },
       ];
 
   const signerRows = await replaceSigners(contract.id, signers);
-  const publicSigningUrl = signerRows[0]?.access_token ? buildSigningUrl(signerRows[0].access_token) : null;
+  const operatorRole = OPERATOR_ROLES[generated.type];
+  const counterparty = signerRows.find(r => r.signer_role !== operatorRole) || null;
+  const operatorRow  = signerRows.find(r => r.signer_role === operatorRole) || null;
+  // The contract's public link is the OUTSIDE party's link - never the operator's.
+  const publicSigningUrl = counterparty ? buildSigningUrl(counterparty.access_token) : null;
 
   const { data: updatedContract, error: updateError } = await supabase
     .from('contracts')
@@ -553,19 +583,134 @@ async function createSigningPackage(deal, type, { userId }) {
       signing_url: buildSigningUrl(signer.access_token),
     })),
     primary_signing_url: publicSigningUrl,
+    counterparty_signing_url: publicSigningUrl,
+    operator_signing_url: operatorRow ? buildSigningUrl(operatorRow.access_token) : null,
+    operator_role: operatorRole,
   };
 }
 
-async function send(deal, type, { phone, email, userId } = {}) {
+function firstNameOf(name) { return String(name || '').trim().split(/\s+/)[0] || 'there'; }
+
+/**
+ * Deliver each signer their OWN link. Email for everyone with an address; a text
+ * to the outside party when asked (and allowed by the compliance gate). Every
+ * attempt is returned so the caller can show exactly what went out - nothing is
+ * reported as sent unless the provider accepted it.
+ *
+ * @returns {Promise<Array<{ role, name, channel, status, detail? }>>}
+ *   status: 'sent' | 'simulated' | 'skipped' | 'failed'
+ */
+async function deliverSigningLinks({ deal, signing, userId, sms = true, overrides = {} }) {
+  const emailService = require('./emailService');
+  const results = [];
+  const address = [deal.property_address, deal.property_city, deal.property_state].filter(Boolean).join(', ') || 'the property';
+  const isAssignment = signing.contract?.contract_type === 'assignment';
+  const op = await loadOperator(userId || deal.user_id);
+  const operatorName = op.full_name || buyerNameFor(op);
+
+  for (const signer of signing.signers || []) {
+    const isOperator = signer.signer_role === signing.operator_role;
+    const email = (!isOperator && overrides.email) || signer.email;
+    const phone = (!isOperator && overrides.phone) || signer.phone;
+    const link = signer.signing_url;
+    const who = { role: signer.signer_role, name: signer.name };
+
+    if (email) {
+      const subject = isOperator
+        ? `Countersign: ${isAssignment ? 'assignment' : 'purchase'} contract for ${address}`
+        : `${isAssignment ? 'Assignment contract' : 'Contract'} for ${address}`;
+      const body = isOperator
+        ? `Your countersignature is needed on the ${isAssignment ? 'assignment' : 'purchase'} contract for ${address}.\n\nSign here: ${link}\n\nThis link is yours only - don't forward it.`
+        : `Hi ${firstNameOf(signer.name)},\n\nHere's the ${isAssignment ? 'assignment contract' : 'purchase agreement'} for ${address}. Please review and sign when you're ready.\n\nSign here: ${link}\n\nThis link is for you only. Any questions, just reply to this email.\n\n${operatorName}`;
+      try {
+        const r = await emailService.sendEmail({
+          userId, leadId: deal.lead_id || null, dealId: deal.id, to: email, subject, body,
+          emailType: 'contract_signing',
+        });
+        if (r?.suppressed) results.push({ ...who, channel: 'email', status: 'skipped', detail: 'recipient unsubscribed from email' });
+        else if (r?.simulated) results.push({ ...who, channel: 'email', status: 'simulated', detail: 'email provider not configured' });
+        else if (r?.success) results.push({ ...who, channel: 'email', status: 'sent' });
+        else results.push({ ...who, channel: 'email', status: 'failed', detail: 'not accepted by email provider' });
+      } catch (e) {
+        results.push({ ...who, channel: 'email', status: 'failed', detail: e.message });
+      }
+    } else {
+      results.push({ ...who, channel: 'email', status: 'skipped', detail: 'no email address on file' });
+    }
+
+    if (!isOperator && sms && phone) {
+      try {
+        const { complianceGate } = require('../agents/complianceGate');
+        const gate = await complianceGate({ type: 'send_sms', phone, stateCode: deal.property_state }, { skipFederalDnc: true });
+        if (!gate.allowed) {
+          results.push({ ...who, channel: 'sms', status: 'skipped', detail: gate.hardStops.map(h => h.code).join(', ') });
+        } else {
+          const text = `Hi ${firstNameOf(signer.name)}, here's the ${isAssignment ? 'assignment contract' : 'purchase agreement'} for ${address} to review and sign: ${link}`;
+          const sid = await require('./smsService').sendSMS(phone, text, userId);
+          results.push(sid
+            ? { ...who, channel: 'sms', status: 'sent' }
+            : { ...who, channel: 'sms', status: 'failed', detail: 'text provider not configured or rejected the message' });
+        }
+      } catch (e) {
+        results.push({ ...who, channel: 'sms', status: 'failed', detail: e.message });
+      }
+    }
+  }
+  return results;
+}
+
+/**
+ * After a signature: tell the operator who signed; once everyone has signed,
+ * send every signer the confirmation. Never throws - the signature is saved.
+ */
+async function notifySignatureProgress({ contract, signer, fullySigned }) {
+  try {
+    const emailService = require('./emailService');
+    const { data: deal } = await supabase.from('deals')
+      .select('id, user_id, lead_id, property_address, property_city, property_state')
+      .eq('id', contract.deal_id).maybeSingle();
+    if (!deal) return;
+    const address = [deal.property_address, deal.property_city, deal.property_state].filter(Boolean).join(', ') || 'the property';
+    const { data: signers } = await supabase.from('contract_signers')
+      .select('signer_role, name, printed_name, email, status, signed_at').eq('contract_id', contract.id);
+    const op = await loadOperator(deal.user_id);
+    const operatorEmail = op.business_email || op.email || null;
+    const send = (to, subject, body) => emailService.sendEmail({
+      userId: deal.user_id, leadId: deal.lead_id || null, dealId: deal.id, to, subject, body, emailType: 'contract_signing',
+    }).catch(e => console.error('[Contract] signature notice failed:', e.message));
+
+    if (!fullySigned) {
+      if (operatorEmail) {
+        const waiting = (signers || []).filter(r => r.status !== 'signed').map(r => `${r.name} (${r.signer_role})`).join(', ');
+        await send(operatorEmail, `${signer.printed_name || signer.name} signed the contract for ${address}`,
+          `${signer.printed_name || signer.name} (${signer.signer_role}) signed the contract for ${address}.\n\nStill waiting on: ${waiting || 'nobody'}.`);
+      }
+      return;
+    }
+
+    const lines = (signers || []).map(r => `- ${r.printed_name || r.name} (${r.signer_role}) signed ${r.signed_at ? new Date(r.signed_at).toUTCString() : ''}`).join('\n');
+    const recipients = new Set((signers || []).map(r => r.email).filter(Boolean));
+    if (operatorEmail) recipients.add(operatorEmail);
+    for (const to of recipients) {
+      await send(to, `Fully signed: contract for ${address}`,
+        `The contract for ${address} is now signed by everyone.\n\n${lines}\n\nKeep this email for your records.`);
+    }
+  } catch (e) {
+    console.error('[Contract] notifySignatureProgress failed:', e.message);
+  }
+}
+
+async function send(deal, type, { phone, email, userId, sms = true } = {}) {
   const signing = await createSigningPackage(deal, type, { userId });
-  console.log(`[Contract] ${type.toUpperCase()} for ${deal.property_address} → ${phone || email || 'signer link created'}`);
-  console.log(`[Contract] Signing URL: ${signing.primary_signing_url}`);
+  const deliveries = await deliverSigningLinks({ deal, signing, userId, sms, overrides: { phone, email } });
+  const counterpartyReached = deliveries.some(d => d.role !== signing.operator_role && d.status === 'sent');
+  console.log(`[Contract] ${type.toUpperCase()} for deal ${deal.id}: ${deliveries.map(d => `${d.role}/${d.channel}=${d.status}`).join(', ')}`);
   return {
-    status: 'sent',
-    signing_url: signing.primary_signing_url,
-    sent_to: phone || email || null,
+    status: counterpartyReached ? 'sent' : 'created_not_delivered',
+    signing_url: signing.counterparty_signing_url,
+    operator_signing_url: signing.operator_signing_url,
     contract_id: signing.contract.id,
-    signers: signing.signers,
+    deliveries,
   };
 }
 
@@ -574,7 +719,7 @@ async function getSigningSession(token) {
     .from('contract_signers')
     .select('*, contracts(*)')
     .eq('access_token', token)
-    .single();
+    .maybeSingle();
   if (signerError) throw signerError;
   if (!signer) return null;
 
@@ -589,8 +734,10 @@ async function getSigningSession(token) {
 
 async function submitSignature(token, { printedName, signatureText }) {
   const signer = await getSigningSession(token);
-  if (!signer) throw new Error('Signing session not found');
-  if (signer.status === 'signed') return signer;
+  if (!signer) throw new ContractError(404, 'Signing session not found');
+  if (signer.status === 'signed') {
+    return { signer, contract: signer.contracts, fully_signed: signer.contracts?.signing_status === 'fully_signed', already_signed: true };
+  }
 
   const signedAt = new Date().toISOString();
   const { data: updatedSigner, error: signerError } = await supabase
@@ -631,10 +778,14 @@ async function submitSignature(token, { printedName, signatureText }) {
     .single();
   if (contractError) throw contractError;
 
+  setImmediate(() => { notifySignatureProgress({ contract, signer: updatedSigner, fullySigned }); });
+
   return { signer: updatedSigner, contract, fully_signed: fullySigned };
 }
 
 module.exports = {
+  ContractError,
+  deliverSigningLinks,
   generate,
   renderPdf,
   send,

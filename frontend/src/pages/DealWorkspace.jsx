@@ -422,11 +422,23 @@ export default function DealWorkspace() {
   const sendContract = async (type) => {
     try {
       const r = await dealsApi.sendContract(id, type)
-      toast.success('Contract sent to seller')
-      await updateDeal({ contract_status: 'sent' })
-      const signingUrl = r.data?.data?.signing_url || r.data?.signing_url
-      if (signingUrl) window.open(signingUrl, '_blank', 'noopener,noreferrer')
-    } catch { toast.error('Failed to send contract') }
+      const result = r.data?.data || {}
+      const deliveries = Array.isArray(result.deliveries) ? result.deliveries : []
+      const reached = deliveries.filter(d => d.status === 'sent')
+      const outside = reached.filter(d => d.role === (type === 'assignment' ? 'buyer' : 'seller'))
+      if (outside.length) {
+        toast.success(`Contract sent to the ${type === 'assignment' ? 'buyer' : 'seller'} by ${outside.map(d => d.channel === 'sms' ? 'text' : 'email').join(' and ')}`)
+      } else {
+        const why = deliveries.filter(d => d.role !== (type === 'assignment' ? 'assignor' : 'buyer')).map(d => `${d.channel === 'sms' ? 'text' : 'email'}: ${d.detail || d.status}`).join(' · ')
+        toast.error(`Contract created, but it could not be delivered${why ? ` (${why})` : ''}. Add the signer's email and send again.`, { duration: 8000 })
+      }
+      setDeal(d => ({ ...d, contract_status: result.status === 'sent' ? 'sent' : 'created' }))
+      loadActivity()
+      // Open YOUR countersignature page - never the other party's link.
+      if (result.operator_signing_url) window.open(result.operator_signing_url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Failed to send contract')
+    }
   }
 
   const sendToTitle = async () => {
