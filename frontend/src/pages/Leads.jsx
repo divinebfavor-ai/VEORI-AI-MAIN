@@ -310,7 +310,7 @@ function LeadPanel({ lead, onClose, onNavigate }) {
         property_state: lead.property_state,
         property_zip: lead.property_zip,
         arv: lead.estimated_arv || lead.estimated_value,
-        status: 'offer made',
+        status: 'offer_sent',
       })
       const deal = r.data?.deal || r.data?.data || r.data
       toast.success('Deal created')

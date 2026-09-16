@@ -168,6 +168,7 @@ export const deals = {
   getTitleLog:       (id)           => api.get(`/api/deals/${id}/title-log`),
   createDeal:        (data)         => api.post('/api/deals', data),
   updateDeal:        (id, data)     => api.put(`/api/deals/${id}`, data),
+  updateStage:       (id, stage, reason) => api.patch(`/api/deals/${id}/stage`, { stage, ...(reason ? { reason } : {}) }),
   generateContract:  (id, type)     => api.post(`/api/deals/${id}/generate-contract`, { type }),
   downloadContractPdf: (id, type)   => api.get(`/api/deals/${id}/contract.pdf`, { params: { type }, responseType: 'blob' }),
   sendContract:      (id, type, data) => api.post(`/api/deals/${id}/send-contract`, { type, ...data }),

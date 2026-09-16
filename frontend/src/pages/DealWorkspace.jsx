@@ -11,12 +11,7 @@ import RepairEstimator from '../components/ui/RepairEstimator'
 import { deals as dealsApi, buyers as buyersApi, titleCompanies as titleApi, compliance as complianceApi, followUps as followUpsApi, propertyPhotos as propertyPhotosApi } from '../services/api'
 import api from '../services/api'
 
-const STAGES = ['New','Calling','Contacted','Offer Made','Negotiating','Under Contract','Buyer Search','Title','Closed']
-
-function stageBadge(s) {
-  const m = { 'new':'gray','calling':'amber','contacted':'amber','offer made':'gold','negotiating':'amber','under contract':'green','buyer search':'amber','title':'green','closed':'green' }
-  return m[s?.toLowerCase()] || 'gray'
-}
+import { DEAL_STAGES, MILESTONE_STAGES, STAGE_EFFECTS, stageKey, stageInfo } from '../constants/dealStages'
 
 function scoreColor(s) {
   if (s == null) return 'var(--t4)'
@@ -207,14 +202,14 @@ function ScenarioCard({ label, arv, repairs, accent }) {
 
 // ─── Milestone Timeline ───────────────────────────────────────────────────────
 function MilestoneBar({ stage }) {
-  const idx = STAGES.findIndex(s => s.toLowerCase() === stage?.toLowerCase())
+  const idx = MILESTONE_STAGES.findIndex(s => s.key === stageKey(stage))
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20 }}>
-      {STAGES.map((s, i) => {
+      {MILESTONE_STAGES.map(({ key, label: s }, i) => {
         const done   = i < idx
         const active = i === idx
         return (
-          <React.Fragment key={s}>
+          <React.Fragment key={key}>
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
               flex: 1,
@@ -236,7 +231,7 @@ function MilestoneBar({ stage }) {
                 {s}
               </span>
             </div>
-            {i < STAGES.length - 1 && (
+            {i < MILESTONE_STAGES.length - 1 && (
               <div style={{
                 height: 1, flex: 0.5, marginBottom: 16,
                 background: i < idx ? 'var(--green)' : 'var(--s3)',
@@ -332,7 +327,7 @@ export default function DealWorkspace() {
       .then(r => {
         const d = r.data?.deal || r.data?.data || r.data
         setDeal(d)
-        setStage(d?.status || 'new')
+        setStage(stageKey(d?.status))
         if (d?.property_state) {
           complianceApi.getState(d.property_state)
             .then(cr => setCompliance(cr.data?.compliance || cr.data))
@@ -376,8 +371,15 @@ export default function DealWorkspace() {
 
   const saveStage = async () => {
     setSavingStage(true)
-    try { await updateDeal({ status: stage }) }
-    finally { setSavingStage(false) }
+    try {
+      if (stage === stageKey(deal?.status)) return
+      const r = await dealsApi.updateStage(id, stage)
+      if (r.data?.deal) setDeal(d => ({ ...d, ...r.data.deal }))
+      loadActivity()
+      toast.success(`Moved to ${stageInfo(stage).label}`)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not move the deal')
+    } finally { setSavingStage(false) }
   }
 
   const generateContract = async (type) => {
@@ -645,7 +647,7 @@ export default function DealWorkspace() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Badge variant={stageBadge(deal.status)}>{deal.status || 'new'}</Badge>
+          <Badge variant={stageInfo(deal.status).badge}>{stageInfo(deal.status).label}</Badge>
           {assignFee > 0 && (
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>
               {fmt$(assignFee)} fee
@@ -1230,8 +1232,11 @@ export default function DealWorkspace() {
                   cursor: 'pointer', marginBottom: 10,
                 }}
               >
-                {STAGES.map(s => <option key={s} value={s.toLowerCase()}>{s}</option>)}
+                {DEAL_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
+              {stage !== stageKey(deal.status) && STAGE_EFFECTS[stage] && (
+                <p style={{ fontSize: 11, color: 'var(--t3)', margin: '0 0 10px', lineHeight: 1.5 }}>{STAGE_EFFECTS[stage]}</p>
+              )}
               <Button variant="primary" size="sm" style={{ width: '100%' }} loading={savingStage} onClick={saveStage}>
                 Update Stage
               </Button>

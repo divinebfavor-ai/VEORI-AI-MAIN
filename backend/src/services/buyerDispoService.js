@@ -158,7 +158,7 @@ async function matchBuyers(deal) {
  * Build the buy-box / deal-blast SMS copy sent to a matched buyer.
  * Keeps it short, factual, and reply-friendly (a "yes" reply drives auto-assign).
  */
-function buildBuyerSMS(deal, buyer) {
+function buildBuyerSMS(deal, buyer, { fitsBuyBox = true } = {}) {
   const addr = [deal.property_address, deal.property_city, deal.property_state]
     .filter(Boolean).join(', ') || 'a new property';
   const ask  = dealAskPrice(deal);
@@ -166,7 +166,10 @@ function buildBuyerSMS(deal, buyer) {
   const price = ask ? ` for $${Number(ask).toLocaleString()}` : '';
   const first = (buyer.name || '').split(' ')[0];
   const hi = first ? `Hi ${first}, ` : '';
-  return `${hi}I've got a deal under contract: ${addr}${price}${arv}. Fits your buy box - interested? Reply YES and I'll send the assignment contract.`;
+  // Only claim a buy-box fit when the matcher found one; fallback recipients get
+  // the same offer without that claim.
+  const fit = fitsBuyBox ? ' Fits your buy box -' : '';
+  return `${hi}I've got a deal under contract: ${addr}${price}${arv}.${fit} Interested? Reply YES and I'll send the assignment contract.`;
 }
 
 /**
@@ -229,7 +232,7 @@ async function startBuyerBlast(dealId, userId) {
   // 3. Enqueue one SMS per recipient. campaignId+buyer.id == idempotent jobId.
   let enqueued = 0;
   for (const buyer of recipients) {
-    const body = buildBuyerSMS(deal, buyer);
+    const body = buildBuyerSMS(deal, buyer, { fitsBuyBox: !usedFallback });
     try {
       const jobId = await queueService.enqueueSMS({
         leadId:     buyer.id,        // attribution only (DNC log); buyer is not a lead row
@@ -257,7 +260,7 @@ async function startBuyerBlast(dealId, userId) {
   }
 
   console.log(`[BuyerDispo] deal ${dealId}: matched ${buyers.length}${usedFallback ? ' (fallback=all-active)' : ''}, enqueued ${enqueued} SMS`);
-  return { campaignId, matched: buyers.length, enqueued };
+  return { campaignId, matched: usedFallback ? 0 : buyers.length, enqueued, usedFallback };
 }
 
 module.exports = { matchBuyers, buildBuyerSMS, startBuyerBlast, dealAskPrice };

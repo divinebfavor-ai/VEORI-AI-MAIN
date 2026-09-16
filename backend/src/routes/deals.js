@@ -3,10 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
 const contractService = require('../services/contractService');
-const { recordWinningPlaybook } = require('../services/dataMotService');
 const { logActivity } = require('../services/dealActivityService');
-const { runCloseRitual } = require('../services/closeRitualService');
-const { autoAssignTitleCompany, sendDealPackageToTitle, scheduleTitleFollowUps } = require('../services/titleService');
 const { suggestAssignmentFee } = require('../services/assignmentFeeService');
 
 const router = express.Router();
@@ -17,49 +14,8 @@ function isTableMissing(err) {
   return err?.code === 'PGRST205' || (err?.message || '').includes('Could not find the table');
 }
 
-// ─── Learning loop (Rule 3) - record a deal's TERMINAL outcome ────────────────
-// When a deal flips to a final state (won = 'closed', lost = 'dead'/'lost'/'dnc'),
-// drop one row into deal_outcome_learning so the prediction engine can learn from
-// real history (predictionEngine.applyOutcomeLearning reads same-state outcomes to
-// nudge confidence). This CLOSES the loop: coo.js + leads.js already READ this table,
-// but nothing was WRITING to it.
-//
-// SAFETY: best-effort & non-blocking (the response is already sent / about to be).
-// Never throws. NEVER FABRICATES - fields we don't have are written as null, not
-// invented. Only fires on a real status TRANSITION into a terminal state, so a deal
-// can't be double-counted by re-saving the same status. Uses the deal row already in
-// hand (no buggy re-fetch); a missing table or insert error is swallowed + logged.
-const TERMINAL_OUTCOME = { closed: 'closed', dead: 'dead', lost: 'dead', dnc: 'dead' };
-
-async function recordTerminalOutcome(deal, toStatus, leadRow = null) {
-  try {
-    const outcome = TERMINAL_OUTCOME[(toStatus || '').toLowerCase()];
-    if (!outcome || !deal) return;                       // not terminal → nothing to learn
-
-    const createdAt    = deal.created_at ? new Date(deal.created_at) : null;
-    const daysToOutcome = createdAt
-      ? Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / 86400000))
-      : null;
-    const now          = new Date();
-    const seasons      = ['winter','winter','spring','spring','spring','summer','summer','summer','fall','fall','fall','winter'];
-
-    await supabase.from('deal_outcome_learning').insert({
-      deal_id:                deal.id || null,
-      outcome,                                            // 'closed' | 'dead'
-      reason:                 deal.notes || null,
-      days_to_outcome:        daysToOutcome,
-      final_motivation_score: leadRow?.motivation_score ?? null,
-      state:                  deal.property_state || leadRow?.property_state || null,
-      property_type:          deal.property_type || leadRow?.property_type || null,
-      month:                  now.getMonth() + 1,
-      season:                 seasons[now.getMonth()],
-      assignment_fee:         outcome === 'closed' ? (deal.assignment_fee ?? null) : null,
-      created_at:             now.toISOString(),
-    });
-  } catch (e) {
-    console.warn('[Deal] Outcome learning record failed (non-fatal):', e.message);
-  }
-}
+const { StageError, isValidStage, CREATABLE_STAGES, changeDealStage } = require('../services/dealStageService');
+const { logAiCommand } = require('../services/aiCommandLog');
 
 // Mirror the deal's EMD state onto its per-deal title_logs row so the title view
 // stays in parity with deals (the source of truth). The old call was best-effort
@@ -127,6 +83,9 @@ router.post('/', async (req, res, next) => {
       seller_name, seller_phone, seller_email, seller_primary_tag,
       estimated_value, estimated_equity,
     } = req.body;
+    if (status !== undefined && !CREATABLE_STAGES.includes(status)) {
+      return res.status(400).json({ success: false, error: `A new deal can start at: ${CREATABLE_STAGES.join(', ')}. Later stages are reached by moving the deal.` });
+    }
     const mao = arv && repair_estimate ? (arv * 0.70) - repair_estimate : null;
 
     // If lead_id provided, pull seller info from lead for auto-fill
@@ -195,7 +154,13 @@ router.get('/:id/strategies', async (req, res, next) => {
 // PUT /api/deals/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const allowed = ['property_address','property_city','property_state','arv','repair_estimate','mao','offer_price','seller_agreed_price','buyer_price','assignment_fee','status','title_company_id','buyer_id','closing_date','seller_contract_url','buyer_contract_url','contract_status','notes','emd_status','emd_amount','emd_refundable','emd_held_by'];
+    // Stage moves go through dealStageService so their automation runs; the
+    // generic field update never writes status directly.
+    const requestedStage = req.body.status;
+    if (requestedStage !== undefined && !isValidStage(requestedStage)) {
+      return res.status(400).json({ success: false, error: 'Invalid stage' });
+    }
+    const allowed = ['property_address','property_city','property_state','arv','repair_estimate','mao','offer_price','seller_agreed_price','buyer_price','assignment_fee','title_company_id','buyer_id','closing_date','seller_contract_url','buyer_contract_url','contract_status','notes','emd_status','emd_amount','emd_refundable','emd_held_by'];
     const updates = { updated_at: new Date().toISOString() };
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
     const { data: existing, error: existingError } = await supabase
@@ -210,45 +175,6 @@ router.put('/:id', async (req, res, next) => {
     if (error) throw error;
 
     const activityMessages = [];
-    if (updates.status && updates.status !== existing.status) {
-      activityMessages.push({
-        activityType: 'stage_updated',
-        message: `Deal stage changed from ${existing.status || 'new'} to ${updates.status}`,
-        metadata: { from: existing.status, to: updates.status },
-      });
-
-      // Prediction ledger (learning loop, all best-effort): going under contract logs a
-      // "deal_closes" prediction with the current probability score; a terminal status
-      // verifies it against the real outcome and records the deal outcome for
-      // distillation. This is what makes forecast accuracy measurable over time.
-      try {
-        const { logPrediction, verifyPrediction } = require('../services/learningLoopService');
-        const WIN  = ['closed', 'sold', 'assigned', 'completed'];
-        const LOSS = ['lost', 'dead', 'cancelled', 'fell_through'];
-        const to = String(updates.status).toLowerCase();
-        if (to === 'under_contract') {
-          const { data: prob } = await supabase.from('deal_probability_scores')
-            .select('score').eq('lead_id', existing.lead_id).limit(1).maybeSingle();
-          logPrediction({
-            userId: req.user.id, subjectType: 'deal', subjectId: req.params.id,
-            prediction: 'deal_closes',
-            probability: prob?.score != null ? prob.score / 100 : null,
-            reasoning: `Deal moved under contract from ${existing.status || 'new'}`,
-          }).catch(() => {});
-        } else if (WIN.includes(to) || LOSS.includes(to)) {
-          const won = WIN.includes(to);
-          verifyPrediction({ subjectType: 'deal', subjectId: req.params.id, prediction: 'deal_closes', outcome: won }).catch(() => {});
-          const { recordDealOutcome } = require('../services/aiLearningService');
-          recordDealOutcome({
-            dealId: req.params.id,
-            outcome: won ? 'closed' : 'fell_through',
-            reason: `status -> ${to}`,
-            state: data.property_state,
-            assignmentFee: data.assignment_fee,
-          }).catch(() => {});
-        }
-      } catch (e) { console.warn('[Deal] prediction ledger skipped:', e.message); }
-    }
     if (updates.title_company_id && updates.title_company_id !== existing.title_company_id) {
       activityMessages.push({
         activityType: 'title_company_assigned',
@@ -281,24 +207,17 @@ router.put('/:id', async (req, res, next) => {
       }).catch(e => console.warn('[Deal] Activity log failed (non-fatal):', e.message));
     }
 
-    // Learning loop (Rule 3): on a real transition into a terminal state, record the
-    // outcome so predictions sharpen over time. Best-effort + non-blocking - runs after
-    // the response, pulls the lead's motivation score if available, never fails the PUT.
-    if (updates.status && updates.status !== existing.status && TERMINAL_OUTCOME[(updates.status || '').toLowerCase()]) {
-      setImmediate(async () => {
-        let leadRow = null;
-        if (data.lead_id) {
-          const { data: ld } = await supabase.from('leads')
-            .select('motivation_score, property_state, property_type')
-            .eq('id', data.lead_id).single().then(null, () => ({ data: null }));
-          leadRow = ld || null;
-        }
-        await recordTerminalOutcome(data, updates.status, leadRow);
-      });
+    let result = data;
+    if (requestedStage !== undefined) {
+      const moved = await changeDealStage({ dealId: req.params.id, userId: req.user.id, stage: requestedStage, actor: 'operator' });
+      result = moved.deal;
     }
 
-    res.json({ success: true, data });
-  } catch (err) { next(err); }
+    res.json({ success: true, data: result });
+  } catch (err) {
+    if (err instanceof StageError) return res.status(err.status).json({ success: false, error: err.message });
+    next(err);
+  }
 });
 
 // GET /api/deals/:id/activity
@@ -756,106 +675,22 @@ router.post('/create', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/deals/:id/stage - advance deal stage
+// PATCH /api/deals/:id/stage - move a deal to a stage
+// Body: { stage, reason? }. Responds as soon as the stage is saved; the stage's
+// automation (buyer outreach + title on under_contract, close ritual on closed)
+// runs in the background and is recorded in the deal timeline and ai_command_log.
 router.patch('/:id/stage', async (req, res, next) => {
   try {
-    const VALID_STAGES = ['lead','contacted','offer_sent','under_contract','sent_to_title','closing_prep','closed'];
     const { stage } = req.body;
-    if (!VALID_STAGES.includes(stage)) return res.status(400).json({ success: false, error: 'Invalid stage' });
-
-    const { data: deal } = await supabase.from('deals').select('status, ai_paused, user_id').eq('id', req.params.id).single();
-    if (!deal || deal.user_id !== req.user.id) return res.status(404).json({ success: false, error: 'Deal not found' });
-
-    const { data, error } = await supabase.from('deals').update({
-      status: stage,
-      updated_at: new Date().toISOString(),
-    }).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
-    if (error) throw error;
-
-    supabase.from('ai_command_log').insert({
-      deal_id: req.params.id,
-      action_type: 'stage_changed',
-      message_sent: `Stage changed from ${deal.status} → ${stage}`,
-      outcome: 'success',
-      operator_id: req.user.id,
-    }).then(null, () => {});
-
-    res.json({ success: true, deal: data });
-
-    // Record winning playbook when deal closes
-    if (stage === 'closed') {
-      setImmediate(async () => {
-        try {
-          const { data: fullDeal } = await supabase.from('deals').select('*').eq('id', req.params.id).single();
-          const { data: lead } = fullDeal?.lead_id
-            ? await supabase.from('leads').select('*').eq('id', fullDeal.lead_id).single()
-            : { data: null };
-          if (fullDeal) {
-            const { count: callCount } = await supabase.from('calls').select('*', { count: 'exact', head: true }).eq('lead_id', fullDeal.lead_id);
-            const createdAt = new Date(fullDeal.created_at);
-            const daysToClose = Math.round((Date.now() - createdAt.getTime()) / 86400000);
-            await recordWinningPlaybook({ deal: fullDeal, lead, calls_to_close: callCount || 0, days_to_close: daysToClose });
-            // Learning loop (Rule 3): record the won outcome alongside the playbook so
-            // predictionEngine has same-state history. Best-effort; never throws.
-            await recordTerminalOutcome(fullDeal, 'closed', lead);
-          }
-        } catch (e) { console.error('[DataMot] Playbook record failed:', e.message); }
-      });
-
-      // CLOSE RITUAL (Stage 6) - stamp the fee, text thank-you to seller + buyer,
-      // and drop a deal_closed row on the chart. Idempotent + best-effort; never
-      // blocks the response (already sent above) and never throws here.
-      setImmediate(() => {
-        runCloseRitual({ dealId: req.params.id, userId: req.user.id })
-          .catch(e => console.error('[CloseRitual] failed:', e.message));
-      });
-    }
-
-    // Auto-start buyer campaign when deal moves to under_contract
-    if (stage === 'under_contract') {
-      setImmediate(async () => {
-        try {
-          // Match buyers on the LIVE buy-box columns and blast them via the Phase-1
-          // SMS queue. buyerDispoService.startBuyerBlast owns the correct matcher
-          // (replacing the old dead-column query that referenced preferred_states /
-          // max_purchase_price, which don't exist on the live buyers table).
-          const buyerDispo = require('../services/buyerDispoService');
-          const { matched, enqueued, campaignId } = await buyerDispo.startBuyerBlast(req.params.id, req.user.id);
-          console.log(`[Deal] Auto buyer blast: matched ${matched}, enqueued ${enqueued} for deal ${req.params.id}`);
-          await supabase.from('ai_command_log').insert({
-            deal_id: req.params.id,
-            action_type: 'buyer_blast_auto',
-            message_sent: `Auto-matched ${matched} buyers, blasted ${enqueued} when deal moved to under_contract`,
-            outcome: 'success',
-            operator_id: req.user.id,
-          }).then(null, () => {});
-        } catch (e) {
-          console.error('[Deal] Auto buyer blast failed:', e.message);
-        }
-      });
-
-      // Auto title company workflow - assign, email deal package, schedule follow-ups
-      setImmediate(async () => {
-        try {
-          const { data: fullDeal } = await supabase.from('deals').select('*').eq('id', req.params.id).single();
-          if (!fullDeal) return;
-          const dealDbId = fullDeal.id || req.params.id;
-          const userId = req.user.id;
-
-          const assigned = await autoAssignTitleCompany(dealDbId, userId);
-          if (assigned) {
-            await sendDealPackageToTitle(dealDbId, userId);
-            await scheduleTitleFollowUps(dealDbId, userId);
-            console.log(`[Title] Full automation triggered for deal ${dealDbId} → ${assigned.name}`);
-          } else {
-            console.log(`[Title] No title company found for deal ${dealDbId} - skipping auto-send`);
-          }
-        } catch (e) {
-          console.error('[Title] Auto title workflow failed:', e.message);
-        }
-      });
-    }
-  } catch (err) { next(err); }
+    const reason = typeof req.body.reason === 'string' ? req.body.reason.trim().slice(0, 500) || null : null;
+    const { deal, changed, from } = await changeDealStage({
+      dealId: req.params.id, userId: req.user.id, stage, actor: 'operator', reason,
+    });
+    res.json({ success: true, deal, changed, from });
+  } catch (err) {
+    if (err instanceof StageError) return res.status(err.status).json({ success: false, error: err.message });
+    next(err);
+  }
 });
 
 // PATCH /api/deals/:id/pause-ai - toggle AI pause for a deal
@@ -869,12 +704,10 @@ router.patch('/:id/pause-ai', async (req, res, next) => {
     const { data, error } = await supabase.from('deals').update({ ai_paused: newState, updated_at: new Date().toISOString() }).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
     if (error) throw error;
 
-    await supabase.from('ai_command_log').insert({
-      deal_id: req.params.id,
-      action_type: newState ? 'ai_paused' : 'ai_resumed',
-      message_sent: newState ? 'AI automation paused by operator' : 'AI automation resumed by operator',
-      outcome: 'success',
-      operator_id: req.user.id,
+    await logAiCommand({
+      userId: req.user.id, dealId: req.params.id, leadId: data.lead_id || null,
+      actionType: newState ? 'ai_paused' : 'ai_resumed',
+      summary: newState ? 'AI automation paused by operator' : 'AI automation resumed by operator',
     });
 
     res.json({ success: true, ai_paused: newState });
@@ -918,7 +751,7 @@ router.get('/:id/brief', async (req, res, next) => {
     if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
 
     const { data: lastLog } = await supabase.from('ai_command_log')
-      .select('action_type, message_sent, created_at')
+      .select('action_type, message_sent:summary, created_at')
       .eq('deal_id', req.params.id)
       .order('created_at', { ascending: false })
       .limit(1)

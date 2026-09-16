@@ -6,13 +6,7 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import { deals } from '../services/api'
 import useIntelStore from '../store/intelStore'
-
-const STAGES = ['New', 'Calling', 'Contacted', 'Offer Made', 'Negotiating', 'Under Contract', 'Buyer Search', 'Title', 'Closed']
-
-function stageBadge(s) {
-  const m = { new: 'gray', calling: 'amber', contacted: 'amber', 'offer made': 'gold', negotiating: 'amber', 'under contract': 'green', 'buyer search': 'amber', title: 'green', closed: 'green' }
-  return m[s?.toLowerCase()] || 'gray'
-}
+import { DEAL_STAGES, STAGE_EFFECTS, stageKey, stageInfo } from '../constants/dealStages'
 
 function fmt$(n) { return n ? '$' + Number(n).toLocaleString() : null }
 
@@ -89,7 +83,7 @@ function DealRow({ deal, selected, onClick, onOpen }) {
 
       {/* Stage */}
       <div>
-        <Badge variant={stageBadge(deal.status)}>{deal.status || 'new'}</Badge>
+        <Badge variant={stageInfo(deal.status).badge}>{stageInfo(deal.status).label}</Badge>
       </div>
 
       {/* Offer price */}
@@ -139,18 +133,21 @@ function DealRow({ deal, selected, onClick, onOpen }) {
 
 // ─── Stage editor modal ───────────────────────────────────────────────────────
 function StageModal({ deal, onClose, onSaved }) {
-  const [stage, setStage] = useState(deal.status || 'new')
+  const [stage, setStage] = useState(stageKey(deal.status))
   const [saving, setSaving] = useState(false)
+  const unchanged = stage === stageKey(deal.status)
 
   const save = async () => {
+    if (unchanged) { onClose(); return }
     setSaving(true)
     try {
-      await deals.updateDeal(deal.id, { status: stage })
-      toast.success('Stage updated')
+      await deals.updateStage(deal.id, stage)
+      toast.success(`Moved to ${stageInfo(stage).label}`)
       onSaved()
       onClose()
-    } catch { toast.error('Failed to update') }
-    finally { setSaving(false) }
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not move the deal')
+    } finally { setSaving(false) }
   }
 
   return (
@@ -223,8 +220,11 @@ function StageModal({ deal, onClose, onSaved }) {
               appearance: 'none',
             }}
           >
-            {STAGES.map(s => <option key={s} value={s.toLowerCase()} style={{ background: 'var(--card-bg)', color: 'var(--t1)' }}>{s}</option>)}
+            {DEAL_STAGES.map(s => <option key={s.key} value={s.key} style={{ background: 'var(--card-bg)', color: 'var(--t1)' }}>{s.label}</option>)}
           </select>
+          {!unchanged && STAGE_EFFECTS[stage] && (
+            <p style={{ fontSize: 12, color: 'var(--t3)', marginTop: 8, lineHeight: 1.5 }}>{STAGE_EFFECTS[stage]}</p>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
@@ -297,7 +297,7 @@ export default function Pipeline() {
   // Filter + sort: hot first
   const filtered = allDeals.filter(d => {
     if (stageFilter === 'All') return true
-    return d.status?.toLowerCase() === stageFilter.toLowerCase()
+    return stageKey(d.status) === stageFilter
   }).sort((a, b) => {
     const dA = a.updated_at ? Date.now() - new Date(a.updated_at) : 0
     const dB = b.updated_at ? Date.now() - new Date(b.updated_at) : 0
@@ -308,24 +308,8 @@ export default function Pipeline() {
   const totalFees  = allDeals.reduce((s, d) => s + (d.assignment_fee || 0), 0)
 
   const stageCounts = {}
-  STAGES.forEach(s => { stageCounts[s] = 0 })
-  allDeals.forEach(d => {
-    const stage = STAGES.find(s => s.toLowerCase() === d.status?.toLowerCase()) || 'New'
-    stageCounts[stage] = (stageCounts[stage] || 0) + 1
-  })
-
-  // Pipeline velocity bar data
-  const stageColors = {
-    New: 'var(--surface-bg-3)',
-    Calling: '#FF9500',
-    Contacted: '#FF9500',
-    'Offer Made': '#C9A84C',
-    Negotiating: '#C9A84C',
-    'Under Contract': '#00C37A',
-    'Buyer Search': '#00C37A',
-    Title: '#00C37A',
-    Closed: '#00C37A',
-  }
+  DEAL_STAGES.forEach(s => { stageCounts[s.key] = 0 })
+  allDeals.forEach(d => { stageCounts[stageKey(d.status)] += 1 })
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -351,7 +335,7 @@ export default function Pipeline() {
               )}
             </div>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => toast.info('Create deals from Lead profiles')}>
+          <Button variant="secondary" size="sm" onClick={() => toast('Open a lead and choose Create Deal to add it here')}>
             <Plus size={13} /> Add Deal
           </Button>
         </div>
@@ -359,16 +343,15 @@ export default function Pipeline() {
         {/* Pipeline velocity bar */}
         {allDeals.length > 0 && (
           <div style={{ display: 'flex', height: 3, borderRadius: 2, overflow: 'hidden', marginBottom: 14, gap: 1 }}>
-            {STAGES.map(s => {
-              const count = stageCounts[s] || 0
+            {DEAL_STAGES.map(s => {
+              const count = stageCounts[s.key] || 0
               if (count === 0) return null
               const pct = (count / allDeals.length) * 100
-              const colorMap = { New: 'var(--surface-bg-3)', Calling: '#FF9500', Contacted: '#FF9500', 'Offer Made': '#C9A84C', Negotiating: '#C9A84C', 'Under Contract': '#00C37A', 'Buyer Search': '#00C37A', Title: '#00C37A', Closed: '#00C37A' }
               return (
                 <div
-                  key={s}
-                  style={{ flex: pct, background: colorMap[s] || 'var(--surface-bg-3)', borderRadius: 2 }}
-                  title={`${s}: ${count}`}
+                  key={s.key}
+                  style={{ flex: pct, background: s.color, borderRadius: 2 }}
+                  title={`${s.label}: ${count}`}
                 />
               )
             })}
@@ -377,13 +360,13 @@ export default function Pipeline() {
 
         {/* Stage filter chips */}
         <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2 }}>
-          {['All', ...STAGES].map(s => {
-            const count = s === 'All' ? allDeals.length : (stageCounts[s] || 0)
-            const active = stageFilter === s
+          {[{ key: 'All', label: 'All' }, ...DEAL_STAGES].map(({ key, label }) => {
+            const count = key === 'All' ? allDeals.length : (stageCounts[key] || 0)
+            const active = stageFilter === key
             return (
               <button
-                key={s}
-                onClick={() => setStageFilter(s)}
+                key={key}
+                onClick={() => setStageFilter(key)}
                 style={{
                   height: 26, padding: '0 10px',
                   borderRadius: 13,
@@ -400,7 +383,7 @@ export default function Pipeline() {
                   fontFamily: 'inherit',
                 }}
               >
-                {s}
+                {label}
                 {count > 0 && (
                   <span style={{
                     fontSize: 9, fontWeight: 700,
@@ -464,7 +447,7 @@ export default function Pipeline() {
               <BarChart3 size={22} strokeWidth={1.5} color="#C9A84C" />
             </div>
             <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t2)', marginBottom: 6 }}>
-              {stageFilter !== 'All' ? `No deals in ${stageFilter}` : 'No deals yet'}
+              {stageFilter !== 'All' ? `No deals in ${stageInfo(stageFilter).label}` : 'No deals yet'}
             </p>
             <p style={{ fontSize: 12, color: 'var(--t4)' }}>
               Create deals from lead profiles to track your pipeline
