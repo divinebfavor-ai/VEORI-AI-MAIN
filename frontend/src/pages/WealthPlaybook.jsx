@@ -55,7 +55,7 @@ function WealthGauge({ score = 0, size = 120 }) {
   const circ = 2 * Math.PI * r
   const pct  = score / 100
   const dash = circ * pct
-  const tierColor = score >= 76 ? GOLD : score >= 51 ? '#8B5CF6' : score >= 26 ? '#3B82F6' : GREEN
+  const tierColor = score >= 76 ? GOLD : score >= 51 ? '#8B5CF6' : score >= 26 ? '#FF9500' : GREEN
 
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
@@ -95,7 +95,7 @@ function RiskBadge({ level }) {
 
 // ─── Tag Badge ────────────────────────────────────────────────────────────────
 function TagBadge({ tag }) {
-  const colors = { BEGINNER: GREEN, INTERMEDIATE: '#3B82F6', ADVANCED: '#8B5CF6' }
+  const colors = { BEGINNER: GREEN, INTERMEDIATE: '#FF9500', ADVANCED: '#8B5CF6' }
   return (
     <span style={{
       fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
@@ -321,7 +321,7 @@ function PlaybookDashboard({ playbook, score, feed, onRefresh, refreshing, onRet
   const others  = playbook?.strategies?.filter(s => s.id !== playbook.primary_strategy) || []
 
   const tier      = score >= 76 ? 'Elite' : score >= 51 ? 'Investor' : score >= 26 ? 'Builder' : 'Learner'
-  const tierColor = score >= 76 ? GOLD : score >= 51 ? '#8B5CF6' : score >= 26 ? '#3B82F6' : GREEN
+  const tierColor = score >= 76 ? GOLD : score >= 51 ? '#8B5CF6' : score >= 26 ? '#FF9500' : GREEN
 
   const handleStrategyClick = (strategyId) => {
     navigate(`/wealth/strategy/${strategyId}`)

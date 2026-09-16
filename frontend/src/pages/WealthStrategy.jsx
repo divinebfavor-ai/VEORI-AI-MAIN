@@ -49,7 +49,7 @@ function StepCard({ step, isLast }) {
 // ─── Veori Products ───────────────────────────────────────────────────────────
 const PRODUCT_COLORS = {
   'Veori Acquire': GREEN,
-  'Veori Lending': '#3B82F6',
+  'Veori Lending': '#FF9500',
   'Veori Tenant':  '#8B5CF6',
   'Veori Develop': GOLD,
   'Veori Title':   '#F59E0B',
@@ -98,7 +98,7 @@ export default function WealthStrategy() {
     )
   }
 
-  const tagColor  = strategy.tag === 'BEGINNER' ? GREEN : strategy.tag === 'INTERMEDIATE' ? '#3B82F6' : '#8B5CF6'
+  const tagColor  = strategy.tag === 'BEGINNER' ? GREEN : strategy.tag === 'INTERMEDIATE' ? '#FF9500' : '#8B5CF6'
   const riskColor = strategy.risk_level === 'LOW' ? GREEN : strategy.risk_level === 'MEDIUM' ? '#FF9500' : '#FF4444'
 
   return (

@@ -62,7 +62,7 @@ function renderPredValue(key, value) {
 
 // One visual style per timeline event type - the unified seller "chat".
 const EVENT_STYLE = {
-  sms_out:  { icon: MessageSquare, color: '#3B82F6', label: 'Text sent' },
+  sms_out:  { icon: MessageSquare, color: '#C9A84C', label: 'Text sent' },
   sms_in:   { icon: MessageSquare, color: '#10B981', label: 'Text received' },
   call:     { icon: PhoneCall,     color: '#8B5CF6', label: 'Call' },
   photo:    { icon: ImageIcon,     color: '#F59E0B', label: 'Photo' },

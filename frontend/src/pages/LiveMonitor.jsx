@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { isRecordingGone } from '../utils/recording'
 import { useNavigate } from 'react-router-dom'
 import { Radio, Headphones, Mic, MicOff, X, Volume2, VolumeX, PhoneCall, PhoneOff, PhoneIncoming, Clock, CheckCircle, AlertCircle, ChevronRight, Search, Plus, UserCircle, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -6,7 +7,7 @@ import { calls as callsApi, leads as leadsApi } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
 
 const GREEN = '#00C37A'
-const BLUE  = '#4D9EFF'
+const BLUE  = '#C9A84C' // platform gold (was blue; the product uses no blue)
 const RED   = '#FF4444'
 const AMBER = '#FF9500'
 
@@ -50,8 +51,8 @@ function DirectionBadge({ direction }) {
       fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
       padding: '1px 5px', borderRadius: 4, lineHeight: 1.4,
       color: inbound ? BLUE : 'var(--t4)',
-      background: inbound ? 'rgba(77,158,255,0.14)' : 'var(--bg3)',
-      border: `1px solid ${inbound ? 'rgba(77,158,255,0.35)' : 'var(--border)'}`,
+      background: inbound ? 'rgba(201,168,76,0.14)' : 'var(--bg3)',
+      border: `1px solid ${inbound ? 'rgba(201,168,76,0.35)' : 'var(--border)'}`,
     }}>
       {inbound ? <PhoneIncoming size={9} /> : <PhoneCall size={9} />}
       {inbound ? 'IN' : 'OUT'}
@@ -554,6 +555,7 @@ function AudioPlayer({ src }) {
   const [playing, setPlaying]   = useState(false)
   const [progress, setProgress] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [failed, setFailed]     = useState(false)
 
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
@@ -569,6 +571,8 @@ function AudioPlayer({ src }) {
     if (ref.current) { ref.current.currentTime = val; setProgress(val) }
   }
 
+  if (failed) return <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--t4)' }}>Recording could not be loaded.</p>
+
   return (
     <div style={{ background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
       <p style={{ margin: '0 0 10px', fontSize: 10, color: BLUE, fontWeight: 600, letterSpacing: '0.06em' }}>RECORDING</p>
@@ -578,13 +582,14 @@ function AudioPlayer({ src }) {
         onTimeUpdate={() => setProgress(ref.current?.currentTime || 0)}
         onLoadedMetadata={() => setDuration(ref.current?.duration || 0)}
         onEnded={() => setPlaying(false)}
+        onError={() => { setFailed(true); setPlaying(false) }}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button
           onClick={togglePlay}
           style={{
             width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-            background: BLUE, border: 'none', color: '#fff',
+            background: BLUE, border: 'none', color: '#000',
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 13,
           }}
@@ -716,7 +721,9 @@ function CallDetailPanel({ call }) {
       </div>
 
       {/* Recording audio player */}
-      {call.recording_url && <AudioPlayer src={call.recording_url} />}
+      {call.recording_url && (isRecordingGone(call.recording_url)
+        ? <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--t4)' }}>Recording no longer available.</p>
+        : <AudioPlayer src={call.recording_url} />)}
 
       {/* AI Summary */}
       {call.ai_summary && (

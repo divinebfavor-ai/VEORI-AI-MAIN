@@ -30,7 +30,7 @@ const STYLES = [
     id:    'family',
     label: 'Family Home',
     desc:  'Warm, emotional, community-focused',
-    color: '#60A5FA',
+    color: '#FF9500',
     bg:    'rgba(96,165,250,0.08)',
     border:'rgba(96,165,250,0.3)',
   },

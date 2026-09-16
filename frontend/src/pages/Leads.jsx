@@ -4,6 +4,7 @@ import Papa from 'papaparse'
 import { formatDistanceToNow } from 'date-fns'
 import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users, Camera, Image, Copy, GitMerge, AlertTriangle, Brain } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { isRecordingGone } from '../utils/recording'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import { leads, calls as callsApi, deals as dealsApi, leadPhotos as leadPhotosApi } from '../services/api'
@@ -39,6 +40,7 @@ function CallCard({ call: c }) {
   const [playing, setPlaying]   = useState(false)
   const [progress, setProgress] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [audioError, setAudioError] = useState(false)
 
   const fmtDur = c.duration_seconds != null
     ? `${Math.floor(c.duration_seconds / 60)}:${String(c.duration_seconds % 60).padStart(2, '0')}`
@@ -54,7 +56,7 @@ function CallCard({ call: c }) {
     const el = audioRef.current
     if (!el) return
     if (playing) { el.pause(); setPlaying(false) }
-    else { el.play(); setPlaying(true) }
+    else { el.play().then(() => setPlaying(true)).catch(() => setAudioError(true)) }
   }
 
   const fmtTime = (s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`
@@ -88,7 +90,10 @@ function CallCard({ call: c }) {
       )}
 
       {/* Audio player */}
-      {c.recording_url && (
+      {c.recording_url && (isRecordingGone(c.recording_url) || audioError) && (
+        <p style={{ fontSize: 11, color: 'var(--t4)', margin: '0 0 8px' }}>Recording no longer available.</p>
+      )}
+      {c.recording_url && !isRecordingGone(c.recording_url) && !audioError && (
         <div style={{
           background: 'var(--surface-bg-2)', border: '1px solid var(--border)',
           borderRadius: 8, padding: '8px 10px', marginBottom: 8,
@@ -100,6 +105,7 @@ function CallCard({ call: c }) {
             onTimeUpdate={() => setProgress(audioRef.current?.currentTime || 0)}
             onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
             onEnded={() => setPlaying(false)}
+            onError={() => { setAudioError(true); setPlaying(false) }}
           />
           <button
             onClick={togglePlay}

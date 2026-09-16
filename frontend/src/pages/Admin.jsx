@@ -35,7 +35,7 @@ const COUNTRY_NAMES = {
 }
 
 const PLAN_COLORS = {
-  starter: '#00C37A', solo: '#34D399', operator: '#60A5FA',
+  starter: '#00C37A', solo: '#34D399', operator: '#FF9500',
   scale: '#A78BFA', enterprise: '#F87171',
   founding_member: '#C9A84C', growth: '#00C37A', pro: '#93C5FD', // retired tiers - legacy rows
 }
@@ -124,7 +124,7 @@ export default function Admin() {
             <StatCard icon={Users}      label="Total Users"       value={stats.total_users}      sub={`+${stats.new_today} today`} />
             <StatCard icon={TrendingUp} label="Active This Week"  value={stats.active_this_week} color="#C9A84C" />
             <StatCard icon={DollarSign} label="Paying Customers"  value={stats.paying_customers} sub={`$${stats.mrr?.toLocaleString()}/mo MRR`} color="#C9A84C" />
-            <StatCard icon={Phone}      label="Total AI Calls"    value={stats.total_calls?.toLocaleString()} color="#60A5FA" />
+            <StatCard icon={Phone}      label="Total AI Calls"    value={stats.total_calls?.toLocaleString()} color="#FF9500" />
           </div>
 
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 14, padding: 24 }}>
@@ -189,7 +189,7 @@ export default function Admin() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             {[
               { label: 'Today',      value: visitors?.stats?.today      ?? '-', icon: Eye,    color: '#00C37A' },
-              { label: 'This Week',  value: visitors?.stats?.this_week  ?? '-', icon: Eye,    color: '#4D9EFF' },
+              { label: 'This Week',  value: visitors?.stats?.this_week  ?? '-', icon: Eye,    color: '#C9A84C' },
               { label: 'This Month', value: visitors?.stats?.this_month ?? '-', icon: Eye,    color: '#C9A84C' },
               { label: 'All Time',   value: visitors?.stats?.all_time   ?? '-', icon: Globe,  color: '#FF9500' },
             ].map(({ label, value, icon: Icon, color }) => (
