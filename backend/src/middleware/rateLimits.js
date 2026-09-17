@@ -182,6 +182,7 @@ const RULES = [
   ['POST', /^\/api\/intelligence\/deals\/[^/]+\/ask$/,        'deal_analysis'],
   ['POST', /^\/api\/intelligence\/deals\/[^/]+\/understanding\/refresh$/, 'data_refresh'],
   ['POST', /^\/api\/intelligence\/calc\/[^/]+$/,              'calculation'],
+  ['POST', /^\/api\/intelligence\/deals\/[^/]+\/(scenarios|optimize|timeline)$/, 'calculation'],
   // Public (no login) endpoints
   ['POST', /^\/api\/photo-upload\/[^/]+$/,                   'public_upload'],
   ['POST', /^\/api\/contracts\/handle_sign_submission\/[^/]+$/, 'public_sign'],

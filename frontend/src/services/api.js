@@ -222,6 +222,10 @@ export const intelligence = {
   settings:     ()                  => api.get('/api/intelligence/settings'),
   updateSettings: (data)            => api.patch('/api/intelligence/settings', data),
   calc:         (name, inputs)      => api.post(`/api/intelligence/calc/${name}`, { inputs }),
+  scenarios:    (dealId, body)      => api.post(`/api/intelligence/deals/${dealId}/scenarios`, body),
+  optimize:     (dealId, body)      => api.post(`/api/intelligence/deals/${dealId}/optimize`, body),
+  scorecard:    (dealId)            => api.get(`/api/intelligence/deals/${dealId}/scorecard`),
+  timeline:     (dealId, body)      => api.post(`/api/intelligence/deals/${dealId}/timeline`, body),
 }
 
 // Streamed Ask Veori. Calls onEvent for each server event; resolves when the stream ends.

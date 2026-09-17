@@ -6,6 +6,7 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import { intelligence, askVeoriStream } from '../services/api'
 import useIsMobile from '../hooks/useIsMobile'
+import { Scorecard, Scenarios, Optimizer, TimelineSimulator } from '../components/DealRoom/Phase3Panels'
 
 const GREEN = '#00C37A'
 const GOLD = '#C9A84C'
@@ -27,7 +28,7 @@ const SECTIONS = [
   ['overview', 'Overview'], ['property', 'Property'], ['seller', 'Seller'], ['buyer', 'Buyer'], ['financials', 'Financials'],
   ['valuation', 'Valuation'], ['acquisition', 'Acquisition'], ['financing', 'Financing'], ['title', 'Title'],
   ['diligence', 'Due Diligence'], ['documents', 'Documents'], ['disposition', 'Disposition'], ['agents', 'Active Agents'],
-  ['tasks', 'Tasks'], ['timeline', 'Timeline'], ['risks', 'Risks'], ['closing', 'Closing'],
+  ['tasks', 'Tasks'], ['timeline', 'Timeline'], ['risks', 'Risks'], ['scenarios', 'Scenarios'], ['closing', 'Closing'],
 ]
 
 const EXAMPLES = ['Analyze this property.', 'Can I wholesale this deal?', 'What creative-finance options exist?', 'Find the biggest risk in this transaction.', 'What information are we missing?', 'Find buyers for this property.']
@@ -314,6 +315,7 @@ export default function DealRoom() {
     switch (section) {
       case 'overview': return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Scorecard dealId={id} refreshKey={synthesis?.run_id || room.deal.updated_at} />
           {stream && (asking || stream.error) && (
             <Card title={asking ? 'Veori is working' : 'Last request'}>
               <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--t2)' }}>“{stream.command}”{stream.plan ? ` → ${stream.plan.intent_label}` : ''}</p>
@@ -469,7 +471,15 @@ export default function DealRoom() {
           </Card>
         </div>
       )
+      case 'scenarios': return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Scenarios dealId={id} />
+          <Optimizer dealId={id} />
+        </div>
+      )
       case 'timeline': return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <TimelineSimulator dealId={id} />
         <Card title="Audit trail">
           {(room.audit || []).map(e => (
             <div key={e.id} style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
@@ -478,6 +488,7 @@ export default function DealRoom() {
             </div>
           ))}
         </Card>
+        </div>
       )
       case 'risks': return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

@@ -194,6 +194,83 @@ router.post('/deals/:id/ask', wrap(async (req, res) => {
   }
 }));
 
+// ── Phase 3 engines ─────────────────────────────────────────────────────────
+const scenarios = require('../intelligence/engines/scenarios');
+const optimizer = require('../intelligence/engines/optimizer');
+const scorecard = require('../intelligence/engines/scorecard');
+const timeline = require('../intelligence/engines/timeline');
+
+async function loadUnderstanding(req, res) {
+  const dealId = dealIdOr404(req, res); if (!dealId) return null;
+  const row = await dealGraph.get(req.user.id, dealId);
+  if (!row) { res.status(404).json({ success: false, error: 'Deal not found' }); return null; }
+  const rep = row.understanding || await dealGraph.build(req.user.id, dealId, { refreshProviders: false, actorUserId: req.user.actorId });
+  return { dealId, rep };
+}
+const v = (rep, p) => { const c = dealGraph.getPath(rep, p); return c && c.value != null && typeof c.value === 'number' ? c.value : undefined; };
+const numericObject = (o, name) => {
+  if (o == null) return {};
+  if (typeof o !== 'object' || Array.isArray(o)) throw Object.assign(new Error(`${name} must be an object`), { status: 400 });
+  if (JSON.stringify(o).length > 20000) throw Object.assign(new Error(`${name} is too large`), { status: 413 });
+  return o;
+};
+// Deal figures used when the request doesn't supply them; reported back so the source is visible.
+function seedFrom(rep, strategy) {
+  const price = v(rep, 'transaction.contract_price') ?? v(rep, 'transaction.asking_price') ?? v(rep, 'transaction.offer_price');
+  if (strategy === 'fix_flip') return { purchase_price: price, sale_price: v(rep, 'financial.arv'), rehab: v(rep, 'financial.repairs') };
+  if (strategy === 'wholesale') return { arv: v(rep, 'financial.arv'), repairs: v(rep, 'financial.repairs'), contract_price: v(rep, 'transaction.contract_price') };
+  if (strategy === 'buy_hold') return { purchase_price: price, monthly_rent: v(rep, 'financial.market_rent'), property_value: v(rep, 'financial.as_is_value') };
+  return {};
+}
+const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, x]) => x !== undefined && x !== null && x !== ''));
+
+router.post('/deals/:id/scenarios', wrap(async (req, res) => {
+  const ctx = await loadUnderstanding(req, res); if (!ctx) return;
+  const strategy = req.body?.strategy;
+  const seeded = clean(seedFrom(ctx.rep, strategy));
+  const base = { ...seeded, ...clean(numericObject(req.body?.base, 'base')) };
+  const result = scenarios.run({ strategy, base, scenarios: numericObject(req.body?.scenarios, 'scenarios') });
+  result.inputs_from_deal = Object.keys(seeded).filter(k => req.body?.base?.[k] == null);
+  await audit.record({ userId: req.user.id, dealId: ctx.dealId, actorUserId: req.user.actorId, agentId: 'scenario_engine', actionType: 'engine.scenarios', inputs: { strategy, base }, outputs: { summary: result.summary } });
+  res.json({ success: true, data: result });
+}));
+
+router.post('/deals/:id/optimize', wrap(async (req, res) => {
+  const ctx = await loadUnderstanding(req, res); if (!ctx) return;
+  const rep = ctx.rep;
+  const dealSeed = clean({ arv: v(rep, 'financial.arv'), repairs: v(rep, 'financial.repairs'), as_is_value: v(rep, 'financial.as_is_value'), monthly_rent: v(rep, 'financial.market_rent'), existing_loan_balance: v(rep, 'property.financing.loan_balance'), existing_monthly_payment: v(rep, 'property.financing.monthly_payment') });
+  const input = {
+    objective: req.body?.objective,
+    deal: { ...dealSeed, ...clean(numericObject(req.body?.deal, 'deal')) },
+    seller: numericObject(req.body?.seller, 'seller'), operator: numericObject(req.body?.operator, 'operator'),
+    terms: numericObject(req.body?.terms, 'terms'), costs: numericObject(req.body?.costs, 'costs'),
+  };
+  const result = optimizer.optimize(input);
+  result.deal_inputs_from_record = Object.keys(dealSeed).filter(k => req.body?.deal?.[k] == null);
+  await audit.record({ userId: req.user.id, dealId: ctx.dealId, actorUserId: req.user.actorId, agentId: 'deal_optimizer', actionType: 'engine.optimize', inputs: input, outputs: { objective: result.objective, best: result.best ? { structure: result.best.structure, price: result.best.price } : null, feasible: result.all_feasible_count } });
+  res.json({ success: true, data: result });
+}));
+
+router.get('/deals/:id/scorecard', wrap(async (req, res) => {
+  const ctx = await loadUnderstanding(req, res); if (!ctx) return;
+  const { data: outs, error } = await supabase.from('agent_outputs').select('agent_id, data, created_at').eq('user_id', req.user.id).eq('deal_id', ctx.dealId).order('created_at', { ascending: false }).limit(200);
+  if (error) throw error;
+  const latest = {};
+  for (const o of outs || []) if (!latest[o.agent_id]) latest[o.agent_id] = o.data;
+  res.json({ success: true, data: scorecard.build({ understanding: ctx.rep, outputs: latest }) });
+}));
+
+router.post('/deals/:id/timeline', wrap(async (req, res) => {
+  const ctx = await loadUnderstanding(req, res); if (!ctx) return;
+  const b = req.body || {};
+  const result = timeline.simulate({
+    strategy: b.strategy, start_date: b.start_date || null,
+    durations: numericObject(b.durations, 'durations'), delays: numericObject(b.delays, 'delays'),
+    monthly_carrying_cost: b.monthly_carrying_cost,
+  });
+  res.json({ success: true, data: result });
+}));
+
 router.get('/deals/:id/runs/:runId', wrap(async (req, res) => {
   const dealId = dealIdOr404(req, res); if (!dealId) return;
   if (!UUID_RE.test(req.params.runId)) return res.status(404).json({ success: false, error: 'Run not found' });
