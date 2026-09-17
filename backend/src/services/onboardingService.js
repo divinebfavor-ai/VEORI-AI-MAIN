@@ -1,6 +1,7 @@
 // ─── First-run setup checklist ────────────────────────────────────────────────
 // Every step's "done" comes from real data (profile fields, rows that exist), so
 // the checklist can't drift from what the workspace has actually set up.
+// (The AI caller's name isn't a step: every account starts as "Alex", which works.)
 // Required steps add up to about ten minutes; texting registration is listed but
 // optional because carrier approval takes days, not minutes.
 
@@ -16,7 +17,7 @@ async function countRows(table, userId, apply = (q) => q) {
 
 async function getStatus(userId) {
   const { data: user, error } = await supabase.from('users')
-    .select('company_name, ai_caller_name, a2p_registration_step, onboarding_completed')
+    .select('company_name, a2p_registration_step, onboarding_completed')
     .eq('id', userId).maybeSingle();
   if (error) throw error;
   if (!user) return null;
@@ -32,7 +33,6 @@ async function getStatus(userId) {
   const textingReady = user.a2p_registration_step === 'active' || textNumbers > 0;
   const steps = [
     { key: 'company', title: 'Add your company name', minutes: 1, done: !!user.company_name?.trim(), link: '/settings?tab=profile', why: 'Shown to sellers, on contracts and in texts.' },
-    { key: 'ai_persona', title: 'Name your AI caller', minutes: 1, done: !!user.ai_caller_name?.trim(), link: '/settings?tab=persona', why: 'The name your AI uses when it calls sellers.' },
     { key: 'leads', title: 'Import your leads', minutes: 3, done: leads > 0, link: '/leads?import=1', why: 'Upload a CSV. Numbers are checked against do-not-call automatically.' },
     { key: 'phone', title: 'Get a calling number', minutes: 2, done: numbers > 0, link: '/settings?tab=phones', why: 'A local number your AI calls from.' },
     { key: 'buyers', title: 'Add a cash buyer', minutes: 1, done: buyers > 0, link: '/buyers', why: 'Deals you lock up get texted to matching buyers.' },
