@@ -20,6 +20,26 @@
  */
 const twilio = require('twilio');
 
+// The exact URL Twilio signed. Prefer the configured public host over the
+// (spoofable) Host header.
+function signedUrl(req) {
+  const publicBase = process.env.PUBLIC_BASE_URL
+    || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null);
+  const host = publicBase ? publicBase.replace(/^https?:\/\//i, '').replace(/\/+$/, '') : req.get('host');
+  return `https://${host}${req.originalUrl}`;
+}
+
+// True only for a request carrying a valid Twilio signature. Used by the global
+// rate limiter so Twilio's own callbacks are never throttled and lost.
+function isSignedByTwilio(req) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const sig = req.get('X-Twilio-Signature');
+  if (!authToken || !sig) return false;
+  // routes/sms.js signs against the Host header; accept either form.
+  const urls = [signedUrl(req), `https://${req.get('host')}${req.originalUrl}`];
+  try { return urls.some(u => twilio.validateRequest(authToken, sig, u, req.body || {})); } catch { return false; }
+}
+
 function verifyTwilioSignature(req, res, next) {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   if (!authToken) {
@@ -42,11 +62,7 @@ function verifyTwilioSignature(req, res, next) {
     return res.sendStatus(403);
   }
 
-  // Prefer the configured public host over the (spoofable) Host header.
-  const publicBase = process.env.PUBLIC_BASE_URL
-    || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null);
-  const host = publicBase ? publicBase.replace(/^https?:\/\//i, '').replace(/\/+$/, '') : req.get('host');
-  const url = `https://${host}${req.originalUrl}`;
+  const url = signedUrl(req);
 
   const valid = twilio.validateRequest(authToken, sig, url, req.body || {});
   if (!valid) {
@@ -56,4 +72,4 @@ function verifyTwilioSignature(req, res, next) {
   return next();
 }
 
-module.exports = { verifyTwilioSignature };
+module.exports = { verifyTwilioSignature, isSignedByTwilio };

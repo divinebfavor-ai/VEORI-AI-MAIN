@@ -26,6 +26,8 @@ const cors    = require('cors');
 const helmet  = require('helmet');
 const morgan  = require('morgan');
 const rateLimit = require('express-rate-limit');
+const { endpointRateLimits, SharedStore } = require('./middleware/rateLimits');
+const { isSignedByTwilio } = require('./middleware/twilioWebhook');
 const jwt     = require('jsonwebtoken');
 
 const supabaseClient = require('./config/supabase');
@@ -165,9 +167,12 @@ app.use('/api/', rateLimit({
   max: 600,
   standardHeaders: true,
   legacyHeaders: false,
+  store: new SharedStore('global_anon'),
   // A VERIFIED session skips this limit. /api/v1 (API-key traffic) has its own
-  // limiters: one per IP before authentication, one per key after it.
-  skip: (req) => !!verifiedUserId(req) || req.originalUrl.startsWith('/api/v1/'),
+  // limiters: one per IP before authentication, one per key after it. Twilio's
+  // signed callbacks skip it too: a busy campaign sends Twilio status and inbound
+  // events from a handful of IPs, and a throttled callback is a lost message.
+  skip: (req) => !!verifiedUserId(req) || req.originalUrl.startsWith('/api/v1/') || isSignedByTwilio(req),
   message: { success: false, error: 'Too many requests. Please wait a moment and try again.' },
 }));
 
@@ -177,6 +182,7 @@ app.use('/api/', rateLimit({
   max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
+  store: new SharedStore('global_user'),
   skip: (req) => !verifiedUserId(req), // only applies to verified sessions
   // Keyed on the verified user id - not a caller-controlled string - so the
   // counter cannot be reset by changing the token.
@@ -184,10 +190,15 @@ app.use('/api/', rateLimit({
   message: { success: false, error: 'You\'re moving fast! Give it a second and try again.' },
 }));
 
+// Per-endpoint limits for expensive or abusive actions (AI, texts, calls, number
+// purchases, verification codes, public forms). See middleware/rateLimits.js.
+app.use('/api/', endpointRateLimits);
+
 // Strict auth limit - 10 attempts per 15 min per IP (brute force protection)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, max: 10,
   standardHeaders: true, legacyHeaders: false,
+  store: new SharedStore('auth'),
   message: { success: false, error: 'Too many attempts. Try again in 15 minutes.' },
   skipSuccessfulRequests: true, // only count failed requests
 });
@@ -485,6 +496,7 @@ app.use('/api/v1', rateLimit({
   max: Math.max(1, parseInt(process.env.PUBLIC_API_IP_RATE_LIMIT_PER_MINUTE, 10) || 600),
   standardHeaders: true,
   legacyHeaders: false,
+  store: new SharedStore('public_api_ip'),
   message: { error: { code: 'rate_limited', message: 'Too many requests from this address' } },
 }));
 app.use('/api/v1', require('./routes/publicApi'));

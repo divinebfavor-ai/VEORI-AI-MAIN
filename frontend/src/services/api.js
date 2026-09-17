@@ -40,6 +40,16 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // 429 from a per-action limit (e.g. phone purchases per hour): retrying in a
+    // few seconds can't succeed, so show the server's message instead.
+    const retryAfter = Number(error.response?.data?.retry_after_seconds)
+    if (status === 429 && error.response?.data?.code === 'RATE_LIMITED' && retryAfter > 5) {
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast.error(error.response.data.error, { id: `rate-limited-${error.response.data.policy}` })
+      })
+      return Promise.reject(error)
+    }
+
     // 429 - too many requests: wait and retry automatically (up to 3 times)
     const config = error.config
     if (status === 429 && config && !config._retryCount) {

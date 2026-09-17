@@ -383,4 +383,5 @@ module.exports = {
   initWorkers,
   QUEUE_NAMES,
   REDIS_AVAILABLE,
+  sanitizeRedisUrl,
 };
