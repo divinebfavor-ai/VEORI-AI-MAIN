@@ -565,6 +565,108 @@ Unit tests 168/168. Prod e2e: intelligence 27/27, phase 3 7/7, phase 4 9/9, phas
 - `AGENTS_ENABLED` (original 8 agents) remains off; `AUTOPILOT_SWEEP_ENABLED` off.
 - Existing `marketIntelligenceService.js` aggregates motivation across all workspaces' leads per state (cross-tenant aggregate) — not changed; decide whether that is acceptable.
 
+## Session 2026-09-17 (cont.) — Security audit, scale work, light mode, Portfolio
+
+Asked for: attack the platform and fix what is found, make it hold 2,000-10,000
+operators, use it like a real operator, fix light mode, and build what is missing
+for running a whole business on it.
+
+### How it was tested
+- **Local attack harness** (`xtenant.js` in the scratchpad): every one of the 514
+  mounted routes called as workspace B using workspace A's ids, against a recording
+  fake database, with outbound network blocked. Flags reads, writes and inserts that
+  touch another workspace's rows.
+- **Unauthenticated sweep**: all 514 routes called with no token; ~50 answer, all of
+  them intentionally public (login, webhooks, plans, signed links).
+- **Live attack** on production with two temp accounts: 24 checks, all refused.
+- **Operator journey** on production: register → log in → profile → leads → campaign
+  → buyer → deal → Deal Room analysis → contract → stage moves → monitoring → buyer
+  matching → autopilot → exports → sign out everywhere → account deletion. 27/27.
+- **Load test**: 70 seeded workspaces (10 with 1,000 leads each), ramped 20 → 60 →
+  120 concurrent operators through a realistic screen mix.
+
+### Security fixes (commits `b648ed6`, `25e5f9f`)
+1. **Campaign control without ownership** — `campaigns/:id/pause|stop`, `calls/campaign/pause|stop`
+   and SMS-First `stop`/`status` acted on any campaign id. Anyone could stop another
+   operator's live calling campaign.
+2. **Foreign records linked into a deal** — `POST /api/deals`, `POST /api/deals/create`
+   and `PUT /api/deals/:id` accepted another workspace's `lead_id`, `buyer_id` or
+   `title_company_id`; the stage automation then read and acted on those records.
+   `dealStageService` also read the lead unscoped.
+3. Same class fixed on follow-up `contact_id`, funding `partner_id`, post queue
+   lead/listing, DFD session, call analytics call/lead, virtual tour lead/listing and
+   listing inquiry `buyer_id`. New `utils/ownership.js` centralises the check.
+4. **Academy progress** readable for any user id; **landing-page visitor analytics**
+   (country, city, referrer of every visitor) readable by any signed-in operator — now admin only.
+5. **Payments**: a Flutterwave transaction without `meta.user_id` was accepted;
+   subscription and top-up transactions could be claimed on the wrong route; ids went
+   into the provider URL unencoded.
+6. **Sessions**: a password reset left existing tokens working. `users.session_epoch`
+   is now carried in every token and checked on each request; reset and the new
+   `POST /api/auth/logout-all` retire every issued token.
+7. **Uploads**: the photo endpoint trusted the browser's Content-Type, so an SVG (script)
+   could land in a public bucket. Files are identified by their bytes, and the public
+   buckets now have type and size limits.
+8. `/calls/:id/listen` trusted a client-supplied provider call id; CORS rejections
+   returned 500 instead of 403; a signing session with a missing contract returned 500.
+
+### Account deletion was impossible (commit `677b25c`)
+`audit_events` is append-only, but its user foreign key cascaded on delete: deleting
+an account tried to delete its audit rows, the trigger refused, and the whole delete
+failed. No account could be removed, including an erasure request. The key is dropped;
+the audit trail outlives the account.
+
+### Scale (commits `43cb127`, `cb64f0d`)
+- **Idle tabs were most of the traffic**: several polls per second per open tab, running
+  whether or not the tab was visible. New `usePolling` runs only while visible and
+  refreshes on return; live-call polling drops from 1.5s to 10s when no call is running.
+  Applied to dashboard, both pipelines, campaigns, inbox, monitor, lead engine, rail
+  and status bar.
+- **Indexes** for the shapes that dominated database time, from `pg_stat_statements`:
+  the lead-engine dedupe (`user_id` + address `ILIKE '%...%'`) was ~17% of all execution
+  time with only 2,373 leads — now a `pg_trgm` index; plus lead/call lists, pipeline,
+  SMS history and follow-up sweeps.
+- **Load test result**: 120 concurrent operators, 87.6 req/s, p50 474ms (mostly network
+  round-trip from the test machine), p95 709ms, no rate-limit rejections.
+- **The 502s are the CDN, not the app.** Same authenticated load through `veori.net`
+  gave 34 × 502 and a 30s hang; straight to Railway, 1,200/1,200 succeeded with a 2.3s
+  worst case. Reads now retry twice on a transient edge failure. The durable fix is an
+  API subdomain (owner action below).
+
+### Light mode (commit `677b25c`)
+Measured contrast against the real rendered background on every main screen: the
+dashboard had 102 unreadable text nodes, now 0. Shell and cards are soft off-whites
+instead of white-on-white, muted text darkened, brand green/gold/amber/red given darker
+text variants for light backgrounds. The floating **Feedback** button and its dialog
+were hardcoded dark (the black pill), as was the assistant chat panel and five pages —
+all now themed. A blue (`#4C9EFF`) that is not in the platform palette was replaced
+with platform gold across six pages and the chart palette. Dark mode is unchanged.
+
+### Portfolio — new (commits `2b4aaf7`, `e7d454a`)
+Leads and deals covered buying; nothing covered what the operator owns afterwards.
+Adds properties, units, leases and an income/expense ledger, with equity, NOI, cap
+rate, DSCR, monthly cash flow, cash-on-cash and occupancy computed through the same
+deterministic engine the Deal Room uses. Mortgage, capex and rehab are excluded from
+operating expenses so NOI stays honest; a figure that cannot be computed is null with
+the reason and how to fill it; yearly figures scale by the months actually recorded
+(one month of rent is not multiplied into a year) and the card says so. A closed deal
+can be brought across with its numbers in one click. `/portfolio`, 19/19 on production
+including cross-workspace isolation.
+
+### Owner actions
+- **API subdomain**: point `api.veori.net` at the Railway service and set Vercel's
+  `VITE_API_URL` to it. This removes the CDN hop that produced the 502s under load.
+- Set `PUBLIC_BASE_URL` on Railway so Twilio signatures verify against a fixed host
+  rather than the (spoofable) Host header.
+- Still unset: `PII_ENCRYPTION_KEY`, `FTC_DNC_API_KEY`, `RESEND_WEBHOOK_SECRET` /
+  `EMAIL_INBOUND_SECRET` (inbound email replies and delivery events are not processed),
+  `FUB_SYSTEM_NAME` / `FUB_SYSTEM_KEY`, `ADMIN_EMAILS` (defaults to the owner address).
+- RentCast and Twilio remain inactive.
+- Scaling out to more than one instance needs sticky routing for live calls: campaign
+  sessions and voice media streams are held in memory per instance. Scaling up (a
+  bigger instance) is safe today. The database sweeps already claim rows, so they are
+  safe with several instances.
+
 ---
 
 *End of build log. If you add work, append to §3-style session notes and the
