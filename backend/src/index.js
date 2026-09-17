@@ -71,6 +71,19 @@ const PORT = process.env.PORT || 3001;
 // ─── Trust Railway/Vercel reverse proxy ───────────────────────────────────────
 // Required for express-rate-limit to correctly read X-Forwarded-For
 app.set('trust proxy', 1);
+// TEMP diagnostic (removed in the next commit): masked forwarding chain for probe requests.
+app.use((req, _res, next) => {
+  if (req.get('user-agent') === 'veori-ip-probe') {
+    const mask = (v) => String(v || '').split(',').map(x => x.trim().replace(/\.\d+$/, '.x').replace(/:[0-9a-f]*$/i, ':x')).join(' | ');
+    console.log('[ip-probe]', JSON.stringify({
+      xff: mask(req.headers['x-forwarded-for']), real: mask(req.headers['x-real-ip']),
+      vercel: mask(req.headers['x-vercel-forwarded-for']), envoy: mask(req.headers['x-envoy-external-address']),
+      cf: mask(req.headers['cf-connecting-ip']), fastly: mask(req.headers['fastly-client-ip']), socket: mask(req.socket.remoteAddress),
+      has_vercel_id: !!req.headers['x-vercel-id'], forwarded_host: req.headers['x-forwarded-host'] || null,
+    }));
+  }
+  next();
+});
 
 // ─── Security Headers (Helmet hardened) ──────────────────────────────────────
 app.use(helmet({
