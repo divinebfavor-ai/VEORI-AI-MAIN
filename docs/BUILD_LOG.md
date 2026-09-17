@@ -527,6 +527,44 @@ Railway HTTP logs for server-side latency.
 - Decide on AI voice calls to cold leads without prior consent (TCPA exposure).
 - Load test at 10k concurrency on a staging copy, not production.
 
+## Session 2026-09-17 (cont.) — Veori Super-Agent intelligence system (phases 1-5)
+
+Extends the platform; nothing replaced. Code: `backend/src/intelligence/`, routes `routes/intelligence.js` (`/api/intelligence`), UI `pages/DealRoom.jsx` (`/deals/:id/room`), `pages/Opportunities.jsx`.
+
+### Commits
+`ec0c973` foundation + core agents · `ff62807` Deal Room · `60fffc2` engines · `c792bf2` 42-agent network · `f0cb368` worksheets UI · `2b7e2a1` flip uses rehab scope · `a063ee0` phase 5 autonomous systems · `9ca425f` phase 5 UI + fixes · `075e3a5` scorecard fix.
+
+### What exists
+1. **Spine** — seven evidence labels (VERIFIED, USER-PROVIDED, CALCULATED, ESTIMATED, INFERRED, UNVERIFIED, UNKNOWN) on every fact (`provenance.js`); deterministic calculation engine (`calc/`), never model math; append-only `audit_events` (trigger blocks update/delete); prompt-injection screening (`sanitize.js`); agent spine v1.1.
+2. **Registry** — 46 intelligence agents + 8 original agents + Autopilot = 55 declarations, mirrored to `agent_registry` on boot. Each declares permissions (READ…HIGH_RISK), risk level, tools, knowledge sources, handoffs.
+3. **Super-Agent** (`superAgent.js`) — routes a request to one of 29 intents, runs agents in dependency waves (risk → deal_rescue → challenger last), surfaces disagreements, merges missing information, computes Best Next Action, streams progress (SSE).
+4. **Permissions** — offers, contracts, money, legal filings and material term changes always create an approval request; texts/calls/drafts follow Copilot/Autopilot settings (`agent_settings`).
+5. **Engines** — scenarios, optimizer, scorecard (11 independent dimensions, no composite), timeline delay cost, Deal Understanding graph (`dealGraph.js`) with operator worksheets.
+6. **Phase 5 (autonomous)** — tables `deal_alerts`, `autopilot_runs`; `deals.last_monitored_at`, `last_autopilot_at` (migration `2026-09-17_intelligence_monitoring_autopilot.sql`).
+   - Deal Death Prevention: deterministic post-contract rules (no closing date, closing passed, title not opened, no buyer ≤7 days, EMD, unsigned contract, diligence issues). Sweep every 5 min (`DEAL_MONITOR=off` disables), deals claimed per 30-min interval, alert opened once per key, resolved when cleared, critical/high → notification. Dismissed warnings stay quiet until the condition clears.
+   - Deal Rescue: cause, impact, options, next action, deadline, responsible party.
+   - Opportunity Discovery: leads without a deal with 2+ signals (equity ≥50%, probate, pre-foreclosure, tax delinquent, vacant+absentee, 20+ years owned); evidence labeled UNVERIFIED.
+   - Market Intelligence: zip snapshots into `market_data`, change vs prior snapshot. Needs an active RentCast subscription.
+   - Autopilot: requires Autopilot mode; recorded steps (permissions, contract monitoring, understand/verify, analysis, challenger, rescue, approvals, seller follow-up, best next action). Seller text only with auto-text on + consent + phone + not DNC + compliance gate + no text exchanged in 72h; otherwise kept as a draft with the reason. Background sweep only with `AUTOPILOT_SWEEP_ENABLED=true` (off).
+
+### Fixes found while verifying
+- **Security:** `POST /api/deals` read the linked lead without a workspace filter, copying another workspace's seller name/phone/email into the caller's deal. Now 404 unless owned.
+- Scorecard returned 500 on any deal where buyer matching had run, and silently showed several dimensions as not assessed (wrong unwrap of stored outputs).
+- Wholesale agent requested offer approval on deals already under contract.
+- CORS rejections returned 500 (now 403).
+- Live-call polling: 3-5 independent 1.5s pollers per open tab → one shared poller, paused in hidden tabs.
+
+### Verified on production
+Unit tests 168/168. Prod e2e: intelligence 27/27, phase 3 7/7, phase 4 9/9, phase 5 16/16 (incl. background sweep checking an untouched deal on its own), fixes 6/6. UI checked in the browser against prod API (alerts re-check/dismiss, Autopilot switch + run, Opportunities → open deal, 375px width no horizontal scroll). All temp users cleaned up.
+
+### Not built / owner decisions
+- Data connectors beyond RentCast (BatchData, PropStream, MLS/IDX, Regrid, Reonomy, Trepp) are listed as not connected; no scraping.
+- RentCast subscription is inactive → valuation/market data report "unavailable".
+- No verified legal knowledge is seeded; the law agent says it cannot confirm and flags attorney review.
+- Approving an approval request records the decision; it does not itself send an offer or sign.
+- `AGENTS_ENABLED` (original 8 agents) remains off; `AUTOPILOT_SWEEP_ENABLED` off.
+- Existing `marketIntelligenceService.js` aggregates motivation across all workspaces' leads per state (cross-tenant aggregate) — not changed; decide whether that is acceptable.
+
 ---
 
 *End of build log. If you add work, append to §3-style session notes and the
