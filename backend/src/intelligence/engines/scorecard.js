@@ -13,7 +13,8 @@ function dim(key, label, rating, value, evidence, note) {
 }
 
 function build({ understanding: rep, outputs = {} }) {
-  const out = (id) => outputs[id]?.data || outputs[id] || null;
+  // outputs[id] is a full AgentOutput (summary, findings, data, ...), as stored in agent_outputs.data.
+  const out = (id) => (outputs[id] && typeof outputs[id] === 'object' && 'summary' in outputs[id] ? outputs[id] : null);
   const dims = [];
 
   const value = cl(rep, 'financial.as_is_value');

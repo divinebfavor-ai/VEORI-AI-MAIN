@@ -211,6 +211,22 @@ test('wholesale: no offer approval is proposed once the deal is under contract',
   assert.ok(post.recommendations.some(r => /already under contract/.test(r.why)));
 });
 
+test('scorecard reads real agent outputs (as stored) without crashing', async () => {
+  const card = require('../intelligence/engines/scorecard');
+  const r = rep({ deal: { closing_date: iso(Date.now() + 5 * DAY).slice(0, 10) } });
+  const tools = { matchBuyers: async () => [], supabase: fakeDb() };
+  const outputs = {};
+  for (const id of ['wholesale', 'buyer_matching', 'transaction_coordinator', 'title_intelligence', 'financing', 'risk']) {
+    outputs[id] = await AGENTS[id].run({ userId: 'u1', dealId: 'd1', understanding: r, useModel: false, tools, priorOutputs: { ...outputs } }, { persist: false });
+  }
+  const dims = Object.fromEntries(card.build({ understanding: r, outputs }).dimensions.map(d => [d.key, d]));
+  assert.strictEqual(dims.exit_liquidity.rating, 'no matching buyers');
+  assert.strictEqual(dims.time.rating, 'closing this week');
+  assert.notStrictEqual(dims.risk.rating, 'not assessed');
+  assert.notStrictEqual(dims.profit_potential.rating, 'unknown');
+  assert.strictEqual(dims.title_status.rating, 'no title search');
+});
+
 test('planner: deal rescue runs after risk and before the challenger', () => {
   const waves = superAgent.planWaves(superAgent.INTENTS.deal_not_working.agents);
   const idx = (id) => waves.findIndex(w => w.includes(id));
