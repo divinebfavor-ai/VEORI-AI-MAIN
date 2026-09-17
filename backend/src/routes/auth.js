@@ -171,7 +171,7 @@ router.post('/register', async (req, res, next) => {
         referred_by:   referredBy,
         last_seen_at:  new Date().toISOString(),
       }])
-      .select('id, email, full_name, company_name, plan, calls_limit, calls_used')
+      .select('id, email, full_name, company_name, plan, calls_limit, calls_used, session_epoch')
       .single();
 
     if (error) {
@@ -179,7 +179,7 @@ router.post('/register', async (req, res, next) => {
       throw error;
     }
 
-    const token = jwt.sign({ id: data.id, email: data.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: data.id, email: data.email, sv: Number(data.session_epoch || 0) }, JWT_SECRET, { expiresIn: '7d' });
 
     audit.log({ userId: data.id, action: audit.ACTIONS.REGISTER, req,
       metadata: { email: data.email, source } });
@@ -223,7 +223,7 @@ router.post('/login', async (req, res, next) => {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, subscription_status, subscription_plan, subscription_expires_at, monthly_dial_limit, trial_ends_at, email_from_name, email_reply_to, two_fa_enabled, two_fa_method, two_fa_secret, two_fa_phone, password_hash, created_at, referral_code, referred_by, payout_email, payout_method, sms_consent_agreed, sms_consent_agreed_at')
+      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, subscription_status, subscription_plan, subscription_expires_at, monthly_dial_limit, trial_ends_at, email_from_name, email_reply_to, two_fa_enabled, two_fa_method, two_fa_secret, two_fa_phone, password_hash, created_at, referral_code, referred_by, payout_email, payout_method, sms_consent_agreed, sms_consent_agreed_at, session_epoch')
       .eq('email', email.toLowerCase())
       .single();
 
@@ -267,7 +267,7 @@ router.post('/login', async (req, res, next) => {
     }
 
     // ── Normal login ──────────────────────────────────────────────────────────
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, email: user.email, sv: Number(user.session_epoch || 0) }, JWT_SECRET, { expiresIn: '7d' });
     const { password_hash, two_fa_secret, ...safeUser } = user;
 
     audit.log({ userId: user.id, action: audit.ACTIONS.LOGIN, req, metadata: { email } });
@@ -394,6 +394,10 @@ router.post('/reset-password', async (req, res, next) => {
     const password_hash = await bcrypt.hash(new_password, 12);
     await supabase.from('users').update({ password_hash, updated_at: new Date().toISOString() }).eq('id', record.user_id);
     await supabase.from('password_reset_tokens').update({ used: true }).eq('token_hash', tokenHash);
+    // Every session issued before this reset stops working - a stolen token must not
+    // outlive the password it was obtained with.
+    try { await require('../services/sessionEpoch').bump(record.user_id); }
+    catch (e) { console.error('[Auth] session invalidation after reset failed:', e.message); }
 
     audit.log({ userId: record.user_id, action: audit.ACTIONS.PASSWORD_RESET, req,
       metadata: { stage: 'completed' } });
@@ -406,6 +410,16 @@ router.post('/reset-password', async (req, res, next) => {
 router.post('/logout', requireAuth, (req, res) => {
   audit.log({ userId: req.user.id, action: audit.ACTIONS.LOGOUT, req });
   res.json({ success: true, message: 'Logged out' });
+});
+
+// ─── Sign out everywhere ──────────────────────────────────────────────────────
+// Retires every token issued for this account, on every device.
+router.post('/logout-all', requireAuth, async (req, res, next) => {
+  try {
+    await require('../services/sessionEpoch').bump(req.user.actorId || req.user.id);
+    audit.log({ userId: req.user.actorId || req.user.id, action: audit.ACTIONS.LOGOUT, req, metadata: { scope: 'all_devices' } });
+    res.json({ success: true, message: 'Signed out on all devices. Sign in again to continue.' });
+  } catch (err) { next(err); }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -606,7 +620,7 @@ router.post('/2fa/verify', async (req, res, next) => {
     }
 
     const { data: user } = await supabase.from('users')
-      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, subscription_status, subscription_plan, subscription_expires_at, monthly_dial_limit, trial_ends_at, email_from_name, email_reply_to, two_fa_enabled, two_fa_method, two_fa_secret, two_fa_phone, password_hash, created_at, referral_code, referred_by, payout_email, payout_method, sms_consent_agreed')
+      .select('id, email, full_name, company_name, phone, plan, calls_used, calls_limit, ai_messages_used, ai_messages_limit, subscription_status, subscription_plan, subscription_expires_at, monthly_dial_limit, trial_ends_at, email_from_name, email_reply_to, two_fa_enabled, two_fa_method, two_fa_secret, two_fa_phone, password_hash, created_at, referral_code, referred_by, payout_email, payout_method, sms_consent_agreed, session_epoch')
       .eq('id', decoded.id).single();
 
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
@@ -630,7 +644,7 @@ router.post('/2fa/verify', async (req, res, next) => {
       return res.status(401).json({ success: false, error: 'Invalid or expired code' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, email: user.email, sv: Number(user.session_epoch || 0) }, JWT_SECRET, { expiresIn: '7d' });
     const { password_hash, two_fa_secret, ...safeUser } = user;
 
     audit.log({ userId: user.id, action: audit.ACTIONS.LOGIN, req,
@@ -743,7 +757,7 @@ router.get('/google/callback', async (req, res) => {
     // Find existing user by email
     let { data: user } = await supabase
       .from('users')
-      .select('id, email, full_name, plan, two_fa_enabled, two_fa_method, subscription_status')
+      .select('id, email, full_name, plan, two_fa_enabled, two_fa_method, subscription_status, session_epoch')
       .eq('email', email.toLowerCase())
       .single();
 
@@ -762,7 +776,7 @@ router.get('/google/callback', async (req, res) => {
           last_seen_at:  new Date().toISOString(),
           ...geo,
         })
-        .select('id, email, full_name, plan, two_fa_enabled, two_fa_method, subscription_status')
+        .select('id, email, full_name, plan, two_fa_enabled, two_fa_method, subscription_status, session_epoch')
         .single();
 
       if (createErr) throw createErr;
@@ -792,7 +806,7 @@ router.get('/google/callback', async (req, res) => {
     }
 
     // Issue JWT and redirect to frontend
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, email: user.email, sv: Number(user.session_epoch || 0) }, JWT_SECRET, { expiresIn: '7d' });
     const userPayload = Buffer.from(JSON.stringify({
       id:                  user.id,
       email:               user.email,

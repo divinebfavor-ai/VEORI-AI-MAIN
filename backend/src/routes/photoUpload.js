@@ -9,6 +9,7 @@
 
 const express = require('express');
 const multer  = require('multer');
+const { sniffImage } = require('../utils/imageType');
 const crypto  = require('crypto');
 const supabase = require('../config/supabase');
 
@@ -97,14 +98,18 @@ router.post('/:token', upload.array('photos', 20), async (req, res) => {
 
     for (const file of files) {
       try {
-        const ext      = file.originalname.split('.').pop() || 'jpg';
-        const filename = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+        // Identify the file from its bytes: the browser's Content-Type and file name
+        // are attacker-controlled, and an SVG (or HTML) served from the public bucket
+        // would run script on that origin. The extension comes from the sniff too.
+        const kind = sniffImage(file.buffer);
+        if (!kind) { failed.push({ name: file.originalname, error: 'Not a supported image (JPEG, PNG, GIF, WebP or HEIC)' }); continue; }
+        const filename = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${kind.ext}`;
         const path     = `${tokenRecord.lead_id}/${filename}`;
 
         const { error: uploadErr } = await supabase.storage
           .from(BUCKET)
           .upload(path, file.buffer, {
-            contentType: file.mimetype,
+            contentType: kind.type,
             upsert:      false,
           });
 

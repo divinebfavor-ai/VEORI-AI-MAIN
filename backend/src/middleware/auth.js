@@ -45,6 +45,22 @@ async function applyTeamContext(req, res, decoded) {
   return true;
 }
 
+// A token is only good while it matches the account's current session epoch. A
+// password reset (or "sign out everywhere") bumps the epoch, which retires every
+// token issued before it - what plain JWTs cannot do on their own.
+async function sessionStillValid(decoded, res) {
+  try {
+    const epoch = await require('../services/sessionEpoch').current(decoded.id);
+    if (Number(decoded.sv || 0) === epoch) return true;
+    res.status(401).json({ success: false, error: 'Your session ended. Please sign in again.', code: 'SESSION_REVOKED' });
+    return false;
+  } catch (e) {
+    console.error('[Auth] session epoch check failed:', e.message);
+    res.status(503).json({ success: false, error: 'Could not verify your session. Try again.' });
+    return false;
+  }
+}
+
 async function requireAuth(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
@@ -63,6 +79,7 @@ async function requireAuth(req, res, next) {
       code: 'TWO_FA_REQUIRED',
     });
   }
+  if (!(await sessionStillValid(decoded, res))) return;
   if (await applyTeamContext(req, res, decoded)) next();
 }
 
@@ -75,6 +92,7 @@ async function optionalAuth(req, res, next) {
     let decoded = null;
     try { decoded = jwt.verify(auth.slice(7), JWT_SECRET); } catch { /* ignore */ }
     if (decoded && !isPending2FA(decoded)) {
+      if (!(await sessionStillValid(decoded, res))) return;
       if (!(await applyTeamContext(req, res, decoded))) return;
     }
   }

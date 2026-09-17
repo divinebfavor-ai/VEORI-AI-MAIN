@@ -26,9 +26,15 @@ api.interceptors.response.use(
 
     // 401 - log out
     if (status === 401) {
+      const revoked = error.response?.data?.code === 'SESSION_REVOKED'
       import('../store/authStore').then(({ default: useAuthStore }) => {
         useAuthStore.getState().clearAuth()
       })
+      if (revoked) {
+        import('react-hot-toast').then(({ default: toast }) => {
+          toast.error('Your session ended. Please sign in again.', { id: 'session-revoked' })
+        })
+      }
       return Promise.reject(error)
     }
 
