@@ -82,3 +82,42 @@ test('occupancy reflects active leases against unit count', () => {
   assert.strictEqual(m.occupancy_pct, 50);
   assert.strictEqual(m.contracted_monthly_rent, 4400, 'ended leases are not counted as rent');
 });
+
+test('one month of records is annualised as one month, not as a full year', () => {
+  // A single month inside a 12-month window: scaling by 12 would invent 11 months.
+  const rows = [
+    tx('income', 'rent', 2200, { occurred_on: '2026-09-01' }),
+    tx('expense', 'taxes', 300, { occurred_on: '2026-09-05' }),
+    tx('expense', 'mortgage', 1200, { occurred_on: '2026-09-02' }),
+  ];
+  const m = portfolio.propertyMetrics(property(), [lease()], rows, 12);
+  assert.strictEqual(m.coverage_months, 1);
+  assert.strictEqual(m.annual_income, 26400);            // 2,200 x 12, from one recorded month
+  assert.strictEqual(m.annual_operating_expenses, 3600); // 300 x 12
+  assert.strictEqual(m.monthly_cash_flow, 700);          // 2,200 - 300 - 1,200
+  assert.strictEqual(m.annualised_from_partial_year, true);
+  assert.match(m.income_basis, /1 month of recorded income/);
+});
+
+test('a partial year spanning several months scales by the months covered', () => {
+  const rows = [];
+  for (const mth of ['06', '07', '08']) {
+    rows.push(tx('income', 'rent', 2000, { occurred_on: `2026-${mth}-01` }));
+    rows.push(tx('expense', 'taxes', 200, { occurred_on: `2026-${mth}-03` }));
+  }
+  const m = portfolio.propertyMetrics(property(), [lease({ monthly_rent: 2000 })], rows, 12);
+  assert.strictEqual(m.coverage_months, 3);
+  assert.strictEqual(m.annual_income, 24000);            // (6,000 / 3) x 12
+  assert.strictEqual(m.annual_operating_expenses, 2400);
+  assert.strictEqual(m.monthly_cash_flow, 600);          // 2,000 - 200 - 1,200
+});
+
+test('a full year of records is not flagged as partial', () => {
+  const rows = [];
+  for (let i = 1; i <= 12; i++) rows.push(tx('income', 'rent', 2200, { occurred_on: `2026-${String(i).padStart(2, '0')}-01` }));
+  rows.push(tx('expense', 'taxes', 300, { occurred_on: '2026-01-05' }));
+  const m = portfolio.propertyMetrics(property(), [lease()], rows, 12);
+  assert.strictEqual(m.coverage_months, 12);
+  assert.strictEqual(m.annualised_from_partial_year, false);
+  assert.strictEqual(m.annual_income, 26400);
+});

@@ -12,6 +12,12 @@ const core = require('../intelligence/calc/core');
 
 const MONEY = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 const sum = (rows, pick) => rows.reduce((a, r) => a + (MONEY(pick(r)) || 0), 0);
+// Whole months between two YYYY-MM keys.
+const monthsBetween = (a, b) => {
+  const [ay, am] = a.split('-').map(Number);
+  const [by, bm] = b.split('-').map(Number);
+  return (by - ay) * 12 + (bm - am);
+};
 
 // Expense categories that are NOT operating expenses: debt service is handled
 // separately (NOI excludes it) and capital work is not an operating cost.
@@ -40,7 +46,14 @@ function propertyMetrics(p, leases, tx, months = 12) {
 
   const windowIncome = sum(income, t => t.amount);
   const windowOperating = sum(operating, t => t.amount);
-  const scale = 12 / months;
+  // Annualise over the period actually recorded, not the length of the window:
+  // one month of entries inside a 12-month window is one month of history, and
+  // scaling it by 12 would invent eleven months that never happened.
+  const monthKeys = [...new Set(tx.map(t => String(t.occurred_on).slice(0, 7)))].sort();
+  const coverageMonths = monthKeys.length
+    ? Math.min(months, Math.max(1, monthsBetween(monthKeys[0], monthKeys[monthKeys.length - 1]) + 1))
+    : 0;
+  const scale = coverageMonths ? 12 / coverageMonths : 0;
 
   const value = MONEY(p.current_value);
   const loan = MONEY(p.loan_balance);
@@ -50,7 +63,9 @@ function propertyMetrics(p, leases, tx, months = 12) {
   // Annualised from what is recorded. With no transactions recorded, income falls
   // back to contracted rent (a signed lease is a recorded fact), and that is said.
   let annualIncome = tx.length ? core.round2(windowIncome * scale) : (rent ? core.round2(rent * 12) : null);
-  const incomeBasis = tx.length ? `recorded income over the last ${months} months` : (rent ? 'contracted rent on active leases' : null);
+  const incomeBasis = tx.length
+    ? `${coverageMonths} month${coverageMonths === 1 ? '' : 's'} of recorded income, annualised`
+    : (rent ? 'contracted rent on active leases' : null);
   if (annualIncome === null) missing.push({ item: 'income', why: 'No active lease and no recorded income.', how: 'Add a lease or log rent received.' });
 
   const annualOperating = expenses.length ? core.round2(windowOperating * scale) : null;
@@ -100,6 +115,9 @@ function propertyMetrics(p, leases, tx, months = 12) {
     occupancy_pct: occupancyPct,
     occupied_units: occupiedUnits,
     transactions_in_window: tx.length,
+    coverage_months: coverageMonths,
+    // True while the yearly figures are scaled up from less than a full year of records.
+    annualised_from_partial_year: coverageMonths > 0 && coverageMonths < 12,
     missing,
   };
 }

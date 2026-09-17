@@ -163,6 +163,12 @@ export default function Portfolio() {
             <Figure title="Cash-on-cash" value={pct(p.metrics.cash_on_cash_pct)} />
           </div>
 
+          {p.metrics.annualised_from_partial_year && (
+            <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--t3)' }}>
+              Yearly figures are scaled up from {p.metrics.coverage_months} month{p.metrics.coverage_months === 1 ? '' : 's'} of records.
+            </p>
+          )}
+
           {p.metrics.missing.length > 0 && (
             <details style={{ marginTop: 10 }}>
               <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--t3)' }}>{p.metrics.missing.length} figure(s) need more detail</summary>
