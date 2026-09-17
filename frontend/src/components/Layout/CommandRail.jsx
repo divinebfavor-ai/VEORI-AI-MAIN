@@ -20,6 +20,7 @@ import { notifications as notifApi } from '../../services/api'
 const NAV = [
   { to: '/dashboard',        icon: LayoutDashboard, label: 'Command Center' },
   { to: '/leads',            icon: Users,           label: 'Leads' },
+  { to: '/opportunities',    icon: Compass,         label: 'Opportunities' },
   { to: '/monitor',          icon: Radio,           label: 'Live Calls',     live: true },
   { to: '/intelligence/lead',icon: Brain,           label: 'AI Activity' },
   { to: '/pipeline',         icon: Columns,         label: 'Pipeline' },

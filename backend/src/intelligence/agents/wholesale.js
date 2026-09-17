@@ -80,6 +80,8 @@ const wholesale = defineAgent({
     const recommendations = [];
     if (verdict === 'above_mao') {
       recommendations.push({ action: `Do not offer above ${H.money(mao.output.mao)}; re-negotiate or evaluate creative terms`, why: `The ${priceToTest.label} of ${H.money(priceToTest.c.value)} exceeds MAO by ${H.money(Number(priceToTest.c.value) - mao.output.mao)}.`, urgency: 'high', impact: 'Avoids a deal with no spread', assigned_to: 'operator' });
+    } else if (['under_contract', 'sent_to_title', 'closing_prep', 'closed'].includes(H.val(ctx.understanding, 'transaction.stage'))) {
+      recommendations.push({ action: `Hold the contract price at or below ${H.money(mao.output.mao)} in any renegotiation`, why: `MAO from ARV ${H.money(arvC.value)} and repairs ${H.money(repairsC.value)}; the deal is already under contract, so no new offer is proposed.`, urgency: 'low', impact: `Protects a ${H.money(mao.inputs.assignment_fee)} fee`, assigned_to: 'operator' });
     } else {
       recommendations.push({ action: `Prepare an offer at or below ${H.money(mao.output.mao)}`, why: `MAO from ARV ${H.money(arvC.value)} and repairs ${H.money(repairsC.value)}; submitting it requires your approval.`, urgency: 'medium', impact: `Leaves room for a ${H.money(mao.inputs.assignment_fee)} fee`, action_type: 'submit_offer', payload: { max_price: mao.output.mao, basis: 'wholesale MAO' }, assigned_to: 'operator' });
     }

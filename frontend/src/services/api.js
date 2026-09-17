@@ -228,6 +228,12 @@ export const intelligence = {
   timeline:     (dealId, body)      => api.post(`/api/intelligence/deals/${dealId}/timeline`, body),
   worksheets:   ()                  => api.get('/api/intelligence/worksheets'),
   saveWorksheet: (dealId, name, data) => api.put(`/api/intelligence/deals/${dealId}/worksheets/${name}`, { data }),
+  dealAlerts:   (dealId, status)    => api.get(`/api/intelligence/deals/${dealId}/alerts`, { params: status ? { status } : {} }),
+  recheck:      (dealId)            => api.post(`/api/intelligence/deals/${dealId}/monitor`),
+  closeAlert:   (alertId, action)   => api.post(`/api/intelligence/alerts/${alertId}/${action}`),
+  runAutopilot: (dealId)            => api.post(`/api/intelligence/deals/${dealId}/autopilot/run`, {}, { timeout: 180000 }),
+  autopilotRuns: (dealId)           => api.get(`/api/intelligence/deals/${dealId}/autopilot/runs`),
+  opportunities: ()                 => api.get('/api/intelligence/opportunities', { timeout: 60000 }),
 }
 
 // Streamed Ask Veori. Calls onEvent for each server event; resolves when the stream ends.

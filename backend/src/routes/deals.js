@@ -91,7 +91,9 @@ router.post('/', async (req, res, next) => {
     // If lead_id provided, pull seller info from lead for auto-fill
     let sellerInfo = {};
     if (lead_id) {
-      const { data: lead } = await supabase.from('leads').select('first_name,last_name,phone,email,primary_tag,estimated_value,estimated_equity').eq('id', lead_id).single().then(null, () => ({ data: null }));
+      // Workspace-scoped: a lead from another workspace is treated as not found.
+      const { data: lead } = await supabase.from('leads').select('first_name,last_name,phone,email,primary_tag,estimated_value,estimated_equity').eq('id', lead_id).eq('user_id', req.user.id).maybeSingle().then(null, () => ({ data: null }));
+      if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
       if (lead) {
         sellerInfo = {
           seller_name:        seller_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || null,

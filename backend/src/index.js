@@ -124,8 +124,8 @@ app.use(cors({
     if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return cb(null, true);
     // White label: an operator's custom domain, once its DNS ownership is verified.
     require('./services/brandingService').isVerifiedOrigin(origin)
-      .then(ok => (ok ? cb(null, true) : cb(new Error(`CORS: origin ${origin} not allowed`))))
-      .catch(() => cb(new Error(`CORS: origin ${origin} not allowed`)));
+      .then(ok => (ok ? cb(null, true) : cb(Object.assign(new Error(`CORS: origin ${origin} not allowed`), { status: 403 }))))
+      .catch(() => cb(Object.assign(new Error(`CORS: origin ${origin} not allowed`), { status: 403 })));
   },
   credentials:      true,
   methods:          ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -23,11 +23,23 @@ async function reconcileAlerts({ userId, dealId, alerts, db = supabaseDefault, a
   const { data: open, error } = await db.from('deal_alerts').select('id, alert_key, severity')
     .eq('user_id', userId).eq('deal_id', dealId).eq('agent_id', AGENT_ID).eq('status', 'open');
   if (error) throw error;
+  // A dismissed warning stays quiet while its condition persists; once the condition
+  // clears, the dismissal is closed out so a later recurrence warns again.
+  const { data: dismissed, error: dErr } = await db.from('deal_alerts').select('id, alert_key')
+    .eq('user_id', userId).eq('deal_id', dealId).eq('agent_id', AGENT_ID).eq('status', 'dismissed');
+  if (dErr) throw dErr;
+  const detected = new Set(alerts.map(a => a.key));
+  const dismissedKeys = new Set((dismissed || []).map(a => a.alert_key));
+  const lapsed = (dismissed || []).filter(a => !detected.has(a.alert_key)).map(a => a.id);
+  if (lapsed.length) await db.from('deal_alerts').update({ status: 'resolved' }).in('id', lapsed).eq('user_id', userId).eq('status', 'dismissed');
+
   const openByKey = new Map((open || []).map(a => [a.alert_key, a]));
   const opened = [];
   let refreshed = 0;
+  let suppressed = 0;
 
   for (const a of alerts) {
+    if (dismissedKeys.has(a.key) && !openByKey.has(a.key)) { suppressed++; continue; }
     const existing = openByKey.get(a.key);
     if (existing) {
       await db.from('deal_alerts').update({ severity: a.severity, message: a.message, recommended_action: a.recommended_action, last_seen_at: now })
@@ -69,7 +81,7 @@ async function reconcileAlerts({ userId, dealId, alerts, db = supabaseDefault, a
     await audit.record({ userId, dealId, agentId: AGENT_ID, actionType: 'monitor.alerts_changed',
       inputs: { checked: alerts.length }, outputs: { opened: opened.map(a => a.alert_key), resolved: clearedIds.length, notified: notify.length } });
   }
-  return { opened, refreshed, resolved: clearedIds.length, alerts };
+  return { opened, refreshed, suppressed, resolved: clearedIds.length, alerts };
 }
 
 /** Check one deal now. */

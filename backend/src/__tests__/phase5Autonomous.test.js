@@ -188,6 +188,29 @@ test('monitor: opens once, refreshes, notifies critical/high only, resolves when
   assert.strictEqual(again.opened.length, 1);
 });
 
+test('monitor: a dismissed warning stays quiet while it persists and returns after it clears and recurs', async () => {
+  const db = fakeDb();
+  const a = { key: 'emd_late', severity: 'high', message: 'EMD late.', recommended_action: 'Confirm EMD.' };
+  const first = await monitor.reconcileAlerts({ userId: 'u1', dealId: 'd1', alerts: [a], db });
+  db.tables.deal_alerts.find(x => x.id === first.opened[0].id).status = 'dismissed';
+  const quiet = await monitor.reconcileAlerts({ userId: 'u1', dealId: 'd1', alerts: [a], db });
+  assert.strictEqual(quiet.opened.length, 0);
+  assert.strictEqual(quiet.suppressed, 1);
+  assert.strictEqual(db.tables.notifications.length, 1);
+  await monitor.reconcileAlerts({ userId: 'u1', dealId: 'd1', alerts: [], db });
+  assert.strictEqual(db.tables.deal_alerts[0].status, 'resolved');
+  const back = await monitor.reconcileAlerts({ userId: 'u1', dealId: 'd1', alerts: [a], db });
+  assert.strictEqual(back.opened.length, 1);
+});
+
+test('wholesale: no offer approval is proposed once the deal is under contract', async () => {
+  const pre = await AGENTS.wholesale.run({ userId: 'u1', dealId: 'd1', understanding: rep({ deal: { status: 'negotiating' } }), useModel: false }, { persist: false });
+  const post = await AGENTS.wholesale.run({ userId: 'u1', dealId: 'd1', understanding: rep(), useModel: false }, { persist: false });
+  assert.ok(pre.recommendations.some(r => r.action_type === 'submit_offer'));
+  assert.ok(!post.recommendations.some(r => r.action_type === 'submit_offer'));
+  assert.ok(post.recommendations.some(r => /already under contract/.test(r.why)));
+});
+
 test('planner: deal rescue runs after risk and before the challenger', () => {
   const waves = superAgent.planWaves(superAgent.INTENTS.deal_not_working.agents);
   const idx = (id) => waves.findIndex(w => w.includes(id));

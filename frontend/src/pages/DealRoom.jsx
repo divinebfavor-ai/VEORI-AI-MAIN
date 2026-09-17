@@ -8,6 +8,7 @@ import { intelligence, askVeoriStream } from '../services/api'
 import useIsMobile from '../hooks/useIsMobile'
 import { Scorecard, Scenarios, Optimizer, TimelineSimulator } from '../components/DealRoom/Phase3Panels'
 import Worksheets from '../components/DealRoom/Worksheets'
+import { AlertsBanner, AutopilotPanel } from '../components/DealRoom/Autonomy'
 
 const GREEN = '#00C37A'
 const GOLD = '#C9A84C'
@@ -29,10 +30,10 @@ const SECTIONS = [
   ['overview', 'Overview'], ['property', 'Property'], ['seller', 'Seller'], ['buyer', 'Buyer'], ['financials', 'Financials'],
   ['valuation', 'Valuation'], ['acquisition', 'Acquisition'], ['financing', 'Financing'], ['title', 'Title'],
   ['diligence', 'Due Diligence'], ['documents', 'Documents'], ['disposition', 'Disposition'], ['agents', 'Active Agents'],
-  ['tasks', 'Tasks'], ['timeline', 'Timeline'], ['risks', 'Risks'], ['scenarios', 'Scenarios'], ['worksheets', 'Worksheets'], ['closing', 'Closing'],
+  ['tasks', 'Tasks'], ['timeline', 'Timeline'], ['risks', 'Risks'], ['scenarios', 'Scenarios'], ['worksheets', 'Worksheets'], ['closing', 'Closing'], ['autopilot', 'Autopilot'],
 ]
 
-const EXAMPLES = ['Analyze this property.', 'Can I wholesale this deal?', 'What creative-finance options exist?', 'Find the biggest risk in this transaction.', 'What information are we missing?', 'Find buyers for this property.', 'Would this work as a flip?', 'Run the rental numbers.', 'Build the underwriting package.', 'What does the law say about assigning this contract?']
+const EXAMPLES = ['Analyze this property.', 'Can I wholesale this deal?', 'What creative-finance options exist?', 'Find the biggest risk in this transaction.', 'What information are we missing?', 'Find buyers for this property.', 'Would this work as a flip?', 'Run the rental numbers.', 'Build the underwriting package.', 'What does the law say about assigning this contract?', 'Why is this deal not working?', 'Will this contract close?']
 
 const errText = (err, fallback) => err?.response?.data?.error || err?.message || fallback
 const get = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj)
@@ -451,6 +452,7 @@ export default function DealRoom() {
         </Card>
       )
       case 'worksheets': return <Worksheets dealId={id} saved={rep?.worksheets} onSaved={load} />
+      case 'autopilot': return <AutopilotPanel dealId={id} settings={room.settings} onChanged={load} />
       case 'tasks': return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Card title={`Pending approvals (${pending.length})`}>
@@ -523,6 +525,8 @@ export default function DealRoom() {
           <Button size="sm" variant="secondary" loading={refreshing} onClick={refreshData}><RefreshCw size={12} /> Refresh data</Button>
         </div>
       </div>
+
+      <AlertsBanner key={`${id}-${room.deal.status}`} dealId={id} stage={room.deal.status} style={{ margin: isMobile ? '12px 16px 0' : '14px 20px 0' }} />
 
       {bna && (
         <div style={{ margin: isMobile ? '12px 16px 0' : '14px 20px 0', padding: '12px 14px', borderRadius: 12, border: `1px solid ${bna.urgency === 'critical' ? RED : bna.urgency === 'high' ? AMBER : 'rgba(0,195,122,0.35)'}`, background: 'rgba(0,195,122,0.05)' }}>

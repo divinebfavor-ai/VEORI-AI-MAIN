@@ -53,8 +53,10 @@ function build({ understanding: rep, outputs = {} }) {
     { matched_buyers: bm?.data?.total_matches ?? null, median_days_on_market: dom.value }, [bm?.summary, dom.status !== STATUS.UNKNOWN ? `Days on market: ${dom.status} (${dom.source})` : 'Days on market unknown'].filter(Boolean)));
 
   const tc = out('transaction_coordinator');
-  const days = tc?.data?.days_to_close;
-  dims.push(dim('time', 'Time', days == null ? 'no closing date' : days < 0 ? 'past due' : days <= 7 ? 'closing this week' : 'on schedule', { days_to_close: days ?? null }, tc ? [tc.summary] : ['Transaction coordinator not run']));
+  const closing = cl(rep, 'transaction.closing_date');
+  const days = tc?.data?.days_to_close ?? (closing.value ? Math.ceil((new Date(closing.value).getTime() - Date.now()) / 86400000) : null);
+  dims.push(dim('time', 'Time', days == null ? 'no closing date' : days < 0 ? 'past due' : days <= 7 ? 'closing this week' : 'on schedule', { days_to_close: days ?? null },
+    tc ? [tc.summary] : [closing.value ? `Closing date ${String(closing.value).slice(0, 10)} (${closing.status})` : 'No closing date recorded', 'Transaction coordinator not run']));
 
   const claims = [];
   const walk = (n) => { if (!n || typeof n !== 'object') return; if ('status' in n && 'value' in n) { claims.push(n.status); return; } Object.values(n).forEach(walk); };
