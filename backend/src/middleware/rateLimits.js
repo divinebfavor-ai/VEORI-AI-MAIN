@@ -180,6 +180,7 @@ const RULES = [
   ['POST', /^\/api\/crm\/[^/]+\/connect$/,                   'crm_connect'],
   ['POST', /^\/api\/crm\/[^/]+\/backfill$/,                  'crm_backfill'],
   ['POST', /^\/api\/intelligence\/deals\/[^/]+\/ask$/,        'deal_analysis'],
+  ['GET',  /^\/api\/portfolio\/summary$/,                   'calculation'],
   ['POST', /^\/api\/intelligence\/deals\/[^/]+\/autopilot\/run$/, 'deal_analysis'],
   ['POST', /^\/api\/intelligence\/deals\/[^/]+\/monitor$/,    'data_refresh'],
   ['GET',  /^\/api\/intelligence\/opportunities$/,           'data_refresh'],

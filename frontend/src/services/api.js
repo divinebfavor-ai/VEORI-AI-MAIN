@@ -257,6 +257,25 @@ export const intelligence = {
   opportunities: ()                 => api.get('/api/intelligence/opportunities', { timeout: 60000 }),
 }
 
+// ─── Portfolio (owned properties, leases, money ledger) ──────────────────────
+export const portfolio = {
+  summary:       (months)              => api.get('/api/portfolio/summary', { params: months ? { months } : {} }),
+  cashFlow:      (params)              => api.get('/api/portfolio/cash-flow', { params }),
+  expiring:      (days)                => api.get('/api/portfolio/expiring-leases', { params: days ? { days } : {} }),
+  categories:    ()                    => api.get('/api/portfolio/categories'),
+  properties:    (params)              => api.get('/api/portfolio/properties', { params }),
+  property:      (id)                  => api.get(`/api/portfolio/properties/${id}`),
+  createProperty:(data)                => api.post('/api/portfolio/properties', data),
+  updateProperty:(id, data)            => api.patch(`/api/portfolio/properties/${id}`, data),
+  deleteProperty:(id)                  => api.delete(`/api/portfolio/properties/${id}`),
+  fromDeal:      (dealId)              => api.post(`/api/portfolio/from-deal/${dealId}`),
+  addUnit:       (id, data)            => api.post(`/api/portfolio/properties/${id}/units`, data),
+  addLease:      (id, data)            => api.post(`/api/portfolio/properties/${id}/leases`, data),
+  updateLease:   (id, data)            => api.patch(`/api/portfolio/leases/${id}`, data),
+  addEntry:      (id, data)            => api.post(`/api/portfolio/properties/${id}/transactions`, data),
+  deleteEntry:   (id)                  => api.delete(`/api/portfolio/transactions/${id}`),
+}
+
 // Streamed Ask Veori. Calls onEvent for each server event; resolves when the stream ends.
 export async function askVeoriStream(dealId, command, inputs, onEvent, signal) {
   const token = localStorage.getItem('veori_token')
