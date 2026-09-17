@@ -509,6 +509,7 @@ app.use('/api/developer', require('./routes/developer'));
 app.use('/api/team', require('./routes/team'));
 app.use('/api/branding', require('./routes/branding'));
 app.use('/api/esign', require('./routes/esign'));
+app.use('/api/crm', require('./routes/crm'));
 
 // Webhook retry sweep. Each delivery is claimed before sending, so overlapping
 // sweeps (or a sweep racing an immediate send) never deliver the same row twice.
@@ -522,6 +523,19 @@ app.use('/api/esign', require('./routes/esign'));
       .catch(err => console.error('[Webhooks] sweep failed:', err.message))
       .finally(() => { sweeping = false; });
   }, 60 * 1000);
+}
+
+// CRM sync sweep: pushes queued leads to connected CRMs, 40 per tick, with retries.
+{
+  const { processDueJobs } = require('./services/crmService');
+  let syncing = false;
+  setInterval(() => {
+    if (syncing) return;
+    syncing = true;
+    processDueJobs()
+      .catch(err => console.error('[CRM] sweep failed:', err.message))
+      .finally(() => { syncing = false; });
+  }, 15 * 1000);
 }
 
 // ─── New Features (Features: Missed Call Text-Back, SMS Inbox, Appointments) ──

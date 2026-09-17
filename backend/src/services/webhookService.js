@@ -189,6 +189,7 @@ async function listDeliveries(userId, endpointId, limit = 50) {
  * the action that produced the event.
  */
 async function emitEvent(userId, event, data) {
+  if (event === 'lead.created' && data?.lead?.id) require('./crmService').enqueueLeads(userId, [data.lead.id]);
   try {
     if (!supabase || !userId || !EVENTS[event]) return 0;
     const { data: endpoints, error } = await supabase.from('webhook_endpoints')
@@ -212,6 +213,7 @@ async function emitEvent(userId, event, data) {
 
 /** One event per item, one endpoint lookup total (used by bulk imports). Never throws. */
 async function emitEvents(userId, event, items) {
+  if (event === 'lead.created' && Array.isArray(items)) require('./crmService').enqueueLeads(userId, items.map(i => i?.lead?.id));
   try {
     if (!supabase || !userId || !EVENTS[event] || !Array.isArray(items) || !items.length) return 0;
     const { data: endpoints, error } = await supabase.from('webhook_endpoints')

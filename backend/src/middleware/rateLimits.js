@@ -126,6 +126,8 @@ const POLICIES = {
   team_invite:       { windowMs: HOUR,      max: 30,  what: 'invites' },
   invite_accept:     { windowMs: 15 * MIN,  max: 20,  what: 'invite attempts' },
   domain_verify:     { windowMs: MIN,       max: 10,  what: 'domain checks' },
+  crm_connect:       { windowMs: 15 * MIN,  max: 10,  what: 'CRM connection attempts' },
+  crm_backfill:      { windowMs: HOUR,      max: 5,   what: 'CRM full syncs' },
   public_upload:     { windowMs: 15 * MIN,  max: 20,  what: 'uploads' },
   public_sign:       { windowMs: 15 * MIN,  max: 20,  what: 'signature submissions' },
   public_form:       { windowMs: 15 * MIN,  max: 20,  what: 'submissions' },
@@ -172,6 +174,8 @@ const RULES = [
   ['POST', /^\/api\/team\/invites$/,                         'team_invite'],
   ['POST', /^\/api\/team\/accept$/,                          'invite_accept'],
   ['POST', /^\/api\/branding\/domain\/verify$/,              'domain_verify'],
+  ['POST', /^\/api\/crm\/[^/]+\/connect$/,                   'crm_connect'],
+  ['POST', /^\/api\/crm\/[^/]+\/backfill$/,                  'crm_backfill'],
   // Public (no login) endpoints
   ['POST', /^\/api\/photo-upload\/[^/]+$/,                   'public_upload'],
   ['POST', /^\/api\/contracts\/handle_sign_submission\/[^/]+$/, 'public_sign'],

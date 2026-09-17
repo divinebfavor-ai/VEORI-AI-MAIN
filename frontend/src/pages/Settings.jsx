@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { User, Users, Palette, Key, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2, Mail, QrCode, RotateCcw, FileCheck, Smartphone } from 'lucide-react'
+import { User, Users, Palette, Key, Link2, Phone, Bell, Shield, Plus, Trash2, CheckCircle, Sparkles, CreditCard, Eye, EyeOff, Moon, Sun, Share2, Mail, QrCode, RotateCcw, FileCheck, Smartphone } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
@@ -9,6 +9,7 @@ import useThemeStore from '../store/themeStore'
 import { phones, operator as operatorApi, v2voices, auth, twoFA } from '../services/api'
 import Compliance from './Compliance'
 import DeveloperSettings from '../components/Settings/DeveloperSettings'
+import IntegrationsSettings from '../components/Settings/IntegrationsSettings'
 import TeamSettings from '../components/Settings/TeamSettings'
 import BrandingSettings from '../components/Settings/BrandingSettings'
 
@@ -37,6 +38,7 @@ const TABS = [
   { id: 'compliance', label: 'Compliance',  icon: FileCheck },
   { id: 'team',       label: 'Team',        icon: Users },
   { id: 'branding',   label: 'Branding',    icon: Palette },
+  { id: 'integrations', label: 'Integrations', icon: Link2 },
   { id: 'developers', label: 'Developers',  icon: Key },
 ]
 
@@ -2311,6 +2313,7 @@ export default function Settings() {
 
           {tab === 'team' && <TeamSettings />}
           {tab === 'branding' && <BrandingSettings />}
+          {tab === 'integrations' && <IntegrationsSettings />}
           {tab === 'developers' && <DeveloperSettings />}
         </div>
       </div>

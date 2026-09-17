@@ -211,6 +211,15 @@ export const developer = {
   testWebhook:     (id)        => api.post(`/api/developer/webhooks/${id}/test`),
 }
 
+export const crm = {
+  list:       ()                   => api.get('/api/crm'),
+  connect:    (provider, credential) => api.post(`/api/crm/${provider}/connect`, { credential }),
+  update:     (provider, data)     => api.patch(`/api/crm/${provider}`, data),
+  disconnect: (provider)           => api.delete(`/api/crm/${provider}`),
+  backfill:   (provider)           => api.post(`/api/crm/${provider}/backfill`),
+  status:     (provider)           => api.get(`/api/crm/${provider}/status`),
+}
+
 export const deals = {
   getDeals:          (params)       => api.get('/api/deals', { params }),
   getDeal:           (id)           => api.get(`/api/deals/${id}`),
