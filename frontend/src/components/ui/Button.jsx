@@ -9,27 +9,27 @@ import clsx from 'clsx'
 
 const STYLES = {
   primary: {
-    base:  { background: '#00C37A', color: '#000000', border: '1px solid transparent', fontWeight: 600, boxShadow: '0 0 16px rgba(0,195,122,0.20), 0 2px 8px rgba(0,195,122,0.12)' },
+    base:  { background: '#00C37A', color: '#000000', borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', fontWeight: 600, boxShadow: '0 0 16px rgba(0,195,122,0.20), 0 2px 8px rgba(0,195,122,0.12)' },
     hover: { background: '#00A868', boxShadow: '0 0 24px rgba(0,195,122,0.35), 0 4px 12px rgba(0,195,122,0.20)', transform: 'translateY(-1px)' },
     act:   { transform: 'translateY(0)', background: '#009960' },
   },
   secondary: {
-    base:  { background: 'var(--surface-bg-2)', color: 'var(--t2)', border: '1px solid var(--border)', fontWeight: 500, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },
+    base:  { background: 'var(--surface-bg-2)', color: 'var(--t2)', borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border)', fontWeight: 500, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },
     hover: { background: 'var(--surface-bg-3)', borderColor: 'var(--border-active)', color: 'var(--t1)' },
     act:   { background: 'var(--surface-bg-3)' },
   },
   ghost: {
-    base:  { background: 'transparent', color: 'var(--t3)', border: '1px solid transparent', fontWeight: 400 },
+    base:  { background: 'transparent', color: 'var(--t3)', borderWidth: 1, borderStyle: 'solid', borderColor: 'transparent', fontWeight: 400 },
     hover: { background: 'var(--surface-bg-2)', color: 'var(--t2)' },
     act:   { background: 'var(--surface-bg-3)' },
   },
   danger: {
-    base:  { background: 'rgba(255,68,68,0.10)', color: '#FF4444', border: '1px solid rgba(255,68,68,0.22)', fontWeight: 500, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },
+    base:  { background: 'rgba(255,68,68,0.10)', color: '#FF4444', borderWidth: 1, borderStyle: 'solid', borderColor: 'rgba(255,68,68,0.22)', fontWeight: 500, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },
     hover: { background: 'rgba(255,68,68,0.18)', borderColor: 'rgba(255,68,68,0.40)' },
     act:   { background: 'rgba(255,68,68,0.24)' },
   },
   gold: {
-    base:  { background: 'rgba(201,168,76,0.10)', color: '#C9A84C', border: '1px solid rgba(201,168,76,0.22)', fontWeight: 500, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },
+    base:  { background: 'rgba(201,168,76,0.10)', color: '#C9A84C', borderWidth: 1, borderStyle: 'solid', borderColor: 'rgba(201,168,76,0.22)', fontWeight: 500, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },
     hover: { background: 'rgba(201,168,76,0.18)', borderColor: 'rgba(201,168,76,0.40)' },
     act:   { background: 'rgba(201,168,76,0.24)' },
   },

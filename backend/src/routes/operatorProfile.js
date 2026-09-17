@@ -269,6 +269,14 @@ router.put('/preferences', requireAuth, async (req, res, next) => {
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
+    // Free-form settings blob: keep it a small object so it cannot become a dumping ground.
+    if (updates.notification_preferences !== undefined) {
+      const np = updates.notification_preferences;
+      if (np === null) updates.notification_preferences = {};
+      else if (typeof np !== 'object' || Array.isArray(np) || JSON.stringify(np).length > 4000) {
+        return res.status(400).json({ success: false, error: 'notification_preferences must be a small object' });
+      }
+    }
     // Section E: normalize operator_mode to a known value (manual|copilot|autopilot).
     if (updates.operator_mode !== undefined) {
       updates.operator_mode = operatorMode.normalizeMode(updates.operator_mode);
