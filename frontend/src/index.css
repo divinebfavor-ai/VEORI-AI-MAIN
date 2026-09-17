@@ -51,6 +51,8 @@
   --t3:  rgba(255,255,255,0.40);
   --t4:  rgba(255,255,255,0.22);
 
+  --overlay-bg:           rgba(4,10,20,0.75);
+
   --scrollbar-thumb:      rgba(255,255,255,0.10);
   --scrollbar-hover:      rgba(255,255,255,0.18);
 
@@ -73,53 +75,57 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  /* Warm off-white app shell - cards pop off it */
-  --app-bg: #ECEEF2;
+  /* Soft warm grey shell - easy on the eyes, cards still lift off it.
+     Deliberately not white-on-white: pure #FFF everywhere reads as glare. */
+  --app-bg: #EFF1F4;
 
-  --sidebar-bg:           rgba(255,255,255,0.97);
-  --sidebar-border:       rgba(0,0,0,0.09);
+  --sidebar-bg:           rgba(250,251,252,0.98);
+  --sidebar-border:       rgba(15,23,42,0.07);
 
-  /* Cards: pure white with visible border + shadow - clearly darker than the bg */
-  --card-bg:              #FFFFFF;
-  --card-border:          rgba(0,0,0,0.13);
-  --card-bg-hover:        #FAFAFA;
-  --card-border-hover:    rgba(0,0,0,0.20);
+  /* Cards: a hair off pure white, soft border - contrast without the hard edge */
+  --card-bg:              #FCFDFE;
+  --card-border:          rgba(15,23,42,0.09);
+  --card-bg-hover:        #F7F9FB;
+  --card-border-hover:    rgba(15,23,42,0.15);
 
-  /* Surfaces inside cards: visibly tinted */
-  --surface-bg:           rgba(0,0,0,0.04);
-  --surface-bg-2:         rgba(0,0,0,0.07);
-  --surface-bg-3:         rgba(0,0,0,0.10);
+  /* Surfaces inside cards: gently tinted, never harsh */
+  --surface-bg:           rgba(15,23,42,0.035);
+  --surface-bg-2:         rgba(15,23,42,0.055);
+  --surface-bg-3:         rgba(15,23,42,0.08);
 
-  --border:               rgba(0,0,0,0.11);
-  --border-active:        rgba(0,0,0,0.18);
+  --border:               rgba(15,23,42,0.085);
+  --border-active:        rgba(15,23,42,0.14);
   --border-focus:         rgba(0,195,122,0.55);
 
-  --t1:  #0D1117;
-  --t2:  rgba(13,17,23,0.75);
-  --t3:  rgba(13,17,23,0.52);
-  --t4:  rgba(13,17,23,0.36);
+  /* Text: dark slate rather than near-black, which softens the whole page */
+  --t1:  #1A2230;
+  --t2:  rgba(26,34,48,0.72);
+  --t3:  rgba(26,34,48,0.50);
+  --t4:  rgba(26,34,48,0.34);
 
-  --scrollbar-thumb:      rgba(0,0,0,0.14);
-  --scrollbar-hover:      rgba(0,0,0,0.24);
+  --overlay-bg:           rgba(15,23,42,0.32);
+
+  --scrollbar-thumb:      rgba(15,23,42,0.13);
+  --scrollbar-hover:      rgba(15,23,42,0.22);
 
   --input-bg:             #FFFFFF;
-  --input-border:         rgba(0,0,0,0.14);
-  --input-text:           #0D1117;
-  --input-placeholder:    rgba(13,17,23,0.36);
+  --input-border:         rgba(15,23,42,0.13);
+  --input-text:           #1A2230;
+  --input-placeholder:    rgba(26,34,48,0.34);
 
-  --bg:           #ECEEF2;
-  --s1:           #FFFFFF;
-  --s2:           rgba(0,0,0,0.04);
-  --s3:           rgba(0,0,0,0.06);
-  --s4:           rgba(0,0,0,0.09);
-  --s5:           rgba(0,0,0,0.11);
-  --border-rest:  rgba(0,0,0,0.11);
+  --bg:           #EFF1F4;
+  --s1:           #FCFDFE;
+  --s2:           rgba(15,23,42,0.035);
+  --s3:           rgba(15,23,42,0.055);
+  --s4:           rgba(15,23,42,0.08);
+  --s5:           rgba(15,23,42,0.10);
+  --border-rest:  rgba(15,23,42,0.085);
 }
 
 /* Light mode: give every card a subtle drop-shadow so they lift off the bg */
 [data-theme="light"] [style*="var(--card-bg)"],
 [data-theme="light"] [style*="card-bg"] {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.05), 0 1px 6px rgba(15,23,42,0.045) !important;
 }
 
 /* ─── Light mode: fix invisible white text inside the app layout ────────────
@@ -136,7 +142,7 @@
 [data-theme="light"] [data-app-layout] [style*="color:#FFFFFF"],
 [data-theme="light"] [data-app-layout] [style*="color: #FFFFFF"],
 [data-theme="light"] [data-app-layout] [style*="color: white"] {
-  color: #0D0D0F !important;
+  color: #1A2230 !important;
 }
 
 /* Semi-transparent white text (rgba) → semi-transparent dark */
@@ -158,7 +164,7 @@
 
 /* Tailwind text-white inside the app */
 [data-theme="light"] [data-app-layout] .text-white {
-  color: #0D0D0F !important;
+  color: #1A2230 !important;
 }
 
 /* White backgrounds that need to flip - dark panels inside the app */
@@ -215,7 +221,7 @@
 [data-theme="light"] [data-app-layout] select {
   background: rgba(255,255,255,0.92) !important;
   border-color: rgba(0,0,0,0.13) !important;
-  color: #0D0D0F !important;
+  color: #1A2230 !important;
 }
 [data-theme="light"] [data-app-layout] input::placeholder,
 [data-theme="light"] [data-app-layout] textarea::placeholder { color: rgba(13,13,15,0.35) !important; }

@@ -61,7 +61,7 @@ export default function WeeklyFocus() {
   }
 
   const s = {
-    page: { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
+    page: { minHeight: '100vh', background: 'var(--app-bg)', color: 'var(--t1)', fontFamily: 'Inter,sans-serif', padding: '32px' },
     card: { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '20px 24px' },
     h1:   { fontSize: 24, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4 },
     score: (s) => ({ fontSize: 12, fontWeight: 700, color: s >= 70 ? '#00C37A' : s >= 50 ? '#C9A84C' : 'rgba(255,255,255,0.45)' }),

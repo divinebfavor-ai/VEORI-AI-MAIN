@@ -100,7 +100,7 @@ export default function LeadIntelligence() {
   }, [selectedLead])
 
   const s = {
-    page:    { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
+    page:    { minHeight: '100vh', background: 'var(--app-bg)', color: 'var(--t1)', fontFamily: 'Inter,sans-serif', padding: '32px' },
     h1:      { fontSize: 24, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4 },
     card:    { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '24px' },
     label:   { fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 12 },

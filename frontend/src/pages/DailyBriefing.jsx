@@ -41,7 +41,7 @@ export default function DailyBriefing() {
   }
 
   const s = {
-    page:  { minHeight: '100vh', background: '#060E1A', color: '#fff', fontFamily: 'Inter,sans-serif', padding: '32px' },
+    page:  { minHeight: '100vh', background: 'var(--app-bg)', color: 'var(--t1)', fontFamily: 'Inter,sans-serif', padding: '32px' },
     h1:    { fontSize: 24, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4 },
     card:  { background: '#0A1526', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '24px' },
     stat:  { background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '16px', textAlign: 'center' },

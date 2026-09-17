@@ -56,6 +56,21 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Edge hiccup (502/503/504 or a dropped connection): the request never reached
+    // the API, or its reply was lost. Retrying a read is safe and hides the blip.
+    // Measured: the CDN rewrite in front of the API returns a small number of 502s
+    // under load while the API itself answers every request.
+    const cfg = error.config
+    const method = (cfg?.method || 'get').toLowerCase()
+    const transient = [502, 503, 504].includes(status) || (!error.response && error.code !== 'ERR_CANCELED')
+    if (cfg && method === 'get' && transient) {
+      cfg._edgeRetry = (cfg._edgeRetry || 0) + 1
+      if (cfg._edgeRetry <= 2) {
+        await new Promise((r) => setTimeout(r, 300 * cfg._edgeRetry))
+        return api(cfg)
+      }
+    }
+
     // 429 - too many requests: wait and retry automatically (up to 3 times)
     const config = error.config
     if (status === 429 && config && !config._retryCount) {
