@@ -13,7 +13,7 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const STATUS_META = {
-  scheduled:  { color: '#4C9EFF', bg: 'rgba(76,158,255,0.1)',  label: 'Scheduled'  },
+  scheduled:  { color: '#C9A84C', bg: 'rgba(201,168,76,0.1)',  label: 'Scheduled'  },
   completed:  { color: '#00C37A', bg: 'rgba(0,195,122,0.1)',   label: 'Completed'  },
   cancelled:  { color: '#FF4444', bg: 'rgba(255,68,68,0.1)',   label: 'Cancelled'  },
   rescheduled:{ color: '#FF9500', bg: 'rgba(255,149,0,0.1)',   label: 'Rescheduled'},
@@ -189,7 +189,7 @@ export default function Appointments() {
               Appointments
             </h1>
             <div style={{ display: 'flex', gap: 14 }}>
-              <span style={{ fontSize: 12, color: '#4C9EFF', fontWeight: 600 }}>
+              <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600 }}>
                 {upcoming.length} upcoming
               </span>
               <span style={{ fontSize: 12, color: '#00C37A', fontWeight: 600 }}>
@@ -253,8 +253,8 @@ export default function Appointments() {
               if (list.length === 0) {
                 return (
                   <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                    <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(76,158,255,0.06)', border: '1px solid rgba(76,158,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-                      <Calendar size={22} strokeWidth={1.3} color="#4C9EFF" />
+                    <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                      <Calendar size={22} strokeWidth={1.3} color="#C9A84C" />
                     </div>
                     <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t2)', marginBottom: 6 }}>
                       {tab === 'upcoming' ? 'No upcoming appointments' : 'No past appointments'}
@@ -300,7 +300,7 @@ export default function Appointments() {
                           <p style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{address}</p>
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <span style={{ fontSize: 12, color: '#4C9EFF', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
                             <Calendar size={11} />
                             {fmtDateTime(appt.scheduled_at)}
                           </span>
@@ -496,7 +496,7 @@ export default function Appointments() {
       {bookOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div style={{ width: 440, background: 'var(--card-bg)', backdropFilter: 'blur(32px) saturate(160%)', WebkitBackdropFilter: 'blur(32px) saturate(160%)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}>
-            <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, rgba(76,158,255,0.40), transparent)', margin: '-28px -28px 24px' }} />
+            <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.40), transparent)', margin: '-28px -28px 24px' }} />
 
             <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.02em', marginBottom: 20 }}>
               Book Appointment
@@ -541,7 +541,7 @@ export default function Appointments() {
               <button
                 onClick={handleBook}
                 disabled={booking || !bookLeadId || !bookDate}
-                style={{ flex: 1, height: 40, background: bookLeadId && bookDate ? 'rgba(76,158,255,0.15)' : 'var(--surface-bg-3)', border: `1px solid ${bookLeadId && bookDate ? 'rgba(76,158,255,0.4)' : 'var(--border)'}`, borderRadius: 8, fontSize: 13, fontWeight: 600, color: bookLeadId && bookDate ? '#4C9EFF' : 'var(--t4)', cursor: bookLeadId && bookDate ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+                style={{ flex: 1, height: 40, background: bookLeadId && bookDate ? 'rgba(201,168,76,0.15)' : 'var(--surface-bg-3)', border: `1px solid ${bookLeadId && bookDate ? 'rgba(201,168,76,0.4)' : 'var(--border)'}`, borderRadius: 8, fontSize: 13, fontWeight: 600, color: bookLeadId && bookDate ? '#C9A84C' : 'var(--t4)', cursor: bookLeadId && bookDate ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
               >
                 {booking ? 'Booking…' : 'Book Appointment'}
               </button>

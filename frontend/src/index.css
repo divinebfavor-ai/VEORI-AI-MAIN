@@ -99,9 +99,9 @@
 
   /* Text: dark slate rather than near-black, which softens the whole page */
   --t1:  #1A2230;
-  --t2:  rgba(26,34,48,0.72);
-  --t3:  rgba(26,34,48,0.50);
-  --t4:  rgba(26,34,48,0.34);
+  --t2:  rgba(26,34,48,0.80);
+  --t3:  rgba(26,34,48,0.70);
+  --t4:  rgba(26,34,48,0.67);
 
   --overlay-bg:           rgba(15,23,42,0.32);
 
@@ -151,16 +151,35 @@
 [data-theme="light"] [data-app-layout] [style*="color: rgba(255, 255, 255, 0.5"],
 [data-theme="light"] [data-app-layout] [style*="color: rgba(255, 255, 255, 0.8"],
 [data-theme="light"] [data-app-layout] [style*="color: rgba(255, 255, 255, 0.9"] {
-  color: rgba(13, 13, 15, 0.75) !important;
+  color: rgba(26, 34, 48, 0.80) !important;
 }
 [data-theme="light"] [data-app-layout] [style*="color: rgba(255, 255, 255, 0.4"],
 [data-theme="light"] [data-app-layout] [style*="color: rgba(255, 255, 255, 0.3"] {
-  color: rgba(13, 13, 15, 0.50) !important;
+  color: rgba(26, 34, 48, 0.67) !important;
 }
 [data-theme="light"] [data-app-layout] [style*="color: rgba(255, 255, 255, 0.2"],
 [data-theme="light"] [data-app-layout] [style*="color: rgba(255, 255, 255, 0.1"] {
-  color: rgba(13, 13, 15, 0.30) !important;
+  color: rgba(26, 34, 48, 0.58) !important;
 }
+
+/* Brand colours used as TEXT need darker values on a light background: the neon
+   green, gold and amber are bright by design and drop to ~2:1 contrast on white.
+   Backgrounds keep the original brand colours - only text is remapped. */
+[data-theme="light"] [data-app-layout] [style*="color: rgb(0, 195, 122)"],
+[data-theme="light"] [data-app-layout] [style*="color:#00C37A"],
+[data-theme="light"] [data-app-layout] [style*="color: #00C37A"] { color: #0A7A50 !important; }
+
+[data-theme="light"] [data-app-layout] [style*="color: rgb(201, 168, 76)"],
+[data-theme="light"] [data-app-layout] [style*="color:#C9A84C"],
+[data-theme="light"] [data-app-layout] [style*="color: #C9A84C"] { color: #7E611A !important; }
+
+[data-theme="light"] [data-app-layout] [style*="color: rgb(255, 149, 0)"],
+[data-theme="light"] [data-app-layout] [style*="color:#FF9500"],
+[data-theme="light"] [data-app-layout] [style*="color: #FF9500"] { color: #9C5400 !important; }
+
+[data-theme="light"] [data-app-layout] [style*="color: rgb(255, 68, 68)"],
+[data-theme="light"] [data-app-layout] [style*="color:#FF4444"],
+[data-theme="light"] [data-app-layout] [style*="color: #FF4444"] { color: #C62828 !important; }
 
 /* Tailwind text-white inside the app */
 [data-theme="light"] [data-app-layout] .text-white {
@@ -188,17 +207,17 @@
 }
 
 /* Preserve colored text classes exactly as-is */
-[data-theme="light"] .text-primary        { color: #00C37A !important; }
+[data-theme="light"] .text-primary        { color: #0A7A50 !important; }
 [data-theme="light"] .text-primary-hover  { color: #00A868 !important; }
-[data-theme="light"] .text-gold           { color: #B8922A !important; }
+[data-theme="light"] .text-gold           { color: #7E611A !important; }
 [data-theme="light"] .text-danger         { color: #D93030 !important; }
-[data-theme="light"] .text-warning        { color: #CC7700 !important; }
-[data-theme="light"] .text-success        { color: #00C37A !important; }
+[data-theme="light"] .text-warning        { color: #9C5400 !important; }
+[data-theme="light"] .text-success        { color: #0A7A50 !important; }
 
 /* Secondary and muted text - still black, just at lower opacity */
-[data-theme="light"] .text-text-secondary { color: rgba(13,13,15,0.68) !important; }
-[data-theme="light"] .text-text-muted     { color: rgba(13,13,15,0.48) !important; }
-[data-theme="light"] .label-caps          { color: rgba(13,13,15,0.45) !important; }
+[data-theme="light"] .text-text-secondary { color: rgba(26,34,48,0.80) !important; }
+[data-theme="light"] .text-text-muted     { color: rgba(26,34,48,0.67) !important; }
+[data-theme="light"] .label-caps          { color: rgba(26,34,48,0.67) !important; }
 
 /* Backgrounds */
 [data-theme="light"] .bg-card             { background: rgba(255,253,248,0.90) !important; }
@@ -224,17 +243,17 @@
   color: #1A2230 !important;
 }
 [data-theme="light"] [data-app-layout] input::placeholder,
-[data-theme="light"] [data-app-layout] textarea::placeholder { color: rgba(13,13,15,0.35) !important; }
+[data-theme="light"] [data-app-layout] textarea::placeholder { color: rgba(26,34,48,0.55) !important; }
 
 /* Tables */
 [data-theme="light"] tr:hover            { background: rgba(0,0,0,0.025) !important; }
 
 /* Sidebar nav */
-[data-theme="light"] .nav-item-label          { color: rgba(13,13,15,0.55) !important; }
+[data-theme="light"] .nav-item-label          { color: rgba(26,34,48,0.72) !important; }
 [data-theme="light"] .nav-item-label.active   { color: #0D0D0F !important; }
-[data-theme="light"] .nav-item-icon           { color: rgba(13,13,15,0.42) !important; }
+[data-theme="light"] .nav-item-icon           { color: rgba(26,34,48,0.62) !important; }
 [data-theme="light"] .nav-item-icon.active    { color: #00C37A !important; }
-[data-theme="light"] .status-bar-text         { color: rgba(13,13,15,0.45) !important; }
+[data-theme="light"] .status-bar-text         { color: rgba(26,34,48,0.67) !important; }
 
 /* ─── Base Reset ─────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }

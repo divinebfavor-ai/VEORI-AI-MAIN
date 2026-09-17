@@ -12,7 +12,7 @@ import { leads as leadsApi } from '../services/api'
 import usePolling from '../hooks/usePolling'
 
 const STAGES = [
-  { key: 'new',        label: 'New',        color: '#4C9EFF', bg: 'rgba(76,158,255,0.08)',  border: 'rgba(76,158,255,0.25)' },
+  { key: 'new',        label: 'New',        color: '#C9A84C', bg: 'rgba(201,168,76,0.08)',  border: 'rgba(201,168,76,0.25)' },
   { key: 'contacted',  label: 'Contacted',  color: '#FF9500', bg: 'rgba(255,149,0,0.08)',   border: 'rgba(255,149,0,0.25)' },
   { key: 'interested', label: 'Interested', color: '#C9A84C', bg: 'rgba(201,168,76,0.08)',  border: 'rgba(201,168,76,0.25)' },
   { key: 'offer_made', label: 'Offer Made', color: '#9B59B6', bg: 'rgba(155,89,182,0.08)',  border: 'rgba(155,89,182,0.25)' },

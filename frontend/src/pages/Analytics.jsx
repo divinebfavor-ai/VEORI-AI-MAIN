@@ -319,7 +319,7 @@ const PERIODS = [
   { label: 'All', value: 'all' },
 ]
 
-const DONUT_COLORS = ['#00C37A', '#C9A84C', '#4C9EFF', '#FF6B6B', '#A78BFA', '#34D399']
+const DONUT_COLORS = ['#00C37A', '#C9A84C', '#FF9500', '#FF4444', '#7FCBA4', '#B99A45']
 
 // ─── Main Analytics page ──────────────────────────────────────────────────────
 export default function Analytics() {
@@ -528,7 +528,7 @@ export default function Analytics() {
                 <YAxis tick={{ fill: 'var(--t3)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '11px', color: 'var(--t4)' }} />
-                <Line type="monotone" dataKey="New Leads" stroke="#4C9EFF" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="New Leads" stroke="#C9A84C" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Closed" stroke="#00C37A" strokeWidth={2.5} dot={{ fill: '#00C37A', r: 3 }} />
               </LineChart>
             </ResponsiveContainer>

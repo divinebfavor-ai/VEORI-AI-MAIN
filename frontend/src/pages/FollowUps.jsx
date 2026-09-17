@@ -5,7 +5,7 @@ import { followUps } from '../services/api'
 
 const TYPE_META = {
   call:      { icon: Phone,          label: 'Call',   color: '#00C37A', bg: 'rgba(0,195,122,0.1)' },
-  email:     { icon: Mail,           label: 'Email',  color: '#4C9EFF', bg: 'rgba(76,158,255,0.1)' },
+  email:     { icon: Mail,           label: 'Email',  color: '#C9A84C', bg: 'rgba(201,168,76,0.1)' },
   sms:       { icon: MessageSquare,  label: 'SMS',    color: '#C9A84C', bg: 'rgba(201,168,76,0.1)' },
   text:      { icon: MessageSquare,  label: 'Text',   color: '#C9A84C', bg: 'rgba(201,168,76,0.1)' },
   default:   { icon: Clock,          label: 'Task',   color: 'rgba(255,255,255,0.5)', bg: 'rgba(255,255,255,0.06)' },

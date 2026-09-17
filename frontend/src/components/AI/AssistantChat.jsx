@@ -33,7 +33,7 @@ function UserMsg({ content }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{
-        maxWidth: '82%', fontSize: 13, color: 'rgba(255,255,255,0.92)',
+        maxWidth: '82%', fontSize: 13, color: 'var(--t1)',
         lineHeight: 1.65, padding: '9px 14px',
         background: 'rgba(0,195,122,0.10)',
         border: '1px solid rgba(0,195,122,0.20)',
@@ -90,7 +90,7 @@ function Typing() {
         {[0, 150, 300].map(d => (
           <div key={d} style={{
             width: 5, height: 5,
-            background: 'rgba(255,255,255,0.25)',
+            background: 'var(--t3)',
             borderRadius: '50%',
             animation: 'bounce 1s ease infinite',
             animationDelay: `${d}ms`,
@@ -185,10 +185,10 @@ export default function AssistantChat() {
       >
         <div style={{
           display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden',
-          background: 'rgba(8,14,24,0.97)',
+          background: 'var(--card-bg)',
           backdropFilter: 'blur(32px) saturate(160%)',
           WebkitBackdropFilter: 'blur(32px) saturate(160%)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          border: '1px solid var(--border)',
           borderRadius: min ? 12 : '12px 12px 0 0',
           boxShadow: '-8px 0 40px rgba(0,0,0,0.50), 0 -4px 30px rgba(0,0,0,0.50)',
         }}>
@@ -204,7 +204,7 @@ export default function AssistantChat() {
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '12px 16px',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            borderBottom: '1px solid var(--border)',
             flexShrink: 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -221,7 +221,7 @@ export default function AssistantChat() {
                 <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', lineHeight: 1 }}>Veori Assistant</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
                   <span className="live-dot" style={{ width: 5, height: 5 }} />
-                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Online · Context-aware</p>
+                  <p style={{ fontSize: 10, color: 'var(--t3)' }}>Online · Context-aware</p>
                 </div>
               </div>
             </div>
@@ -231,11 +231,11 @@ export default function AssistantChat() {
                 style={{
                   width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   borderRadius: 6, background: 'none', border: 'none',
-                  color: 'rgba(255,255,255,0.35)', cursor: 'pointer',
+                  color: 'var(--t3)', cursor: 'pointer',
                   transition: 'color 0.15s',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; e.currentTarget.style.background = 'none' }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--t1)'; e.currentTarget.style.background = 'var(--surface-bg-2)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--t3)'; e.currentTarget.style.background = 'none' }}
               >
                 <Minus size={13} />
               </button>
@@ -244,11 +244,11 @@ export default function AssistantChat() {
                 style={{
                   width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   borderRadius: 6, background: 'none', border: 'none',
-                  color: 'rgba(255,255,255,0.35)', cursor: 'pointer',
+                  color: 'var(--t3)', cursor: 'pointer',
                   transition: 'color 0.15s',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; e.currentTarget.style.background = 'none' }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--t1)'; e.currentTarget.style.background = 'var(--surface-bg-2)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--t3)'; e.currentTarget.style.background = 'none' }}
               >
                 <X size={13} />
               </button>
@@ -262,10 +262,10 @@ export default function AssistantChat() {
                 {empty && (
                   <>
                     <div style={{ textAlign: 'center', paddingBottom: 6 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.80)', marginBottom: 4 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>
                         What can I help you with?
                       </p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.28)' }}>
+                      <p style={{ fontSize: 12, color: 'var(--t4)' }}>
                         I have full context on your leads, calls and deals.
                       </p>
                     </div>
@@ -276,8 +276,8 @@ export default function AssistantChat() {
                           onClick={() => send(p.q)}
                           style={{
                             display: 'flex', flexDirection: 'column', gap: 6,
-                            background: 'rgba(255,255,255,0.03)',
-                            border: '1px solid rgba(255,255,255,0.07)',
+                            background: 'var(--surface-bg)',
+                            border: '1px solid var(--border)',
                             borderRadius: 10, padding: '12px 12px',
                             textAlign: 'left', cursor: 'pointer',
                             transition: 'all 0.15s ease',
@@ -287,12 +287,12 @@ export default function AssistantChat() {
                             e.currentTarget.style.borderColor = 'rgba(0,195,122,0.20)'
                           }}
                           onMouseLeave={e => {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'
+                            e.currentTarget.style.background = 'var(--surface-bg)'
+                            e.currentTarget.style.borderColor = 'var(--border)'
                           }}
                         >
                           <p.icon size={13} style={{ color: '#00C37A' }} />
-                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4 }}>{p.label}</span>
+                          <span style={{ fontSize: 11, color: 'var(--t3)', lineHeight: 1.4 }}>{p.label}</span>
                         </button>
                       ))}
                     </div>
@@ -308,16 +308,16 @@ export default function AssistantChat() {
               </div>
 
               {/* Input */}
-              <div style={{ flexShrink: 0, padding: '10px 12px 14px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ flexShrink: 0, padding: '10px 12px 14px', borderTop: '1px solid var(--border)' }}>
                 <div style={{
                   display: 'flex', alignItems: 'flex-end', gap: 8,
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--border)',
                   borderRadius: 11, padding: '10px 12px',
                   transition: 'border-color 0.15s ease',
                 }}
                   onFocusCapture={e => { e.currentTarget.style.borderColor = 'rgba(0,195,122,0.35)' }}
-                  onBlurCapture={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+                  onBlurCapture={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
                 >
                   <textarea
                     ref={taRef}
@@ -329,7 +329,7 @@ export default function AssistantChat() {
                     disabled={loading}
                     style={{
                       flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                      resize: 'none', fontSize: 13, color: 'rgba(255,255,255,0.88)',
+                      resize: 'none', fontSize: 13, color: 'var(--t1)',
                       lineHeight: 1.55, maxHeight: 100,
                       fontFamily: 'inherit',
                       caretColor: '#00C37A',

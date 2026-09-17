@@ -108,7 +108,7 @@ export default function MissedCalls() {
             <div style={{ display: 'flex', gap: 16 }}>
               <span style={{ fontSize: 12, color: 'var(--t3)' }}>{missedCalls.length} missed calls</span>
               <span style={{ fontSize: 12, color: '#00C37A', fontWeight: 600 }}>{smsCount} SMS sent</span>
-              <span style={{ fontSize: 12, color: '#4C9EFF', fontWeight: 600 }}>{repliedCount} replied</span>
+              <span style={{ fontSize: 12, color: '#C9A84C', fontWeight: 600 }}>{repliedCount} replied</span>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -213,7 +213,7 @@ export default function MissedCalls() {
                         {label}
                       </span>
                       {mc.replied && (
-                        <span style={{ fontSize: 10, fontWeight: 600, color: '#4C9EFF', display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#C9A84C', display: 'flex', alignItems: 'center', gap: 3 }}>
                           <MessageSquare size={9} /> Replied
                         </span>
                       )}

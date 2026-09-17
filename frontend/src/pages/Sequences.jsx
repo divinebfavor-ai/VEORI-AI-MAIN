@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 import { sequences as seqApi, leads as leadsApi } from '../services/api'
 
 const SEQUENCE_TYPES = [
-  { key: 'not_interested',     label: '7-Day Re-Engagement',    desc: 'For leads who said no or did not answer',  color: '#4C9EFF', steps: 6 },
+  { key: 'not_interested',     label: '7-Day Re-Engagement',    desc: 'For leads who said no or did not answer',  color: '#C9A84C', steps: 6 },
   { key: 'callback_requested', label: 'Callback Follow-Up',      desc: 'Confirm and follow up on scheduled calls', color: '#C9A84C', steps: 3 },
   { key: 'offer_considering',  label: 'Offer Consideration',     desc: 'Nurture leads reviewing your offer',       color: '#9B59B6', steps: 4 },
   { key: 'contract_sent',      label: 'Contract Follow-Up',      desc: 'Remind seller to sign the contract',       color: '#FF9500', steps: 3 },
@@ -20,7 +20,7 @@ const SEQUENCE_TYPES = [
 
 const STATUS_META = {
   active:    { color: '#00C37A', bg: 'rgba(0,195,122,0.1)',   label: 'Active'    },
-  completed: { color: '#4C9EFF', bg: 'rgba(76,158,255,0.1)',  label: 'Completed' },
+  completed: { color: '#C9A84C', bg: 'rgba(201,168,76,0.1)',  label: 'Completed' },
   cancelled: { color: '#FF4444', bg: 'rgba(255,68,68,0.1)',   label: 'Cancelled' },
 }
 
@@ -134,7 +134,7 @@ export default function Sequences() {
             <div style={{ display: 'flex', gap: 16 }}>
               {[
                 { label: 'Active',    val: stats.active,    color: '#00C37A' },
-                { label: 'Completed', val: stats.completed, color: '#4C9EFF' },
+                { label: 'Completed', val: stats.completed, color: '#C9A84C' },
                 { label: 'Cancelled', val: stats.cancelled, color: '#FF4444' },
               ].map(s => (
                 <span key={s.label} style={{ fontSize: 12, color: s.color, fontWeight: 600 }}>
@@ -291,7 +291,7 @@ export default function Sequences() {
                     <div style={{
                       height: '100%',
                       width: `${progress}%`,
-                      background: seq.status === 'completed' ? '#4C9EFF' : seqDef?.color || '#00C37A',
+                      background: seq.status === 'completed' ? '#C9A84C' : seqDef?.color || '#00C37A',
                       borderRadius: 2,
                       transition: 'width 0.3s ease',
                     }} />
