@@ -40,7 +40,7 @@ const apiKeyRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new (require('./rateLimits').SharedStore)('public_api_key'),
-  keyGenerator: (req) => `key:${req.apiKey?.id || req.ip}`,
+  keyGenerator: (req) => `key:${req.apiKey?.id || require('../utils/clientIp').clientKeyIp(req)}`,
   message: { error: { code: 'rate_limited', message: `Limit is ${perMinute} requests per minute per key` } },
 });
 

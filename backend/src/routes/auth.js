@@ -23,10 +23,7 @@ const { sendSMS } = require('../services/smsService');
 
 function getGeoFromRequest(req) {
   try {
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip = forwarded ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || '';
-    const cleanIp = ip.replace('::ffff:', '');
-    const geo = geoip.lookup(cleanIp);
+    const geo = geoip.lookup(require('../utils/clientIp').clientIp(req) || '');
     if (!geo) return {};
     return {
       country_code: geo.country  || null,

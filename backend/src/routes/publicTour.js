@@ -53,7 +53,7 @@ router.post('/:token/view', async (req, res) => {
 
     await supabase.from('tour_views').insert({
       tour_id:      tour.id,
-      viewer_ip:    req.ip || null,
+      viewer_ip:    require('../utils/clientIp').clientIp(req),
       viewer_agent: req.headers['user-agent'] || null,
       duration_sec: duration_sec || 0,
       source:       source || 'direct',

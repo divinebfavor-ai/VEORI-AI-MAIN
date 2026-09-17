@@ -51,7 +51,7 @@ async function log({ userId = null, action, resource = null, metadata = {}, req 
       action,
       resource,
       metadata,
-      ip_address: req ? (req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || null) : null,
+      ip_address: req ? require('../utils/clientIp').clientIp(req) : null,
       user_agent: req ? (req.headers['user-agent'] || null) : null,
       created_at: new Date().toISOString(),
     };

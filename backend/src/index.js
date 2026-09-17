@@ -28,6 +28,7 @@ const morgan  = require('morgan');
 const rateLimit = require('express-rate-limit');
 const { endpointRateLimits, SharedStore } = require('./middleware/rateLimits');
 const { isSignedByTwilio } = require('./middleware/twilioWebhook');
+const { clientKeyIp } = require('./utils/clientIp');
 const jwt     = require('jsonwebtoken');
 
 const supabaseClient = require('./config/supabase');
@@ -70,21 +71,9 @@ const PORT = process.env.PORT || 3001;
 
 // ─── Trust Railway/Vercel reverse proxy ───────────────────────────────────────
 // Required for express-rate-limit to correctly read X-Forwarded-For
-app.set('trust proxy', 1);
-// TEMP diagnostic (removed in the next commit): masked forwarding chain for probe requests.
-app.use((req, _res, next) => {
-  if (req.get('user-agent') === 'veori-ip-probe') {
-    const mask = (v) => String(v || '').split(',').map(x => x.trim().replace(/\.\d+$/, '.x').replace(/:[0-9a-f]*$/i, ':x')).join(' | ');
-    console.log('[ip-probe]', JSON.stringify({
-      xff: mask(req.headers['x-forwarded-for']), real: mask(req.headers['x-real-ip']),
-      vercel: mask(req.headers['x-vercel-forwarded-for']), envoy: mask(req.headers['x-envoy-external-address']),
-      cf: mask(req.headers['cf-connecting-ip']), fastly: mask(req.headers['fastly-client-ip']), socket: mask(req.socket.remoteAddress),
-      has_vercel_id: !!req.headers['x-vercel-id'], forwarded_host: req.headers['x-forwarded-host'] || null,
-    }));
-  }
-  next();
-});
-
+// Railway sends requests through its edge and an internal proxy: two hops.
+// The visitor's address is resolved in utils/clientIp.js.
+app.set('trust proxy', 2);
 // ─── Security Headers (Helmet hardened) ──────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: false,          // handled by Vercel frontend
@@ -181,6 +170,7 @@ app.use('/api/', rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new SharedStore('global_anon'),
+  keyGenerator: clientKeyIp,
   // A VERIFIED session skips this limit. /api/v1 (API-key traffic) has its own
   // limiters: one per IP before authentication, one per key after it. Twilio's
   // signed callbacks skip it too: a busy campaign sends Twilio status and inbound
@@ -199,7 +189,7 @@ app.use('/api/', rateLimit({
   skip: (req) => !verifiedUserId(req), // only applies to verified sessions
   // Keyed on the verified user id - not a caller-controlled string - so the
   // counter cannot be reset by changing the token.
-  keyGenerator: (req) => verifiedUserId(req) || req.ip,
+  keyGenerator: (req) => verifiedUserId(req) || clientKeyIp(req),
   message: { success: false, error: 'You\'re moving fast! Give it a second and try again.' },
 }));
 
@@ -212,6 +202,7 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, max: 10,
   standardHeaders: true, legacyHeaders: false,
   store: new SharedStore('auth'),
+  keyGenerator: clientKeyIp,
   message: { success: false, error: 'Too many attempts. Try again in 15 minutes.' },
   skipSuccessfulRequests: true, // only count failed requests
 });
@@ -510,6 +501,7 @@ app.use('/api/v1', rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: new SharedStore('public_api_ip'),
+  keyGenerator: clientKeyIp,
   message: { error: { code: 'rate_limited', message: 'Too many requests from this address' } },
 }));
 app.use('/api/v1', require('./routes/publicApi'));

@@ -37,12 +37,10 @@ router.post('/visit', async (req, res) => {
     const { session_id, referrer, page } = req.body || {};
 
     // Get IP
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip = forwarded ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || '';
-    const cleanIp = ip.replace('::ffff:', '');
+    const cleanIp = require('../utils/clientIp').clientIp(req);
 
     // Geo lookup
-    const geo = geoip.lookup(cleanIp) || {};
+    const geo = (cleanIp && geoip.lookup(cleanIp)) || {};
 
     // Deduplicate - same session in same hour = don't double count
     if (session_id) {

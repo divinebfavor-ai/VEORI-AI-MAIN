@@ -14,6 +14,7 @@ const jwt = require('jsonwebtoken');
 const IORedis = require('ioredis');
 const { rateLimit, MemoryStore } = require('express-rate-limit');
 const { sanitizeRedisUrl } = require('../services/queueService');
+const { clientKeyIp } = require('../utils/clientIp');
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
@@ -101,7 +102,7 @@ function verifiedUserId(req) {
 
 function clientKey(req) {
   const uid = verifiedUserId(req);
-  return uid ? `u:${uid}` : `ip:${req.ip}`;
+  return uid ? `u:${uid}` : `ip:${clientKeyIp(req)}`;
 }
 
 // ── Policies ──────────────────────────────────────────────────────────────────

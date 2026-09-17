@@ -17,7 +17,7 @@ router.post('/chat', optionalAuth, async (req, res, next) => {
     }
 
     const { checkAndConsume, LIMITS } = require('../services/usageLimitService');
-    const key      = req.user?.id || `ip:${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`;
+    const key      = req.user?.id || `ip:${require('../utils/clientIp').clientKeyIp(req)}`;
     const ceiling  = req.user?.id ? LIMITS.aria_chat : LIMITS.aria_chat_anon;
     const quota    = await checkAndConsume(key, 'aria_chat', ceiling);
     if (!quota.allowed) {

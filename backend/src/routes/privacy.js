@@ -33,7 +33,7 @@ const SAFE_USER_COLS = [
 
 function clientMeta(req) {
   return {
-    ip:         req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || null,
+    ip:         require('../utils/clientIp').clientIp(req),
     user_agent: req.headers['user-agent'] || null,
   };
 }
