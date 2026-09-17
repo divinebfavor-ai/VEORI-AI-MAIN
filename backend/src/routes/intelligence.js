@@ -16,6 +16,9 @@ const superAgent = require('../intelligence/superAgent');
 const core = require('../intelligence/calc/core');
 const strategies = require('../intelligence/calc/strategies');
 const breakEven = require('../intelligence/calc/breakEven');
+const monitor = require('../intelligence/engines/monitor');
+const autopilot = require('../intelligence/engines/autopilot');
+const { AGENTS } = require('../intelligence/agents');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -346,6 +349,51 @@ router.get('/audit', wrap(async (req, res) => {
   const dealId = req.query.deal_id && UUID_RE.test(req.query.deal_id) ? req.query.deal_id : null;
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
   res.json({ success: true, data: await audit.list(req.user.id, { dealId, limit }) });
+}));
+
+// ── Monitoring, Autopilot, Opportunities ────────────────────────────────────
+router.get('/alerts', wrap(async (req, res) => {
+  const status = req.query.status === 'all' ? null : (req.query.status || 'open');
+  if (status && !['open', 'resolved', 'dismissed'].includes(status)) return res.status(400).json({ success: false, error: 'Invalid status' });
+  res.json({ success: true, data: await monitor.listAlerts(req.user.id, { status, limit: parseInt(req.query.limit, 10) || 100 }) });
+}));
+
+router.get('/deals/:id/alerts', wrap(async (req, res) => {
+  const dealId = dealIdOr404(req, res); if (!dealId) return;
+  const status = req.query.status === 'all' ? null : (req.query.status || 'open');
+  if (status && !['open', 'resolved', 'dismissed'].includes(status)) return res.status(400).json({ success: false, error: 'Invalid status' });
+  res.json({ success: true, data: await monitor.listAlerts(req.user.id, { dealId, status }) });
+}));
+
+// Re-check a deal now instead of waiting for the sweep.
+router.post('/deals/:id/monitor', wrap(async (req, res) => {
+  const dealId = dealIdOr404(req, res); if (!dealId) return;
+  const r = await monitor.checkDeal({ userId: req.user.id, dealId });
+  if (!r) return res.status(404).json({ success: false, error: 'Deal not found' });
+  res.json({ success: true, data: { applicable: r.applicable, days_to_close: r.days_to_close, opened: r.opened.length, resolved: r.resolved, alerts: await monitor.listAlerts(req.user.id, { dealId }) } });
+}));
+
+router.post('/alerts/:alertId/:action(resolve|dismiss)', wrap(async (req, res) => {
+  if (!UUID_RE.test(req.params.alertId)) return res.status(404).json({ success: false, error: 'Alert not found' });
+  const status = req.params.action === 'resolve' ? 'resolved' : 'dismissed';
+  res.json({ success: true, data: await monitor.closeAlert({ userId: req.user.id, alertId: req.params.alertId, actorUserId: req.user.actorId, status }) });
+}));
+
+router.post('/deals/:id/autopilot/run', wrap(async (req, res) => {
+  const dealId = dealIdOr404(req, res); if (!dealId) return;
+  if (!canDecide(req)) return res.status(403).json({ success: false, error: 'Only the owner or a team admin can run Autopilot' });
+  res.json({ success: true, data: await autopilot.run({ userId: req.user.id, actorUserId: req.user.actorId, dealId, triggeredBy: 'operator' }) });
+}));
+
+router.get('/deals/:id/autopilot/runs', wrap(async (req, res) => {
+  const dealId = dealIdOr404(req, res); if (!dealId) return;
+  res.json({ success: true, data: await autopilot.listRuns(req.user.id, dealId, { limit: parseInt(req.query.limit, 10) || 20 }) });
+}));
+
+router.get('/opportunities', wrap(async (req, res) => {
+  const out = await AGENTS.opportunity_discovery.run({ userId: req.user.id, actorUserId: req.user.actorId, command: 'Opportunity discovery' });
+  if (out.status === 'error') return res.status(500).json({ success: false, error: out.summary });
+  res.json({ success: true, data: out });
 }));
 
 // ── Calculation engine (What-If) ────────────────────────────────────────────

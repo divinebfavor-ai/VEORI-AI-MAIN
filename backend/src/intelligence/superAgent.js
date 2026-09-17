@@ -26,7 +26,10 @@ const INTENTS = {
   creative_finance: { label: 'Creative finance options', agents: ['creative_finance', 'subject_to', 'seller_finance', 'financing', 'title_intelligence', 'risk', 'challenger'] },
   biggest_risk: { label: 'Biggest risks', agents: ['valuation', 'arv', 'wholesale', 'title_intelligence', 'transaction_coordinator', 'financing', 'buyer_matching', 'risk', 'challenger'] },
   exit_strategies: { label: 'Exit strategies', agents: ['valuation', 'arv', 'wholesale', 'creative_finance', 'subject_to', 'seller_finance', 'financing', 'disposition', 'buyer_matching', 'challenger'] },
-  deal_not_working: { label: 'Why the deal is not working', agents: ['valuation', 'arv', 'wholesale', 'title_intelligence', 'transaction_coordinator', 'buyer_matching', 'risk', 'challenger'] },
+  deal_not_working: { label: 'Why the deal is not working', agents: ['valuation', 'arv', 'wholesale', 'title_intelligence', 'transaction_coordinator', 'buyer_matching', 'rehab_estimation', 'deal_death_prevention', 'risk', 'deal_rescue', 'challenger'] },
+  contract_health: { label: 'Will this contract close?', agents: ['deal_death_prevention', 'title_intelligence', 'transaction_coordinator', 'buyer_matching', 'risk', 'challenger'] },
+  market: { label: 'Market intelligence', agents: ['market_intelligence'] },
+  opportunities: { label: 'Opportunity discovery', agents: ['opportunity_discovery'] },
   missing_information: { label: 'Missing information', agents: ['lead_intelligence', 'valuation', 'arv', 'wholesale', 'subject_to', 'title_intelligence'] },
   what_if_price: { label: 'What if the price changes', agents: ['wholesale', 'creative_finance', 'subject_to', 'seller_finance', 'challenger'] },
   find_buyers: { label: 'Find buyers', agents: ['arv', 'wholesale', 'disposition', 'buyer_matching'] },
@@ -61,11 +64,15 @@ const DEPENDS_ON = {
   disposition: ['wholesale', 'arv'],
   buyer_matching: ['wholesale'],
   creative_finance: ['wholesale'],
+  deal_rescue: ['*'],
   risk: ['*'],
   challenger: ['*'],
 };
 
 const RULES = [
+  [/\b(opportunit|hidden deals?|find (me )?deals|best leads to (pursue|work))/i, 'opportunities'],
+  [/\b(market (data|trends?|stats|statistics|intelligence|changes?)|what changed in (the|my) market|days on market)/i, 'market'],
+  [/\b(will (this|it) close|contract health|closing risk|deal (death|die))/i, 'contract_health'],
   [/\b(portfolio|all (my|of my) deals|what needs attention)\b/i, 'portfolio'],
   [/\b(underwrit|sources and uses)/i, 'underwriting'],
   [/\b(due diligence|diligence|checklist)\b/i, 'due_diligence'],
@@ -119,14 +126,17 @@ async function classify(command) {
 }
 
 // Order agents into waves: each wave runs concurrently after its dependencies finish.
+const FINAL_ORDER = ['risk', 'deal_rescue', 'challenger'];
+
 function planWaves(agentIds) {
   const inPlan = new Set(agentIds);
   const deps = (id) => {
     const d = DEPENDS_ON[id] || [];
     if (d.includes('*')) {
-      // "After everything" skips agents that themselves wait on this one (e.g. underwriting reads risk),
-      // and the Challenger always goes last.
-      return agentIds.filter(a => a !== id && !(DEPENDS_ON[a] || []).includes(id) && !(id !== 'challenger' && a === 'challenger'));
+      // "After everything" skips agents that themselves wait on this one (e.g. underwriting reads risk)
+      // and later "after everything" agents: risk, then deal_rescue, then the Challenger last.
+      const rank = FINAL_ORDER.indexOf(id);
+      return agentIds.filter(a => a !== id && !(DEPENDS_ON[a] || []).includes(id) && !(FINAL_ORDER.indexOf(a) >= rank));
     }
     return d.filter(x => inPlan.has(x));
   };
@@ -223,14 +233,14 @@ async function persistBna(userId, dealId, runId, action) {
  * @param {boolean} [p.refresh]   force provider refresh of the understanding
  * @param {function} [p.onEvent]  stream callback
  */
-async function run({ userId, actorUserId = null, dealId, command, inputs = {}, refresh = false, onEvent = () => {}, tools = null, useModel = true }) {
+async function run({ userId, actorUserId = null, dealId, command, intent: forcedIntent = null, inputs = {}, refresh = false, onEvent = () => {}, tools = null, useModel = true }) {
   if (!userId) throw new Error('userId is required');
   const emit = (type, payload = {}) => { try { onEvent({ type, at: new Date().toISOString(), ...payload }); } catch { /* stream closed */ } };
   const cmd = cleanText(command || 'Analyze this deal', 1000);
   const injection = detectInjection(cmd);
   emit('stage', { stage: 'understand', message: 'Analyzing deal...' });
 
-  const { intent, method } = await classify(cmd);
+  const { intent, method } = forcedIntent && INTENTS[forcedIntent] ? { intent: forcedIntent, method: 'caller' } : await classify(cmd);
   const intentDef = INTENTS[intent];
   const requestInputs = { ...(inputs || {}) };
   if (intent === 'what_if_price' && requestInputs.asking_price == null) {
@@ -276,7 +286,7 @@ async function run({ userId, actorUserId = null, dealId, command, inputs = {}, r
       emit('agent_started', { agent: agentId, name: registry.get(agentId)?.name });
       const out = await AGENTS[agentId].run({
         userId, actorUserId, dealId, runId, command: cmd, understanding, inputs: requestInputs,
-        priorOutputs: { ...outputs }, settings, tools, disagreements, useModel,
+        priorOutputs: { ...outputs }, settings, tools, disagreements, useModel, dealUpdatedAt: existing.updated_at,
       });
       outputs[agentId] = out;
       emit('agent_completed', { agent: agentId, name: registry.get(agentId)?.name, status: out.status, summary: out.summary, confidence: out.confidence, positions: out.positions, output_id: out.output_id || null });

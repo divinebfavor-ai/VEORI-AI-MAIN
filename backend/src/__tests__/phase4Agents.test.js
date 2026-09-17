@@ -30,10 +30,10 @@ const rep = (over = {}, worksheets = {}) => {
 };
 const run = (id, r, extra = {}) => AGENTS[id].run({ userId: 'u1', dealId: 'd1', understanding: r, inputs: {}, priorOutputs: {}, useModel: false, ...extra }, { persist: false });
 
-test('all 42 agents are registered and none throws on a sparse deal', async () => {
-  assert.strictEqual(Object.keys(AGENTS).length, 42);
+test('all 46 agents are registered and none throws on a sparse deal', async () => {
+  assert.strictEqual(Object.keys(AGENTS).length, 46);
   const sparse = rep({ deal: { arv: null, repair_estimate: null, seller_agreed_price: null, buyer_price: null }, lead: { estimated_value: null, mortgage_balance: null, est_monthly_payment: null } });
-  const dbTools = { supabase: { rpc: async () => ({ data: { leads: 0 }, error: null }), from: () => ({ select() { return this; }, eq() { return this; }, in() { return this; }, or() { return this; }, order() { return this; }, limit: async () => ({ data: [], error: null }), then: undefined }) }, matchBuyers: async () => [] };
+  const dbTools = { supabase: { rpc: async () => ({ data: { leads: 0 }, error: null }), from: () => ({ select() { return this; }, eq() { return this; }, in() { return this; }, or() { return this; }, not() { return this; }, order() { return this; }, limit: async () => ({ data: [], error: null }), then: undefined }) }, matchBuyers: async () => [] };
   for (const id of Object.keys(AGENTS)) {
     const out = await run(id, sparse, { tools: dbTools });
     assert.notStrictEqual(out.status, 'error', `${id}: ${out.summary}`);

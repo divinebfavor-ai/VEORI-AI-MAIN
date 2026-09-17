@@ -19,6 +19,7 @@ const { contractAssignment, doubleClose, leaseOption, novation, dscrAgent, hardM
 const { landAcquisition, landDevelopment, multifamily, commercial, selfStorage } = require('./assetTypes');
 const { leadScoring, leadGeneration, negotiation, buyerIntelligence, portfolio } = require('./pipeline');
 const { comparableSales, underwriting, dueDiligence, realEstateLaw, rehabEstimation, constructionManagement } = require('./diligence');
+const { dealDeathPrevention, dealRescue, marketIntelligence, opportunityDiscovery } = require('./autonomous');
 
 const legacyStatus = process.env.AGENTS_ENABLED === 'true' ? 'active' : 'flagged_off';
 const legacy = (id, name, domain, capabilities, permissions, risk_level) => registry.declare({
@@ -41,6 +42,7 @@ const AGENTS = Object.fromEntries([
   fixFlip, buyHold, brrrr, rentalProperty, contractAssignment, doubleClose, leaseOption, novation, dscrAgent, hardMoney, equityJv,
   landAcquisition, landDevelopment, multifamily, commercial, selfStorage, leadScoring, leadGeneration, negotiation, buyerIntelligence, portfolio,
   comparableSales, underwriting, dueDiligence, realEstateLaw, rehabEstimation, constructionManagement,
+  dealDeathPrevention, dealRescue, marketIntelligence, opportunityDiscovery,
 ].map(a => [a.id, a]));
 
 const handoffProblems = registry.validateHandoffs();

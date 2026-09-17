@@ -517,6 +517,37 @@ require('./intelligence/registry').syncToDatabase()
   .then(n => console.log(`[Intelligence] ${n} agents registered`))
   .catch(err => console.error('[Intelligence] registry sync failed:', err.message));
 
+// Deal Death Prevention sweep: deterministic checks on every under-contract deal
+// (no model calls). Deals are claimed per interval, so overlapping servers never
+// double-check. Disable with DEAL_MONITOR=off.
+if (String(process.env.DEAL_MONITOR || 'on') !== 'off') {
+  const monitor = require('./intelligence/engines/monitor');
+  let monitoring = false;
+  setInterval(() => {
+    if (monitoring) return;
+    monitoring = true;
+    monitor.sweep()
+      .then(s => { if (s.opened || s.resolved || s.failed || s.closed_out) console.log('[DealMonitor]', JSON.stringify(s)); })
+      .catch(err => console.error('[DealMonitor] sweep failed:', err.message))
+      .finally(() => { monitoring = false; });
+  }, (Number(process.env.DEAL_MONITOR_SWEEP_MS) || 5 * 60 * 1000));
+}
+
+// Autopilot background runs are opt-in (AUTOPILOT_SWEEP_ENABLED=true). Operators can
+// always run Autopilot on a deal from the Deal Room.
+if (process.env.AUTOPILOT_SWEEP_ENABLED === 'true') {
+  const autopilotEngine = require('./intelligence/engines/autopilot');
+  let piloting = false;
+  setInterval(() => {
+    if (piloting) return;
+    piloting = true;
+    autopilotEngine.sweep()
+      .then(s => console.log('[Autopilot] sweep', JSON.stringify(s)))
+      .catch(err => console.error('[Autopilot] sweep failed:', err.message))
+      .finally(() => { piloting = false; });
+  }, (Number(process.env.AUTOPILOT_SWEEP_MS) || 60 * 60 * 1000));
+}
+
 // Webhook retry sweep. Each delivery is claimed before sending, so overlapping
 // sweeps (or a sweep racing an immediate send) never deliver the same row twice.
 {

@@ -356,7 +356,7 @@ async function persistGraph(userId, records, rep, provider) {
  * Build (or rebuild) the deal understanding.
  * @returns {Promise<object|null>} understanding, or null if the deal isn't this tenant's
  */
-async function build(userId, dealId, { refreshProviders = true, actorUserId = null, runId = null } = {}) {
+async function build(userId, dealId, { refreshProviders = true, actorUserId = null, runId = null, recordAudit = true } = {}) {
   const records = await loadRecords(userId, dealId);
   if (!records) return null;
   const previous = records.deal.understanding && typeof records.deal.understanding === 'object' ? records.deal.understanding : {};
@@ -386,14 +386,14 @@ async function build(userId, dealId, { refreshProviders = true, actorUserId = nu
   const { error } = await supabase.from('deals').update({ understanding: rep, understanding_updated_at: rep.meta.built_at, ...(propertyId && !records.deal.property_id ? { property_id: propertyId } : {}) })
     .eq('id', dealId).eq('user_id', userId);
   if (error) throw error;
-  await audit.record({ userId, dealId, runId, actorUserId, agentId: 'deal_understanding_engine', actionType: 'deal.understanding.built',
+  if (recordAudit) await audit.record({ userId, dealId, runId, actorUserId, agentId: 'deal_understanding_engine', actionType: 'deal.understanding.built',
     inputs: { refresh_providers: refreshProviders, address_present: !!address }, outputs: { unknowns: rep.unknowns.length, conflicts: rep.conflicts.length, data_gaps: gaps } });
   return rep;
 }
 
 async function get(userId, dealId) {
   if (!UUID_RE.test(String(dealId))) return null;
-  const { data, error } = await supabase.from('deals').select('id, understanding, understanding_updated_at').eq('id', dealId).eq('user_id', userId).maybeSingle();
+  const { data, error } = await supabase.from('deals').select('id, understanding, understanding_updated_at, updated_at').eq('id', dealId).eq('user_id', userId).maybeSingle();
   if (error) throw error;
   return data || null;
 }
