@@ -70,3 +70,12 @@ test('opt-out: keywords and plain requests count; a YES or "stop by" does not', 
   assert.strictEqual(isOptIn('START'), true);
   assert.strictEqual(isOptIn('YES'), false);
 });
+
+test('list sources keep their tag when leads are re-tagged', () => {
+  const { detectPrimaryTag } = require('../services/leadTaggingService');
+  assert.strictEqual(detectPrimaryTag({ source: 'probate_list' }).tag, 'probate');
+  assert.strictEqual(detectPrimaryTag({ source: 'divorce_list' }).tag, 'divorce');
+  assert.strictEqual(detectPrimaryTag({ source: 'pre_foreclosure_list' }).tag, 'pre_foreclosure');
+  assert.strictEqual(detectPrimaryTag({ source: 'tax_delinquent_list' }).tag, 'tax_delinquent');
+  assert.strictEqual(detectPrimaryTag({ source: 'csv_import', motivation_indicators: ['going through a divorce'] }).tag, 'divorce');
+});

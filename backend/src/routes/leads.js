@@ -626,6 +626,15 @@ router.post('/bulk', async (req, res, next) => {
     const smsConsent = req.body.sms_consent === true;
     const consentAt = smsConsent ? new Date().toISOString() : null;
 
+    // Optional list type for files bought from a list vendor (probate, divorce, ...).
+    // Every row is tagged with it, and rows WITHOUT a phone are kept for skip tracing -
+    // court-sourced lists usually arrive with names and addresses only.
+    const LIST_TYPES = ['probate', 'divorce', 'inherited', 'pre_foreclosure', 'tax_delinquent', 'vacant', 'absentee_owner'];
+    const listType = req.body.list_type == null || req.body.list_type === '' ? null : req.body.list_type;
+    if (listType !== null && !LIST_TYPES.includes(listType)) {
+      return res.status(400).json({ success: false, error: `list_type must be one of ${LIST_TYPES.join(', ')}` });
+    }
+
     // Hard cap: one import request handles at most 10,000 rows. Larger files must be
     // split client-side - an unbounded array here means an unbounded DNC .in() query,
     // an unbounded map, and a request body big enough to stall the event loop.
@@ -642,9 +651,18 @@ router.post('/bulk', async (req, res, next) => {
     // skipped and counted, not stored in a shape nothing can match.
     const { toE164 } = require('../utils/phone');
     let invalidPhones = 0;
+    let missingPhones = 0;
     const withPhones = [];
     for (const l of leads) {
-      const raw = l?.phone || l?.['Phone'] || '';
+      const raw = String(l?.phone || l?.['Phone'] || '').trim();
+      if (!raw && listType) {
+        // A list row with no phone is kept only if it identifies a property.
+        const addr = String(l?.property_address || l?.['Property Address'] || l?.address || '').trim();
+        if (!addr) { invalidPhones += 1; continue; }
+        missingPhones += 1;
+        withPhones.push({ ...l, phone: null });
+        continue;
+      }
       const e164 = toE164(raw);
       if (!e164) { invalidPhones += 1; continue; }
       withPhones.push({ ...l, phone: e164 });
@@ -652,7 +670,7 @@ router.post('/bulk', async (req, res, next) => {
 
     // DNC numbers among them (E.164 on both sides), in chunks to bound the query.
     const dncSet = new Set();
-    const phoneList = [...new Set(withPhones.map(l => l.phone))];
+    const phoneList = [...new Set(withPhones.map(l => l.phone).filter(Boolean))];
     for (let i = 0; i < phoneList.length; i += 500) {
       const { data: dncData, error: dncErr } = await supabase.from('dnc_records').select('phone').in('phone', phoneList.slice(i, i + 500)).is('revoked_at', null);
       if (dncErr) {
@@ -678,11 +696,13 @@ router.post('/bulk', async (req, res, next) => {
       property_type:    l.property_type    || l['Type']    || '',
       estimated_value:  parseNum(l.estimated_value  || l['Estimated Value']  || l['AVM']),
       estimated_equity: parseNum(l.estimated_equity || l['Estimated Equity'] || l['Equity']),
-      source: l.source || l['Source'] || 'csv_import',
-      is_on_dnc: dncSet.has(l.phone),
-      status: dncSet.has(l.phone) ? 'dnc' : 'new',
+      source: listType ? `${listType}_list` : (l.source || l['Source'] || 'csv_import'),
+      ...(listType ? { primary_tag: listType, tags: [listType], tag_reason: `Imported from a ${listType.replace(/_/g, ' ')} list`, tag_confidence: 95, tagged_at: new Date().toISOString() } : {}),
+      ...(listType === 'probate' ? { probate_case: true } : {}),
+      is_on_dnc: !!l.phone && dncSet.has(l.phone),
+      status: l.phone && dncSet.has(l.phone) ? 'dnc' : 'new',
       ...(smsConsent ? { consent: true, consent_source: 'operator_attestation_csv_import', consent_at: consentAt } : {}),
-    })).filter(r => r.phone);
+    })).filter(r => r.phone || (listType && r.property_address));
 
     // Deduplicate within the batch AND against what the operator already has, using a
     // NORMALIZED phone signature so "+1 (704) 555-0000" and "7045550000" collapse to
@@ -692,13 +712,24 @@ router.post('/bulk', async (req, res, next) => {
     // pull - if it fails we still dedup within the batch and lean on the unique index.
     let existingKeys = new Set();
     try {
-      const { data: existingRows } = await supabase
-        .from('leads')
-        .select('phone, first_name, last_name, property_address')
-        .eq('user_id', req.user.id);
-      for (const r of (existingRows || [])) {
-        const k = phoneKey(r.phone) ? `ph:${phoneKey(r.phone)}` : identityKey(r);
-        if (k) existingKeys.add(k);
+      // Paged: a single select stops at the API's 1,000-row cap, so leads past the
+      // first thousand were never compared.
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data: existingRows, error: scanErr } = await supabase
+          .from('leads')
+          .select('phone, first_name, last_name, property_address')
+          .eq('user_id', req.user.id)
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (scanErr) throw scanErr;
+        for (const r of (existingRows || [])) {
+          if (phoneKey(r.phone)) existingKeys.add(`ph:${phoneKey(r.phone)}`);
+          // Also by name + address, so a phoneless list row matches an owner already on file.
+          const idk = identityKey(r);
+          if (idk) existingKeys.add(idk);
+        }
+        if (!existingRows || existingRows.length < PAGE) break;
       }
     } catch (e) {
       console.warn('[Leads import] existing-key scan skipped:', e.message);
@@ -713,7 +744,7 @@ router.post('/bulk', async (req, res, next) => {
       return true;
     });
     // Rows filtered here as already-owned never reach the upsert, so count them as skips.
-    const preFiltered = records.filter(r => r.phone).length - unique.length;
+    const preFiltered = records.length - unique.length;
 
     let imported = 0;
     let duplicates = 0;
@@ -807,6 +838,8 @@ router.post('/bulk', async (req, res, next) => {
       duplicates_skipped: duplicates + preFiltered, // index-ignored + auto-filtered copies
       failed,
       invalid_phone: invalidPhones,
+      missing_phone: missingPhones, // list rows kept without a phone - skip trace them to reach the owner
+      list_type: listType,
       opening_sms: smsConsent ? 'queued_with_compliance_checks' : 'not_sent_no_consent',
       total_received: leads.length,
     });

@@ -852,6 +852,7 @@ export default function Leads() {
   const [showImport, setShowImport]   = useState(false)
   // Consent choice for the file being imported; read when the parse completes.
   const smsConsentRef = useRef(false)
+  const listTypeRef = useRef('')
   const [showDupes, setShowDupes]     = useState(false)
   // Leads the AI flagged for human review (held escalations / out-of-bounds requests).
   const [reviewLeads, setReviewLeads] = useState([])
@@ -929,6 +930,7 @@ export default function Leads() {
     e.target.value = ''
     if (!file) return
     const smsConsent = smsConsentRef.current === true
+    const listType = listTypeRef.current || ''
     setImporting(true)
 
     // Normalize a value - trim whitespace, return empty string if falsy
@@ -957,10 +959,12 @@ export default function Leads() {
             property_zip:     v(r, 'property_zip', 'zip', 'Zip', 'ZIP', 'Zip Code', 'Postal Code'),
             estimated_value:  v(r, 'estimated_value', 'Estimated Value', 'AVM', 'Property Value', 'Market Value'),
             estimated_equity: v(r, 'estimated_equity', 'Estimated Equity', 'Equity', 'equity'),
-          })).filter(r => r.phone)
+          })).filter(r => r.phone || (listType && r.property_address))
 
           if (!mapped.length) {
-            toast.error('No leads found with a phone number. Check your CSV column headers.')
+            toast.error(listType
+              ? 'No rows with a phone or property address. Check your CSV column headers.'
+              : 'No leads found with a phone number. Check your CSV column headers.')
             setImporting(false)
             return
           }
@@ -968,14 +972,14 @@ export default function Leads() {
           // Upload in batches: one request per 1,000 rows keeps each body well under
           // the server's 1 MB JSON limit and lets a 10,000+ row file go through.
           const BATCH = 1000
-          const totals = { imported: 0, duplicates_skipped: 0, dnc_flagged: 0, failed: 0, invalid_phone: 0 }
+          const totals = { imported: 0, duplicates_skipped: 0, dnc_flagged: 0, failed: 0, invalid_phone: 0, missing_phone: 0 }
           let opening_sms
           const batches = Math.ceil(mapped.length / BATCH)
           const progressId = batches > 1 ? toast.loading(`Importing batch 1 of ${batches}...`) : null
           try {
             for (let b = 0; b < batches; b++) {
               if (progressId) toast.loading(`Importing batch ${b + 1} of ${batches}...`, { id: progressId })
-              const res = await leads.bulkImportLeads(mapped.slice(b * BATCH, (b + 1) * BATCH), { smsConsent })
+              const res = await leads.bulkImportLeads(mapped.slice(b * BATCH, (b + 1) * BATCH), { smsConsent, listType })
               const d = res.data || {}
               for (const k of Object.keys(totals)) totals[k] += Number(d[k]) || 0
               opening_sms = d.opening_sms || opening_sms
@@ -983,7 +987,7 @@ export default function Leads() {
           } finally {
             if (progressId) toast.dismiss(progressId)
           }
-          const { imported, duplicates_skipped, dnc_flagged, failed, invalid_phone } = totals
+          const { imported, duplicates_skipped, dnc_flagged, failed, invalid_phone, missing_phone } = totals
 
           let msg = `${imported} leads imported`
           if (duplicates_skipped > 0) msg += ` · ${duplicates_skipped} duplicates skipped`
@@ -993,6 +997,7 @@ export default function Leads() {
             : ' · no texts sent (no consent confirmed)'
           toast.success(msg)
           if (failed > 0) toast.error(`${failed} rows could not be saved. Check the file and import them again.`)
+          if (missing_phone > 0) toast(`${missing_phone} list leads have no phone yet. Skip trace them to reach the owner.`, { duration: 8000 })
           if (invalid_phone > 0) toast.error(`${invalid_phone} rows skipped - phone is not a valid 10-digit US number.`, { duration: 8000 })
           load()
         } catch (err) {
@@ -1266,8 +1271,9 @@ export default function Leads() {
       {showImport && (
         <ImportCsvModal
           onClose={() => setShowImport(false)}
-          onChoose={(consent) => {
+          onChoose={(consent, listType) => {
             smsConsentRef.current = consent
+            listTypeRef.current = listType
             setShowImport(false)
             fileRef.current?.click()
           }}
@@ -1423,8 +1429,20 @@ function DuplicatesModal({ onClose, onMerged }) {
 }
 
 // ─── Add Lead Modal ───────────────────────────────────────────────────────────
+const LIST_TYPE_OPTIONS = [
+  { value: '', label: 'General leads' },
+  { value: 'probate', label: 'Probate' },
+  { value: 'divorce', label: 'Divorce' },
+  { value: 'inherited', label: 'Inherited' },
+  { value: 'pre_foreclosure', label: 'Pre-foreclosure' },
+  { value: 'tax_delinquent', label: 'Tax delinquent' },
+  { value: 'vacant', label: 'Vacant' },
+  { value: 'absentee_owner', label: 'Absentee owner' },
+]
+
 function ImportCsvModal({ onClose, onChoose }) {
   const [consent, setConsent] = useState(false)
+  const [listType, setListType] = useState('')
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.60)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
@@ -1442,6 +1460,18 @@ function ImportCsvModal({ onClose, onChoose }) {
           <p style={{ margin: 0, fontSize: 13, color: 'var(--t3)', lineHeight: 1.5 }}>
             Leads are saved and checked against your do-not-call list. Automated texts need the seller's prior written consent, so no texts go out unless you confirm it below.
           </p>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t2)' }}>What kind of list is this?</span>
+            <select value={listType} onChange={e => setListType(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: 8, fontSize: 13, color: 'var(--input-text)', fontFamily: 'inherit' }}>
+              {LIST_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {listType && (
+              <span style={{ fontSize: 12, color: 'var(--t4)', lineHeight: 1.5 }}>
+                Every lead is tagged {LIST_TYPE_OPTIONS.find(o => o.value === listType)?.label.toLowerCase()}. Rows with an address but no phone are kept so you can skip trace them.
+              </span>
+            )}
+          </label>
           <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: 12, borderRadius: 10, borderWidth: 1, borderStyle: 'solid', borderColor: consent ? '#00C37A' : 'var(--border)', background: 'var(--surface-bg)' }}>
             <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ marginTop: 2, accentColor: '#00C37A' }} />
             <span style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.5 }}>
@@ -1450,7 +1480,7 @@ function ImportCsvModal({ onClose, onChoose }) {
           </label>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-            <Button variant="primary" size="sm" onClick={() => onChoose(consent)}>
+            <Button variant="primary" size="sm" onClick={() => onChoose(consent, listType)}>
               <Upload size={13} /> Choose CSV file
             </Button>
           </div>

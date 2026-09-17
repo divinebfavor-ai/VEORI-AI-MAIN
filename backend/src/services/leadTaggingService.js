@@ -23,6 +23,13 @@ function detectPrimaryTag(lead) {
     (lead.motivation_indicators || []).some(m => /probate|estate/i.test(m))
   ) return { tag: 'probate', confidence: 88 };
 
+  // divorce: court filing or a divorce list
+  if (
+    (lead.source || '').toLowerCase().includes('divorce') ||
+    (lead.primary_tag === 'divorce' && (lead.tag_confidence || 0) >= 90) ||
+    (lead.motivation_indicators || []).some(m => /divorc|dissolution of marriage/i.test(m))
+  ) return { tag: 'divorce', confidence: 88 };
+
   // inherited: deed transfer via inheritance
   if (
     (lead.deed_type || '').toLowerCase().includes('inherit') ||
@@ -242,6 +249,7 @@ function buildTagReason(lead, primaryTag, secondaryTags) {
     absentee_owner:   'Owner mailing address differs from property address',
     inherited:        'Deed transfer indicates inheritance',
     probate:          'Probate case or estate source detected',
+    divorce:          'Divorce filing or divorce list source',
     free_and_clear:   'No mortgage lien, high equity (90%+)',
     fsbo:             'Listed for sale by owner',
     vacant:           'Property shows no occupancy signals',
@@ -328,6 +336,7 @@ function getOpeningSMS(lead) {
     absentee_owner:  `Hi ${first}, I'm reaching out about your property at ${addr}. We buy from owners looking to simplify - cash, fast close, no repairs needed. Is that something you'd consider?`,
     inherited:       `Hi ${first}, I hope everything is going well with you. I wanted to reach out about the property at ${addr}. We work with families to make inherited properties easy to handle. No rush - just wanted to connect.`,
     probate:         `Hi ${first}, I wanted to reach out about the property at ${addr}. We specialize in making inherited and estate properties simple to sell - cash, any condition. Happy to answer any questions at your pace.`,
+    divorce:         `Hi ${first}, I'm reaching out about the property at ${addr}. If selling it would make things simpler right now, we buy as-is for cash and work around your timeline. No pressure either way.`,
     free_and_clear:  `Hi ${first}, I'm a local investor interested in ${addr}. If you're ever open to a cash offer - clean, fast close - I'd love to make you one. What would make it worth it for you?`,
     fsbo:            `Hi ${first}, I saw you have ${addr} listed for sale. We can often close faster and with less hassle than a traditional sale - no agent fees. Would you be open to hearing a cash offer?`,
     vacant:          `Hi ${first}, I noticed your property at ${addr} has been vacant. A vacant property can be a real burden. We buy as-is - any condition, fast close. Would you like an offer?`,
