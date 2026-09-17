@@ -510,6 +510,7 @@ app.use('/api/team', require('./routes/team'));
 app.use('/api/branding', require('./routes/branding'));
 app.use('/api/esign', require('./routes/esign'));
 app.use('/api/crm', require('./routes/crm'));
+app.use('/api/onboarding', require('./routes/onboarding'));
 
 // Webhook retry sweep. Each delivery is claimed before sending, so overlapping
 // sweeps (or a sweep racing an immediate send) never deliver the same row twice.

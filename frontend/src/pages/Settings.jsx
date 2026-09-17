@@ -1304,7 +1304,13 @@ function TwoFactorPanel() {
 }
 
 export default function Settings() {
-  const [tab, setTab]             = useState('profile')
+  // ?tab=phones etc. opens that tab directly (used by the setup checklist).
+  const [tab, setTab]             = useState(() => {
+    try {
+      const wanted = new URLSearchParams(window.location.search).get('tab')
+      return TABS.some(t => t.id === wanted) ? wanted : 'profile'
+    } catch { return 'profile' }
+  })
   const [phoneList, setPhoneList] = useState([])
   const [loading, setLoading]     = useState(false)
   const [alertToggles, setAlertToggles] = useState({

@@ -211,6 +211,11 @@ export const developer = {
   testWebhook:     (id)        => api.post(`/api/developer/webhooks/${id}/test`),
 }
 
+export const onboarding = {
+  status:  () => api.get('/api/onboarding'),
+  dismiss: () => api.post('/api/onboarding/dismiss'),
+}
+
 export const crm = {
   list:       ()                   => api.get('/api/crm'),
   connect:    (provider, credential) => api.post(`/api/crm/${provider}/connect`, { credential }),

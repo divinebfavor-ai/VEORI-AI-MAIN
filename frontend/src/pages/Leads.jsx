@@ -860,6 +860,8 @@ export default function Leads() {
   const fileRef  = useRef()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  // /leads?import=1 opens the import dialog (setup checklist link).
+  useEffect(() => { if (searchParams.get('import') === '1') setShowImport(true) }, [searchParams])
   const setIntel = useIntelStore(s => s.setIntel)
 
   const load = async () => {

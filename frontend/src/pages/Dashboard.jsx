@@ -3,7 +3,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Link } from 'react-router-dom'
 import { Phone, Flame, Briefcase, DollarSign, ArrowRight, Clock3, FileSignature, AlertTriangle, Zap, CheckCircle, X, Sparkles } from 'lucide-react'
 import Badge from '../components/ui/Badge'
-import { analytics, preferences as prefsApi, auth as authApi } from '../services/api'
+import { analytics, preferences as prefsApi, auth as authApi, onboarding as onboardingApi } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
 import useAuthStore from '../store/authStore'
 import useIntelStore from '../store/intelStore'
@@ -156,68 +156,63 @@ function StatCard({ label, value, icon: Icon, accent, sub, loading }) {
   )
 }
 
-// ─── Onboarding checklist ─────────────────────────────────────────────────────
-const CHECKLIST = [
-  { key: 'profile',   label: 'Complete your operator profile',    to: '/settings' },
-  { key: 'phone',     label: 'Add a phone number',                to: '/settings' },
-  { key: 'lead',      label: 'Import your first lead',            to: '/leads' },
-  { key: 'campaign',  label: 'Launch your first campaign',        to: '/campaigns' },
-  { key: 'buyer',     label: 'Add a cash buyer',                  to: '/buyers' },
-]
-
-function OnboardingChecklist({ onDismiss }) {
-  const [checked, setChecked] = useState({})
-  const allDone = CHECKLIST.every(c => checked[c.key])
-
+// ─── Setup checklist ──────────────────────────────────────────────────────────
+// Progress comes from the server (real profile fields and records), not from boxes
+// the operator ticks, so "done" always means the thing is actually set up.
+function OnboardingChecklist({ status, onDismiss }) {
+  const pct = Math.round((status.completed / Math.max(status.total, 1)) * 100)
   return (
     <div style={{
-      position: 'fixed', bottom: 24, right: 24, zIndex: 200,
-      width: 340,
-      background: 'var(--card-bg)',
-      border: '1px solid var(--border)',
-      borderRadius: 16,
+      position: 'fixed', bottom: 24, right: 16, zIndex: 200,
+      width: 360, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 120px)', overflowY: 'auto',
+      background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 16,
       boxShadow: '0 20px 60px rgba(0,0,0,0.50)',
-      overflow: 'hidden',
     }}>
-      <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Zap size={14} style={{ color: '#C9A84C' }} strokeWidth={1.8} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>Getting Started</span>
-        </div>
-        <button onClick={onDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t4)', padding: 2, display: 'flex' }}>
-          <X size={14} />
-        </button>
-      </div>
-      <div style={{ padding: '12px 18px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {CHECKLIST.map(item => (
-          <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              onClick={() => setChecked(p => ({ ...p, [item.key]: !p[item.key] }))}
-              style={{
-                width: 18, height: 18, borderRadius: '50%', cursor: 'pointer', flexShrink: 0,
-                background: checked[item.key] ? '#00C37A' : 'var(--surface-bg-3)',
-                border: `1px solid ${checked[item.key] ? '#00C37A' : 'var(--border)'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease',
-              }}
-            >
-              {checked[item.key] && <CheckCircle size={11} style={{ color: '#000' }} />}
-            </button>
-            <Link to={item.to} style={{
-              fontSize: 12, color: checked[item.key] ? 'var(--t4)' : 'var(--t2)',
-              textDecoration: checked[item.key] ? 'line-through' : 'none',
-              flex: 1, transition: 'all 0.2s ease',
-            }}>
-              {item.label}
-            </Link>
+      <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Zap size={14} style={{ color: '#C9A84C' }} strokeWidth={1.8} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
+              {status.all_done ? "You're set up" : `Get set up · about ${status.minutes_left} min left`}
+            </span>
           </div>
+          <button onClick={onDismiss} aria-label="Hide setup checklist" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t4)', padding: 2, display: 'flex' }}>
+            <X size={14} />
+          </button>
+        </div>
+        <div style={{ marginTop: 10, height: 4, borderRadius: 4, background: 'var(--surface-bg-3)', overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: '#00C37A', transition: 'width 0.3s ease' }} />
+        </div>
+        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--t4)' }}>{status.completed} of {status.total} done</div>
+      </div>
+      <div style={{ padding: '10px 18px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {status.steps.map(step => (
+          <Link key={step.key} to={step.link} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', textDecoration: 'none' }}>
+            <span style={{
+              width: 18, height: 18, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+              background: step.done ? '#00C37A' : 'var(--surface-bg-3)',
+              border: `1px solid ${step.done ? '#00C37A' : 'var(--border)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {step.done && <CheckCircle size={11} style={{ color: '#000' }} />}
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: step.done ? 'var(--t4)' : 'var(--t2)', textDecoration: step.done ? 'line-through' : 'none' }}>
+                {step.title}
+                {step.optional && <span style={{ fontWeight: 500, color: 'var(--t4)' }}> · optional</span>}
+              </span>
+              {!step.done && <span style={{ display: 'block', fontSize: 11, color: 'var(--t4)', lineHeight: 1.45, marginTop: 2 }}>{step.why}</span>}
+            </span>
+            {!step.done && <span style={{ fontSize: 11, color: 'var(--t4)', flexShrink: 0 }}>{step.minutes} min</span>}
+          </Link>
         ))}
-        {allDone && (
+        {status.all_done && (
           <button onClick={onDismiss} style={{
             marginTop: 6, width: '100%', padding: '8px 0', borderRadius: 10,
             background: '#00C37A', color: '#000', border: 'none', cursor: 'pointer',
             fontSize: 12, fontWeight: 700, letterSpacing: '0.03em',
           }}>
-            You're all set - dismiss
+            Done - hide this
           </button>
         )}
       </div>
@@ -321,14 +316,15 @@ export default function Dashboard() {
   const [pendingContracts, setPendingContracts] = useState([])
   const [titleRisks, setTitleRisks] = useState([])
   const [loading, setLoading]         = useState(true)
-  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [onboarding, setOnboarding] = useState(null)
   const { calls: liveCalls }          = useLiveCalls()
   const user    = useAuthStore(s => s.user)
   const setIntel = useIntelStore(s => s.setIntel)
 
   useEffect(() => {
-    const dismissed = localStorage.getItem('veori_onboarding_dismissed')
-    if (!dismissed) setShowOnboarding(true)
+    onboardingApi.status()
+      .then(r => { const d = r.data?.data; if (d && !d.dismissed) setOnboarding(d) })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -623,10 +619,10 @@ export default function Dashboard() {
       <AICommandLog />
 
       {/* ── Onboarding Checklist (first login) ───────────────────────────── */}
-      {showOnboarding && (
-        <OnboardingChecklist onDismiss={() => {
-          localStorage.setItem('veori_onboarding_dismissed', '1')
-          setShowOnboarding(false)
+      {onboarding && (
+        <OnboardingChecklist status={onboarding} onDismiss={() => {
+          setOnboarding(null)
+          onboardingApi.dismiss().catch(() => {})
         }} />
       )}
     </div>
