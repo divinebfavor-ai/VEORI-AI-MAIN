@@ -211,6 +211,50 @@ export const developer = {
   testWebhook:     (id)        => api.post(`/api/developer/webhooks/${id}/test`),
 }
 
+export const intelligence = {
+  room:         (dealId)            => api.get(`/api/intelligence/deals/${dealId}/room`),
+  refresh:      (dealId)            => api.post(`/api/intelligence/deals/${dealId}/understanding/refresh`),
+  editFacts:    (dealId, overrides) => api.patch(`/api/intelligence/deals/${dealId}/understanding`, { overrides }),
+  ask:          (dealId, command, inputs) => api.post(`/api/intelligence/deals/${dealId}/ask`, { command, inputs }, { timeout: 120000 }),
+  approvals:    (params)            => api.get('/api/intelligence/approvals', { params }),
+  requestApproval: (dealId, data)   => api.post(`/api/intelligence/deals/${dealId}/approvals`, data),
+  decide:       (id, decision, note) => api.post(`/api/intelligence/approvals/${id}/decide`, { decision, note }),
+  settings:     ()                  => api.get('/api/intelligence/settings'),
+  updateSettings: (data)            => api.patch('/api/intelligence/settings', data),
+  calc:         (name, inputs)      => api.post(`/api/intelligence/calc/${name}`, { inputs }),
+}
+
+// Streamed Ask Veori. Calls onEvent for each server event; resolves when the stream ends.
+export async function askVeoriStream(dealId, command, inputs, onEvent, signal) {
+  const token = localStorage.getItem('veori_token')
+  const res = await fetch(`${BASE_URL}/api/intelligence/deals/${dealId}/ask`, {
+    method: 'POST', signal,
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ command, inputs }),
+  })
+  if (!res.ok || !res.body) {
+    let msg = 'Analysis failed'
+    try { msg = (await res.json()).error || msg } catch { /* not JSON */ }
+    throw new Error(msg)
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let idx
+    while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      const block = buffer.slice(0, idx)
+      buffer = buffer.slice(idx + 2)
+      const dataLine = block.split('\n').find(l => l.startsWith('data: '))
+      if (!dataLine) continue
+      try { onEvent(JSON.parse(dataLine.slice(6))) } catch { /* partial or malformed event */ }
+    }
+  }
+}
+
 export const onboarding = {
   status:  () => api.get('/api/onboarding'),
   dismiss: () => api.post('/api/onboarding/dismiss'),

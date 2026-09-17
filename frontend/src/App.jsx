@@ -26,6 +26,7 @@ const Calculator             = lazyWithRetry(() => import('./pages/Calculator'))
 const Compliance             = lazyWithRetry(() => import('./pages/Compliance'))
 const Dialer                 = lazyWithRetry(() => import('./pages/Dialer'))
 const DealWorkspace          = lazyWithRetry(() => import('./pages/DealWorkspace'))
+const DealRoom               = lazyWithRetry(() => import('./pages/DealRoom'))
 const DealPhotoGallery       = lazyWithRetry(() => import('./pages/DealPhotoGallery'))
 const TitleCompanies         = lazyWithRetry(() => import('./pages/TitleCompanies'))
 const ContractSigning        = lazyWithRetry(() => import('./pages/ContractSigning'))
@@ -154,6 +155,7 @@ export default function App() {
           <Route path="/compliance" element={<Compliance />} />
           <Route path="/dialer" element={<Dialer />} />
           <Route path="/deals/:id" element={<DealWorkspace />} />
+          <Route path="/deals/:id/room" element={<DealRoom />} />
           <Route path="/deals/:id/photos" element={<DealPhotoGallery />} />
           <Route path="/follow-ups" element={<FollowUps />} />
           <Route path="/title-companies" element={<TitleCompanies />} />

@@ -659,6 +659,7 @@ export default function DealWorkspace() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Button size="sm" variant="primary" onClick={() => navigate(`/deals/${deal.id}/room`)}>Deal Room</Button>
           <Badge variant={stageInfo(deal.status).badge}>{stageInfo(deal.status).label}</Badge>
           {assignFee > 0 && (
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>
