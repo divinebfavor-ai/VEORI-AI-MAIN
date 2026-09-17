@@ -16,6 +16,7 @@ import useAuthStore from '../../store/authStore'
 import { useAuth } from '../../hooks/useAuth'
 import useThemeStore from '../../store/themeStore'
 import { notifications as notifApi } from '../../services/api'
+import usePolling from '../../hooks/usePolling'
 
 const NAV = [
   { to: '/dashboard',        icon: LayoutDashboard, label: 'Command Center' },
@@ -322,11 +323,8 @@ export default function CommandRail({ mobile = false }) {
     notifApi.getUnreadCount().then(r => setUnreadCount(r.data?.count || 0)).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    refreshUnread()
-    const t = setInterval(refreshUnread, 30000)
-    return () => clearInterval(t)
-  }, [refreshUnread])
+  useEffect(() => { refreshUnread() }, [refreshUnread])
+  usePolling(refreshUnread, 30000)
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)

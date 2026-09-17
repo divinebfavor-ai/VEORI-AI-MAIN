@@ -132,6 +132,7 @@ export default function Inbox() {
   useEffect(() => {
     loadInbox()
     pollRef.current = setInterval(() => {
+      if (document.hidden) return   // a background inbox does not need to poll
       loadInbox()
       if (selected?.lead_id) loadThread(selected.lead_id)
     }, POLL_INTERVAL)

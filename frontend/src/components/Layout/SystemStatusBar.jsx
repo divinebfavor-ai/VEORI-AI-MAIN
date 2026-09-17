@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useLiveCalls } from '../../hooks/useLiveCalls'
 import { analytics } from '../../services/api'
+import usePolling from '../../hooks/usePolling'
 
 export default function SystemStatusBar() {
   const { calls: liveCalls } = useLiveCalls()
@@ -9,24 +10,16 @@ export default function SystemStatusBar() {
   const [lastUpdate, setLastUpdate] = useState(null)
   const [, tick] = useState(0)
 
-  useEffect(() => {
-    const load = () => {
-      analytics.getDashboard().then(r => {
-        const d = r.data?.data || r.data || {}
-        setStats(d.stats || {})
-        setLastUpdate(new Date())
-      }).catch(() => {})
-    }
-    load()
-    const t = setInterval(load, 60000)
-    return () => clearInterval(t)
-  }, [])
+  const load = useCallback(() => analytics.getDashboard().then(r => {
+    const d = r.data?.data || r.data || {}
+    setStats(d.stats || {})
+    setLastUpdate(new Date())
+  }).catch(() => {}), [])
 
-  // Tick every 5s to update relative time
-  useEffect(() => {
-    const t = setInterval(() => tick(n => n + 1), 5000)
-    return () => clearInterval(t)
-  }, [])
+  useEffect(() => { load() }, [load])
+  usePolling(load, 60000)
+  // Tick to refresh the relative "x ago" label (no network).
+  usePolling(() => tick(n => n + 1), 5000)
 
   const callsToday = stats?.calls_today ?? '-'
   const hotLeads   = stats?.hot_leads   ?? '-'

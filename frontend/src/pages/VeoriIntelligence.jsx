@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import usePolling from '../hooks/usePolling'
 
 const API = (import.meta.env.VITE_API_URL || 'https://veori-ai-main-production.up.railway.app')
   .replace(/\/+$/, '').replace(/\/api$/, '') + '/api'
@@ -861,9 +862,9 @@ export default function VeoriIntelligence() {
   useEffect(() => {
     if (!leadId) { setLoading(false); return undefined }
     refreshAll()
-    const t = setInterval(() => { loadLive() }, 20000)
-    return () => clearInterval(t)
-  }, [leadId, refreshAll, loadLive])
+    return undefined
+  }, [leadId, refreshAll])
+  usePolling(loadLive, 20000, { enabled: !!leadId })
 
   if (!leadId) return <LeadPicker />
 

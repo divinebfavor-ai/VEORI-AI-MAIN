@@ -7,6 +7,7 @@ import Button from '../components/ui/Button'
 import { deals } from '../services/api'
 import useIntelStore from '../store/intelStore'
 import { DEAL_STAGES, STAGE_EFFECTS, stageKey, stageInfo } from '../constants/dealStages'
+import usePolling from '../hooks/usePolling'
 
 function fmt$(n) { return n ? '$' + Number(n).toLocaleString() : null }
 
@@ -284,10 +285,7 @@ export default function Pipeline() {
   // Auto-refresh so the board advances after a call ends / a deal moves stage
   // without a manual reload (same 15s cadence as LeadPipeline). Paused while a
   // deal modal is open so an in-progress edit isn't clobbered by a refetch.
-  useEffect(() => {
-    const id = setInterval(() => { if (!modalDeal) load() }, 15000)
-    return () => clearInterval(id)
-  }, [modalDeal])
+  usePolling(load, 15000, { enabled: !modalDeal })
 
   const selectDeal = (deal) => {
     setSelected(deal)

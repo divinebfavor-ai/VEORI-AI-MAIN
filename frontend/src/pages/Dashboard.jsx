@@ -7,6 +7,7 @@ import { analytics, preferences as prefsApi, auth as authApi, onboarding as onbo
 import { useLiveCalls } from '../hooks/useLiveCalls'
 import useAuthStore from '../store/authStore'
 import useIntelStore from '../store/intelStore'
+import usePolling from '../hooks/usePolling'
 
 // ─── Trial / Quota Banner ─────────────────────────────────────────────────────
 function SubscriptionBanner({ user }) {
@@ -232,11 +233,8 @@ function AICommandLog() {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => {
-    load()
-    const t = setInterval(load, 15000)
-    return () => clearInterval(t)
-  }, [load])
+  useEffect(() => { load() }, [load])
+  usePolling(load, 15000)
 
   const iconFor = (type) => {
     if (!type) return '⚡'

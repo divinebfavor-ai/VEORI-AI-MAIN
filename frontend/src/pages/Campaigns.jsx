@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { campaigns, smsTemplates } from '../services/api'
+import usePolling from '../hooks/usePolling'
 
 function statusVariant(s) {
   const m = { active:'green', running:'green', paused:'amber', draft:'gray', completed:'gray', stopped:'gray' }
@@ -365,11 +366,8 @@ export default function Campaigns() {
     finally { if (showSpinner) setLoading(false) }
   }
 
-  useEffect(() => {
-    load(true)
-    const t = setInterval(() => load(false), 15000)
-    return () => clearInterval(t)
-  }, [])
+  useEffect(() => { load(true) }, [])
+  usePolling(() => load(false), 15000)
 
   const handleAction = async (action, id) => {
     try {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Zap, Globe, TrendingUp, Activity, Play, RefreshCw, CheckCircle, XCircle, Clock, MapPin, AlertCircle, BarChart2, Database, Search, SlidersHorizontal, X, Target } from 'lucide-react'
 import toast from 'react-hot-toast'
+import usePolling from '../hooks/usePolling'
 
 const API = import.meta.env.VITE_API_URL || 'https://veori.net'
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('veori_token')}`, 'Content-Type': 'application/json' })
@@ -184,11 +185,8 @@ export default function LeadEngine() {
     }
   }, [])
 
-  useEffect(() => {
-    load()
-    const iv = setInterval(load, 30000) // refresh every 30s
-    return () => clearInterval(iv)
-  }, [load])
+  useEffect(() => { load() }, [load])
+  usePolling(load, 30000)
 
   // Search leads
   const runSearch = useCallback(async (overrides = {}) => {

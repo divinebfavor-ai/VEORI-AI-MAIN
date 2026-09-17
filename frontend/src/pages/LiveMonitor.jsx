@@ -6,6 +6,7 @@ import { Radio, Headphones, Mic, MicOff, X, Volume2, VolumeX, PhoneCall, PhoneOf
 import toast from 'react-hot-toast'
 import { calls as callsApi, leads as leadsApi } from '../services/api'
 import { useLiveCalls } from '../hooks/useLiveCalls'
+import usePolling from '../hooks/usePolling'
 
 const GREEN = '#00C37A'
 const BLUE  = '#C9A84C' // platform gold (was blue; the product uses no blue)
@@ -678,7 +679,7 @@ function useLiveTranscript(call) {
       } catch { }
     }
     poll()
-    const t = setInterval(poll, 2000)
+    const t = setInterval(() => { if (!document.hidden) poll() }, 2000)
     return () => clearInterval(t)
   }, [call?.id, isLive])
 
@@ -946,7 +947,7 @@ export default function LiveMonitor() {
 
   useEffect(() => { loadHistory() }, [loadHistory])
   // Refresh history every 8s, and whenever live calls change (catches ended calls moving to history)
-  useEffect(() => { const t = setInterval(loadHistory, 8000); return () => clearInterval(t) }, [loadHistory])
+  usePolling(loadHistory, 8000)
   const prevLiveCount = useRef(0)
   useEffect(() => {
     if (prevLiveCount.current > 0 && liveCalls.length < prevLiveCount.current) {

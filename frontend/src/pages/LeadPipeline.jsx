@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import { RefreshCw, Search, Users, Flame } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { leads as leadsApi } from '../services/api'
+import usePolling from '../hooks/usePolling'
 
 const STAGES = [
   { key: 'new',        label: 'New',        color: '#4C9EFF', bg: 'rgba(76,158,255,0.08)',  border: 'rgba(76,158,255,0.25)' },
@@ -156,10 +157,7 @@ export default function LeadPipeline() {
 
   // Auto-refresh so the board advances after a call ends without a manual reload.
   // Paused while the operator is dragging so a refresh never fights an in-flight move.
-  useEffect(() => {
-    const id = setInterval(() => { if (!dragLead) load() }, 15000)
-    return () => clearInterval(id)
-  }, [load, dragLead])
+  usePolling(load, 15000, { enabled: !dragLead })
 
   // Resolve which stage a lead belongs to
   function getStage(lead) {
