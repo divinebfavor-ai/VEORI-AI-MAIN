@@ -79,7 +79,7 @@ function collectUnknowns(rep) {
       return;
     }
     for (const [k, v] of Object.entries(node)) {
-      if (['overrides', 'unknowns', 'conflicts', 'data_gaps', 'meta', 'comparables'].includes(k) && !prefix) continue;
+      if (['overrides', 'unknowns', 'conflicts', 'data_gaps', 'meta', 'comparables', 'worksheets'].includes(k) && !prefix) continue;
       walk(v, prefix ? `${prefix}.${k}` : k);
     }
   };
@@ -374,6 +374,7 @@ async function build(userId, dealId, { refreshProviders = true, actorUserId = nu
 
   const rep = compose(records, provider, overrides);
   rep.overrides = overrides;
+  rep.worksheets = previous.worksheets || {};
   rep.data_gaps = gaps;
   rep.unknowns = collectUnknowns(rep);
   rep.meta = {
@@ -418,4 +419,32 @@ async function setOverrides(userId, dealId, actorUserId, patch) {
   return build(userId, dealId, { refreshProviders: false, actorUserId });
 }
 
-module.exports = { build, get, setOverrides, compose, collectUnknowns, FIELD_CATALOG, EDITABLE, getPath };
+// Structured operator worksheets (rent roll, rehab scope, ...). Stored as-is on the
+// understanding, labelled USER_PROVIDED; each agent validates the fields it reads.
+const WORKSHEETS = {
+  rent_roll: 'Units with rent, status and lease end (multifamily, rental)',
+  operating_statement: 'Annual income and expense lines (multifamily, commercial, self storage)',
+  rehab_scope: 'Rehab line items: item, quantity, unit cost (rehab estimation)',
+  construction_budget: 'Budget, spent to date, contractors, change orders, schedule (construction management)',
+  land: 'Acreage, zoning, access, utilities, flood zone, easements, topography (land)',
+  negotiation_notes: 'What the seller said about price, timeline, needs and constraints (negotiation)',
+  jv_terms: 'Equity contributions, preferred return, promote, hold years (equity / JV)',
+  loan_quotes: 'Lender quotes: type, rate, points, fees, LTV/LTC, term, min DSCR (financing)',
+  due_diligence: 'Checklist item statuses (due diligence)',
+};
+async function setWorksheet(userId, dealId, actorUserId, name, data) {
+  if (!WORKSHEETS[name]) throw Object.assign(new Error(`Unknown worksheet "${name}"`), { status: 400 });
+  if (data !== null && (typeof data !== 'object')) throw Object.assign(new Error('Worksheet data must be an object or array'), { status: 400 });
+  if (data !== null && JSON.stringify(data).length > 50000) throw Object.assign(new Error('Worksheet is too large'), { status: 413 });
+  const current = await get(userId, dealId);
+  if (!current) return { found: false };
+  const worksheets = { ...(current.understanding?.worksheets || {}) };
+  if (data === null) delete worksheets[name];
+  else worksheets[name] = { data, status: STATUS.USER_PROVIDED, set_by: actorUserId, set_at: new Date().toISOString() };
+  const { error } = await supabase.from('deals').update({ understanding: { ...(current.understanding || {}), worksheets } }).eq('id', dealId).eq('user_id', userId);
+  if (error) throw error;
+  await audit.record({ userId, dealId, actorUserId, actionType: `deal.worksheet.${data === null ? 'cleared' : 'saved'}`, inputs: { name, size: data === null ? 0 : JSON.stringify(data).length }, humanApproved: true });
+  return { found: true, worksheet: worksheets[name] || null };
+}
+
+module.exports = { WORKSHEETS, setWorksheet, build, get, setOverrides, compose, collectUnknowns, FIELD_CATALOG, EDITABLE, getPath };

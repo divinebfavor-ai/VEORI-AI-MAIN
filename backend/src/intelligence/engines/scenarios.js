@@ -127,6 +127,8 @@ function run({ strategy, base, scenarios = {} }) {
     for (const [sk, sv] of Object.entries(shocks)) if (!Number.isFinite(Number(sv))) throw new CalcError(`${k}.${sk} must be a number`, 'scenarios');
     defs[k] = { label: v?.label || defs[k]?.label || k.replace(/_/g, ' '), shocks: Object.fromEntries(Object.entries(shocks).map(([a, b]) => [a, Number(b)])), custom: !DEFAULT_SCENARIOS[k] || !!v };
   }
+  const REQUIRED = { fix_flip: ['purchase_price', 'sale_price', 'rehab', 'holding_months'], buy_hold: ['purchase_price', 'down_payment_pct', 'loan_rate_pct', 'monthly_rent', 'vacancy_pct', 'monthly_taxes', 'monthly_insurance'], wholesale: ['arv', 'repairs'] }[strategy];
+  for (const f of REQUIRED) if (base[f] === undefined || base[f] === null || base[f] === '') throw new CalcError(`${f} is required`, f);
   const baseResult = runner(base, {});
   const results = Object.entries(defs).map(([key, def]) => {
     const r = runner(base, def.shocks);

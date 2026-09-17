@@ -33,12 +33,31 @@ const INTENTS = {
   seller_motivation: { label: 'Seller motivation', agents: ['lead_intelligence', 'motivated_seller'] },
   valuation: { label: 'Valuation', agents: ['valuation', 'arv', 'challenger'] },
   financing: { label: 'Financing options', agents: ['financing', 'creative_finance', 'subject_to', 'seller_finance'] },
-  title: { label: 'Title and closing', agents: ['title_intelligence', 'transaction_coordinator'] },
+  title: { label: 'Title and closing', agents: ['title_intelligence', 'transaction_coordinator', 'due_diligence'] },
+  fix_flip: { label: 'Fix and flip analysis', agents: ['comparable_sales', 'arv', 'rehab_estimation', 'fix_flip', 'hard_money', 'risk', 'challenger'] },
+  rental: { label: 'Rental analysis', agents: ['buy_hold', 'rental_property', 'brrrr', 'dscr', 'risk', 'challenger'] },
+  lease_option_novation: { label: 'Lease option and novation', agents: ['lease_option', 'novation', 'real_estate_law', 'challenger'] },
+  double_close_assignment: { label: 'Assignment vs double close', agents: ['wholesale', 'arv', 'contract_assignment', 'double_close', 'real_estate_law', 'challenger'] },
+  land: { label: 'Land analysis', agents: ['land_acquisition', 'land_development', 'due_diligence', 'real_estate_law', 'risk', 'challenger'] },
+  income_property: { label: 'Income property analysis', agents: ['multifamily', 'commercial', 'self_storage', 'dscr', 'underwriting', 'risk', 'challenger'] },
+  negotiation: { label: 'Negotiation strategy', agents: ['motivated_seller', 'arv', 'wholesale', 'negotiation_intelligence'] },
+  lead_scoring: { label: 'Lead scoring and sourcing', agents: ['lead_scoring', 'lead_generation', 'motivated_seller'] },
+  rehab: { label: 'Rehab and construction', agents: ['rehab_estimation', 'construction_management', 'risk'] },
+  legal: { label: 'Legal and compliance intelligence', agents: ['real_estate_law', 'contract_assignment', 'due_diligence'] },
+  underwriting: { label: 'Underwriting package', agents: ['comparable_sales', 'valuation', 'arv', 'wholesale', 'fix_flip', 'buy_hold', 'financing', 'title_intelligence', 'risk', 'underwriting', 'challenger'] },
+  portfolio: { label: 'Portfolio overview', agents: ['portfolio', 'buyer_intelligence'] },
+  due_diligence: { label: 'Due diligence', agents: ['due_diligence', 'title_intelligence', 'real_estate_law'] },
 };
 
 // Agent → agents whose output it reads (only enforced when both are in the plan).
 const DEPENDS_ON = {
   wholesale: ['arv'],
+  arv: ['comparable_sales'],
+  fix_flip: ['arv', 'rehab_estimation'],
+  hard_money: ['fix_flip'],
+  negotiation_intelligence: ['wholesale'],
+  contract_assignment: ['real_estate_law'],
+  underwriting: ['wholesale', 'fix_flip', 'buy_hold', 'brrrr', 'subject_to', 'seller_finance', 'disposition', 'risk'],
   disposition: ['wholesale', 'arv'],
   buyer_matching: ['wholesale'],
   creative_finance: ['wholesale'],
@@ -47,6 +66,19 @@ const DEPENDS_ON = {
 };
 
 const RULES = [
+  [/\b(portfolio|all (my|of my) deals|what needs attention)\b/i, 'portfolio'],
+  [/\b(underwrit|sources and uses)/i, 'underwriting'],
+  [/\b(due diligence|diligence|checklist)\b/i, 'due_diligence'],
+  [/\b(legal|law|laws|regulation|licens|attorney|allowed to|legal to)\b/i, 'legal'],
+  [/\b(double close|assignment vs|assign or double)\b/i, 'double_close_assignment'],
+  [/\b(lease[ -]?option|rent to own|novation)\b/i, 'lease_option_novation'],
+  [/\b(land|lot|acre|acreage|parcel|develop)/i, 'land'],
+  [/\b(multifamily|apartment|units|commercial|retail|office|industrial|self[ -]?storage|cap rate|noi)\b/i, 'income_property'],
+  [/\b(negotiat|counteroffer|counter offer|talking points|what do i say)/i, 'negotiation'],
+  [/\b(lead scor|probabilit|likely to (respond|close)|lead source|where .*leads|more leads|lead gen)/i, 'lead_scoring'],
+  [/\b(rehab|renovat|repairs? (budget|estimate|scope)|construction|contractor|change order)/i, 'rehab'],
+  [/\b(flip|fix and flip|fix & flip|fix-and-flip)\b/i, 'fix_flip'],
+  [/\b(rental|rent it|buy and hold|buy & hold|brrrr|cash flow|airbnb|short[ -]term|section 8|dscr)\b/i, 'rental'],
   [/\b(what (happens|if)|if the seller wants|seller wants|at a price of|counter(ed)? at)\b.*\d/i, 'what_if_price'],
   [/\b(not working|failing|stuck|dying|falling apart|why (is|isn't|is not).*(deal|working))\b/i, 'deal_not_working'],
   [/\b(missing|what (info|information|data)|unknowns?|what do we (not )?know)\b/i, 'missing_information'],
@@ -92,7 +124,9 @@ function planWaves(agentIds) {
   const deps = (id) => {
     const d = DEPENDS_ON[id] || [];
     if (d.includes('*')) {
-      return agentIds.filter(a => a !== id && !(id === 'risk' && a === 'challenger'));
+      // "After everything" skips agents that themselves wait on this one (e.g. underwriting reads risk),
+      // and the Challenger always goes last.
+      return agentIds.filter(a => a !== id && !(DEPENDS_ON[a] || []).includes(id) && !(id !== 'challenger' && a === 'challenger'));
     }
     return d.filter(x => inPlan.has(x));
   };

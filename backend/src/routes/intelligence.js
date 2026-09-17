@@ -42,13 +42,22 @@ function dealIdOr404(req, res) {
 // Numeric overrides a request may pass to agents. Anything else is rejected.
 const INPUT_KEYS = new Set(['arv', 'repairs', 'asking_price', 'contract_price', 'buyer_price', 'purchase_price', 'flip_factor_pct', 'assignment_fee', 'target_fee',
   'closing_holding_buffer', 'loan_balance', 'monthly_payment', 'market_value', 'interest_rate', 'arrears', 'monthly_rent', 'annual_noi', 'cap_rate_pct',
-  'rate_pct', 'down_payment_pct', 'amortization_months', 'balloon_month']);
+  'rate_pct', 'down_payment_pct', 'amortization_months', 'balloon_month',
+  'holding_months', 'monthly_holding', 'sell_cost_pct', 'buy_closing_pct', 'loan_amount', 'loan_rate_pct', 'loan_points_pct',
+  'monthly_taxes', 'monthly_insurance', 'vacancy_pct', 'management_pct', 'maintenance_pct', 'capex_pct', 'hold_years', 'exit_value',
+  'refi_ltv_pct', 'refi_rate_pct', 'refi_closing_costs', 'monthly_operating_expenses', 'adr', 'str_occupancy_pct', 'str_expense_pct',
+  'section8_payment_standard', 'rooms', 'rent_per_room', 'mtr_monthly_rent', 'emd', 'transactional_funding_fee_pct', 'ab_closing_costs',
+  'bc_closing_costs', 'option_fee', 'monthly_rent_credit', 'option_months', 'retail_value', 'listing_cost_pct', 'min_dscr', 'max_ltv_pct']);
 function cleanInputs(raw) {
   if (raw == null) return {};
   if (typeof raw !== 'object' || Array.isArray(raw)) throw Object.assign(new Error('inputs must be an object'), { status: 400 });
   const out = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (k === 'lender_terms') { if (v && typeof v === 'object') out.lender_terms = v; continue; }
+    if (k === 'lender_terms' || k === 'lead_source_spend') {
+      if (v && typeof v === 'object' && !Array.isArray(v) && JSON.stringify(v).length <= 5000) out[k] = v;
+      else if (v != null) throw Object.assign(new Error(`${k} must be a small object`), { status: 400 });
+      continue;
+    }
     if (!INPUT_KEYS.has(k)) throw Object.assign(new Error(`Unknown input "${k}"`), { status: 400 });
     if (v === null || v === '') continue;
     const n = Number(v);
@@ -269,6 +278,59 @@ router.post('/deals/:id/timeline', wrap(async (req, res) => {
     monthly_carrying_cost: b.monthly_carrying_cost,
   });
   res.json({ success: true, data: result });
+}));
+
+// ── Verified knowledge (Real Estate Law Intelligence) ───────────────────────
+const PLATFORM_ADMINS = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+router.get('/knowledge', wrap(async (req, res) => {
+  let q = supabase.from('knowledge_items').select('id, topic, jurisdiction, content, source, source_url, effective_date, last_verified_at, review_by, confidence, user_id, created_at')
+    .or(`user_id.is.null,user_id.eq.${req.user.id}`).order('created_at', { ascending: false }).limit(500);
+  if (req.query.jurisdiction && /^(US|[A-Z]{2})$/.test(String(req.query.jurisdiction))) q = q.eq('jurisdiction', req.query.jurisdiction);
+  const { data, error } = await q;
+  if (error) throw error;
+  res.json({ success: true, data: (data || []).map(k => ({ ...k, scope: k.user_id ? 'workspace' : 'platform', user_id: undefined })) });
+}));
+
+router.post('/knowledge', wrap(async (req, res) => {
+  const b = req.body || {};
+  const scope = b.scope === 'platform' ? 'platform' : 'workspace';
+  if (scope === 'platform' && !PLATFORM_ADMINS.includes(String(req.user.actorEmail || '').toLowerCase())) return res.status(403).json({ success: false, error: 'Only platform administrators can add platform-wide knowledge' });
+  if (scope === 'workspace' && !canDecide(req)) return res.status(403).json({ success: false, error: 'Only the owner or a team admin can add workspace knowledge' });
+  const errors = [];
+  const topic = typeof b.topic === 'string' ? b.topic.trim() : '';
+  if (!topic || topic.length > 120) errors.push('topic is required (max 120 characters)');
+  if (!/^(US|[A-Z]{2})$/.test(String(b.jurisdiction || ''))) errors.push('jurisdiction must be US or a 2-letter state code');
+  const summary = typeof b.summary === 'string' ? b.summary.trim() : '';
+  if (!summary || summary.length > 4000) errors.push('summary is required (max 4000 characters)');
+  if (typeof b.source !== 'string' || !b.source.trim() || b.source.length > 300) errors.push('source is required (e.g. statute section or regulator guidance)');
+  let url = null;
+  try { url = new URL(String(b.source_url)); if (url.protocol !== 'https:') throw new Error(); } catch { errors.push('source_url must be an https link to the source'); }
+  if (!DATE_RE.test(String(b.effective_date || ''))) errors.push('effective_date must be YYYY-MM-DD');
+  if (!DATE_RE.test(String(b.review_by || ''))) errors.push('review_by must be YYYY-MM-DD (when this must be re-verified)');
+  const confidence = Number(b.confidence);
+  if (!Number.isInteger(confidence) || confidence < 0 || confidence > 100) errors.push('confidence must be a whole number 0-100');
+  if (errors.length) return res.status(400).json({ success: false, error: errors.join('; ') });
+  const { data, error } = await supabase.from('knowledge_items').insert({
+    user_id: scope === 'platform' ? null : req.user.id, topic, jurisdiction: b.jurisdiction, content: { summary },
+    source: b.source.trim(), source_url: url.toString(), effective_date: b.effective_date, review_by: b.review_by,
+    last_verified_at: new Date().toISOString(), confidence,
+  }).select('*').single();
+  if (error) throw error;
+  await audit.record({ userId: req.user.id, actorUserId: req.user.actorId, agentId: 'real_estate_law', actionType: 'knowledge.added', inputs: { scope, topic, jurisdiction: b.jurisdiction, source: b.source }, humanApproved: true });
+  res.status(201).json({ success: true, data });
+}));
+
+router.get('/worksheets', (_req, res) => res.json({ success: true, data: dealGraph.WORKSHEETS }));
+
+router.put('/deals/:id/worksheets/:name', wrap(async (req, res) => {
+  const dealId = dealIdOr404(req, res); if (!dealId) return;
+  const data = req.body?.data === undefined ? undefined : req.body.data;
+  if (data === undefined) return res.status(400).json({ success: false, error: 'data is required (null clears the worksheet)' });
+  const saved = await dealGraph.setWorksheet(req.user.id, dealId, req.user.actorId, req.params.name, data);
+  if (!saved.found) return res.status(404).json({ success: false, error: 'Deal not found' });
+  res.json({ success: true, data: saved.worksheet });
 }));
 
 router.get('/deals/:id/runs/:runId', wrap(async (req, res) => {

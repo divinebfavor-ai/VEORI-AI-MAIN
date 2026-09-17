@@ -14,6 +14,11 @@ const { financing } = require('./finance');
 const { titleIntelligence, transactionCoordinator } = require('./transaction');
 const { disposition, buyerMatching } = require('./disposition');
 const { risk, challenger } = require('./risk');
+const { fixFlip, buyHold, brrrr, rentalProperty } = require('./investment');
+const { contractAssignment, doubleClose, leaseOption, novation, dscrAgent, hardMoney, equityJv } = require('./structures');
+const { landAcquisition, landDevelopment, multifamily, commercial, selfStorage } = require('./assetTypes');
+const { leadScoring, leadGeneration, negotiation, buyerIntelligence, portfolio } = require('./pipeline');
+const { comparableSales, underwriting, dueDiligence, realEstateLaw, rehabEstimation, constructionManagement } = require('./diligence');
 
 const legacyStatus = process.env.AGENTS_ENABLED === 'true' ? 'active' : 'flagged_off';
 const legacy = (id, name, domain, capabilities, permissions, risk_level) => registry.declare({
@@ -33,6 +38,9 @@ legacy('legacy_ops', 'Ops / Prediction Agent (original)', 'operations', ['pipeli
 const AGENTS = Object.fromEntries([
   leadIntelligence, motivatedSeller, valuation, arv, wholesale, creativeFinance, subjectTo, sellerFinance,
   financing, titleIntelligence, transactionCoordinator, disposition, buyerMatching, risk, challenger,
+  fixFlip, buyHold, brrrr, rentalProperty, contractAssignment, doubleClose, leaseOption, novation, dscrAgent, hardMoney, equityJv,
+  landAcquisition, landDevelopment, multifamily, commercial, selfStorage, leadScoring, leadGeneration, negotiation, buyerIntelligence, portfolio,
+  comparableSales, underwriting, dueDiligence, realEstateLaw, rehabEstimation, constructionManagement,
 ].map(a => [a.id, a]));
 
 const handoffProblems = registry.validateHandoffs();

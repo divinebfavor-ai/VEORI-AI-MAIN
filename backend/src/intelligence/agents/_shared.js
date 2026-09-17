@@ -66,4 +66,12 @@ function input(ctx, key, path) {
   return path ? c(ctx.understanding, path) : claim(null, STATUS.UNKNOWN);
 }
 
-module.exports = { KNOWLEDGE_DATE, c, val, known, finding, missingItem, missingFrom, evidenceConfidence, money, sourcesOf, strongest, input, STATUS };
+// Operator worksheet data (USER_PROVIDED) or null.
+function worksheet(rep, name) {
+  const w = rep?.worksheets?.[name];
+  return w && w.data != null ? w.data : null;
+}
+// Positive finite number or null.
+function pos(v) { const n = Number(v); return v === null || v === undefined || v === '' || !Number.isFinite(n) || n < 0 ? null : n; }
+
+module.exports = { worksheet, pos, KNOWLEDGE_DATE, c, val, known, finding, missingItem, missingFrom, evidenceConfidence, money, sourcesOf, strongest, input, STATUS };
