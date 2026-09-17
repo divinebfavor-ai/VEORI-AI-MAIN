@@ -511,6 +511,11 @@ app.use('/api/branding', require('./routes/branding'));
 app.use('/api/esign', require('./routes/esign'));
 app.use('/api/crm', require('./routes/crm'));
 app.use('/api/onboarding', require('./routes/onboarding'));
+app.use('/api/intelligence', require('./routes/intelligence'));
+// Mirror the agent registry into agent_registry (best-effort; the in-memory registry is authoritative).
+require('./intelligence/registry').syncToDatabase()
+  .then(n => console.log(`[Intelligence] ${n} agents registered`))
+  .catch(err => console.error('[Intelligence] registry sync failed:', err.message));
 
 // Webhook retry sweep. Each delivery is claimed before sending, so overlapping
 // sweeps (or a sweep racing an immediate send) never deliver the same row twice.
