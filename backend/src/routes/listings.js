@@ -40,7 +40,7 @@ router.get('/:id', async (req, res) => {
       .select('*, leads(*), buyer_inquiries(*, buyers(name, email, phone))')
       .eq('id', req.params.id)
       .eq('user_id', req.user.id)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'Listing not found' });
