@@ -27,6 +27,17 @@ function yesterdayStr() {
 
 // Roll up a single calendar day (default: yesterday) for every operator that had
 // activity. Returns the number of operator rows written.
+const PAGE = 1000;
+async function fetchAll(makeQuery) {
+  const data = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data: rows, error } = await makeQuery().order('id', { ascending: true }).range(from, from + PAGE - 1);
+    if (error) return { data: null, error };
+    data.push(...(rows || []));
+    if (!rows || rows.length < PAGE) return { data, error: null };
+  }
+}
+
 async function rollupDay(dateStr = yesterdayStr()) {
   if (!supabase) {
     console.warn('[Rollup] supabase unavailable - skipping');
@@ -36,15 +47,19 @@ async function rollupDay(dateStr = yesterdayStr()) {
 
   // Pull the day's raw events once each, then fold per-operator in memory. Volumes
   // for a single day are bounded, so this is a thin scan compared to a live N-day sum.
+  // Paged: a single select stops at the API's 1,000-row cap, which would silently
+  // under-count a busy day. sms_messages has no created_at column - texts are dated
+  // by sent_at (filtering on created_at made this whole rollup throw, so no daily
+  // stats were ever written).
   const [smsRes, callsRes, campaignsRes, dealsRes] = await Promise.all([
-    supabase.from('sms_messages').select('user_id, direction, sent_at, created_at')
-      .gte('created_at', startISO).lt('created_at', endISO),
-    supabase.from('calls').select('user_id, duration_seconds, outcome, created_at')
-      .gte('created_at', startISO).lt('created_at', endISO),
-    supabase.from('buyer_campaigns').select('user_id, buyers_called, created_at')
-      .gte('created_at', startISO).lt('created_at', endISO),
-    supabase.from('deals').select('user_id, status, assignment_fee, created_at')
-      .gte('created_at', startISO).lt('created_at', endISO),
+    fetchAll(() => supabase.from('sms_messages').select('id, user_id, direction, sent_at')
+      .gte('sent_at', startISO).lt('sent_at', endISO)),
+    fetchAll(() => supabase.from('calls').select('id, user_id, duration_seconds, outcome, created_at')
+      .gte('created_at', startISO).lt('created_at', endISO)),
+    fetchAll(() => supabase.from('buyer_campaigns').select('id, user_id, buyers_called, created_at')
+      .gte('created_at', startISO).lt('created_at', endISO)),
+    fetchAll(() => supabase.from('deals').select('id, user_id, status, assignment_fee, created_at')
+      .gte('created_at', startISO).lt('created_at', endISO)),
   ]);
 
   for (const r of [smsRes, callsRes, campaignsRes, dealsRes]) {

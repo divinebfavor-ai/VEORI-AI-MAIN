@@ -7,14 +7,6 @@
 
 const supabase = require('../config/supabase');
 
-async function countRows(table, userId, apply = (q) => q) {
-  const { count, error } = await apply(
-    supabase.from(table).select('id', { count: 'exact', head: true }).eq('user_id', userId),
-  );
-  if (error) throw error;
-  return count || 0;
-}
-
 async function getStatus(userId) {
   const { data: user, error } = await supabase.from('users')
     .select('company_name, a2p_registration_step, onboarding_completed')
@@ -22,21 +14,17 @@ async function getStatus(userId) {
   if (error) throw error;
   if (!user) return null;
 
-  const [leads, numbers, textNumbers, buyers, calls] = await Promise.all([
-    countRows('leads', userId),
-    countRows('phone_numbers', userId, q => q.eq('is_active', true).is('released_at', null)),
-    countRows('phone_numbers', userId, q => q.eq('is_active', true).is('released_at', null).eq('is_toll_free', true).eq('sms_verification_status', 'verified')),
-    countRows('buyers', userId),
-    countRows('calls', userId),
-  ]);
+  const { data: flags, error: flagsErr } = await supabase.rpc('onboarding_flags', { p_user_id: userId });
+  if (flagsErr) throw flagsErr;
+  const f = flags || {};
 
-  const textingReady = user.a2p_registration_step === 'active' || textNumbers > 0;
+  const textingReady = user.a2p_registration_step === 'active' || f.has_text_number === true;
   const steps = [
     { key: 'company', title: 'Add your company name', minutes: 1, done: !!user.company_name?.trim(), link: '/settings?tab=profile', why: 'Shown to sellers, on contracts and in texts.' },
-    { key: 'leads', title: 'Import your leads', minutes: 3, done: leads > 0, link: '/leads?import=1', why: 'Upload a CSV. Numbers are checked against do-not-call automatically.' },
-    { key: 'phone', title: 'Get a calling number', minutes: 2, done: numbers > 0, link: '/settings?tab=phones', why: 'A local number your AI calls from.' },
-    { key: 'buyers', title: 'Add a cash buyer', minutes: 1, done: buyers > 0, link: '/buyers', why: 'Deals you lock up get texted to matching buyers.' },
-    { key: 'first_call', title: 'Place your first AI call', minutes: 1, done: calls > 0, link: '/leads', why: 'Open a lead and press Call to hear it work.' },
+    { key: 'leads', title: 'Import your leads', minutes: 3, done: f.has_leads === true, link: '/leads?import=1', why: 'Upload a CSV. Numbers are checked against do-not-call automatically.' },
+    { key: 'phone', title: 'Get a calling number', minutes: 2, done: f.has_number === true, link: '/settings?tab=phones', why: 'A local number your AI calls from.' },
+    { key: 'buyers', title: 'Add a cash buyer', minutes: 1, done: f.has_buyers === true, link: '/buyers', why: 'Deals you lock up get texted to matching buyers.' },
+    { key: 'first_call', title: 'Place your first AI call', minutes: 1, done: f.has_calls === true, link: '/leads', why: 'Open a lead and press Call to hear it work.' },
     { key: 'texting', title: 'Register to text', minutes: 5, optional: true, done: textingReady, link: '/getting-started', why: 'Carriers require business registration before texting. Approval takes a few days, so start early.' },
   ];
 

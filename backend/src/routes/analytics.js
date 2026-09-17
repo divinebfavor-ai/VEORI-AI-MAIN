@@ -141,60 +141,29 @@ router.get('/dashboard', async (req, res, next) => {
     const month  = new Date().toISOString().slice(0, 7);
     const nowIso = new Date().toISOString();
 
+    // Counts and sums come back from one database function (dashboard_stats) instead
+    // of fifteen separate requests; the lists below still need their rows.
     const [
-      leadsRes,
-      callsTodayRes,
-      hotLeadsRes,
-      apptsTodayRes,
-      dealsRes,
-      revenueRes,
+      statsRes,
       liveCallsRes,
       recentActivityRes,
-      titleLogsRes,
-      pendingContractsRes,
-      dueFollowUpsRes,
-      titleRisksRes,
       dealsSnapshotRes,
       followUpsSnapshotRes,
       contractsSnapshotRes,
-      smsSentTodayRes,
-      smsRepliesTodayRes,
-      callsTodayMinutesRes,
-      buyersBlastedTodayRes,
     ] = await Promise.all([
-      supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', uid),
-      supabase.from('calls').select('id', { count: 'exact', head: true }).eq('user_id', uid).gte('created_at', today),
-      supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', uid).gte('motivation_score', 70),
-      supabase.from('calls').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('outcome', 'appointment').gte('created_at', today),
-      supabase.from('deals').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'under_contract'),
-      supabase.from('deals').select('assignment_fee').eq('user_id', uid).eq('status', 'closed').gte('created_at', month + '-01'),
+      supabase.rpc('dashboard_stats', {
+        p_user_id: uid, p_today: `${today}T00:00:00Z`, p_month_start: `${month}-01T00:00:00Z`, p_now: nowIso,
+      }),
       supabase.from('calls').select('*, leads(first_name, last_name, property_address), phone_numbers(number)').eq('user_id', uid).in('status', ['in-progress', 'ringing']),
       supabase.from('deal_activity').select('id, activity_type, message, created_at, metadata').eq('user_id', uid).order('created_at', { ascending: false }).limit(20),
-      supabase.from('title_logs').select('id, status', { count: 'exact' }).eq('user_id', uid),
-      supabase.from('contracts').select('id', { count: 'exact', head: true }).eq('user_id', uid).in('signing_status', ['sent', 'partially_signed']),
-      supabase.from('follow_ups').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'scheduled').lte('next_follow_up_at', nowIso),
-      supabase.from('title_logs').select('id', { count: 'exact', head: true }).eq('user_id', uid).in('status', ['documents_sent', 'stalled', 'funding_pending']),
       supabase.from('deals').select('id, property_address, status, closing_date').eq('user_id', uid).order('updated_at', { ascending: false }).limit(100),
       supabase.from('follow_ups').select('id, deal_id, contact_type, follow_up_type, next_follow_up_at, reason, status').eq('user_id', uid).order('next_follow_up_at', { ascending: true }).limit(20),
       supabase.from('contracts').select('id, deal_id, contract_type, signing_status, sent_at, fully_signed_at').eq('user_id', uid).order('updated_at', { ascending: false }).limit(20),
-      supabase.from('sms_messages').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('direction', 'outbound').gte('sent_at', today),
-      supabase.from('sms_messages').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('direction', 'inbound').gte('created_at', today),
-      supabase.from('calls').select('duration_seconds').eq('user_id', uid).gte('created_at', today),
-      supabase.from('buyer_campaigns').select('buyers_called').eq('user_id', uid).gte('created_at', today),
     ]);
-
-    const revenue = revenueRes.data?.reduce((sum, d) => sum + (d.assignment_fee || 0), 0) || 0;
-    const minutesToday = Math.round(
-      (callsTodayMinutesRes.data?.reduce((sum, c) => sum + (c.duration_seconds || 0), 0) || 0) / 60
-    );
-    const buyersBlastedToday = buyersBlastedTodayRes.data?.reduce((sum, c) => sum + (c.buyers_called || 0), 0) || 0;
-
-    // Grouped in the database: a plain select is capped at 1,000 rows by PostgREST,
-    // which under-counted every operator with more leads than that.
-    const funnel = {};
-    const { data: statusCounts, error: statusErr } = await supabase.rpc('lead_status_counts', { p_user_id: uid });
-    if (statusErr) console.error('[Analytics] lead_status_counts failed:', statusErr.message);
-    (statusCounts || []).forEach(r => { funnel[r.status] = Number(r.count) || 0; });
+    if (statsRes.error) throw statsRes.error;
+    const st = statsRes.data || {};
+    const num = (v) => Number(v) || 0;
+    const funnel = Object.fromEntries(Object.entries(st.pipeline_funnel || {}).map(([k, v]) => [k, num(v)]));
 
     const dealsById = new Map((dealsSnapshotRes.data || []).map((deal) => [deal.id, deal]));
     const dueFollowUps = (followUpsSnapshotRes.data || []).filter((item) => item.status === 'scheduled' && item.next_follow_up_at <= nowIso);
@@ -219,20 +188,20 @@ router.get('/dashboard', async (req, res, next) => {
       success: true,
       data: {
         stats: {
-          total_leads:        leadsRes.count || 0,
-          calls_today:        callsTodayRes.count || 0,
-          hot_leads:          hotLeadsRes.count || 0,
-          appointments_today: apptsTodayRes.count || 0,
-          deals_under_contract: dealsRes.count || 0,
-          revenue_this_month: revenue,
-          title_workflows: titleLogsRes.count || 0,
-          pending_signatures: pendingContractsRes.count || 0,
-          due_follow_ups: dueFollowUpsRes.count || 0,
-          title_risks: titleRisksRes.count || 0,
-          sms_sent_today:      smsSentTodayRes.count || 0,
-          sms_replies_today:   smsRepliesTodayRes.count || 0,
-          minutes_today:       minutesToday,
-          buyers_blasted_today: buyersBlastedToday,
+          total_leads:          num(st.total_leads),
+          calls_today:          num(st.calls_today),
+          hot_leads:            num(st.hot_leads),
+          appointments_today:   num(st.appointments_today),
+          deals_under_contract: num(st.deals_under_contract),
+          revenue_this_month:   num(st.revenue_this_month),
+          title_workflows:      num(st.title_workflows),
+          pending_signatures:   num(st.pending_signatures),
+          due_follow_ups:       num(st.due_follow_ups),
+          title_risks:          num(st.title_risks),
+          sms_sent_today:       num(st.sms_sent_today),
+          sms_replies_today:    num(st.sms_replies_today),
+          minutes_today:        num(st.minutes_today),
+          buyers_blasted_today: num(st.buyers_blasted_today),
         },
         live_calls:    liveCallsRes.data || [],
         pipeline_funnel: funnel,
