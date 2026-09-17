@@ -104,7 +104,7 @@ async function runStageAutomation({ deal, from, to, userId }) {
   if (TERMINAL_OUTCOME[to]) {
     let lead = null;
     if (deal.lead_id) {
-      const { data } = await supabase.from('leads').select('*').eq('id', deal.lead_id).maybeSingle();
+      const { data } = await supabase.from('leads').select('*').eq('id', deal.lead_id).eq('user_id', deal.user_id).maybeSingle();
       lead = data || null;
     }
     await recordTerminalOutcome(deal, to, lead);
@@ -112,7 +112,7 @@ async function runStageAutomation({ deal, from, to, userId }) {
     if (to === 'closed') {
       try {
         const { count: callCount } = await supabase.from('calls')
-          .select('id', { count: 'exact', head: true }).eq('lead_id', deal.lead_id);
+          .select('id', { count: 'exact', head: true }).eq('lead_id', deal.lead_id).eq('user_id', deal.user_id);
         const daysToClose = deal.created_at ? Math.round((Date.now() - new Date(deal.created_at)) / 86400000) : null;
         await require('./dataMotService').recordWinningPlaybook({
           deal, lead, calls_to_close: callCount || 0, days_to_close: daysToClose,

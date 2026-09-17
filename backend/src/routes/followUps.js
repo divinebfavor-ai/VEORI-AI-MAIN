@@ -49,6 +49,10 @@ router.post('/create_follow_up', async (req, res, next) => {
       .single();
     if (dealError) throw dealError;
     if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
+    const contactTable = { seller: 'leads', buyer: 'buyers', title_company: 'title_companies' }[contact_type];
+    if (contact_id && (!contactTable || !(await require('../utils/ownership').owns(req.user.id, contactTable, contact_id)))) {
+      return res.status(404).json({ success: false, error: 'Contact not found' });
+    }
 
     const payload = {
       id: uuidv4(),

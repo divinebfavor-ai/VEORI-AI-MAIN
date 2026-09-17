@@ -321,7 +321,7 @@ router.post('/:id/inquire', async (req, res) => {
       .insert({
         listing_id:  req.params.id,
         user_id:     listing.user_id,
-        buyer_id:    buyer_id || null,
+        buyer_id:    buyer_id && listing.user_id === req.user.id && (await require('../utils/ownership').owns(req.user.id, 'buyers', buyer_id)) ? buyer_id : null,
         buyer_name, buyer_email, buyer_phone: buyer_phone || '',
         message: message || '',
         status: 'new',

@@ -449,13 +449,13 @@ router.get('/verify/:txRef', auth, async (req, res) => {
 
     // Verify by transaction ID if provided (more reliable)
     if (transaction_id) {
-      const resp = await fwRequest('GET', `/transactions/${transaction_id}/verify`);
+      const resp = await fwRequest('GET', `/transactions/${encodeURIComponent(String(transaction_id))}/verify`);
       if (resp.status === 'success') txData = resp.data;
     }
 
     // Fallback: search by tx_ref
     if (!txData) {
-      const resp = await fwRequest('GET', `/transactions?tx_ref=${txRef}`);
+      const resp = await fwRequest('GET', `/transactions?tx_ref=${encodeURIComponent(String(txRef))}`);
       if (resp.status === 'success' && resp.data?.length > 0) {
         txData = resp.data[0];
       }
@@ -471,10 +471,15 @@ router.get('/verify/:txRef', auth, async (req, res) => {
 
     // Security: verify this transaction belongs to the authenticated user
     // Prevents User A from using User B's transaction ID to upgrade their own account
+    // Fail closed: every checkout this server creates stamps meta.user_id, so a
+    // transaction without it (or with someone else's id) cannot be claimed here.
     const txUserId = txData.meta?.user_id;
-    if (txUserId && txUserId !== req.user.id) {
-      console.error(`[FW Verify] User ${req.user.id} tried to claim transaction belonging to ${txUserId}`);
+    if (!txUserId || txUserId !== req.user.id) {
+      console.error(`[FW Verify] User ${req.user.id} tried to claim transaction belonging to ${txUserId || 'no user'}`);
       return res.status(403).json({ success: false, error: 'Transaction does not belong to your account' });
+    }
+    if (txData.meta?.type === 'topup') {
+      return res.status(400).json({ success: false, error: 'This payment is an outreach top-up, not a subscription' });
     }
 
     // Extract plan from tx_ref or meta
@@ -705,11 +710,11 @@ router.get('/verify-topup/:txRef', auth, async (req, res) => {
 
     let txData = null;
     if (transaction_id) {
-      const r = await fwRequest('GET', `/transactions/${transaction_id}/verify`);
+      const r = await fwRequest('GET', `/transactions/${encodeURIComponent(String(transaction_id))}/verify`);
       if (r.status === 'success') txData = r.data;
     }
     if (!txData) {
-      const r = await fwRequest('GET', `/transactions?tx_ref=${txRef}`);
+      const r = await fwRequest('GET', `/transactions?tx_ref=${encodeURIComponent(String(txRef))}`);
       if (r.status === 'success' && r.data?.length > 0) txData = r.data[0];
     }
     if (!txData)                       return res.status(404).json({ success: false, error: 'Transaction not found' });
@@ -717,9 +722,12 @@ router.get('/verify-topup/:txRef', auth, async (req, res) => {
 
     // Ownership guard - same as subscription verify.
     const txUserId = txData.meta?.user_id;
-    if (txUserId && txUserId !== req.user.id) {
-      console.error(`[FW Topup Verify] User ${req.user.id} tried to claim tx of ${txUserId}`);
+    if (!txUserId || txUserId !== req.user.id) {
+      console.error(`[FW Topup Verify] User ${req.user.id} tried to claim tx of ${txUserId || 'no user'}`);
       return res.status(403).json({ success: false, error: 'Transaction does not belong to your account' });
+    }
+    if (txData.meta?.type !== 'topup') {
+      return res.status(400).json({ success: false, error: 'This payment is not an outreach top-up' });
     }
 
     const planKey = txData.meta?.plan || txRef.split('_')[2] || null;

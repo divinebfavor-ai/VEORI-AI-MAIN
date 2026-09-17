@@ -287,6 +287,9 @@ router.get('/lesson/:id', async (req, res) => {
 // GET /api/academy/progress/:user_id
 router.get('/progress/:user_id', async (req, res, next) => {
   try {
+    if (req.params.user_id !== req.user.id && req.params.user_id !== req.user.actorId) {
+      return res.status(404).json({ success: false, error: 'Not found' });
+    }
     const { data, error } = await supabase.from('academy_progress')
       .select('*').eq('user_id', req.params.user_id);
     if (error) throw error;

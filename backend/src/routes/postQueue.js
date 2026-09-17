@@ -62,6 +62,11 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'At least one platform is required' });
     }
 
+    const foreign = await require('../utils/ownership').firstForeign(req.user.id, [
+      { table: 'leads', id: lead_id, label: 'Lead' }, { table: 'listings', id: listing_id, label: 'Listing' },
+    ]);
+    if (foreign) return res.status(404).json({ error: `${foreign} not found` });
+
     const status = scheduled_at ? 'scheduled' : 'pending';
 
     // Create one queue entry per platform

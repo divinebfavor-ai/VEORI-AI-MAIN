@@ -371,7 +371,12 @@ router.post('/campaign/start', async (req, res, next) => {
 // POST /api/calls/campaign/pause
 router.post('/campaign/pause', async (req, res, next) => {
   try {
-    const { campaign_id } = req.body;
+    const { campaign_id } = req.body || {};
+    const { data: owned, error: ownErr } = /^[0-9a-f-]{36}$/i.test(String(campaign_id || ''))
+      ? await supabase.from('campaigns').select('id').eq('id', campaign_id).eq('user_id', req.user.id).maybeSingle()
+      : { data: null, error: null };
+    if (ownErr) throw ownErr;
+    if (!owned) return res.status(404).json({ success: false, error: 'Campaign not found' });
     await campaignManager.pause(campaign_id);
     res.json({ success: true, message: 'Campaign paused' });
   } catch (err) { next(err); }
@@ -380,7 +385,12 @@ router.post('/campaign/pause', async (req, res, next) => {
 // POST /api/calls/campaign/stop
 router.post('/campaign/stop', async (req, res, next) => {
   try {
-    const { campaign_id } = req.body;
+    const { campaign_id } = req.body || {};
+    const { data: owned, error: ownErr } = /^[0-9a-f-]{36}$/i.test(String(campaign_id || ''))
+      ? await supabase.from('campaigns').select('id').eq('id', campaign_id).eq('user_id', req.user.id).maybeSingle()
+      : { data: null, error: null };
+    if (ownErr) throw ownErr;
+    if (!owned) return res.status(404).json({ success: false, error: 'Campaign not found' });
     await campaignManager.stop(campaign_id);
     res.json({ success: true, message: 'Campaign stopped' });
   } catch (err) { next(err); }
@@ -440,7 +450,7 @@ router.get('/:id/listen', async (req, res, next) => {
 
     // ── Legacy Vapi path ─────────────────────────────────────────────────────────
     // If the frontend already has the vapi_call_id, use it directly
-    let vapiCallId = req.query.vapi_call_id || null;
+    let vapiCallId = null; // always resolved from this workspace's own call row
 
     let callStatus = null;
     if (!vapiCallId) {

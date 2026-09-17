@@ -123,6 +123,10 @@ router.get('/silent-calls', async (req, res) => {
 router.post('/log', async (req, res) => {
   try {
     const { call_id, lead_id, duration_sec, was_silent, silence_sec, answered, sentiment } = req.body;
+    const foreign = await require('../utils/ownership').firstForeign(req.user.id, [
+      { table: 'calls', id: call_id, label: 'Call' }, { table: 'leads', id: lead_id, label: 'Lead' },
+    ]);
+    if (foreign) return res.status(404).json({ success: false, error: `${foreign} not found` });
 
     const now = new Date();
     const { data, error } = await supabase

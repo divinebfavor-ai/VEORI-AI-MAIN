@@ -111,8 +111,17 @@ router.post('/:id/start', async (req, res, next) => {
 });
 
 // POST /api/campaigns/:id/pause
+// Workspace-scoped: a campaign id from another workspace is treated as not found.
+async function ownsCampaign(req, id) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(id || ''))) return false;
+  const { data, error } = await supabase.from('campaigns').select('id').eq('id', id).eq('user_id', req.user.id).maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
 router.post('/:id/pause', async (req, res, next) => {
   try {
+    if (!(await ownsCampaign(req, req.params.id))) return res.status(404).json({ success: false, error: 'Campaign not found' });
     await campaignManager.pause(req.params.id);
     res.json({ success: true, message: 'Campaign paused' });
   } catch (err) { next(err); }
@@ -121,6 +130,7 @@ router.post('/:id/pause', async (req, res, next) => {
 // POST /api/campaigns/:id/stop
 router.post('/:id/stop', async (req, res, next) => {
   try {
+    if (!(await ownsCampaign(req, req.params.id))) return res.status(404).json({ success: false, error: 'Campaign not found' });
     await campaignManager.stop(req.params.id);
     res.json({ success: true, message: 'Campaign stopped' });
   } catch (err) { next(err); }

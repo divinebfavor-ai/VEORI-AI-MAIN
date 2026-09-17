@@ -12,6 +12,14 @@ const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 const smsFirst = require('../services/smsFirstWorkflow');
 
+// Workspace-scoped campaign check (service role bypasses RLS).
+async function ownsCampaign(req) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(req.params.id || ''))) return false;
+  const { data, error } = await supabase.from('campaigns').select('id').eq('id', req.params.id).eq('user_id', req.user.id).maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
 // POST /api/sms-first/:id/start
 router.post('/:id/start', auth, async (req, res, next) => {
   try {
@@ -29,6 +37,7 @@ router.post('/:id/start', auth, async (req, res, next) => {
 // POST /api/sms-first/:id/stop
 router.post('/:id/stop', auth, async (req, res, next) => {
   try {
+    if (!(await ownsCampaign(req))) return res.status(404).json({ success: false, error: 'Campaign not found' });
     await smsFirst.stop(req.params.id);
     res.json({ success: true, message: 'SMS First monitoring stopped' });
   } catch (err) { next(err); }
@@ -37,6 +46,7 @@ router.post('/:id/stop', auth, async (req, res, next) => {
 // GET /api/sms-first/:id/status
 router.get('/:id/status', auth, async (req, res, next) => {
   try {
+    if (!(await ownsCampaign(req))) return res.status(404).json({ success: false, error: 'Campaign not found' });
     const status = await smsFirst.getStatus(req.params.id);
     res.json({ success: true, data: status });
   } catch (err) { next(err); }

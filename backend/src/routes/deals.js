@@ -166,6 +166,10 @@ router.put('/:id', async (req, res, next) => {
     const allowed = ['property_address','property_city','property_state','arv','repair_estimate','mao','offer_price','seller_agreed_price','buyer_price','assignment_fee','title_company_id','buyer_id','closing_date','seller_contract_url','buyer_contract_url','contract_status','notes','emd_status','emd_amount','emd_refundable','emd_held_by'];
     const updates = { updated_at: new Date().toISOString() };
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    const foreign = await require('../utils/ownership').firstForeign(req.user.id, [
+      { table: 'title_companies', id: updates.title_company_id, label: 'Title company' }, { table: 'buyers', id: updates.buyer_id, label: 'Buyer' },
+    ]);
+    if (foreign) return res.status(404).json({ success: false, error: `${foreign} not found` });
     const { data: existing, error: existingError } = await supabase
       .from('deals')
       .select('id, lead_id, status, title_company_id, buyer_id, contract_status')
@@ -652,6 +656,10 @@ router.post('/create', async (req, res, next) => {
   try {
     const { property_address, property_city, property_state, deal_type, strategy_terms, arv, repair_estimate, offer_price, lead_id, title_company_id } = req.body;
     if (!property_address) return res.status(400).json({ success: false, error: 'property_address required' });
+    const foreign = await require('../utils/ownership').firstForeign(req.user.id, [
+      { table: 'leads', id: lead_id, label: 'Lead' }, { table: 'title_companies', id: title_company_id, label: 'Title company' },
+    ]);
+    if (foreign) return res.status(404).json({ success: false, error: `${foreign} not found` });
 
     const arv_n = parseFloat(arv) || 0;
     const repair_n = parseFloat(repair_estimate) || 0;

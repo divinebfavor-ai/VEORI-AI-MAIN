@@ -15,9 +15,13 @@ router.post('/', async (req, res) => {
   try {
     const { listing_id, lead_id, title, photos = [], tour_type = 'slideshow' } = req.body;
 
-    if (photos.length === 0) {
+    if (!Array.isArray(photos) || photos.length === 0) {
       return res.status(400).json({ success: false, error: 'At least one photo required' });
     }
+    const foreign = await require('../utils/ownership').firstForeign(req.user.id, [
+      { table: 'leads', id: lead_id, label: 'Lead' }, { table: 'listings', id: listing_id, label: 'Listing' },
+    ]);
+    if (foreign) return res.status(404).json({ success: false, error: `${foreign} not found` });
 
     let kuula_url  = null;
     let trolto_url = null;

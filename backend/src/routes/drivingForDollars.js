@@ -76,6 +76,9 @@ router.post('/pin', async (req, res) => {
   try {
     const { lat, lng, address, notes, condition, session_id } = req.body;
     if (!lat || !lng) return res.status(400).json({ success: false, error: 'lat/lng required' });
+    if (!(await require('../utils/ownership').owns(req.user.id, 'dfd_sessions', session_id))) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
 
     const { data, error } = await supabase
       .from('dfd_pins')

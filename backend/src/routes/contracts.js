@@ -74,7 +74,7 @@ router.get('/session/:token', async (req, res, next) => {
     const token = String(req.params.token || '');
     if (!/^[0-9a-f-]{36}$/i.test(token)) return res.status(404).json({ success: false, error: 'Signing session not found' });
     const signer = await contractService.getSigningSession(token);
-    if (!signer) return res.status(404).json({ success: false, error: 'Signing session not found' });
+    if (!signer || !signer.contracts) return res.status(404).json({ success: false, error: 'Signing session not found' });
     res.json({
       success: true,
       data: {

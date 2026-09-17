@@ -80,6 +80,11 @@ router.post('/visit', async (req, res) => {
 // GET /api/analytics/landing-stats - admin only
 router.get('/landing-stats', requireAuth, async (req, res, next) => {
   try {
+    // Platform-wide visitor analytics: admins only.
+    const admins = (process.env.ADMIN_EMAILS || 'divineqflash@gmail.com').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (!admins.includes(String(req.user.actorEmail || req.user.email || '').toLowerCase())) {
+      return res.status(403).json({ success: false, error: 'Admin access required' });
+    }
     const now   = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const week  = new Date(now - 7  * 24 * 60 * 60 * 1000).toISOString();

@@ -132,6 +132,12 @@ router.post('/request', async (req, res) => {
       if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
     }
 
+    if (partner_id) {
+      const ok = /^[0-9a-f-]{36}$/i.test(String(partner_id)) && (await supabase.from('funding_partners').select('id')
+        .eq('id', partner_id).eq('is_active', true).or(`is_public.eq.true,user_id.eq.${req.user.id}`).maybeSingle()).data;
+      if (!ok) return res.status(404).json({ success: false, error: 'Funding partner not found' });
+    }
+
     const row = {
       user_id: req.user.id,
       deal_id: deal_id || null,
