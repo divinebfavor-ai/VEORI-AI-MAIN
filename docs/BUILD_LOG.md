@@ -4,7 +4,7 @@
 > Covers **2026-06-23 → 2026-07-06** (last two weeks) plus session work that
 > lives outside git (DNS, email, deploy, and security operations).
 >
-> Last updated: **2026-07-06**. Nothing here is meant to be forgotten.
+> Last updated: **2026-09-17**. Nothing here is meant to be forgotten.
 
 ---
 
@@ -483,6 +483,49 @@ contract delivery, buyer matching fixes.
    with status `new`; now `lead`.
 4. Pipeline "Add Deal" button called `toast.info` (not in react-hot-toast) and threw.
 5. Tests: `src/__tests__/dealStage.test.js` (8 cases). 32/32 pass.
+
+---
+
+## Session 2026-09-17 — Full build-out: delivery, automation, compliance, API, teams, security, integrations
+
+Verified with unit tests (`JWT_SECRET=test npm test`, 99 passing), production end-to-end
+scripts against temporary `@example.com` accounts (all deleted afterwards), and
+Railway HTTP logs for server-side latency.
+
+### Features
+1. **Contract delivery** (`8f2020c`) — each signer gets their own link by email (counterparty also SMS through the compliance gate); refuses to re-issue a partly signed contract.
+2. **Post-call pipeline** (`02b42bf`) — `services/postCallPipeline.js` runs once per call (claimed via `calls.post_call_processed_at`): deal stage, sequence, memory, callback/appointment, missed-call text, stats.
+3. **Buyer matching** (`16824c1`) — city / zip / min price / tire-kicker filters, one offer per buyer per deal (`buyer_deal_offers`), a buyer's YES tied to a deal they were offered; ambiguous replies ask which address.
+4. **Follow-ups** (`49c56d4`) — nurture day 3/7/14/30/60/90, text only with consent, calls wait for calling hours, stops on reply/STOP/DNC.
+5. **Import + DNC** (`dbd7226`) — E.164 phones (DB trigger), 1,000-row batches, fail-closed internal DNC check.
+6. **Compliance** (`d7ecaac`) — operator texts need a registered sender unless `ALLOW_SHARED_SENDER_OUTREACH=true`; opt-outs revoked not deleted (history kept); plain-language STOP; recording objection ends the call.
+7. **Mobile** (`cc501af`) and honest "recording no longer available" for dead Vapi links (`774d130`).
+8. **Public REST API** (`c0418da`) — `/api/v1`, scoped `vk_live_` keys, HMAC-signed webhooks with retries and SSRF protection, docs at `/developers`.
+9. **Dropbox Sign** (`b390127`) — active when `DROPBOX_SIGN_API_KEY` is set; callback `https://veori.net/api/esign/dropbox-sign/callback`.
+10. **Live sentiment** (`c5a8c10`), **teams** with admin/member/viewer (`fce7215`), **white label** with verified custom domains (`0061b67`).
+11. **Probate / divorce / vendor list import** (`d93aebf`) — list type in the import dialog; rows tagged; phoneless rows kept for skip tracing. Removed `services/sources/courtRecords.js` (unused; its CourtAPI host doesn't resolve, Florida endpoint 404). No direct probate data provider was built: none with a verifiable API schema was found.
+12. **CRM sync** (`d2e5f24`) — Settings → Integrations. HubSpot (private app token) and Follow Up Boss (API key; needs `FUB_SYSTEM_NAME` + `FUB_SYSTEM_KEY`). Keys encrypted with `PII_ENCRYPTION_KEY`; queue with retries in `crm_sync_jobs`.
+13. **Onboarding** (`b8770d7`, `d38f6d8`) — dashboard checklist computed from real data (company, leads, calling number, buyer, first call; texting registration optional), 8 minutes of required steps.
+
+### Security
+14. **Private call recordings** (`0beec8b`) — bucket private; `GET /api/calls/:id/recording` returns a 1-hour signed link after an ownership check.
+15. **Per-endpoint rate limits** (`e4d6b0f`) — `middleware/rateLimits.js`, counted in Redis across instances; Twilio-signed callbacks skip the anonymous limit.
+16. **Cross-workspace fixes** (`0ddb04f`) — `/api/conversations/schedule-call` could queue a dial to any lead id (worker dialled from the lead owner's account); email blasts could load other workspaces' buyers; unmetered `/api/vapi/aria` retired.
+17. **Real visitor IP** (`ff901f9`) — anonymous limits (incl. login brute-force) were keyed on proxy IPs, shared by everyone. `utils/clientIp.js`, trust proxy 2. Residual: a caller hitting the Railway domain directly can forge `x-vercel-*` headers.
+18. **Least-privilege DB** (`ff901f9`) — `anon`/`authenticated` have no table, sequence or function access (they could execute SECURITY DEFINER `increment_user_counter`). All 118 public tables have RLS on; backend uses service role only.
+19. **4xx for bad input** (`a0167c6`) — Postgres input errors map to 400/404/409.
+
+### Performance + data fixes (`8dc55e0`)
+20. Dashboard stats in one call (`dashboard_stats()`), onboarding in one (`onboarding_flags()`). Server-side (Railway upstream): dashboard 492ms p50 / 1.3s p95 → 112ms / 159ms; onboarding 194/327 → 113/143ms; leads list 95/130ms. Checked identical on all 4 accounts.
+21. `sms_messages` has no `created_at`: "SMS replies today" always showed 0, and the nightly rollup threw so `operator_daily_stats` was empty. Fixed; backfilled 140 days (658 calls reconcile).
+22. `scripts/loadtest.js` — dependency-free load tester. Baseline only (≤25 concurrent). **10,000 concurrent was not run against production.**
+
+### Owner actions (not doable in code)
+- Twilio production account is inactive — reactivate.
+- Set on Railway: `PII_ENCRYPTION_KEY` (CRM connections refuse without it), `DROPBOX_SIGN_API_KEY` (+ callback URL in Dropbox Sign), `FTC_DNC_API_KEY`, `BATCH_SKIP_TRACE_API_KEY`, `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID` (custom domains), `FUB_SYSTEM_NAME` + `FUB_SYSTEM_KEY` (register at apps.followupboss.com/system-registration).
+- A2P 10DLC registration for texting.
+- Decide on AI voice calls to cold leads without prior consent (TCPA exposure).
+- Load test at 10k concurrency on a staging copy, not production.
 
 ---
 
