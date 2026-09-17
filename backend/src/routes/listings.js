@@ -217,7 +217,8 @@ router.post('/:id/enhance-photos', async (req, res) => {
     await supabase
       .from('listings')
       .update({ photos: newPhotos, updated_at: new Date().toISOString() })
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id);
 
     console.log(`[enhance-photos] listing ${req.params.id}: ${enhanced.length} photos enhanced`);
     res.json({ success: true, photos: newPhotos, enhanced: enhanced.length, errors });
@@ -288,7 +289,7 @@ router.post('/:id/blast', async (req, res) => {
     // Update listing's published_to
     const alreadyPublished = listing.published_to || [];
     const newPublished = [...new Set([...alreadyPublished, ...platforms.filter(p => results[p].status === 'queued')])];
-    await supabase.from('listings').update({ published_to: newPublished, status: 'active' }).eq('id', req.params.id);
+    await supabase.from('listings').update({ published_to: newPublished, status: 'active' }).eq('id', req.params.id).eq('user_id', req.user.id);
 
     res.json({ success: true, blast, results });
   } catch (err) {
@@ -413,7 +414,7 @@ router.post('/:id/assignment', async (req, res) => {
 
     let buyerName = buyer_name;
     if (!buyerName && buyer_id) {
-      const { data: buyer } = await supabase.from('buyers').select('name').eq('id', buyer_id).single();
+      const { data: buyer } = await supabase.from('buyers').select('name').eq('id', buyer_id).eq('user_id', req.user.id).maybeSingle();
       buyerName = buyer?.name;
     }
 

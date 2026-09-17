@@ -1,194 +1,122 @@
 const express  = require('express');
+const { v4: uuidv4 } = require('uuid');
 const supabase = require('../config/supabase');
 const { requireAuth } = require('../middleware/auth');
-const { extractDealTerms, parseCallTime, extractConversationInsights } = require('../services/dualAIService');
-const { scheduleVapiCall, scheduleFollowUp } = require('../services/queueService');
-const { v4: uuidv4 } = require('uuid');
+const { scheduleVapiCall } = require('../services/queueService');
+const { sendReply } = require('../services/smsService');
 
 const router = express.Router();
 router.use(requireAuth);
 
-// POST /api/conversations/send-sms
+// SECURITY: this router used to look contacts up by id alone and send through the
+// retired Vapi SMS API, and /schedule-call queued a dial for ANY lead id - the worker
+// then called that lead from its owner's account. Every handler now proves the lead
+// (and deal, when given) belongs to the caller's workspace, and sends through the
+// same compliant paths as the rest of the app (DNC, credits, quiet hours at dial time).
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_MESSAGE = 1600;
+const MAX_SCHEDULE_DAYS = 90;
+
+async function ownedLead(userId, leadId) {
+  if (!UUID_RE.test(String(leadId || ''))) return null;
+  const { data, error } = await supabase.from('leads').select('id, phone, first_name')
+    .eq('id', leadId).eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function ownedDeal(userId, dealId) {
+  if (!UUID_RE.test(String(dealId || ''))) return null;
+  const { data, error } = await supabase.from('deals').select('id, lead_id')
+    .eq('id', dealId).eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// POST /api/conversations/send-sms - text a seller lead in this workspace
 router.post('/send-sms', async (req, res, next) => {
   try {
-    const { deal_id, contact_id, contact_type, message } = req.body;
-    if (!contact_id || !message) return res.status(400).json({ success: false, error: 'contact_id and message required' });
-
-    // Get contact phone
-    const table = contact_type === 'buyer' ? 'buyers' : 'sellers';
-    const idCol  = contact_type === 'buyer' ? 'buyer_id' : 'seller_id';
-    const { data: contact } = await supabase.from(table).select('phone, name').eq(idCol, contact_id).single();
-
-    if (!contact?.phone) return res.status(400).json({ success: false, error: 'Contact has no phone number' });
-
-    // AI disclosure prefix on all outbound SMS
-    const aiPrefix = 'This is an automated message from Veori AI. ';
-    const fullMessage = message.startsWith('This is') ? message : aiPrefix + message;
-
-    // Send via Vapi SMS
-    const axios = require('axios');
-    await axios.post('https://api.vapi.ai/message', {
-      to: contact.phone,
-      message: fullMessage,
-    }, {
-      headers: { Authorization: `Bearer ${process.env.VAPI_API_KEY}` },
-    }).catch(err => console.error('[SMS] Send error:', err.response?.data || err.message));
-
-    // Store message
-    const { data: msg } = await supabase.from('conversations').insert({
-      deal_id: deal_id || null,
-      contact_id,
-      contact_type: contact_type || 'seller',
-      sender: 'ai',
-      content: fullMessage,
-      operator_id: req.user.id,
-    }).select().single();
-
-    // Log action
-    await require('../services/aiCommandLog').logAiCommand({
-      userId: req.user.id, dealId: deal_id || null, actionType: 'sms_sent', status: 'sent',
-      summary: `To ${contact.name || 'contact'}: ${fullMessage.substring(0, 300)}`,
-    });
-
-    // Check if contact is requesting a call
-    const terms = await extractDealTerms(fullMessage).catch(() => null);
-    if (terms?.requested_call && terms?.call_requested_time) {
-      const callTime = await parseCallTime(terms.call_requested_time).catch(() => null);
-      if (callTime?.requested_time) {
-        const followUpId = uuidv4();
-        await supabase.from('follow_ups').insert({
-          followup_id: followUpId,
-          deal_id: deal_id || null,
-          contact_id,
-          contact_type: contact_type || 'seller',
-          next_follow_up_at: callTime.requested_time,
-          follow_up_type: 'voice_call',
-          status: 'pending',
-          message_template: 'scheduled_callback',
-        });
-
-        const { data: operator } = await supabase.from('users').select('ai_caller_name').eq('id', req.user.id).single();
-        const script = `Hi ${contact.name?.split(' ')[0] || 'there'}, this is ${operator?.ai_caller_name || 'Alex'}, an AI assistant from Veori. You asked me to call you at this time. Are you ready to move forward?`;
-
-        const jobId = await scheduleVapiCall({
-          followUpId,
-          deal_id,
-          leadId: contact_id,
-          runAt: callTime.requested_time,
-          script,
-        });
-
-        await supabase.from('follow_ups').update({ bullmq_job_id: jobId }).eq('followup_id', followUpId);
-      }
+    const { contact_id, contact_type = 'seller', message } = req.body || {};
+    if (contact_type !== 'seller') {
+      return res.status(400).json({ success: false, error: 'Only seller leads can be texted here. Use a buyer blast for buyers.' });
     }
+    const text = typeof message === 'string' ? message.trim() : '';
+    if (!text) return res.status(400).json({ success: false, error: 'message is required' });
+    if (text.length > MAX_MESSAGE) return res.status(400).json({ success: false, error: `message must be ${MAX_MESSAGE} characters or fewer` });
 
-    res.json({ success: true, message: msg });
+    const lead = await ownedLead(req.user.id, contact_id);
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+    if (!lead.phone) return res.status(400).json({ success: false, error: 'This lead has no phone number' });
+
+    const messageId = await sendReply(lead.phone, text, req.user.id, lead.id);
+    if (!messageId) {
+      return res.status(409).json({ success: false, error: 'The text was not sent (the number may be on your do-not-contact list, or you are out of outreach credits).' });
+    }
+    res.json({ success: true, message_id: messageId });
   } catch (err) { next(err); }
 });
 
-// POST /api/conversations/handle-reply - process inbound reply from contact
-router.post('/handle-reply', async (req, res, next) => {
-  try {
-    const { deal_id, contact_id, contact_type, message, from_phone } = req.body;
-
-    // Store the inbound message
-    await supabase.from('conversations').insert({
-      deal_id: deal_id || null,
-      contact_id: contact_id || null,
-      contact_type: contact_type || 'seller',
-      sender: 'contact',
-      content: message,
-      operator_id: req.user.id,
-    });
-
-    // Extract deal terms from the message
-    const terms = await extractDealTerms(message).catch(() => null);
-
-    let updates = {};
-    if (terms?.offer_price) updates.offer_price = terms.offer_price;
-    if (terms?.closing_date) updates.closing_date = terms.closing_date;
-
-    if (deal_id && Object.keys(updates).length > 0) {
-      await supabase.from('deals').update(updates).eq('deal_id', deal_id);
-    }
-
-    // Handle call request
-    if (terms?.requested_call && terms?.call_requested_time) {
-      const callTime = await parseCallTime(terms.call_requested_time).catch(() => null);
-      if (callTime?.requested_time && callTime.confidence > 60) {
-        const followUpId = uuidv4();
-        await supabase.from('follow_ups').insert({
-          followup_id: followUpId,
-          deal_id: deal_id || null,
-          contact_id,
-          contact_type: contact_type || 'seller',
-          next_follow_up_at: callTime.requested_time,
-          follow_up_type: 'voice_call',
-          status: 'pending',
-          message_template: 'contact_requested_call',
-        });
-
-        const jobId = await scheduleVapiCall({
-          followUpId,
-          deal_id,
-          leadId: contact_id,
-          runAt: callTime.requested_time,
-          script: `Hi, this is Alex, an AI assistant from Veori. You asked us to call you at this time. Are you ready to discuss your property?`,
-        });
-
-        await supabase.from('follow_ups').update({ bullmq_job_id: jobId }).eq('followup_id', followUpId);
-      }
-    }
-
-    await require('../services/aiCommandLog').logAiCommand({
-      userId: req.user.id, dealId: deal_id || null, actionType: 'inbound_reply_received',
-      status: terms?.next_action || 'reply_logged', summary: message.substring(0, 300),
-    });
-
-    res.json({ success: true, extracted_terms: terms });
-  } catch (err) { next(err); }
+// POST /api/conversations/handle-reply - retired. Seller replies arrive from the
+// carrier webhook (/api/sms/webhook); letting a client post a "reply" allowed
+// forged inbound messages to drive AI extraction and scheduled dials.
+router.post('/handle-reply', (_req, res) => {
+  res.status(410).json({ success: false, error: 'Replies are recorded automatically when the seller texts back.' });
 });
 
-// POST /api/conversations/schedule-call - schedule a Vapi call at a specific time
+// POST /api/conversations/schedule-call - AI callback to a lead at a set time
 router.post('/schedule-call', async (req, res, next) => {
   try {
-    const { deal_id, contact_id, contact_type, run_at, script } = req.body;
-    if (!contact_id || !run_at) return res.status(400).json({ success: false, error: 'contact_id and run_at required' });
+    const { contact_id, deal_id, run_at, reason } = req.body || {};
+    const when = new Date(run_at);
+    if (!run_at || Number.isNaN(when.getTime())) return res.status(400).json({ success: false, error: 'run_at must be a date and time' });
+    if (when.getTime() <= Date.now()) return res.status(400).json({ success: false, error: 'run_at must be in the future' });
+    if (when.getTime() > Date.now() + MAX_SCHEDULE_DAYS * 86400000) {
+      return res.status(400).json({ success: false, error: `run_at must be within ${MAX_SCHEDULE_DAYS} days` });
+    }
+
+    const lead = await ownedLead(req.user.id, contact_id);
+    if (!lead) return res.status(404).json({ success: false, error: 'Lead not found' });
+    let deal = null;
+    if (deal_id != null && deal_id !== '') {
+      deal = await ownedDeal(req.user.id, deal_id);
+      if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
+    }
 
     const followUpId = uuidv4();
-    await supabase.from('follow_ups').insert({
-      followup_id: followUpId,
-      deal_id: deal_id || null,
-      contact_id,
-      contact_type: contact_type || 'seller',
-      next_follow_up_at: run_at,
-      follow_up_type: 'voice_call',
-      status: 'pending',
-      message_template: 'scheduled_call',
+    const runAtIso = when.toISOString();
+    const { error } = await supabase.from('follow_ups').insert({
+      id:                followUpId,
+      user_id:           req.user.id,
+      lead_id:           lead.id,
+      deal_id:           deal?.id || null,
+      contact_id:        lead.id,
+      contact_type:      'seller',
+      follow_up_type:    'call',
+      next_follow_up_at: runAtIso,
+      reason:            typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 500) : 'Operator scheduled an AI callback.',
+      status:            'scheduled',
     });
+    if (error) throw error;
 
-    const jobId = await scheduleVapiCall({ followUpId, deal_id, leadId: contact_id, runAt: run_at, script });
-    await supabase.from('follow_ups').update({ bullmq_job_id: jobId }).eq('followup_id', followUpId);
+    // Do-not-call and calling hours are checked again when the call is placed.
+    const jobId = await scheduleVapiCall({ followUpId, dealId: deal?.id || null, leadId: lead.id, runAt: runAtIso, script: null });
+    if (jobId) await supabase.from('follow_ups').update({ bullmq_job_id: String(jobId) }).eq('id', followUpId).eq('user_id', req.user.id);
 
-    res.json({ success: true, followup_id: followUpId, scheduled_at: run_at });
+    res.json({ success: true, followup_id: followUpId, scheduled_at: runAtIso });
   } catch (err) { next(err); }
 });
 
-// GET /api/conversations/:deal_id - get all messages for a deal
+// GET /api/conversations/:deal_id - messages for a deal in this workspace
 router.get('/:deal_id', async (req, res, next) => {
   try {
-    // Ownership check: the service role bypasses RLS, so verify this deal
-    // belongs to the caller before returning its messages (prevents cross-tenant read).
-    const { data: deal, error: dealErr } = await supabase.from('deals')
-      .select('user_id').eq('id', req.params.deal_id).single();
-    if (dealErr && dealErr.code !== 'PGRST116') throw dealErr;
-    if (!deal || deal.user_id !== req.user.id) {
-      return res.status(404).json({ success: false, error: 'Deal not found' });
-    }
+    const deal = await ownedDeal(req.user.id, req.params.deal_id);
+    if (!deal) return res.status(404).json({ success: false, error: 'Deal not found' });
 
     const { data, error } = await supabase.from('conversations')
       .select('*')
-      .eq('deal_id', req.params.deal_id)
+      .eq('deal_id', deal.id)
+      .eq('user_id', req.user.id)
       .order('created_at', { ascending: true });
     if (error) throw error;
     res.json({ success: true, messages: data || [] });

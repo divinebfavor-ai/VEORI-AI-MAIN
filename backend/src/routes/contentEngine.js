@@ -4,6 +4,7 @@
  *         GET /api/content, POST /api/content/email-blast, GET /api/content/calendar,
  *         POST /api/content/schedule
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const router  = require('express').Router();
 const { requireAuth: auth } = require('../middleware/auth');
 const supabase = require('../config/supabase');
@@ -219,8 +220,12 @@ router.post('/email-blast', async (req, res) => {
   try {
     const { listing_id, subject, body_html, recipient_type = 'all_buyers', recipient_ids = [] } = req.body;
 
-    if (!subject || !body_html) {
+    if (typeof subject !== 'string' || !subject.trim() || typeof body_html !== 'string' || !body_html.trim()) {
       return res.status(400).json({ success: false, error: 'subject and body_html required' });
+    }
+    if (subject.length > 200) return res.status(400).json({ success: false, error: 'subject must be 200 characters or fewer' });
+    if (!['all_buyers', 'specific'].includes(recipient_type)) {
+      return res.status(400).json({ success: false, error: 'recipient_type must be all_buyers or specific' });
     }
 
     // Get recipients
@@ -232,11 +237,18 @@ router.post('/email-blast', async (req, res) => {
         .eq('user_id', req.user.id)
         .not('email', 'is', null);
       recipients = buyers || [];
-    } else if (recipient_type === 'specific' && recipient_ids.length > 0) {
+    } else if (recipient_type === 'specific') {
+      const ids = Array.isArray(recipient_ids) ? recipient_ids.map(String) : [];
+      if (!ids.length || ids.length > 1000 || !ids.every(id => UUID_RE.test(id))) {
+        return res.status(400).json({ success: false, error: 'recipient_ids must be a list of up to 1000 buyer ids' });
+      }
+      // Only this workspace's buyers - ids from another account are ignored.
       const { data: buyers } = await supabase
         .from('buyers')
         .select('id, email, name')
-        .in('id', recipient_ids);
+        .eq('user_id', req.user.id)
+        .in('id', ids)
+        .not('email', 'is', null);
       recipients = buyers || [];
     }
 
@@ -249,7 +261,7 @@ router.post('/email-blast', async (req, res) => {
         subject,
         body_html,
         recipient_type,
-        recipient_ids:  recipient_ids || [],
+        recipient_ids:  recipient_type === 'specific' ? recipients.map(r => r.id) : [],
         sent_count:     0,
         status:         'sending',
       })

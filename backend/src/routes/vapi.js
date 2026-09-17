@@ -512,14 +512,10 @@ router.post('/assistant', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/vapi/aria - Free public Aria chatbot
-router.post('/aria', optionalAuth, async (req, res, next) => {
-  try {
-    const { message, conversation_history = [], session_id } = req.body;
-    if (!message) return res.status(400).json({ success: false, error: 'message required' });
-
-    const reply = await aiService.ariaChatbot(message, conversation_history);
-    res.json({ success: true, reply });
-  } catch (err) { next(err); }
+// Retired: this ran the Aria model for anyone with no daily quota. The app uses
+// POST /api/aria/chat, which has per-user and per-IP quotas.
+router.post('/aria', (_req, res) => {
+  res.status(410).json({ success: false, error: 'Use /api/aria/chat.' });
 });
 
 // POST /api/vapi/sync-calls - pull recent calls from Vapi API and backfill DB

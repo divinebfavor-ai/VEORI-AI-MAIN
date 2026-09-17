@@ -50,6 +50,12 @@ async function processScheduledCall({ followUpId, dealId, leadId, script }) {
     const { data: fu } = await supabase.from('follow_ups').select('user_id').eq('id', followUpId).single();
     const userId = fu?.user_id || lead.user_id;
     if (!userId) throw new Error('No operator (user_id) for scheduled call');
+    // Never dial a lead on behalf of a workspace that doesn't own it.
+    if (fu?.user_id && lead.user_id && fu.user_id !== lead.user_id) {
+      await supabase.from('follow_ups').update({ status: 'cancelled', bullmq_job_id: null }).eq('id', followUpId);
+      console.error(`[FollowUp] follow-up ${followUpId} belongs to a different workspace than its lead - cancelled`);
+      return { skipped: true, reason: 'owner_mismatch' };
+    }
 
     // ─── TCPA GATE ────────────────────────────────────────────────────────────
     // This path previously went straight from lead lookup to dialling with NO

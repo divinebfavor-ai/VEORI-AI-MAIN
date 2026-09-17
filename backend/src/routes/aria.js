@@ -9,8 +9,12 @@ const router = express.Router();
 // drain the credits every paying operator depends on).
 router.post('/chat', optionalAuth, async (req, res, next) => {
   try {
-    const { message, history = [] } = req.body;
-    if (!message) return res.status(400).json({ error: 'message required' });
+    const { message, history = [] } = req.body || {};
+    if (typeof message !== 'string' || !message.trim()) return res.status(400).json({ error: 'message required' });
+    if (message.length > 2000) return res.status(400).json({ error: 'message must be 2000 characters or fewer' });
+    if (!Array.isArray(history) || history.length > 30 || JSON.stringify(history).length > 30000) {
+      return res.status(400).json({ error: 'history must be a list of at most 30 recent messages' });
+    }
 
     const { checkAndConsume, LIMITS } = require('../services/usageLimitService');
     const key      = req.user?.id || `ip:${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`;
@@ -25,7 +29,11 @@ router.post('/chat', optionalAuth, async (req, res, next) => {
       });
     }
 
-    const reply = await ariaChatbot(message, history);
+    // Only plain user/assistant turns reach the model.
+    const cleanHistory = history
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      .map(m => ({ role: m.role, content: m.content.slice(0, 2000) }));
+    const reply = await ariaChatbot(message, cleanHistory);
     res.json({ success: true, reply, quota: { used: quota.used, limit: quota.limit } });
   } catch (err) { next(err); }
 });
