@@ -26,6 +26,7 @@ const NAV = [
   { to: '/intelligence/lead',icon: Brain,           label: 'AI Activity' },
   { to: '/pipeline',         icon: Columns,         label: 'Pipeline' },
   { to: '/portfolio',        icon: Home,            label: 'Portfolio' },
+  { to: '/books',            icon: BookOpen,        label: 'Books' },
   { to: '/campaigns',        icon: Briefcase,       label: 'Campaigns' },
   { to: '/sms-templates',    icon: MessageSquare,   label: 'SMS Templates' },
   { to: '/buyers',           icon: Building2,       label: 'Buyers' },

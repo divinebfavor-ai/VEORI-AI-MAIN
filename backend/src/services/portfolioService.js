@@ -23,8 +23,16 @@ const monthsBetween = (a, b) => {
 // separately (NOI excludes it) and capital work is not an operating cost.
 const NON_OPERATING = new Set(['mortgage', 'principal', 'interest', 'debt_service', 'capex', 'capital_improvement', 'purchase', 'rehab']);
 
-const INCOME_CATEGORIES = ['rent', 'late_fee', 'pet_fee', 'application_fee', 'deposit_kept', 'parking', 'laundry', 'other_income'];
-const EXPENSE_CATEGORIES = ['mortgage', 'taxes', 'insurance', 'hoa', 'utilities', 'repairs', 'maintenance', 'management', 'turnover', 'landscaping', 'pest', 'legal', 'marketing', 'capex', 'other_expense'];
+const INCOME_CATEGORIES = [
+  'rent', 'late_fee', 'pet_fee', 'application_fee', 'deposit_kept', 'parking', 'laundry',
+  // Acquisition side: what a wholesale or flip actually paid out.
+  'assignment_fee', 'commission_income', 'sale_proceeds', 'other_income',
+];
+const EXPENSE_CATEGORIES = [
+  'mortgage', 'taxes', 'insurance', 'hoa', 'utilities', 'repairs', 'maintenance', 'management',
+  'turnover', 'landscaping', 'pest', 'cleaning', 'legal', 'professional_fees', 'commissions',
+  'supplies', 'auto_travel', 'marketing', 'software', 'payroll', 'capex', 'other_expense',
+];
 
 /** Rent currently contracted for a property: active leases, else nothing (market rent is not income). */
 function contractedMonthlyRent(leases) {

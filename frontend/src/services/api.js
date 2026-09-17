@@ -276,6 +276,27 @@ export const portfolio = {
   deleteEntry:   (id)                  => api.delete(`/api/portfolio/transactions/${id}`),
 }
 
+// ─── Books (profit and loss, tax summaries, vendors) ─────────────────────────
+export const books = {
+  pnl:            (params)      => api.get('/api/books/pnl', { params }),
+  scheduleE:      (year)        => api.get('/api/books/schedule-e', { params: year ? { year } : {} }),
+  vendorPayments: (year)        => api.get('/api/books/vendor-payments', { params: year ? { year } : {} }),
+  vendors:        ()            => api.get('/api/books/vendors'),
+  createVendor:   (data)        => api.post('/api/books/vendors', data),
+  updateVendor:   (id, data)    => api.patch(`/api/books/vendors/${id}`, data),
+  deleteVendor:   (id)          => api.delete(`/api/books/vendors/${id}`),
+  addEntry:       (data)        => api.post('/api/books/entries', data),
+  // CSV downloads go through the same authenticated client, then straight to a file.
+  download: async (path, params, filename) => {
+    const res = await api.get(path, { params, responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url; a.download = filename
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  },
+}
+
 // Streamed Ask Veori. Calls onEvent for each server event; resolves when the stream ends.
 export async function askVeoriStream(dealId, command, inputs, onEvent, signal) {
   const token = localStorage.getItem('veori_token')

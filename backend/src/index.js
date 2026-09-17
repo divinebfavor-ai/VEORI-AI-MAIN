@@ -513,6 +513,7 @@ app.use('/api/crm', require('./routes/crm'));
 app.use('/api/onboarding', require('./routes/onboarding'));
 app.use('/api/intelligence', require('./routes/intelligence'));
 app.use('/api/portfolio', require('./routes/portfolio'));
+app.use('/api/books', require('./routes/books'));
 // Mirror the agent registry into agent_registry (best-effort; the in-memory registry is authoritative).
 require('./intelligence/registry').syncToDatabase()
   .then(n => console.log(`[Intelligence] ${n} agents registered`))
