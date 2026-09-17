@@ -24,6 +24,7 @@
  * the platform accents green / amber / red / gold. No blue.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import useRecordingSrc from '../hooks/useRecordingSrc'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
@@ -271,7 +272,7 @@ function AgentStep({ step, isLast }) {
             <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10, cursor: 'default' }}>
               {signals.length > 0 && <ChipList title="Key signals" color={C.green} items={signals} />}
               {objections.length > 0 && <ChipList title="Objections" color={C.red} items={objections} />}
-              {step?.recording && <Recording url={step.recording} />}
+              {step?.recording && <Recording url={step.recording} callId={step.call_id} />}
               {step?.transcript && <Transcript text={step.transcript} />}
             </div>
           )}
@@ -307,18 +308,27 @@ function Transcript({ text }) {
   )
 }
 
-function Recording({ url }) {
-  const [failed, setFailed] = useState(false)
+function Recording({ url: value, callId }) {
+  const { src: url, loading, failed: linkFailed, refresh, stored } = useRecordingSrc(callId, value)
+  const retried = useRef(false)
+  const [audioFailed, setFailed] = useState(false)
+  const failed = audioFailed || linkFailed
+  const onError = () => {
+    // A signed link expires after an hour; ask for a fresh one once before giving up.
+    if (stored && !retried.current) { retried.current = true; refresh() } else setFailed(true)
+  }
   return (
     <div>
       <div style={{ fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Recording</div>
       {failed ? (
         <div style={{ fontSize: 12, color: 'var(--t3)' }}>
-          This recording is no longer available.{' '}
-          <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: C.green }}>Try the original link</a>
+          This recording is no longer available.
+          {url && <>{' '}<a href={url} target="_blank" rel="noopener noreferrer" style={{ color: C.green }}>Try the original link</a></>}
         </div>
+      ) : loading || !url ? (
+        <div style={{ fontSize: 12, color: 'var(--t3)' }}>Loading recording…</div>
       ) : (
-        <audio controls preload="metadata" src={url} onError={() => setFailed(true)} style={{ width: '100%', height: 36 }} />
+        <audio controls preload="metadata" src={url} onError={onError} style={{ width: '100%', height: 36 }} />
       )}
     </div>
   )
@@ -572,7 +582,7 @@ function CallCard({ call, onTakeover, onReturn, onEnd, busy, coaching }) {
           </button>
           {open && (
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {call.recording_url && <Recording url={call.recording_url} />}
+              {call.recording_url && <Recording url={call.recording_url} callId={call.id} />}
               {signals.length > 0 && <ChipList title="Key signals" color={C.green} items={signals} />}
               {objections.length > 0 && <ChipList title="Objections" color={C.red} items={objections} />}
               {call.transcript && <Transcript text={call.transcript} />}

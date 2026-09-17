@@ -94,7 +94,7 @@ module.exports = {
         outcome: { type: ['string', 'null'] }, motivation_score: { type: ['integer', 'null'] }, ai_summary: { type: ['string', 'null'] },
         key_signals: {}, objections: {}, offer_made: { type: ['number', 'null'] },
         transcript: { type: ['string', 'null'], description: 'Only on GET /calls/{id}' },
-        recording_url: { type: ['string', 'null'], description: 'Only on GET /calls/{id}' },
+        recording_url: { type: ['string', 'null'], description: 'Only on GET /calls/{id}. A signed link that expires after one hour.' },
         started_at: { type: ['string', 'null'], format: 'date-time' }, ended_at: { type: ['string', 'null'], format: 'date-time' },
         created_at: { type: 'string', format: 'date-time' },
       } },

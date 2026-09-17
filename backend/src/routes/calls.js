@@ -6,6 +6,9 @@ const vapiService = require('../services/vapiService');
 const phoneRotation = require('../services/phoneRotation');
 const campaignManager = require('../services/campaignManager');
 const { isSubscriptionActive } = require('../services/subscriptionStatus');
+const recordingStorage = require('../services/recordingStorage');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const router = express.Router();
 router.use(requireAuth);
@@ -103,6 +106,23 @@ router.get('/live', async (req, res, next) => {
       primary_tag: c.leads?.primary_tag || c.primary_tag,
     }));
     res.json({ success: true, data: flat });
+  } catch (err) { next(err); }
+});
+
+// GET /api/calls/:id/recording - a short-lived link to play this call's audio.
+// Recordings sit in a private bucket; the call must belong to this workspace.
+router.get('/:id/recording', async (req, res, next) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ success: false, error: 'Call not found' });
+    const { data: call, error } = await supabase.from('calls').select('recording_url')
+      .eq('id', req.params.id).eq('user_id', req.user.id).maybeSingle();
+    if (error) throw error;
+    if (!call) return res.status(404).json({ success: false, error: 'Call not found' });
+    if (!call.recording_url) return res.status(404).json({ success: false, error: 'This call has no recording' });
+    const url = await recordingStorage.playableUrl(call.recording_url);
+    if (!url) return res.status(502).json({ success: false, error: 'Recording could not be loaded' });
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, url, expires_in: recordingStorage.isStored(call.recording_url) ? recordingStorage.SIGNED_TTL_SECONDS : null });
   } catch (err) { next(err); }
 });
 

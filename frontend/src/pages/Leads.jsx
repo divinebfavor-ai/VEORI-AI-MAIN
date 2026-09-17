@@ -5,6 +5,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Search, Upload, Plus, X, ChevronLeft, ChevronRight, Phone, FileText, Mic, Zap, Mail, Users, Camera, Image, Copy, GitMerge, AlertTriangle, Brain } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { isRecordingGone } from '../utils/recording'
+import useRecordingSrc from '../hooks/useRecordingSrc'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import { leads, calls as callsApi, deals as dealsApi, leadPhotos as leadPhotosApi } from '../services/api'
@@ -41,6 +42,13 @@ function CallCard({ call: c }) {
   const [progress, setProgress] = useState(0)
   const [duration, setDuration] = useState(0)
   const [audioError, setAudioError] = useState(false)
+  const recording = useRecordingSrc(c.id, c.recording_url)
+  const retried = useRef(false)
+  const onAudioError = () => {
+    setPlaying(false)
+    // A signed link expires after an hour; ask for a fresh one once before giving up.
+    if (recording.stored && !retried.current) { retried.current = true; recording.refresh() } else setAudioError(true)
+  }
 
   const fmtDur = c.duration_seconds != null
     ? `${Math.floor(c.duration_seconds / 60)}:${String(c.duration_seconds % 60).padStart(2, '0')}`
@@ -90,10 +98,13 @@ function CallCard({ call: c }) {
       )}
 
       {/* Audio player */}
-      {c.recording_url && (isRecordingGone(c.recording_url) || audioError) && (
+      {c.recording_url && (isRecordingGone(c.recording_url) || audioError || recording.failed) && (
         <p style={{ fontSize: 11, color: 'var(--t4)', margin: '0 0 8px' }}>Recording no longer available.</p>
       )}
-      {c.recording_url && !isRecordingGone(c.recording_url) && !audioError && (
+      {c.recording_url && !isRecordingGone(c.recording_url) && !audioError && !recording.failed && recording.loading && (
+        <p style={{ fontSize: 11, color: 'var(--t4)', margin: '0 0 8px' }}>Loading recording…</p>
+      )}
+      {c.recording_url && !isRecordingGone(c.recording_url) && !audioError && !recording.failed && recording.src && (
         <div style={{
           background: 'var(--surface-bg-2)', border: '1px solid var(--border)',
           borderRadius: 8, padding: '8px 10px', marginBottom: 8,
@@ -101,11 +112,11 @@ function CallCard({ call: c }) {
         }}>
           <audio
             ref={audioRef}
-            src={c.recording_url}
+            src={recording.src}
             onTimeUpdate={() => setProgress(audioRef.current?.currentTime || 0)}
             onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
             onEnded={() => setPlaying(false)}
-            onError={() => { setAudioError(true); setPlaying(false) }}
+            onError={onAudioError}
           />
           <button
             onClick={togglePlay}
@@ -129,7 +140,7 @@ function CallCard({ call: c }) {
             {fmtTime(progress)} / {fmtTime(duration)}
           </span>
           <a
-            href={c.recording_url}
+            href={recording.src}
             download
             title="Download recording"
             style={{ color: 'var(--t4)', display: 'flex', alignItems: 'center' }}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { isRecordingGone } from '../utils/recording'
+import useRecordingSrc from '../hooks/useRecordingSrc'
 import { useNavigate } from 'react-router-dom'
 import { Radio, Headphones, Mic, MicOff, X, Volume2, VolumeX, PhoneCall, PhoneOff, PhoneIncoming, Clock, CheckCircle, AlertCircle, ChevronRight, Search, Plus, UserCircle, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -552,7 +553,9 @@ function CallRow({ call, isSelected, onClick, onDelete }) {
 }
 
 // ─── Audio Player ─────────────────────────────────────────────────────────────
-function AudioPlayer({ src }) {
+function AudioPlayer({ callId, value }) {
+  const { src, loading, failed: linkFailed, refresh, stored } = useRecordingSrc(callId, value)
+  const retried = useRef(false)
   const ref = useRef(null)
   const [playing, setPlaying]   = useState(false)
   const [progress, setProgress] = useState(0)
@@ -573,7 +576,8 @@ function AudioPlayer({ src }) {
     if (ref.current) { ref.current.currentTime = val; setProgress(val) }
   }
 
-  if (failed) return <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--t4)' }}>Recording could not be loaded.</p>
+  if (failed || linkFailed) return <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--t4)' }}>Recording could not be loaded.</p>
+  if (loading || !src) return <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--t4)' }}>Loading recording…</p>
 
   return (
     <div style={{ background: 'var(--surface-bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
@@ -584,7 +588,11 @@ function AudioPlayer({ src }) {
         onTimeUpdate={() => setProgress(ref.current?.currentTime || 0)}
         onLoadedMetadata={() => setDuration(ref.current?.duration || 0)}
         onEnded={() => setPlaying(false)}
-        onError={() => { setFailed(true); setPlaying(false) }}
+        onError={() => {
+          setPlaying(false)
+          // A signed link expires after an hour; ask for a fresh one once before giving up.
+          if (stored && !retried.current) { retried.current = true; refresh() } else setFailed(true)
+        }}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button
@@ -751,7 +759,7 @@ function CallDetailPanel({ call }) {
       {/* Recording audio player */}
       {call.recording_url && (isRecordingGone(call.recording_url)
         ? <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--t4)' }}>Recording no longer available.</p>
-        : <AudioPlayer src={call.recording_url} />)}
+        : <AudioPlayer key={call.id} callId={call.id} value={call.recording_url} />)}
 
       {/* AI Summary */}
       {call.ai_summary && (

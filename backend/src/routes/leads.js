@@ -1340,7 +1340,7 @@ function _buildAgentChain(lead, calls, sms, activity) {
               || (live ? 'Live now' : `Status: ${c.status}`),
       status: live ? 'active' : c.status === 'failed' ? 'failed' : 'completed',
       at: c.started_at || c.created_at, transcript: c.transcript || null,
-      recording: c.recording_url || null, icon: 'call',
+      recording: c.recording_url || null, call_id: c.id, icon: 'call',
     });
 
     // Derived analysis step - emitted ONLY when the row really carries analysis.

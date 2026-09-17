@@ -103,10 +103,9 @@ function appendListen(vr, callId) {
   });
 }
 
-// Supabase Storage bucket that permanently holds call recordings (Module 5).
-// Create once in Supabase (public bucket named 'call-recordings'); recordings are
-// re-hosted here so playback never depends on Twilio auth or Twilio retention.
-const RECORDINGS_BUCKET = 'call-recordings';
+// Recordings are re-hosted into the private 'call-recordings' bucket so playback
+// never depends on Twilio auth or retention. See services/recordingStorage.js.
+const recordingStorage = require('../services/recordingStorage');
 
 // Render an operator's voicemail script with the same token vocabulary the Vapi
 // path uses (vapiService.js ~L955), so a voicemail an operator wrote once works
@@ -617,10 +616,10 @@ router.post('/status', async (req, res) => {
   }
 });
 
-// Re-host a Twilio recording into Supabase Storage and return the permanent
-// public URL. Twilio's RecordingUrl needs the account's Basic Auth to fetch and
+// Re-host a Twilio recording into Supabase Storage and return its storage
+// reference (played back through a signed URL, never a public link). Twilio's RecordingUrl needs the account's Basic Auth to fetch and
 // is subject to Twilio retention, so we copy the bytes once into our own bucket.
-// Returns the public Supabase URL, or null if any step fails (caller falls back
+// Returns the storage reference, or throws if any step fails (caller falls back
 // to the Twilio URL so a recording is never lost).
 async function rehostRecording({ callSid, recordingSid, recordingUrl }) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
@@ -639,13 +638,7 @@ async function rehostRecording({ callSid, recordingSid, recordingUrl }) {
   });
 
   const path = `${callSid}/${recordingSid || Date.now()}.mp3`;
-  const { error: uploadErr } = await supabase.storage
-    .from(RECORDINGS_BUCKET)
-    .upload(path, Buffer.from(data), { contentType: 'audio/mpeg', upsert: true });
-  if (uploadErr) throw uploadErr;
-
-  const { data: pub } = supabase.storage.from(RECORDINGS_BUCKET).getPublicUrl(path);
-  return pub?.publicUrl || null;
+  return recordingStorage.upload(path, Buffer.from(data));
 }
 
 // POST /api/v2/voice/recording - Twilio recording-ready callback.

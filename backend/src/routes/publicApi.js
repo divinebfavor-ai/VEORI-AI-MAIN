@@ -9,6 +9,7 @@ const { requireApiKey, requireScope, apiKeyRateLimit } = require('../middleware/
 const { toE164 } = require('../utils/phone');
 const { normalizeBuyer } = require('../utils/buyerFields');
 const webhooks = require('../services/webhookService');
+const recordingStorage = require('../services/recordingStorage');
 
 const router = express.Router();
 
@@ -254,6 +255,8 @@ router.get('/calls/:id', requireScope('calls:read'), wrap(async (req, res) => {
     .eq('id', req.params.id).eq('user_id', req.user.id).maybeSingle();
   if (error) throw error;
   if (!data) return fail(res, 404, 'not_found', 'Call not found');
+  // Recordings are private: hand out a link that expires in an hour.
+  data.recording_url = await recordingStorage.playableUrl(data.recording_url);
   res.json({ data });
 }));
 
