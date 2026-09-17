@@ -226,6 +226,8 @@ export const intelligence = {
   optimize:     (dealId, body)      => api.post(`/api/intelligence/deals/${dealId}/optimize`, body),
   scorecard:    (dealId)            => api.get(`/api/intelligence/deals/${dealId}/scorecard`),
   timeline:     (dealId, body)      => api.post(`/api/intelligence/deals/${dealId}/timeline`, body),
+  worksheets:   ()                  => api.get('/api/intelligence/worksheets'),
+  saveWorksheet: (dealId, name, data) => api.put(`/api/intelligence/deals/${dealId}/worksheets/${name}`, { data }),
 }
 
 // Streamed Ask Veori. Calls onEvent for each server event; resolves when the stream ends.

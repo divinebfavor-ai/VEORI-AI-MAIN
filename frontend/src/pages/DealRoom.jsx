@@ -7,6 +7,7 @@ import Button from '../components/ui/Button'
 import { intelligence, askVeoriStream } from '../services/api'
 import useIsMobile from '../hooks/useIsMobile'
 import { Scorecard, Scenarios, Optimizer, TimelineSimulator } from '../components/DealRoom/Phase3Panels'
+import Worksheets from '../components/DealRoom/Worksheets'
 
 const GREEN = '#00C37A'
 const GOLD = '#C9A84C'
@@ -28,10 +29,10 @@ const SECTIONS = [
   ['overview', 'Overview'], ['property', 'Property'], ['seller', 'Seller'], ['buyer', 'Buyer'], ['financials', 'Financials'],
   ['valuation', 'Valuation'], ['acquisition', 'Acquisition'], ['financing', 'Financing'], ['title', 'Title'],
   ['diligence', 'Due Diligence'], ['documents', 'Documents'], ['disposition', 'Disposition'], ['agents', 'Active Agents'],
-  ['tasks', 'Tasks'], ['timeline', 'Timeline'], ['risks', 'Risks'], ['scenarios', 'Scenarios'], ['closing', 'Closing'],
+  ['tasks', 'Tasks'], ['timeline', 'Timeline'], ['risks', 'Risks'], ['scenarios', 'Scenarios'], ['worksheets', 'Worksheets'], ['closing', 'Closing'],
 ]
 
-const EXAMPLES = ['Analyze this property.', 'Can I wholesale this deal?', 'What creative-finance options exist?', 'Find the biggest risk in this transaction.', 'What information are we missing?', 'Find buyers for this property.']
+const EXAMPLES = ['Analyze this property.', 'Can I wholesale this deal?', 'What creative-finance options exist?', 'Find the biggest risk in this transaction.', 'What information are we missing?', 'Find buyers for this property.', 'Would this work as a flip?', 'Run the rental numbers.', 'Build the underwriting package.', 'What does the law say about assigning this contract?']
 
 const errText = (err, fallback) => err?.response?.data?.error || err?.message || fallback
 const get = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj)
@@ -438,17 +439,18 @@ export default function DealRoom() {
           {(room.agents || []).map(a => {
             const o = outputs[a.id]
             return (
-              <div key={a.id} style={{ padding: '6px 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--t1)' }}>{a.name} <span style={{ fontSize: 11, color: 'var(--t4)' }}>v{a.version} · {a.domain} · {a.permissions}</span></p>
+              <details key={a.id} style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                <summary style={{ cursor: o ? 'pointer' : 'default', listStyle: 'none' }}>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--t1)' }}>{a.name} <span style={{ fontSize: 11, color: 'var(--t4)' }}>v{a.version} · {a.domain} · {a.permissions}{o ? ` · ${new Date(o.created_at).toLocaleString()}` : ''}</span></p>
                   <p style={{ margin: 0, fontSize: 12, color: 'var(--t3)' }}>{o ? `${o.data?.summary} (confidence ${o.confidence})` : a.status === 'flagged_off' ? 'Original agent — switched off (AGENTS_ENABLED)' : 'Not run on this deal yet'}</p>
-                </div>
-                {o && <span style={{ fontSize: 11, color: 'var(--t4)', whiteSpace: 'nowrap' }}>{new Date(o.created_at).toLocaleString()}</span>}
-              </div>
+                </summary>
+                {o && <div style={{ marginTop: 10 }}><AgentOutput output={o} /></div>}
+              </details>
             )
           })}
         </Card>
       )
+      case 'worksheets': return <Worksheets dealId={id} saved={rep?.worksheets} onSaved={load} />
       case 'tasks': return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Card title={`Pending approvals (${pending.length})`}>
