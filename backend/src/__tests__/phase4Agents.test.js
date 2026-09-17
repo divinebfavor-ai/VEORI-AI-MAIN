@@ -154,3 +154,12 @@ test('equity JV waterfall from worksheet; DSCR sizing from saved quote', async (
   assert.strictEqual(d.data.annual_noi, 18000);
   assert.strictEqual(d.data.max_loan, 432000);
 });
+
+test('fix & flip uses the itemised rehab scope over the unverified repair figure on record', async () => {
+  const r = rep();
+  const scopeOut = { status: 'complete', data: { total: 14850 } };
+  const out = await run('fix_flip', r, { inputs: { holding_months: 6 }, priorOutputs: { rehab_estimation: scopeOut } });
+  assert.strictEqual(out.data.profit, S.fixFlip({ purchase_price: 150000, sale_price: 300000, rehab: 14850, holding_months: 6 }).output.profit);
+  const explicit = await run('fix_flip', r, { inputs: { holding_months: 6, repairs: 50000 }, priorOutputs: { rehab_estimation: scopeOut } });
+  assert.strictEqual(explicit.data.profit, S.fixFlip({ purchase_price: 150000, sale_price: 300000, rehab: 50000, holding_months: 6 }).output.profit);
+});

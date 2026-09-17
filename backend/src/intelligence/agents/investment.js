@@ -29,7 +29,13 @@ const fixFlip = defineAgent({
   declaration: decl('fix_flip', 'Fix & Flip Agent', ['flip_profit', 'flip_roi', 'flip_mao', 'rehab_overrun_sensitivity'], ['flip_analysis'], ['calc.fix_flip', 'calc.fix_flip_break_even', 'engines.scenarios'], { handoff_agents: ['financing'] }),
   async analyze(ctx) {
     const rep = ctx.understanding;
-    const p = price(ctx), a = arvOf(ctx), r = H.input(ctx, 'repairs', 'financial.repairs');
+    const p = price(ctx), a = arvOf(ctx);
+    // Repairs: this request's input > itemised scope from the Rehab Estimation Agent > deal record.
+    const scope = ctx.priorOutputs?.rehab_estimation;
+    const explicitRepairs = H.input(ctx, 'repairs');
+    const r = explicitRepairs.status !== STATUS.UNKNOWN ? explicitRepairs
+      : scope?.status === 'complete' && scope.data?.total != null ? claim(scope.data.total, STATUS.CALCULATED, { source: 'Rehab Estimation Agent (your line items)' })
+      : H.c(ctx.understanding, 'financial.repairs');
     const hold = numIn(ctx, 'holding_months');
     const missing = [];
     if (p.status === STATUS.UNKNOWN) missing.push(H.missingItem('transaction.contract_price'));
