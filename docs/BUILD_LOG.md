@@ -667,6 +667,45 @@ including cross-workspace isolation.
   bigger instance) is safe today. The database sweeps already claim rows, so they are
   safe with several instances.
 
+## Session 2026-09-18 — Books: money, tax and vendors
+
+### Books (commit `3f5f0cf`)
+The portfolio ledger became a business ledger: an entry can sit against a property,
+against a deal, or against neither (overhead such as marketing or software), so
+nothing an operator spends lives outside the books.
+
+- **Profit and loss** for any period, by category and by scope (properties / deals /
+  overhead). Debt payments and capital improvements are reported separately - neither
+  is an operating expense.
+- **Schedule E summary** per property per tax year, mapping recorded categories to the
+  real form lines (advertising 5, cleaning and maintenance 7, insurance 9, legal 10,
+  management 11, repairs 14, supplies 15, taxes 16, utilities 17, other 19).
+- **1099 tracking**: what each vendor was paid in the year, who crosses the $600
+  threshold, who still owes a W-9. Corporations can be marked exempt. **Tax ids are
+  refused by the API, never stored** - only whether a W-9 is held.
+- **CSV exports** for the ledger, the Schedule E summary and the 1099 list.
+- **Reconciliation**: a fee collected on a closed deal that never reached the books is
+  flagged, so a year's income is not quietly short.
+
+Two figures are deliberately not computed and say so on screen: **mortgage interest**
+(a recorded payment mixes principal and interest; Schedule E line 12 wants interest
+only) and **depreciation** (needs basis, in-service date and method). New tables:
+`vendors`; `portfolio_transactions` gained `deal_id`, `vendor_id`, `paid_method` and
+`property_id` became nullable. `/books`, 17/17 on production including isolation.
+
+### Fixes found while verifying (commits `5022aa9`, `38554b5`)
+- **`GET /api/operator/preferences` returned 500 for every account on every page load**:
+  it selected `users.notification_preferences`, a column that was never created. Column
+  added, writes validated as a small object, verified 200 on production.
+- Buttons mixed the CSS `border` shorthand with a `borderColor` hover, which React warns
+  about and which can drop the border; the shared Button and the assistant prompt buttons
+  now use longhand. The Books page loads with zero console errors or warnings.
+
+### Portfolio follow-up (commit `e7d454a`)
+A single month of entries inside a 12-month window was annualised by 12, inventing
+eleven months that never happened (a new property showed a negative yearly cash flow).
+Figures now scale by the months actually recorded, and the card says how many.
+
 ---
 
 *End of build log. If you add work, append to §3-style session notes and the
