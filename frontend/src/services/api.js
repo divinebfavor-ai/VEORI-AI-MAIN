@@ -277,6 +277,24 @@ export const portfolio = {
 }
 
 // ─── Books (profit and loss, tax summaries, vendors) ─────────────────────────
+export const ads = {
+  connectors:    ()              => api.get('/api/ads/connectors'),
+  catalog:       ()              => api.get('/api/ads/catalog'),
+  profile:       ()              => api.get('/api/ads/profile'),
+  saveProfile:   (data)          => api.put('/api/ads/profile', data),
+  preflight:     (market)        => api.get('/api/ads/preflight', { params: { market } }),
+  runPreflight:  (market)        => api.post('/api/ads/preflight', { market }, { timeout: 120000 }),
+  briefHistory:  (params)        => api.get('/api/ads/preflight/history', { params }),
+  brief:         (id)            => api.get(`/api/ads/preflight/${id}`),
+  creatives:     (params)        => api.get('/api/ads/creatives', { params }),
+  creative:      (id)            => api.get(`/api/ads/creatives/${id}`),
+  generate:      (data)          => api.post('/api/ads/creatives', data, { timeout: 120000 }),
+  setStatus:     (id, status)    => api.patch(`/api/ads/creatives/${id}`, { status }),
+  recordResult:  (data)          => api.post('/api/ads/results', data),
+  learning:      (params)        => api.get('/api/ads/learning', { params }),
+  checkCopy:     (text, context) => api.post('/api/ads/compliance/check', { text, context }),
+}
+
 export const books = {
   pnl:            (params)      => api.get('/api/books/pnl', { params }),
   scheduleE:      (year)        => api.get('/api/books/schedule-e', { params: year ? { year } : {} }),

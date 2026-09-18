@@ -7,7 +7,7 @@ import {
   Calculator, Shield, Phone, Building2,
   Sun, Moon, MessageSquare, BookOpen, Store, Bell,
   ChevronLeft, ChevronRight, Compass,
-  Car, Mail, Home, Video, Camera, Map, Share2, Film, Gift, Zap, Brain,
+  Car, Mail, Home, Video, Camera, Map, Share2, Film, Gift, Zap, Brain, Megaphone,
 } from 'lucide-react'
 import VeoriLogo from '../VeoriLogo'
 import useBrandStore from '../../store/brandStore'
@@ -27,6 +27,7 @@ const NAV = [
   { to: '/pipeline',         icon: Columns,         label: 'Pipeline' },
   { to: '/portfolio',        icon: Home,            label: 'Portfolio' },
   { to: '/books',            icon: BookOpen,        label: 'Books' },
+  { to: '/ads',              icon: Megaphone,       label: 'Ads' },
   { to: '/campaigns',        icon: Briefcase,       label: 'Campaigns' },
   { to: '/sms-templates',    icon: MessageSquare,   label: 'SMS Templates' },
   { to: '/buyers',           icon: Building2,       label: 'Buyers' },

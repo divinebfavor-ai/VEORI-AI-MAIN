@@ -187,6 +187,13 @@ const RULES = [
   ['POST', /^\/api\/intelligence\/deals\/[^/]+\/understanding\/refresh$/, 'data_refresh'],
   ['POST', /^\/api\/intelligence\/calc\/[^/]+$/,              'calculation'],
   ['POST', /^\/api\/intelligence\/deals\/[^/]+\/(scenarios|optimize|timeline)$/, 'calculation'],
+  // Veori Ads
+  ['POST', /^\/api\/ads\/preflight$/,                     'data_refresh'],
+  ['POST', /^\/api\/ads\/creatives$/,                     'ai_generation'],
+  ['POST', /^\/api\/ads\/results$/,                       'calculation'],
+  ['POST', /^\/api\/ads\/learning\/rebuild$/,             'data_refresh'],
+  ['POST', /^\/api\/ads\/compliance\/check$/,             'calculation'],
+  ['GET',  /^\/api\/ads\/learning$/,                      'calculation'],
   // Public (no login) endpoints
   ['POST', /^\/api\/photo-upload\/[^/]+$/,                   'public_upload'],
   ['POST', /^\/api\/contracts\/handle_sign_submission\/[^/]+$/, 'public_sign'],
