@@ -12,6 +12,14 @@ const connectors = require('./connectors');
 const MAX_ROWS = 5000;
 const MIN_LEADS_FOR_SCORE = 20;      // below this no score is produced at all
 const MIN_FIELD_SAMPLE = 10;         // below this a component is insufficient
+// Two components only describe the operator's own list: what share of their leads
+// look distressed, and what share have equity. Those are inventory ratios, and a
+// list of 44 hand-picked leads scores 100 on both. A market score has to include
+// at least one component about what actually happened - whether the market
+// converts, or how fast - or it is not a score, it is a mirror. 50 points of
+// weight is exactly the two inventory components, so the floor sits above it.
+const MIN_MEASURED_WEIGHT = 55;
+const BEHAVIOURAL = ['conversion_proof', 'velocity'];
 
 const round = (n, p = 0) => { const f = 10 ** p; return Math.round(Number(n) * f) / f; };
 const pct = (num, den) => (den > 0 ? round((num / den) * 100, 1) : null);
@@ -145,6 +153,15 @@ function opportunityScore(comps, leadCount) {
       weight_used: usableWeight, weight_total: totalWeight,
     };
   }
+  if (usableWeight < MIN_MEASURED_WEIGHT || !usable.some(c => BEHAVIOURAL.includes(c.id))) {
+    const short = comps.filter(c => c.status !== 'measured').map(c => `${c.label} (${c.status === 'unavailable' ? 'no source connected' : 'not enough data'})`);
+    return {
+      score: null, status: 'insufficient_data',
+      basis: `No score is produced. Only ${usableWeight} of ${totalWeight} points of weight could be measured, and none of it says what actually happened in this market - only what share of your own leads look distressed and hold equity. Those are facts about your list, not about the market, and scoring on them alone would flatter any list. Still missing: ${short.join('; ')}.`,
+      weight_used: usableWeight, weight_total: totalWeight,
+      what_would_fix_it: `Close a few more deals here so lead-to-deal conversion and speed can be measured, or record enough workspace-wide history (50 leads) for this market to be compared against your own average.`,
+    };
+  }
   const score = round(usable.reduce((s, c) => s + c.score * c.weight, 0) / usableWeight);
   return {
     score, status: 'measured',
@@ -272,4 +289,4 @@ async function pulse(userId, market) {
   };
 }
 
-module.exports = { pulse, resolveMarket, components, opportunityScore, rankAngles, audienceMatrix, seasonality, matchesAngle, hasAnyDistress, MIN_LEADS_FOR_SCORE };
+module.exports = { pulse, resolveMarket, MIN_MEASURED_WEIGHT, components, opportunityScore, rankAngles, audienceMatrix, seasonality, matchesAngle, hasAnyDistress, MIN_LEADS_FOR_SCORE };

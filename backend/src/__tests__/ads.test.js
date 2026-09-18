@@ -88,6 +88,30 @@ test('competitive density is excluded from the score, not guessed, and the weigh
   assert.strictEqual(s.score, expected);
 });
 
+test('a score built only on what the operator\u2019s own list looks like is refused', () => {
+  // Every lead distressed, every lead with equity, but nothing about what happened:
+  // the two inventory components alone would score 100 and mean nothing.
+  const leads = Array.from({ length: 44 }, (_, i) => lead({ id: 'l' + i, distress_signals: ['vacant'] }));
+  const comps = marketPulse.components({ leads, deals: [], baseline: { leads: 44, deals: 0 } });
+  const measured = comps.filter(c => c.status === 'measured').map(c => c.id);
+  assert.deepStrictEqual(measured, ['distress_supply', 'equity_room']);
+  assert.strictEqual(comps.find(c => c.id === 'distress_supply').score, 100);
+  const s = marketPulse.opportunityScore(comps, leads.length);
+  assert.strictEqual(s.score, null, 'two inventory ratios must not become a 100/100 headline');
+  assert.strictEqual(s.status, 'insufficient_data');
+  assert.match(s.basis, /facts about your list, not about the market/);
+  assert.ok(s.what_would_fix_it);
+});
+
+test('once a behavioural component can be measured the score appears', () => {
+  const leads = Array.from({ length: 60 }, (_, i) => lead({ id: 'l' + i, distress_signals: i % 2 ? ['vacant'] : [] }));
+  const comps = marketPulse.components({ leads, deals: Array.from({ length: 4 }, (_, i) => ({ lead_id: 'l' + i, created_at: '2026-06-20T00:00:00Z' })), baseline: { leads: 300, deals: 20 } });
+  assert.ok(comps.find(c => c.id === 'conversion_proof').status === 'measured');
+  const s = marketPulse.opportunityScore(comps, leads.length);
+  assert.strictEqual(s.status, 'measured');
+  assert.ok(s.weight_used >= marketPulse.MIN_MEASURED_WEIGHT);
+});
+
 test('angles are ranked on counted evidence, and an angle with none is listed as having none', () => {
   const leads = [
     ...Array.from({ length: 12 }, (_, i) => lead({ id: 'v' + i, distress_signals: ['vacant'] })),
