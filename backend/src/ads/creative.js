@@ -206,7 +206,7 @@ function costExpectation(network, angleId, model) {
     return {
       cost_per_lead: null, label: 'UNKNOWN',
       statement: 'Veori has no recorded cost-per-lead for this situation, from you or from the network. It does not estimate one.',
-      not_a_guarantee: 'No figure here is a quote, a forecast or a guarantee. Advertising cost is set by the auction, not by Veori.',
+      not_a_guarantee: 'Veori never guarantees a cost per lead. Advertising cost is set by the auction, the audience and the creative, none of which Veori controls.',
     };
   }
   return {
@@ -360,13 +360,18 @@ const agent = defineAgent({
   },
 });
 
+// Codes that mean "Veori refused because the evidence is not there", not "it broke".
+const REFUSALS = new Set(['PREFLIGHT_REQUIRED', 'PREFLIGHT_EXPIRED', 'PREFLIGHT_INSUFFICIENT', 'NO_ANGLE', 'ANGLE_NOT_IN_BRIEF', 'DRIVER_NOT_ALLOWED']);
+
 // ── Persisting a package ────────────────────────────────────────────────────
 async function generate(userId, input, { actorUserId = null } = {}) {
   const out = await agent.run({ userId, actorUserId, command: 'ads.creative', inputs: input });
   if (out.status === 'error') {
     const e = new Error(out.summary);
-    e.status = out.error?.code === 'PREFLIGHT_REQUIRED' || out.error?.code === 'PREFLIGHT_EXPIRED' || out.error?.code === 'PREFLIGHT_INSUFFICIENT' ? 409 : 400;
+    // A refusal is not a failure: these are the cases where Veori declined to
+    // build something because the evidence for it does not exist.
     e.code = out.error?.code || 'CREATIVE_FAILED';
+    e.status = REFUSALS.has(e.code) ? 409 : 400;
     throw e;
   }
   if (out.status !== 'complete') return { creative: null, agent_output: out };
@@ -398,4 +403,4 @@ async function generate(userId, input, { actorUserId = null } = {}) {
   return { creative, creative_brief: cb, agent_output: out };
 }
 
-module.exports = { agent, declaration, generate, proofPoints, chooseDriver, buildHooks, imageBrief, videoScript, organicCompanion, costExpectation, MIN_PROOF_EVENTS };
+module.exports = { agent, declaration, generate, REFUSALS, proofPoints, chooseDriver, buildHooks, imageBrief, videoScript, organicCompanion, costExpectation, MIN_PROOF_EVENTS };

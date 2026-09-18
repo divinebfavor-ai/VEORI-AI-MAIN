@@ -301,6 +301,7 @@ test('cost per lead is labelled, and never presented as a guarantee', () => {
   assert.strictEqual(none.cost_per_lead, null);
   assert.strictEqual(none.label, 'UNKNOWN');
   assert.match(none.statement, /does not estimate one/);
+  assert.match(none.not_a_guarantee, /never guarantees a cost per lead/, 'the disclaimer is the same whether or not a figure exists');
 
   const benched = creative.costExpectation({ by_angle: [{ value: 'vacant', median_cpl: 42, cpl_range: [20, 90], label: 'BENCHMARKED', label_meaning: 'Median of 14 recorded results from 4 operators.', results: 14, contributors: 4 }] }, 'vacant', null);
   assert.strictEqual(benched.label, 'BENCHMARKED');
@@ -354,4 +355,11 @@ test('no voice on file means neutral copy, not an invented personality', () => {
   const v2 = preflight.voiceOf({ voice: { tone: 'blunt', phrases_to_avoid: ['reach out'] }, voice_source: 'operator' });
   assert.strictEqual(v2.captured, true);
   assert.strictEqual(v2.status, 'USER_PROVIDED');
+});
+
+test('declining for lack of evidence is a refusal, not a failure', () => {
+  for (const code of ['PREFLIGHT_REQUIRED', 'PREFLIGHT_EXPIRED', 'PREFLIGHT_INSUFFICIENT', 'NO_ANGLE', 'ANGLE_NOT_IN_BRIEF', 'DRIVER_NOT_ALLOWED']) {
+    assert.ok(creative.REFUSALS.has(code), `${code} must answer 409, not 400`);
+  }
+  assert.ok(!creative.REFUSALS.has('CREATIVE_FAILED'));
 });
