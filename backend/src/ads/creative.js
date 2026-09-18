@@ -19,7 +19,7 @@ const preflight = require('./preflight');
 const dedupe = require('./dedupe');
 const compliance = require('./compliance');
 const learning = require('./learning');
-const { ANGLE_COPY, HOOK_BUILDERS, VIDEO_PARTS } = require('./copy');
+const { ANGLE_COPY, HOOK_BUILDERS, VIDEO_PARTS, cap } = require('./copy');
 const { angle: angleOf, driver: driverOf, HOOK_STYLES, IMAGE_FORMATS } = require('./catalog');
 
 const MIN_PROOF_EVENTS = 3;    // fewer than this and a proof point is not stated at all
@@ -86,7 +86,7 @@ function chooseDriver(angleId, requested, network, model) {
   const pick = scored[0];
   const basis = pick.network_position
     ? `${driverOf(pick.id).name} is the best-performing driver for this situation across ${pick.network_results} recorded results in the network (${pick.network_label}). Your own results carry ${weights.own_weight}% of the weight and the network ${weights.network_weight}%.`
-    : `No recorded results exist for any driver on this situation, so Veori uses the catalogue order for "${a.name}": ${driverOf(pick.id).name} first, because ${driverOf(pick.id).core.toLowerCase()} This is a documented default, not a finding.`;
+    : `No recorded results exist for any driver on this situation, so Veori uses the catalogue order for "${a.name}" and takes ${driverOf(pick.id).name} first. ${driverOf(pick.id).core} This is a documented default, not a finding.`;
   return { driver: pick.id, basis, weights, considered: scored };
 }
 
@@ -163,10 +163,10 @@ function videoScript({ angleId, driverId, proof, hook }) {
     : 'Here is exactly what happens: one call, one walkthrough, a number in writing, and you decide. If you say no, that is the end of it and nobody calls you again.';
   const lines = {
     1: hook,
-    2: `${c.they_say[0].toUpperCase()}${c.they_say.slice(1)}. That is the whole situation, and it is more common than you would think.`,
-    3: `${c.permission} ${c.objection[0].toUpperCase()}${c.objection.slice(1)} — that is the part that stops most people, and it is not true here.`,
+    2: `${cap(c.they_say)}. That is the whole situation, and it is more common than you would think.`,
+    3: `${c.permission} ${cap(c.objection)} — that is the part that stops most people, and it is not true here.`,
     4: proofLine,
-    5: `One call. ${c.one_step[0].toUpperCase()}${c.one_step.slice(1)}. If it is not worth doing, you say so and we are done.`,
+    5: `One call. ${cap(c.one_step)}. If it is not worth doing, you say so and we are done.`,
   };
   const parts = VIDEO_PARTS.map(p => ({
     ...p,
@@ -191,7 +191,7 @@ function organicCompanion({ angleId, market, proof }) {
   const c = ANGLE_COPY[angleId];
   return {
     platform_note: 'The same angle without the ad shape. It is posted, not boosted, and it does not ask for anything.',
-    post: `${c.they_say[0].toUpperCase()}${c.they_say.slice(1)} — that is the sentence I hear most often about ${c.subject} in ${market}.\n\nWhat usually surprises people: ${c.permission.toLowerCase()}\n\n${proof.closings.usable ? `${proof.closings.value} of these have come across my desk here.` : 'If that is where you are, the first step is a conversation, not a decision.'}`,
+    post: `${cap(c.they_say)} — that is the sentence I hear most often about ${c.subject} in ${market}.\n\nWhat usually surprises people: ${c.permission.toLowerCase()}\n\n${proof.closings.usable ? `${proof.closings.value} of these have come across my desk here.` : 'If that is where you are, the first step is a conversation, not a decision.'}`,
     why_it_works: 'It earns the right to be believed before anything is asked for, and it gives the paid ad somewhere credible to land.',
     do_not: ['Do not add a call to action.', 'Do not add a link.', 'Do not post it the same day the ad starts: let it sit first.'],
     compliance: compliance.check(`${c.they_say} ${c.permission}`, { context: 'organic post' }),
@@ -341,7 +341,7 @@ const agent = defineAgent({
       data: {
         market: brief.market, preflight_brief_id: brief.id,
         angle: chosen.angle, angle_name: chosen.name, angle_evidence: chosen.evidence,
-        psychological_driver: driverPick.driver, driver_basis: driverPick.basis, learning_blend: driverPick.weights,
+        psychological_driver: driverPick.driver, driver_name: driverOf(driverPick.driver).name, driver_basis: driverPick.basis, learning_blend: driverPick.weights,
         image_format: format,
         hooks: scored.map(s => ({ hook_style: s.hook_style, style_name: s.style_name, text: s.text, differentiation: s.dedupe.differentiation.score, allowed: s.dedupe.allowed, compliance_ok: s.compliance.ok, why_not: s.why_not, blockers: s.dedupe.freshness.passed ? null : s.dedupe.freshness.reason })),
         skipped_shapes: hooks.filter(h => !h.text).map(h => ({ hook_style: h.hook_style, why: h.skipped })),

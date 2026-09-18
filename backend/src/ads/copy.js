@@ -108,6 +108,10 @@ const ANGLE_COPY = {
   },
 };
 
+// Fragments are written to sit mid-sentence, so anywhere one starts a sentence it
+// is capitalised here rather than in ten separate templates.
+const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
 // A hook style is a shape. Each returns a sentence built from the fragments and
 // from proof taken from records. A style that requires evidence returns null when
 // the evidence is not there, and the system moves to the next style rather than
@@ -115,13 +119,13 @@ const ANGLE_COPY = {
 const HOOK_BUILDERS = {
   specific_situation: ({ c }) => `If ${c.subject} is the reason nothing has moved, that is the part we handle.`,
   permission: ({ c }) => `${c.permission} That is not a concession, it is how this works.`,
-  question_they_ask: ({ c }) => `“${c.they_say}.” If that is where you are, start here.`,
+  question_they_ask: ({ c }) => `“${cap(c.they_say)}.” If that is where you are, start here.`,
   named_objection: ({ c }) => `You will not call because ${c.objection}. Fair. Here is what actually happens instead.`,
   after_picture: ({ c }) => `Picture ${c.after}. Everything below is how that happens.`,
   cost_of_waiting: ({ c }) => `Waiting is not free: ${c.waiting}.`,
   plain_number: ({ c, proof }) => {
     if (!proof.closings.usable) return null;
-    return `${proof.closings.value} houses bought here, ${proof.median_days.usable ? `median ${proof.median_days.value} days from first call to closing` : 'each one on the seller’s own timeline'}. ${c.subject} is the kind we buy.`;
+    return `${proof.closings.value} houses bought here, ${proof.median_days.usable ? `median ${proof.median_days.value} days from first call to closing` : 'each one on the seller’s own timeline'}. ${cap(c.subject)} is the kind we buy.`;
   },
 };
 
@@ -135,4 +139,4 @@ const VIDEO_PARTS = [
   { part: 5, name: 'Ask', seconds: '35-45', job: 'One action, and what happens after it.', rule: 'Describe the ending where they say no. That is what makes the ask safe to take.' },
 ];
 
-module.exports = { ANGLE_COPY, HOOK_BUILDERS, VIDEO_PARTS };
+module.exports = { ANGLE_COPY, HOOK_BUILDERS, VIDEO_PARTS, cap };

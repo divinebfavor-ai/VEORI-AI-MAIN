@@ -387,3 +387,23 @@ test('declining for lack of evidence is a refusal, not a failure', () => {
   }
   assert.ok(!creative.REFUSALS.has('CREATIVE_FAILED'));
 });
+
+test('no generated sentence starts in lower case', () => {
+  const proof = { closings: { usable: true, value: 8 }, median_days: { usable: true, value: 16 }, price_range: { usable: true, value: [150000, 190000] }, rule: 'r' };
+  const offenders = [];
+  const scan = (where, text) => {
+    for (const sentence of String(text).split(/(?<=[.!?\u201d])\s+/)) {
+      const first = sentence.replace(/^[\u201c"'(]+/, '')[0];
+      if (first && /[a-z]/.test(first)) offenders.push(`${where}: ${sentence.slice(0, 60)}`);
+    }
+  };
+  for (const a of catalog.ANGLES) {
+    for (const d of a.drivers) {
+      for (const h of creative.buildHooks({ angleId: a.id, driverId: d, proof })) if (h.text) scan(`${a.id}/${h.hook_style}`, h.text);
+      for (const p of creative.videoScript({ angleId: a.id, driverId: d, proof, hook: 'A hook.' }).parts) scan(`${a.id}/video${p.part}`, p.line);
+      scan(`${a.id}/organic`, creative.organicCompanion({ angleId: a.id, market: 'Austin, TX', proof }).post.split('\n\n')[0]);
+      scan(`${a.id}/driver`, creative.chooseDriver(a.id, null, { by_driver: [] }, null).basis);
+    }
+  }
+  assert.deepStrictEqual(offenders, []);
+});

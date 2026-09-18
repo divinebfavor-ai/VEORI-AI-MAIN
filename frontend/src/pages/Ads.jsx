@@ -232,7 +232,7 @@ export default function Ads() {
               <div style={card}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)' }}>{pack.angle_name} · {pack.psychological_driver}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)' }}>{pack.angle_name} · {pack.driver_name || pack.psychological_driver}</div>
                     <p style={{ ...muted, margin: '3px 0 0' }}>{pack.driver_basis}</p>
                   </div>
                   <Score value={pack.creative_intelligence_score} caption="creative intelligence" />
