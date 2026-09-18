@@ -188,7 +188,7 @@ export default function AssistantChat() {
           background: 'var(--card-bg)',
           backdropFilter: 'blur(32px) saturate(160%)',
           WebkitBackdropFilter: 'blur(32px) saturate(160%)',
-          border: '1px solid var(--border)',
+          borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border)',
           borderRadius: min ? 12 : '12px 12px 0 0',
           boxShadow: '-8px 0 40px rgba(0,0,0,0.50), 0 -4px 30px rgba(0,0,0,0.50)',
         }}>
@@ -277,7 +277,7 @@ export default function AssistantChat() {
                           style={{
                             display: 'flex', flexDirection: 'column', gap: 6,
                             background: 'var(--surface-bg)',
-                            border: '1px solid var(--border)',
+                            borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border)',
                             borderRadius: 10, padding: '12px 12px',
                             textAlign: 'left', cursor: 'pointer',
                             transition: 'all 0.15s ease',
@@ -312,7 +312,7 @@ export default function AssistantChat() {
                 <div style={{
                   display: 'flex', alignItems: 'flex-end', gap: 8,
                   background: 'var(--input-bg)',
-                  border: '1px solid var(--border)',
+                  borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border)',
                   borderRadius: 11, padding: '10px 12px',
                   transition: 'border-color 0.15s ease',
                 }}
