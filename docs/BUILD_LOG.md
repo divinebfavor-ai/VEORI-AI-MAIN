@@ -706,6 +706,80 @@ A single month of entries inside a 12-month window was annualised by 12, inventi
 eleven months that never happened (a new property showed a negative yearly cash flow).
 Figures now scale by the months actually recorded, and the card says how many.
 
+## Veori Ads — market pre-flight and creative intelligence (2026-09-18)
+
+The whole system is built on one fact established before any code: **not a single
+external advertising data source is connected**. No Google Ads developer token, no
+Trends key, no Meta Ad Library token, no Ads Transparency access, no BatchData or
+PropStream key, no MLS feed, no image generator. So none of them is pretended into
+existence. `backend/src/ads/connectors/index.js` declares each one, the env vars it
+would need, why it is missing and **what the platform does without it**, and those
+gaps are written onto every brief.
+
+### The gate
+`preflight.requireBrief()` is the only way into the ads system, and there is no flag
+that turns it off. It refuses when there is no live brief for the market, when the
+brief has expired (14 days), and when the market had too little history to score.
+Market facts live in the brief and nowhere else; the brief carries an explicit list
+of what **no agent may state as fact** (search volume, CPC, competitor counts, days
+on market, any demographic figure, any cost presented as what this operator will pay).
+
+### The market score
+Counted from the operator's own leads and deals across five components:
+sellers with a reason to move (30), equity to work with (20), does this market convert
+for you (25), how crowded the feed is (15), how fast a lead becomes a deal (10).
+Competitive density can never be measured from inside Veori, so it is **excluded and
+its weight renormalised**, never guessed. Below 20 leads, no score at all. And below
+55 points of measured weight — or with no behavioural component — no score either:
+the two inventory ratios alone describe the operator's own list, not the market, and
+a hand-picked list of 44 leads scores 100 on both. Angles are ranked on counted
+evidence; an angle with none is **named as having none** rather than ranked.
+
+### The creative
+Seven psychological drivers, ten situations, seven hook shapes, six image formats,
+a fixed do-not-use list of fifteen industry phrases each carrying what to say instead.
+Copy is composed from approved fragments and figures taken from records — **no
+language model writes ad copy**, so nothing can appear that was not written and
+reviewed in advance. A proof point needs three real closings in that market or the ad
+describes the process instead. Every line passes a fair-housing screen (42 U.S.C.
+3604(c)) and a claims screen that blocks guarantees, superlatives, foreclosure-rescue
+language and anything shaped like a testimonial — **Veori never writes one**.
+
+Each package ships the image brief (subject, composition, lighting, palette, overlay,
+what must not appear, four aspect ratios, alt text), a five-part 45-second video
+script, an organic companion, the compliance checklist and the cost expectation
+labelled BENCHMARKED, ESTIMATED or UNKNOWN — **never a guarantee**.
+
+### Non-duplication
+The operator's own last 180 days, plus the combination fingerprints running in that
+market across the platform. Only four enumerated fields cross the tenant boundary:
+no copy, no identity, no per-operator figure. Differentiation is scored 0-100 with the
+arithmetic shown and blocks below 40. A creative cannot run again within 90 days of
+first being served.
+
+### Learning
+Cross-operator results carry a one-way HMAC contributor hash, so a figure is only
+labelled BENCHMARKED with ten results from three distinct operators, and a single
+operator is **never** reported back to the network. Recommendation weight shifts
+toward the operator as their own results accumulate, to a permanent ceiling of 80% —
+the network floor stops one workspace's luck becoming a rule.
+
+New tables: `operator_ad_profile`, `market_preflight_brief`, `ad_campaigns`,
+`creative_briefs`, `ad_creatives`, `creative_performance_learnings` (+ `contributor_hash`),
+`operator_learning_model`. All RLS-enabled. `/ads` in the UI. 41/41 on production
+including cross-workspace isolation; 220 tests pass.
+
+### Found while verifying
+- A refusal for lack of evidence answered **400** with the code buried in the body.
+  Those are refusals, not malformed requests, and now answer 409.
+- The browser showed **100/100 opportunity beside 27/100 confidence** — both measured
+  components were inventory ratios. Hence the measured-weight floor above. Tests had
+  not caught it; reading the page did.
+- Three templates dropped a mid-sentence fragment at the start of a sentence
+  (*"...closing. the empty house is the kind we buy."*), and the driver rationale
+  lowercased a two-sentence definition. One `cap()` helper, and a test that walks every
+  angle and driver and fails on any sentence starting in lower case.
+
 ---
 
 *End of build log. If you add work, append to §3-style session notes and the

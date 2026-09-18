@@ -128,7 +128,7 @@ function imageBrief({ angleId, driverId, format, hook, market, operatorName }) {
   const d = driverOf(driverId);
   return {
     format: f.id, format_name: f.name, why_this_format: f.use,
-    subject: `${c.subject}, shown as an ordinary thing rather than a problem.`,
+    subject: `${cap(c.subject)}, shown as an ordinary thing rather than a problem.`,
     composition: 'Single subject, off-centre, plenty of empty space for the overlay. Eye level, not drone or wide-angle. It must look photographed, not rendered.',
     lighting: 'Flat daylight, overcast. No golden hour, no dramatic shadow. Drama reads as an advertisement.',
     palette: 'Muted and true to life. No saturated brand colour bars, no gradients.',

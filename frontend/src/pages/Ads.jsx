@@ -375,9 +375,10 @@ export default function Ads() {
         <>
           <div style={card}>
             <div style={label}>Where recommendations come from</div>
-            <div style={{ display: 'flex', gap: 14, marginTop: 8, alignItems: 'baseline' }}>
-              <Score value={learning.blend.own_weight} caption="your own results" />
-              <Score value={learning.blend.network_weight} caption="the network" />
+            {/* A split, not a score: colouring these would say one side is better. */}
+            <div style={{ display: 'flex', gap: 20, marginTop: 8, alignItems: 'baseline' }}>
+              <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)' }}>{learning.blend.own_weight}%<span style={{ fontSize: 12, fontWeight: 400, color: 'var(--t3)', marginLeft: 6 }}>your own results</span></span>
+              <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)' }}>{learning.blend.network_weight}%<span style={{ fontSize: 12, fontWeight: 400, color: 'var(--t3)', marginLeft: 6 }}>the network</span></span>
             </div>
             <p style={{ ...muted, marginTop: 8 }}>{learning.blend.explanation} {learning.blend.why_not_all_own}</p>
           </div>
